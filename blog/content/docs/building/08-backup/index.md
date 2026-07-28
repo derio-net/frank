@@ -14,7 +14,7 @@ last_updated: 2026-07-15
 
 A cluster without backups is a disaster waiting to happen. But the scope depends on what you already have in source control.
 
-Frank is fully GitOps-managed. If the cluster evaporates tonight, ArgoCD restores every Deployment, Service, ConfigMap, and StorageClass in under ten minutes. The one thing it cannot restore is the *contents* of PersistentVolumes: the VictoriaMetrics time-series, Grafana dashboards, application state. Layer 8 protects that data.
+Frank is fully GitOps-managed. If the cluster evaporates tonight, ArgoCD restores every Deployment, Service, ConfigMap, and StorageClass in under ten minutes. The one thing it cannot restore is the *contents* of PersistentVolumes: the VictoriaMetrics time-series, Grafana dashboards, application state. Layer 9 protects that data.
 
 But three Longhorn 1.11 bugs and limitations turned what should have been a simple BackupTarget + RecurringJob config into a week of workarounds. {{< abbr "SOPS" >}}-encrypted secrets cannot live in ArgoCD manifest paths. RecurringJobs have no `backupTargetName` field — you cannot route jobs to specific targets. And the {{< abbr "NFS" >}} backup target is broken by a mount-path formatting bug that will not be fixed until Longhorn 1.13.
 
@@ -178,11 +178,65 @@ Every volume in the `default` group gets:
 - Daily backup to R2 at 02:00, 7 recovery points (one week)
 - Weekly backup to R2 on Sunday at 03:00, 4 recovery points (one month)
 
-| Scenario | Recovery path | {{< abbr "RTO" >}} |
+| Scenario | Recovery path | Estimated {{< abbr "RTO" >}} |
 |----------|--------------|-----|
 | Volume corruption | Longhorn UI → restore from latest daily | ~10 min |
 | Node failure | Longhorn replicas absorb it | 0 |
 | Full cluster loss | ArgoCD re-applies resources, restore PVCs from R2 | ~30–60 min |
+
+Those figures are estimates, and I want to be precise about what kind. The node-failure row is measured: replicas absorb node loss here regularly and it costs nothing. The other two are arithmetic on volume sizes and R2 throughput. **No restore drill has been run on this cluster.** Nobody has timed an operator who has never done it before enumerating the bootstrap secrets, applying them in the right order, waiting for Longhorn to re-attach, and sequencing workload scale-up around `strategy: Recreate`. Until that happens, treat the bottom row as a guess with a plausible shape rather than a number you could plan around.
+
+## Verify a backup actually ran
+
+Three commands, innermost-out. First, is the target reachable at all:
+
+```console
+$ kubectl get backuptargets.longhorn.io -n longhorn-system -o wide
+NAME      URL                                 CREDENTIAL           LASTBACKUPAT   AVAILABLE   LASTSYNCEDAT
+default   s3://frank-longhorn-backups@auto/   longhorn-r2-secret   5m0s           true        2026-07-28T21:20:30Z
+```
+
+`AVAILABLE true` with a `LASTSYNCEDAT` from minutes ago is what healthy looks like. If the R2 credential expires or the bucket policy changes, this flips to `false` and stays there quietly. Longhorn does not stop working, it just stops backing up.
+
+Second, are the schedules still there:
+
+```console
+$ kubectl get recurringjobs.longhorn.io -n longhorn-system
+NAME        GROUPS        TASK     CRON        RETAIN   CONCURRENCY   AGE
+daily-nas   ["default"]   backup   0 2 * * *   7        2             142d
+weekly-r2   ["default"]   backup   0 3 * * 0   4        1             142d
+```
+
+Both target `["default"]`, which is R2 for both, for the naming reasons above.
+
+Third — and this is the one that matters — did a specific volume actually get backed up? You need the PV name, not the PVC name, and the label is `backup-volume`:
+
+```console
+$ V=$(kubectl -n monitoring get pvc victoria-metrics-grafana -o jsonpath='{.spec.volumeName}')
+$ kubectl get backups.longhorn.io -n longhorn-system \
+    -l backup-volume=$V --sort-by=.metadata.creationTimestamp | tail -6
+backup-6f4c3a90247e4609   daily-na-a7909f46-…   922746880   2026-07-24T02:22:22Z   default   Completed   2026-07-24T02:23:45Z
+backup-e87d156090db4bdf   daily-na-506b7f8a-…   922746880   2026-07-25T02:22:32Z   default   Completed   2026-07-25T02:24:38Z
+backup-ed084a6562e34dc9   daily-na-6ad015a4-…   922746880   2026-07-26T02:32:57Z   default   Completed   2026-07-26T02:34:24Z
+backup-084c177a7b5d4179   weekly-r-cbcc92bd-…   922746880   2026-07-26T03:27:11Z   default   Completed   2026-07-26T03:27:30Z
+backup-16248512e0754f47   daily-na-58d2d3d8-…   922746880   2026-07-27T02:14:19Z   default   Completed   2026-07-27T02:15:43Z
+backup-b9d5927a894d4fa6   daily-na-c8d28c1c-…   922746880   2026-07-28T02:50:50Z   default   Completed   2026-07-28T02:51:54Z
+```
+
+One per day, a weekly on Sunday, all `Completed`. The same view exists in the UI under Backup and Restore, which is also where the restore button lives:
+
+![Longhorn UI backup volume list showing per-PVC backup sizes, target, and last backup time](longhorn-backups-list.png)
+
+A warning about that third command, because it cost me time. Longhorn does have a `longhornvolume` label, and it is on `replicas.longhorn.io` and `engines.longhorn.io`, so it is the label you reach for by habit. On a `Backup` object it simply does not exist:
+
+```console
+$ kubectl get backups.longhorn.io -n longhorn-system -l longhornvolume=$V
+No resources found in longhorn-system namespace.
+```
+
+That is not "no backups". That is a typo in a selector, reported in the exact words you would use to describe a catastrophe. A verification command that returns empty on the wrong label and empty on genuine data loss cannot tell you which one you are looking at. Check the label spelling against `kubectl get backups.longhorn.io -o json | jq '.items[0].metadata.labels'` before you believe an empty result.
+
+And the limit of all three, stated plainly: they prove a backup *ran*. They do not prove it *restores*. Nothing in this repo proves that, including the alert. `layer-9-backup-stale` fires when `kube_cronjob_status_last_successful_time` for `daily-nas` goes past 48 hours or `weekly-r2` past 10 days, and its own manifest admits the substitution: the per-volume backup-age metrics it was designed around are not scraped, so it watches the scheduler instead of the backup. It will page if the schedule dies. It will not notice a backup that completes every night and cannot be read back. That gap is the honest state of Layer 9, and it closes on the day someone runs the drill, not before.
 
 ## Missteps
 

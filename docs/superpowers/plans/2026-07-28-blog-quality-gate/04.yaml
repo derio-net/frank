@@ -13,7 +13,7 @@ tasks:
   steps:
   - id: P4.T1.S1
     text: |
-      Gather file:line-cited evidence per post, following the protocol in `blog-craft`'s `agents/post-researcher.md` — do it INLINE. (Reworded during execution: `fr-phase-executor` has no Agent tool and cannot dispatch a subagent; naming the mechanism invited hollow compliance. Name the outcome.) All three are live-service layers with existing operating companions — check `blog/content/docs/operating/` first: the companion post may already contain the verification commands, in which case the building post's section should point at it rather than duplicate it (duplicated runbooks drift).
+      **ORCHESTRATOR STEP — not the phase executor's.** The orchestrator dispatches `blog-craft:post-researcher` per post with a mechanical brief (repo path, post path, research question; nothing about expected findings or how the section should read) and hands each evidence brief down inside the phase dispatch. The executor has no Agent tool and must not be told to dispatch; equally it must not "research inline", which forfeits the blindness the agent exists for. See super-fr#428. A matching orchestrator-run `blog-craft:cold-reader` pass follows the writing (P4.T2.S3). All three are live-service layers with existing operating companions — check `blog/content/docs/operating/` first: the companion post may already contain the verification commands, in which case the building post's section should point at it rather than duplicate it (duplicated runbooks drift).
   - id: P4.T1.S2
     text: |
       Run the candidates. `10-local-inference` and `36-metrics-api` touch GPU-timeshared services — a command that only works when the GPU node is up should say so, rather than appearing to be unconditional.

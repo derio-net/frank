@@ -12,7 +12,7 @@ tasks:
   steps:
   - id: P5.T1.S1
     text: |
-      This post needs both an actionable section and a mermaid diagram (its diataxis mode is how-to/tutorial, which the gate requires to carry one). Gather file:line-cited evidence INLINE, following the protocol in `blog-craft`'s `agents/post-researcher.md` (reworded during execution: the executor has no Agent tool and cannot dispatch a subagent), including the metrics-server / `kubectl top` verification path and the `--kubelet-insecure-tls` gotcha already recorded in `agents/rules/frank-gotchas.md`.
+      This post needs both an actionable section and a mermaid diagram (its diataxis mode is how-to/tutorial, which the gate requires to carry one). Evidence is gathered by an **orchestrator-dispatched** `blog-craft:post-researcher` (mechanical brief, no expected findings) and handed down — not researched inline by the executor, which holds the phase brief and so is not blind. A matching orchestrator-run `blog-craft:cold-reader` pass follows the writing. See super-fr#428. The brief must cover the metrics-server / `kubectl top` verification path and the `--kubelet-insecure-tls` gotcha already recorded in `agents/rules/frank-gotchas.md`.
   - id: P5.T1.S2
     text: |
       Add the section plus a `flowchart` showing scrape path: kubelet -> metrics-server -> metrics.k8s.io -> `kubectl top` / HPA. Confirm the mermaid renders (`cd blog && hugo --buildDrafts`) and the gate reports zero findings for the post.

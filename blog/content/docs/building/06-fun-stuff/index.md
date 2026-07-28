@@ -8,8 +8,9 @@ tags: ["openrgb", "hardware"]
 summary: "The most over-engineered RGB setup — controlling ARGB case fans from a Kubernetes DaemonSet via USB HID."
 weight: 7
 reader_goal: "Understand how to expose USB HID devices to Kubernetes pods and why you should check firmware versions before spending a week on HID feature reports"
-diataxis: tutorial
-last_updated: 2026-07-15
+diataxis: explanation
+quality_exempt: "Novelty layer with no operational surface. The LEDs are firmware write-locked, so there is nothing to verify, restart or recover: no alert rule references OpenRGB, docs/runbooks/manual-operations.yaml has no entry for it, and scripts/ has no test guarding it. A verification section here would be manufactured rather than found."
+last_updated: 2026-07-28
 ---
 
 Every serious infrastructure project needs a completely unnecessary feature. This was ours: controlling the ARGB LED fans on gpu-1 from a Kubernetes DaemonSet, managed by ArgoCD, triggered by a git push. GitOps for RGB.
@@ -206,7 +207,6 @@ spec:
     namespace: openrgb
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
 ```
 
@@ -219,6 +219,8 @@ To control six case fans we: ruled out I2C, ran a discovery pod, wrote a DaemonS
 The fans are rainbow. They were rainbow when we started. They are rainbow now.
 
 The pod requests 10 millicores of CPU and 32Mi of memory. It is Synced/Healthy. It runs `sleep infinity` approximately full-time. The LEDs ignore it completely.
+
+So there is no verification section at the end of this one, and that is deliberate rather than an omission. Every other layer here closes with commands you can run when something looks wrong. This layer has no alert rule watching it, no entry in the manual-operations runbook, and no test guarding it, because there is no failure it could have that anyone would need to catch. The write lock does not intermittently fail. Changing the ConfigMap is inert by design, and a section pretending otherwise would be a section I made up.
 
 But we now know more about HID feature reports, IT5701 firmware versioning, and Talos udev rule syntax than any reasonable person should. And when KubeVirt arrives and we finally capture that Windows USB traffic, we will have the best-documented RGB setup in any homelab that has never successfully changed an LED color on demand.
 

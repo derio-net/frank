@@ -86,3 +86,60 @@ Confirmed live on 2026-07-28: 7 nodes Ready, Talos v1.12.6, k8s v1.35.3, 148d up
 Second-order trap, hit twice while filing this very entry: the fr pipeline guard scans the **whole** command string, not just its leading segment. A journal body that quotes the base-clone path, or that contains an inner `&&` after a `cd`, is itself rejected as a base-repo command. The fix is to keep the example abstract (as above) and, if the body needs literal shell, write it to a scratch file and pass `--body "$(cat …)"` so the guard never sees it.
 
 This matters for Phases 3-5, which need real output for nine more posts. **Live cluster evidence is available — do not settle for repo-only commands on the assumption the cluster is unreachable.**
+
+<!-- fr:journal kind=finding scope=plan id=4eeefd7d47f9 created=2026-07-28T23:35:41 phase=3 state=open -->
+### 4eeefd7d47f9 · finding [open] · A handed-down candidate command was wrong in the most dangerous way: -l longhornvolume returns 'No resources found' on Backup objects (phase 3)
+
+The `-l longhornvolume=<vol>` selector handed down as a candidate command for 08-backup returns `No resources found in longhorn-system namespace.` — not because the volume has no backups, but because that label does not exist on a `Backup` object. The real label is `backup-volume`. Measured both, same volume, same moment:
+
+    -l longhornvolume=pvc-64409163-...   -> No resources found in longhorn-system namespace.
+    -l backup-volume=pvc-64409163-...    -> 6 rows, all Completed, one per day + Sunday weekly
+
+The trap is not a typo, it is a plausible one. `longhornvolume` IS a genuine Longhorn label — confirmed live on `replicas.longhorn.io` and `engines.longhorn.io`, whose label sets are `{longhorn.io/backing-image, longhorndiskuuid, longhornnode, longhornvolume}` and `{longhornnode, longhornvolume}`. So the habit is learned correctly on two resource kinds and then silently wrong on the third.
+
+This is exactly the failure class the plan exists to prevent, one level down from where it was expected. The gate's concern is that a heading can pass with nothing under it. This is a heading with a command under it, where the command runs, exits 0, and reports a catastrophe in the same words it uses for a wrong selector. A reader verifying backups at 2am would have concluded their data was gone.
+
+Two consequences worth carrying into Phases 4 and 5:
+
+1. Handed-down candidate commands must be RUN, not pasted. This one came in a brief as a verified-looking citation and was wrong. Running it took ten seconds.
+2. A verification command that returns empty on both "healthy but mis-queried" and "genuinely broken" is not a verification command. The published section now shows both invocations side by side and names the ambiguity, because the useful teaching artefact here is the trap, not the working selector.
+
+<!-- fr:journal kind=discovery scope=plan id=f134ca1c2616 created=2026-07-28T23:36:14 phase=3 -->
+### f134ca1c2616 · discovery · quality_exempt drops the post from the LINT layer too, not just the gate — it is a whole-post opt-out, unlike diagram_exempt (phase 3)
+
+`quality_exempt` is a WHOLE-POST opt-out, not a per-check waiver. From the validator's driver loop:
+
+    if fm.get("quality_exempt"):
+        skipped += 1
+        continue
+
+The `continue` happens before `validate_post` AND before `lint_post`, so an exempted post leaves the gate and the AI-tells lint at the same time. Contrast `diagram_exempt`, which waives exactly one check and leaves the rest enforced.
+
+Measured on 06-fun-stuff: before, 1 gate finding + 2 LINT WARN (em-dash 12.8/1000, no what-transfers). After adding `quality_exempt`, the validator reports `0 post(s) checked, 1 skipped` and prints nothing at all for it. The em-dash warning did not improve; it stopped being computed.
+
+This is the right call for 06-fun-stuff — the layer genuinely has no operational surface, and the alternative was a manufactured runbook — but the cost is not zero and is worth stating rather than discovering later:
+
+1. Every future ai-vocabulary FAIL in that post is now invisible. `ai-vocabulary` is a FAIL-severity check; an exempt post cannot fail it.
+2. Phase 6's planned tripwire (fenced command block required under every actionable heading) will also skip it, if the tripwire is built on this validator's post-selection logic. Worth checking when Phase 6 is written: the tripwire should probably scan headings independently of `quality_exempt`, since the exemption is about not HAVING an actionable section, not about being allowed a hollow one.
+3. The corpus arithmetic changes shape. An exempted post leaves the denominator, so "N findings across M posts" silently measures a smaller corpus than it did before. Phase 6 should quote checked/skipped alongside the finding count.
+
+Upstream shape, if anyone wants it: an `actionable_exempt: <reason>` per-check waiver (mirroring `diagram_exempt`) would express "this layer has nothing to verify" without also buying an exit from the lint layer. Not filed — the total opt-out is defensible for a novelty layer, and blog-craft may reasonably want exemptions to be expensive.
+
+<!-- fr:journal kind=discovery scope=plan id=d780977882f5 created=2026-07-28T23:36:56 phase=3 -->
+### d780977882f5 · discovery · Adding actionable sections surfaced 6 factual errors the gate cannot see — all true-when-written, all invalidated by later repo work (phase 3)
+
+The blind researchers were dispatched to answer "what would a reader run, and does the repo contradict the post?". The second half turned out to be the higher-yield half. Adding an actionable section requires reading the surrounding prose closely enough to write in its voice, and that reading is what surfaces the drift. Six corrections came out of four posts, none of which any gate can see:
+
+- 05-gitops: `longhorn v1.11.0` in the App-of-Apps tree; the pin has been `1.11.2` since the instance-manager heap-leak fix. Checked the two sibling versions in the same tree (cilium 1.17.0, gpu-operator v25.10.1) — both still correct, so exactly one number had gone stale.
+- 05-gitops: the "typical Application" snippet carried `prune: false` and a `group: ""` that the real `apps/root/templates/cilium.yaml` does not have. The post's own Missteps table narrates removing that line, four screens below the snippet that still shows it.
+- 05-gitops: the Missteps row explaining WHY it was removed was also wrong — it said pruning was "safe and desired" for some apps. Commit 62ca0e7c says the opposite: ArgoCD normalises `prune: false` to absent, so the explicit line made root permanently OutOfSync. Behaviour did not change; only the drift went away.
+- 05-gitops: "Dex disabled — no SSO yet. Authentik integration planned." Live `argocd-cm` has had an Authentik `oidc.config` since Layer 13. A reader would conclude ArgoCD is unauthenticated.
+- 08-backup: "Layer 8 protects that data" — it is Layer 9. Corroborated by `docs/layers.yaml` (obs=8, backup=9), the alert rule's own header, `blog/data/roadmap.yaml`, and the post's own `weight: 9`.
+- 08-backup: RTO figures presented as fact when the paper dossier for this very layer names the absence of a measured RTO as one of its gaps. No restore drill has been run here.
+
+The pattern: all six were TRUE WHEN WRITTEN and were invalidated by later work in the same repo. Nothing notices. The blog has no equivalent of `selfHeal`, and a version number in prose carries no tracking annotation.
+
+Two things follow for the remaining phases:
+
+1. Budget for corrections, not just additions. The phase brief framed this as "add a section"; roughly half the work was repair. Phases 4 and 5 cover live-service layers (inference, auth, metrics-api) that have moved considerably more than storage has, so expect a higher rate, not lower.
+2. Verify the citations you are handed. Two of the four researcher briefs contained a claim that did not survive checking: 03-storage's "no manifest defines longhorn-static" (it exists live, generated by Longhorn from its own `default-longhorn-static-storage-class` setting — the post's sample was correct and needed no fix), and 08-backup's `longhornvolume` selector (filed separately as a finding). Read-only researchers cannot run commands, so their NEGATIVE claims are the weakest part of a brief and the most tempting to act on.

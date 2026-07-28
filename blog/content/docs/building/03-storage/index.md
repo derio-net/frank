@@ -271,6 +271,57 @@ Reachable at `http://192.168.55.201`.
 
 ![Longhorn dashboard showing storage capacity, node count, and volume health](longhorn-dashboard.png)
 
+## Verify the disks, and check headroom before you expand
+
+Two things above are easy to get wrong quietly. The `gpu-local` tag is applied by hand in the Longhorn UI, so it is the one step no amount of GitOps will replay for you. And Longhorn schedules replicas against each replica's *declared* size rather than the bytes actually written, so a disk can be half empty and still refuse to grow a volume. One query answers both:
+
+```console
+$ kubectl -n longhorn-system get nodes.longhorn.io -o json | jq -r '
+    ["NODE","DISK","TAGS","SCHEDULED_GiB","CEILING_GiB"],
+    (.items[] | . as $n | .spec.disks | to_entries[] |
+      [ $n.metadata.name, .key[0:24],
+        (.value.tags | join(",") | if . == "" then "-" else . end),
+        (($n.status.diskStatus[.key].storageScheduled // 0) / 1073741824 | floor),
+        ((($n.status.diskStatus[.key].storageMaximum // 0) - .value.storageReserved) / 1073741824 | floor) ])
+    | @tsv' | column -t
+NODE     DISK                      TAGS       SCHEDULED_GiB  CEILING_GiB
+gpu-1    default-disk-10308000000  -          0              650
+gpu-1    gpu-sda-4000000000000     gpu-local  529            3724
+gpu-1    gpu-sdb-4000000000000     gpu-local  588            3724
+mini-1   default-disk-10308000000  -          665            650
+mini-2   default-disk-10308000000  -          640            650
+mini-3   default-disk-10308000000  -          653            650
+pc-1     default-disk-08240000000  -          60             40
+raspi-1  default-disk-b3060000000  -          0              19
+raspi-2  default-disk-b3060000000  -          0              19
+```
+
+The `gpu-local` tag sits on exactly the two 4TB SSDs and nowhere else, which is what `diskSelector: "gpu-local"` needs in order to resolve. If that column comes back empty everywhere, the StorageClass still exists and still looks fine; the failure surfaces much later as a PVC stuck in `Pending` with no obvious cause.
+
+Now read the numbers, because mini-1 looks broken and is not. `SCHEDULED_GiB` is 665 against a 650 nominal ceiling. The ceiling Longhorn actually enforces is that figure multiplied by the over-provisioning percentage:
+
+```console
+$ kubectl -n longhorn-system get settings.longhorn.io storage-over-provisioning-percentage -o jsonpath='{.value}'
+150
+```
+
+So mini-1's real limit is 975 GiB and it is sitting at 68% of it. Healthy means every disk comfortably under its multiplied figure, and every node still willing to take a replica:
+
+```console
+$ kubectl -n longhorn-system get nodes.longhorn.io \
+    -o custom-columns=NODE:.metadata.name,SCHEDULABLE:'.status.conditions[?(@.type=="Schedulable")].status'
+NODE      SCHEDULABLE
+gpu-1     True
+mini-1    True
+mini-2    True
+mini-3    True
+pc-1      True
+raspi-1   True
+raspi-2   True
+```
+
+Run this before you expand a PVC, not after. If a node is over its multiplied ceiling, Longhorn declines the expansion while the API server happily accepts your edit: the PVC stays `Bound`, ArgoCD stays Synced, and `status.capacity.storage` simply never changes. There is no error to go and find. The only evidence is the capacity that did not move.
+
 ## What We Have Now
 
 - Distributed 3-replica block storage across all 7 nodes

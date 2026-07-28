@@ -95,7 +95,7 @@ root (Application)
   |     source: apps/cilium/manifests/   (L2 pool, L2 policy, Hubble UI LB)
   |
   +-- longhorn (Application)
-  |     upstream: charts.longhorn.io / longhorn v1.11.0
+  |     upstream: charts.longhorn.io / longhorn v1.11.2
   |     values:   apps/longhorn/values.yaml
   |
   +-- longhorn-extras (Application)
@@ -177,14 +177,12 @@ spec:
     namespace: kube-system
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
   ignoreDifferences:
-    - group: ""
-      kind: Secret
+    - kind: Secret
       jsonPointers:
         - /data
 ```
@@ -195,7 +193,7 @@ Key decisions in every template:
 
 - **`ServerSideApply=true`** — critical for adoption. Uses server-side apply semantics that merge fields rather than replacing entire objects. Prevents ArgoCD from blowing away fields set by other controllers.
 - **`selfHeal: true`** — if someone manually edits a resource, ArgoCD reverts it within minutes. Git is the source of truth.
-- **`prune: false`** — prevents ArgoCD from deleting resources that disappear from the chart. Cautious approach for infrastructure.
+- **No `prune` line at all** — pruning stays off, which is the schema default. Writing `prune: false` explicitly says the same thing and then causes a problem: ArgoCD normalises it back to absent, the rendered manifest and the live object disagree forever, and the parent Application never leaves `OutOfSync`. Say nothing and you get the same behaviour without the drift. There is a note in `apps/root/values.yaml` explaining this, because it is not the kind of thing you rediscover cheaply.
 - **`ignoreDifferences` on Secrets** — prevents ArgoCD from flagging Cilium's auto-generated secrets as out of sync.
 
 ## Adopting Existing Workloads
@@ -272,7 +270,52 @@ configs:
 - **`--insecure`** — Traefik handles {{< abbr "TLS" >}} termination externally.
 - **Cilium LoadBalancer IP** — pins ArgoCD to `192.168.55.200`.
 - **Node affinity to `zone: core`** — keeps ArgoCD on the minis, not the GPU node or Raspberry Pis.
-- **Dex disabled** — no {{< abbr "SSO" >}} yet. Authentik integration planned.
+- **Dex disabled** — {{< abbr "SSO" >}} arrived later and does not need it. Layer 13 wired ArgoCD straight to Authentik through `configs.cm.oidc.config`, so the login page hands off to `auth.frank.derio.net` and Dex never enters the picture.
+
+## Verify the loop, and read the sync status honestly
+
+The App-of-Apps either works or it does not, and the check is a single count. Start there:
+
+```console
+$ kubectl get applications -n argocd --no-headers | wc -l
+      69
+```
+
+Sixty-nine: the root Application, plus the sixty-eight it templates. You can prove that split rather than take my word for it, because every child carries a tracking annotation naming its parent:
+
+```console
+$ kubectl -n argocd get applications -o json | jq -r \
+    '[.items[] | select(.metadata.annotations."argocd.argoproj.io/tracking-id" // "" | startswith("root:"))] | length'
+68
+```
+
+If that number collapses, root has stopped templating and nothing below it is being reconciled any more.
+
+Now the part where I have to be honest with you, because the aggregate is more interesting than the count:
+
+```console
+$ kubectl get applications -n argocd \
+    -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status \
+    --no-headers | awk '{print $2, $3}' | sort | uniq -c | sort -rn
+  62 Synced Healthy
+   5 OutOfSync Healthy
+   1 Synced Suspended
+   1 OutOfSync Missing
+```
+
+Sixty-two of sixty-nine green, and I am not going to pretend the other seven are a rounding error. `OutOfSync Healthy` means the workload is running fine while git and the cluster disagree about something; `Synced Suspended` is a deliberately scaled-down app; `OutOfSync Missing` is an app whose resources are not there at all. All three are states you reach on purpose and then forget about. A cluster where this command has printed one line for months is a cluster nobody is changing.
+
+What you must not do is treat `Synced` as proof a change landed. It means the repo-server's view of the manifest matches the live object, and that view can be stale. I have watched an Application report `Synced/Healthy` while the live ConfigMap was missing a key that `helm template` renders. Assert on the artefact you changed, not on the status column above it.
+
+There is one failure that does *not* show up as a per-app problem, and it is the worst one, so check it separately:
+
+```console
+$ find . -type l -lname '*../../..*' -not -path './.git/*'
+$ kubectl -n argocd get applications -o json \
+    | jq -r '.items[] | select(.status.conditions[]? | .type=="ComparisonError") | .metadata.name'
+```
+
+Both silent, which is the healthy answer. A single symlink that escapes the repo root raises `ComparisonError` on *every* Application at once and drops them all to sync status `Unknown`, because the repo-server gives up on rendering the tree rather than on one file in it. That happened here on 2026-05-13: a `.claude/skills` symlink with one `..` too many took the whole GitOps loop down for about fourteen hours before anyone noticed, because a cluster that has stopped reconciling looks exactly like a cluster with nothing to do. Run the pair after any commit that adds a symlink.
 
 ## What We Have Now
 
@@ -289,7 +332,7 @@ The two-layer split is clean: Omni owns the machines, ArgoCD owns the workloads.
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
 | **ArgoCD scheduled on gpu-1** — the GPU node's taint toleration was missing, so ArgoCD server pods landed on the wrong node for weeks | Default scheduling placed ArgoCD on any available node; gpu-1 carried a `NoSchedule` taint but ArgoCD had no node affinity to avoid it | Added hard node affinity to `zone: core`, pinning ArgoCD to the mini {{< abbr "NUC" "NUCs" >}} | `b60d844c` |
-| **50+ Application templates had explicit `prune: false`** — a cargo-cult default copy-pasted across every template | `prune: false` was set as a blanket default even for applications where pruning is safe and desired | Dropped `prune: false` from templates where auto-pruning is acceptable | `0bf146ac`, `62ca0e7c` |
+| **50+ Application templates had explicit `prune: false`** — and the root Application sat permanently `OutOfSync` because of it | ArgoCD normalises `prune: false` to absent, so the rendered child manifest never matched the live object. The value was right; writing it down was the bug | Canaried the deletion on one template (`argo-rollouts`), confirmed root dropped it from the OutOfSync list, then removed the line from the remaining 50. Pruning behaviour did not change: absent means false | `0bf146ac`, `62ca0e7c` |
 | **Namespace ownership conflicts with Sympozium extras** — two ArgoCD Applications claimed the same Namespace resource, causing sync fights | Companion Applications (extras) sometimes overlapped with parent Applications on Namespace ownership | Added explicit `namespace: {{ .Release.Namespace }}` scoping or split contested namespaces into dedicated Applications | `edfef589` |
 | **`ServerSideApply` not set initially** — early templates used client-side apply, which hit the 256KB annotation size limit on the large victoria-metrics chart | Client-side apply stores the entire last-applied-configuration in an annotation; large Helm charts exceed the annotation size limit | Switched all infrastructure templates to `ServerSideApply=true` | `83e2909f` |
 
