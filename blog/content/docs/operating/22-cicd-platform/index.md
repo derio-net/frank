@@ -10,7 +10,7 @@ weight: 23
 reader_goal: "Check CI/CD health, trigger a pipeline run, verify an image signature, and debug a failed webhook delivery."
 diataxis: [how-to, reference]
 last_updated: 2026-07-29
-last_updated_commit: https://github.com/derio-net/frank/commit/78b454d5
+last_updated_commit: https://github.com/derio-net/frank/commit/ad7c94af
 ---
 
 {{< last-updated >}}
