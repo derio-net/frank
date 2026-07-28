@@ -1,0 +1,64 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Quick structural fixes (diataxis value, ai-vocabulary lint)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Fix the invalid diataxis mode on building/01-introduction
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Run the gate on the one post and record the red baseline:
+      `uv run --frozen python blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/building/01-introduction/index.md`.
+      Expect `invalid 'diataxis' value(s) ['explainer']: allowed are ['explanation', 'how-to', 'reference', 'tutorial']`.
+  - id: P1.T1.S2
+    text: |
+      Edit `blog/content/docs/building/01-introduction/index.md` frontmatter: replace the `diataxis` value `explainer` with `explanation`. Do NOT add an alias upstream — `explainer` is a blog-craft *content type*, not a Diataxis mode, and conflating them is what produced the typo. Re-run the command from S1 and confirm the diataxis line is gone (the evidence/actionable findings remain, they are Phase 2).
+- number: 2
+  title: Clear the ai-vocabulary lint failure on operating/22-cicd-platform
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Locate the hit: `rtk proxy grep -n seamless blog/content/docs/operating/22-cicd-platform/index.md`. Read the surrounding sentence — the fix is a rewrite that says what actually happens, not a synonym swap ("seamless" almost always means the sentence never said anything).
+  - id: P1.T2.S2
+    text: |
+      Rewrite the sentence so it names the concrete behaviour. Re-run
+      `uv run --frozen python blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/operating/22-cicd-platform/index.md`
+      and confirm no `LINT FAIL` line. Em-dash / what-transfers WARN lines are expected and are not gating.
+- number: 3
+  title: Confirm the corpus count dropped and nothing else moved
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Run the gate over all posts and confirm the total is now 13 findings across 11 posts (down from 15/11 — two structural findings cleared, the lint FAIL cleared). Command:
+      `uv run --frozen python blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/*/*/index.md`.
+      Also run `uv run --frozen pytest` and confirm 354 passed, 1 xfailed.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 3
+  title: building/03-storage, 05-gitops, 06-fun-stuff, 08-backup — actionable sections
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gather evidence for the four posts
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Dispatch `blog-craft:post-researcher` per post. These four already pass the evidence check, so they HAVE command blocks — the research question is narrower: what would a reader do to verify or recover this layer today? Prefer commands already proven elsewhere in the repo (`docs/runbooks/`, `agents/rules/frank-commands.md`) over inventing new ones.
+  - id: P3.T1.S2
+    text: |
+      Run each candidate command and capture output. For 06-fun-stuff (OpenRGB), check whether the layer has genuine day-to-day operations at all — if it does not, `quality_exempt: novelty layer, no operational surface` is the honest answer and is explicitly allowed. Decide per post, and say which you chose and why.
+- number: 2
+  title: Write the sections
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Add a real actionable section to each of the four (or the exemption decided in P3.T1.S2). Each section: one purpose, real commands, real output, and what the reader should see if it is healthy.
+  - id: P3.T2.S2
+    text: |
+      Run the gate over all posts and confirm these four no longer appear. Run `uv run --frozen pytest` and `cd blog && hugo --buildDrafts` clean.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

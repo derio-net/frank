@@ -1,0 +1,50 @@
+schema_version: 2
+phase:
+  number: 4
+  title: building/10-local-inference, 13-unified-auth, 36-metrics-api — actionable
+    sections
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gather evidence for the three posts
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Dispatch `blog-craft:post-researcher` per post. All three are live-service layers with existing operating companions — check `blog/content/docs/operating/` first: the companion post may already contain the verification commands, in which case the building post's section should point at it rather than duplicate it (duplicated runbooks drift).
+  - id: P4.T1.S2
+    text: |
+      Run the candidates. `10-local-inference` and `36-metrics-api` touch GPU-timeshared services — a command that only works when the GPU node is up should say so, rather than appearing to be unconditional.
+- number: 2
+  title: Write the sections
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Add the three sections. Where the operating companion owns the runbook, the building post's section should be a short verify-it-worked block plus a link, not a copy.
+  - id: P4.T2.S2
+    text: |
+      Re-run the gate over all posts; only `building/30-frank-papers` and `operating/29-metrics-api` should remain. `uv run --frozen pytest` green.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

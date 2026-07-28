@@ -1,0 +1,59 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Enable the gate and guard against hollow sections
+  tag: agentic
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add the anti-gaming tripwire
+  steps:
+  - id: P6.T1.S1
+    text: |
+      Write `scripts/tests/test_actionable_sections_carry_commands.py` (RED first). For every `content_type: posts` post, each heading matching blog-craft's `_ACTIONABLE` vocabulary must be followed by at least one fenced code block before the next heading of the same-or-higher level. Rationale in the module docstring: the gate is a heading regex, so it passes a section containing nothing; this raises the floor above "a heading with the right word in it". Include a self-test that the detector can actually fail (a fixture heading with no block must be flagged), mirroring `test_python_toolchain_single_source.py`.
+  - id: P6.T1.S2
+    text: |
+      Run it against the corpus. Every section written in Phases 2-5 must pass. If any fails, the section is hollow — fix the prose, do not relax the guard.
+- number: 2
+  title: Flip quality.enabled and verify CI gates
+  steps:
+  - id: P6.T2.S1
+    text: |
+      Set `quality.enabled: true` in `.blog-craft.yaml` under the existing `quality:` block (which currently holds only `mermaid_syntax: false`). Re-render CI: `uv run --frozen python <blog-craft>/tools/update.py --config .blog-craft.yaml --blog . ` — the dry-run should now plan a MERGE on `.github/workflows/blog-ci.yml` adding the `Validate post quality (educational-writing)` step. Apply it.
+  - id: P6.T2.S2
+    text: |
+      Confirm the rendered workflow carries the new step and that frank's documented CI-superset customizations survived the merge (`scripts/tests/test_blog_ci_at_repo_root.py` must stay green). Run the full local suite and push; the PR's own CI is the real proof that the gate now runs and passes.
+- number: 3
+  title: Record the lesson where it will be found
+  steps:
+  - id: P6.T3.S1
+    text: |
+      Add a one-liner to `agents/rules/frank-gotchas.md` under a Process/practice bullet: a gate reporting a large backlog must be checked before the backlog is worked — blog-craft's `_ACTIONABLE` produced 34 failures of which 23 were its own false negatives, and acting on that output would have meant renaming good prose to satisfy a regex. Point at this spec for the full prose.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
