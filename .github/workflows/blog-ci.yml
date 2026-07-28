@@ -82,8 +82,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install validator deps
-        run: pip install --quiet pyyaml
+      # The validators' deps come from pyproject.toml + uv.lock, not a hand-rolled
+      # list here. Three workflows each carried their own `pip install`, so the
+      # dependency set had three independent copies that nothing compared.
+      # `--frozen` keeps the lock authoritative; putting the synced venv on PATH
+      # leaves every `python3 blog/scripts/...` line below untouched.
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Sync validator deps
+        run: |
+          uv sync --group dev --frozen
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       # Papers: keep data/papers in step with the dossiers, then gate each
       # dossier and every post's frontmatter.

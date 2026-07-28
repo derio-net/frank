@@ -55,8 +55,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install validator deps
-        run: pip install pyyaml
+      # Deps come from pyproject.toml + uv.lock — see the same step in
+      # blog-ci.yml. `--frozen` keeps the lock authoritative; the synced venv on
+      # PATH leaves the `python blog/scripts/...` lines below untouched.
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Sync validator deps
+        run: |
+          uv sync --group dev --frozen
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       # Papers validators now ship from blog-craft into blog/scripts/ (config-driven).
       - name: Check dossier ↔ blog/data/papers sync
