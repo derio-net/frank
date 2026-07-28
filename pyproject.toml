@@ -9,3 +9,23 @@ dependencies = [
     "pyyaml",
     "ruamel.yaml",
 ]
+
+# Dev/test tooling (PEP 735). This repo is not a published package, so a
+# dependency-group is the right home rather than an extra: `uv sync --group dev`
+# installs it, and nothing about it leaks into whatever consumes the scripts.
+#
+# pytest lives HERE and nowhere else, on purpose. It used to be named only in
+# repo-tripwires.yml's `pip install` line, which made the test runner a property
+# of one workflow rather than of the project — so CI could run the tripwires and
+# the devcontainer could not. Guarded by
+# scripts/tests/test_python_toolchain_single_source.py.
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+# Bare `pytest` must collect this repo's tripwires and nothing else. Without an
+# explicit testpaths it walks from the repo root into blog/public and the
+# vendored .venv.
+testpaths = ["scripts/tests"]

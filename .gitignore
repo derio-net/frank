@@ -39,6 +39,13 @@ __pycache__/
 
 # Python venv
 scripts/.venv/
+# The uv-managed project venv, created at the repo root by `uv sync`. uv also
+# writes a `.gitignore` containing `*` INSIDE .venv/, which is why an unignored
+# venv never showed up in `git status` — but that is uv's implementation detail,
+# not a guarantee this repo should depend on for a ~200MB directory.
+.venv/
+# Written by a root-level `pytest` run, which is now the normal invocation.
+.pytest_cache/
 omni/certbot/creds-encrypted.ini
 omni/omni/populate_scripts.bash
 

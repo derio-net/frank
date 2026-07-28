@@ -72,8 +72,22 @@ jobs:
         working-directory: blog
         run: hugo mod get
 
-      - name: Install python deps
-        run: python -m pip install --disable-pip-version-check pytest pyyaml
+      # pyproject.toml + uv.lock are the single source of truth. This step used
+      # to be `pip install pytest pyyaml`, which made the test runner a property
+      # of this workflow rather than of the project: CI could run the tripwires
+      # while the devcontainer — the environment fr-isolation designates for
+      # running checks — could not, and nothing compared the two. `--frozen`
+      # makes the lock authoritative, so editing pyproject without `uv lock`
+      # fails here rather than silently installing something unpinned. Putting
+      # the synced venv on PATH keeps the `pytest` invocation below unchanged.
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Sync python deps
+        run: |
+          uv sync --group dev --frozen
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       # -rfE surfaces failures and errors in the log tail; -rx lists xfails so a
       # declared-but-unfixed guard stays visible rather than silently green.
