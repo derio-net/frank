@@ -8,7 +8,7 @@ tags: ["introduction", "architecture"]
 summary: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building interesting projects on your own hardware."
 weight: 2
 reader_goal: "Decide whether this cluster architecture suits your own homelab goals and map its two-layer management model"
-diataxis: explainer
+diataxis: explanation
 last_updated: 2026-07-15
 ---
 

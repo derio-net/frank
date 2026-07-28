@@ -271,7 +271,7 @@ Operational notes:
 | `HOME=/` works for non-root Tekton task steps | The `git-clone` task writes to HOME, which is `/` — a read-only filesystem for UID 65534. | Set `HOME=/tekton/home` on every step that needs git. |
 | `resources` in Tekton Task YAML is equivalent to `computeResources` | The field was renamed. Using the old name causes `ComparisonError` in ArgoCD because the API normalises it. | Replaced all `resources` blocks with `computeResources`. |
 | Caddy on Hop passes all HTTP headers through to the upstream | Caddy's reverse proxy strips `X-GitHub-Event` unless explicitly configured. GitHub webhooks arrived at the EventListener without event headers. | Added `header_up X-GitHub-Event` to the Caddy relay route. |
-| A cosign key rotation is seamless | Old signatures stay valid with the old public key, but every consumer must know about both keys. If only the new `cosign.pub` is committed, old images fail verification. | Documented the dual-key window in the rotation procedure. |
+| Rotating the cosign key is a one-file swap: commit the new `cosign.pub` and verification keeps working | Old signatures stay valid with the old public key, but every consumer must know about both keys. If only the new `cosign.pub` is committed, old images fail verification. | Documented the dual-key window in the rotation procedure. |
 | The PipelineRun {{< abbr "TTL" >}} GC is a nice-to-have cleanup | Before the GC was implemented, accumulated task pods from finished runs pushed the `kube_pod_status_ready` alert into false-positive territory. | Added the CronJob and rewrote the alert query to use deployment-scoped metrics. |
 
 ## Quick Reference
