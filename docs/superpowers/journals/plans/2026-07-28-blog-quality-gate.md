@@ -33,8 +33,19 @@ After (`explanation`): 2 findings, 2 WARNs — the new one being `no what-transf
 
 Non-gating (WARN, not FAIL) so it does not affect Phase 1's exit, but Phase 2 owns this post's evidence + actionable section and should add the what-transfers closing section in the same pass rather than leaving a WARN it just created. Generalises: any post in the corpus with an invalid `diataxis` value is silently skipping mode-conditional lint checks.
 
-<!-- fr:journal kind=finding scope=plan id=7e2020bb5d9d created=2026-07-28T22:34:14 phase=2 state=open -->
-### 7e2020bb5d9d · finding [open] · The phase executor cannot dispatch post-researcher — it has no Agent tool; every remaining evidence step says to (phase 2)
+<!-- fr:journal kind=finding scope=plan id=7e2020bb5d9d created=2026-07-28T22:34:14 phase=2 state=fixed -->
+### 7e2020bb5d9d · finding [fixed] · The phase executor cannot dispatch post-researcher — it has no Agent tool; every remaining evidence step says to (phase 2)
+
+**FIXED by the orchestrator**, taking the second of the two suggested routes.
+Confirmed the grant independently from the agent registry — `fr-phase-executor`
+is `Read, Edit, Write, Bash, Grep, Glob`, no Agent tool — then reworded
+`P3.T1.S1`, `P4.T1.S1` and `P5.T1.S1` to name the **outcome** ("gather
+file:line-cited evidence, following the protocol in blog-craft's
+`agents/post-researcher.md`") instead of the mechanism. Rewording beats having
+the orchestrator run the researcher: it is durable across future executions by
+any harness, and Phase 2 showed the inline research is good when the protocol is
+named. The diagnosis is the valuable part — a step naming a tool the actor lacks
+does not fail loudly, it gets ticked.
 
 P2.T1.S1 could not be executed as written. The `fr-phase-executor` grant is Read / Edit / Write / Bash only, with no Task/Agent tool, so it cannot dispatch `blog-craft:post-researcher` or any other subagent.
 
