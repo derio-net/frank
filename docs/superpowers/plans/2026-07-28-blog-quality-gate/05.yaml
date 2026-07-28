@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 5
+  title: The two diagram gaps — building/30-frank-papers and operating/29-metrics-api
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: operating/29-metrics-api — actionable section and diagram
+  steps:
+  - id: P5.T1.S1
+    text: |
+      This post needs both an actionable section and a mermaid diagram (its diataxis mode is how-to/tutorial, which the gate requires to carry one). Gather evidence via `post-researcher`, including the metrics-server / `kubectl top` verification path and the `--kubelet-insecure-tls` gotcha already recorded in `agents/rules/frank-gotchas.md`.
+  - id: P5.T1.S2
+    text: |
+      Add the section plus a `flowchart` showing scrape path: kubelet -> metrics-server -> metrics.k8s.io -> `kubectl top` / HPA. Confirm the mermaid renders (`cd blog && hugo --buildDrafts`) and the gate reports zero findings for the post.
+- number: 2
+  title: building/30-frank-papers — diagram
+  steps:
+  - id: P5.T2.S1
+    text: |
+      This post fails ONLY `missing diagram`. Decide honestly first: does a papers-series post teach a procedure? If its diataxis mode is wrong (it may be `explanation`, which is not gated for diagrams), fixing the mode is the correct fix and adding a decorative diagram is not.
+  - id: P5.T2.S2
+    text: |
+      Apply whichever of the two is correct — a real diagram of the paper lifecycle (dossier -> gate -> draft -> media -> publish), or a corrected diataxis mode with a one-line note in the PR saying why. Re-run the gate: the whole corpus must now report zero findings.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

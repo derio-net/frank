@@ -1,0 +1,67 @@
+schema_version: 2
+phase:
+  number: 2
+  title: building/00-overview and building/01-introduction — evidence plus actionable
+    sections
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gather real evidence for both posts
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Dispatch the `blog-craft:post-researcher` agent once per post (00-overview, 01-introduction) with the source tree as its scope. Ask specifically for: commands a reader could actually run to inspect the cluster's shape (node list, ArgoCD app list, layer inventory), with file:line citations for anything asserted. These two posts are the only ones failing `too little evidence`, so they need a command/output block regardless of the actionable section.
+  - id: P2.T1.S2
+    text: |
+      RUN the candidate commands and capture real output. Do not paste a command whose output you have not seen — both posts are entry points, so a wrong command here is the first thing a new reader hits.
+- number: 2
+  title: Add the section to building/00-overview
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add a `## Verify the cluster is what this post describes` section (or similar) carrying at least one fenced command block with the captured output from P2.T1.S2. It must satisfy BOTH the evidence check and the actionable check — one real block does both.
+  - id: P2.T2.S2
+    text: |
+      Re-run the gate on the post; expect zero findings. Then read the section back as a first-time reader: if it does not let someone confirm their own cluster matches, it is a hollow section that happens to pass — rewrite it.
+- number: 3
+  title: Add the section to building/01-introduction
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Same shape as P2.T2 for `01-introduction`, using its own captured evidence. Do not copy 00-overview's block; two entry-point posts with identical commands is a signal the section was written for the validator.
+  - id: P2.T3.S2
+    text: |
+      Re-run the gate on the post and confirm zero findings, then `uv run --frozen pytest` stays green.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
