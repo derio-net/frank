@@ -15,7 +15,15 @@ last_updated: 2026-07-28
 
 Every serious infrastructure project needs a completely unnecessary feature. This was ours: controlling the ARGB LED fans on gpu-1 from a Kubernetes DaemonSet, managed by ArgoCD, triggered by a git push. GitOps for RGB.
 
-It does not work. We know exactly why, we know what it would take to fix it, and we have not fixed it yet. This is the honest version of that story.
+It does not work. We know exactly why, we know what it would take to fix it, and we have not fixed it yet.
+
+## The Hardware
+
+The gpu-1 node lives in a FOIFKIN F1 case with six pre-installed PWM ARGB fans connected through an internal hub. The hub has a button that does nothing useful in a headless rack. The fans light up on boot in whatever rainbow pattern the hub feels like, and they stay that way until you take software control.
+
+The motherboard is a Gigabyte Z790 Eagle AX. Buried on it is an ITE IT5701 USB RGB controller (vendor `048D`, product `5702`) that manages the motherboard's addressable LED headers, and therefore the fans connected through the hub. This controller exposes itself as a USB HID device at `/dev/hidraw0`.
+
+That is the whole system in one picture, ending included:
 
 ```mermaid
 flowchart LR
@@ -41,25 +49,23 @@ flowchart LR
   IT5701 -->|firmware V3.5.14.0| Block[BIOS update broke handshake]
 ```
 
-## The Hardware
+Every arrow in that diagram works except the dotted one. The rest of this post is how each solid arrow was built and how the dotted one was diagnosed.
 
-The gpu-1 node lives in a FOIFKIN F1 case with six pre-installed PWM ARGB fans connected through an internal hub. The hub has a button that does nothing useful in a headless rack. The fans light up on boot in whatever rainbow pattern the hub feels like, and they stay that way until you take software control.
+## Choosing a bus: why USB HID and not I2C
 
-The motherboard is a Gigabyte Z790 Eagle AX. Buried on it is an ITE IT5701 USB RGB controller (vendor `048D`, product `5702`) that manages the motherboard's addressable LED headers — and therefore the fans connected through the hub. This controller exposes itself as a USB HID device at `/dev/hidraw0`.
+An RGB controller on a consumer motherboard is reachable two ways, and picking between them is the first real decision. Gigabyte boards typically expose theirs on the **SMBus**, addressed through I2C, which is the route OpenRGB supports best and the route most guides assume. The alternative is **USB HID**, where the controller presents itself as a human-interface device and takes feature reports.
 
-## USB HID vs I2C
+The I2C plan was the obvious one: load `i2c-dev` and `i2c-i801` via a Talos machine config patch, add `acpi_enforce_resources=lax` as a kernel argument, probe the bus. It is unavailable on this OS. Talos Linux does not compile `CONFIG_I2C_CHARDEV` into its kernel, so `i2c-dev` cannot load at all, and without it there are no `/dev/i2c-*` devices and no SMBus access. Nothing about that is fixable from a machine config patch, because the constraint is in the kernel build.
 
-The original plan was I2C/SMBus. Gigabyte boards typically expose RGB controllers on the SMBus, and OpenRGB supports that route well. The plan called for loading `i2c-dev` and `i2c-i801` kernel modules via a Talos machine config patch, adding `acpi_enforce_resources=lax` as a kernel argument, and probing the I2C bus.
+Check for the chardev before you plan around I2C. It costs one command and it is the difference between a route and a dead end.
 
-That plan lasted ten minutes. Talos Linux does not compile `CONFIG_I2C_CHARDEV` into the kernel, so `i2c-dev` cannot load. No `/dev/i2c-*` devices, no SMBus access.
-
-But while checking `dmesg` for I2C clues, the USB HID device was right there:
+USB HID turned out to be present all along. While reading `dmesg` for I2C clues, the device announced itself:
 
 ```text
 hid-generic 0003:048D:5702.0001: hidraw0: USB HID v1.12 Device [ITE Tech. Inc. ITE Device]
 ```
 
-Talos ships with `CONFIG_HIDRAW=y` and `CONFIG_USB_HID=y` built-in. No kernel modules to load, no Talos patches. The device is just there at `/dev/hidraw0`, ready for OpenRGB. The USB HID path is also safer than I2C — no risk of accidentally probing dangerous SMBus addresses.
+Talos ships `CONFIG_HIDRAW=y` and `CONFIG_USB_HID=y` built in. No kernel modules to load, no Talos patches, no kernel arguments. The device is simply there at `/dev/hidraw0`. The HID path also carries less risk than I2C, where a careless probe can write to an address that matters.
 
 ## Discovery
 
@@ -144,13 +150,13 @@ spec:
 
 A note on the image: no pre-built container exists for OpenRGB 1.0rc2. We build our own from the Codeberg source via a GitHub Actions workflow that pushes to `ghcr.io/derio-net/openrgb:1.0rc2`.
 
-### The Server Detour
+### Why a keepalive server is the wrong shape for a device with saved state
 
 The original implementation used a two-container design: an init container to apply the config, and a main container running `openrgb --server` as a keepalive. It appeared to work.
 
-It stopped appearing to work during an unrelated hardware session — reseating the RTX 5070, resetting the CMOS battery, and rebooting several times. The LEDs came back as green, then blue, then purple. Each reboot a different color. The server was the culprit: it reinitializes the device on every pod start, and initialization restores the controller's non-volatile saved state from the *last write* — which varied depending on which OpenRGB invocation had touched it most recently.
+It stopped appearing to work during an unrelated hardware session that involved reseating the RTX 5070, resetting the CMOS battery and rebooting several times. The LEDs came back green, then blue, then purple. Each reboot a different color. The server was the culprit: it reinitializes the device on every pod start, and initialization restores the controller's non-volatile saved state from whichever write touched it most recently.
 
-The fix is the standalone design above. `sleep infinity` does the same keepalive job without touching the device.
+The lesson generalises past LEDs. **When a device persists state across power cycles, a process that "initializes" it on every start is not a keepalive, it is a second writer**, and it will race whatever you configured. Anything holding non-volatile settings behaves this way: BMCs, managed switches, firmware-configurable NICs. If all you need is for the pod to stay alive, keep it alive with something that does not touch the hardware at all. `sleep infinity` does that job perfectly.
 
 ## ConfigMap-Driven LED Config
 
@@ -164,7 +170,7 @@ data:
   OPENRGB_ARGS: "-d 0 -m Static -c 000000"
 ```
 
-`-d 0` selects the device, `-m Static` sets the mode, `-c 000000` sets the color — black (LEDs off). The workflow to change the LED color:
+`-d 0` selects the device, `-m Static` sets the mode, `-c 000000` sets the color to black, meaning LEDs off. The workflow to change the LED color:
 
 1. Edit `apps/openrgb/manifests/configmap.yaml`
 2. Commit and push
@@ -174,17 +180,25 @@ data:
 
 That is a five-stage pipeline that terminates in nothing.
 
-## The Firmware Detour
+## Diagnosing a device that accepts writes and does nothing
 
 After getting the DaemonSet running and confirming the pod was Synced/Healthy in ArgoCD, the fans were still rainbow. OpenRGB reported success. The HID device accepted every write. The LEDs ignored all of it.
 
-A privileged pod ran Python directly against `/dev/hidraw2` using the correct `HIDIOCSFEATURE` ioctl (`0xC0404806`). Readback via `HIDIOCGFEATURE` confirmed the device was storing the writes — register state changed exactly as expected. 245 rapid write cycles. Zero effect on the physical LEDs.
+This is a specific and unpleasant failure class, because every layer above the hardware reports success. Work it in this order, cheapest first.
 
-The culprit is a BIOS update. The Z790 Eagle AX shipped with IT5701 firmware that OpenRGB supported. Somewhere between the original installation and now, a BIOS update (F3 → F6) swapped in IT5701 firmware version `V3.5.14.0`. This firmware version requires an unlock handshake before it will apply LED writes — a handshake that is not in OpenRGB 0.9 or 1.0rc2 for this specific PID (`0x5702`).
+**Rule out permissions.** A write that silently does nothing and a write refused by the kernel look different at the syscall level and identical in a log line that only checks for exceptions. Verify the udev rules, and read the ioctl's return value rather than trusting the library wrapping it.
 
-The device is not broken. It is not a permissions problem (udev rules verified). It is not USB autosuspend. The IT5701 simply will not apply color writes until someone sends the right initialization sequence, and that sequence is not public. The only reliable way to reverse-engineer it is to capture USB traffic from the Windows RGB Fusion application while it successfully changes the color.
+**Rule out USB autosuspend.** A suspended device accepts a write into a buffer nobody drains. This is the most common cause of "I wrote it and nothing happened" on USB peripherals and it costs one `/sys` read to eliminate.
 
-KubeVirt is on the roadmap. When it arrives, a Windows VM with USB passthrough for `048d:5702` will let us capture that traffic. For now, the fans are rainbow, the pod is Synced/Healthy, and the ConfigMap is aspiration.
+**Then read the state back.** This is the step that turns guessing into evidence. A privileged pod ran Python directly against `/dev/hidraw2` using the `HIDIOCSFEATURE` ioctl (`0xC0404806`), then read the register back with `HIDIOCGFEATURE`. The device was storing the writes: register state changed exactly as commanded, over 245 rapid write cycles, with zero effect on the physical LEDs.
+
+That readback is the whole diagnosis. The controller is receiving instructions, storing them, and declining to act on them. Nothing above the firmware can cause that.
+
+Which points at what changed underneath. The Z790 Eagle AX shipped with IT5701 firmware that OpenRGB drove happily. A BIOS update from F3 to F6 swapped in firmware `V3.5.14.0`, and writes stopped taking effect from that point.
+
+I want to be careful about how strongly I state the next part, because it is the difference between a finding and a story. What is **observed** is that writes are accepted and stored, that the physical LEDs do not change, and that this began with the firmware change. What is **inferred**, and still labelled a hypothesis in the [investigation notes](https://github.com/derio-net/frank/blob/main/docs/superpowers/implemented/investigations/2026-03-09--fun--openrgb-it5701-investigation.md), is the mechanism: that `V3.5.14.0` enters a write-locked state whose exit sequence OpenRGB does not send for this specific PID (`0x5702`). The investigation's supporting evidence is that the sibling IT5711 (`0x5711`) takes an entirely separate code path in OpenRGB 1.0rc2 and received the newer firmware compatibility work, while the IT5701 path did not. That is a good hypothesis. It is not a captured packet.
+
+The way to settle it is to watch a client that succeeds. KubeVirt is on the roadmap; when it arrives, a Windows VM with USB passthrough for `048d:5702` can capture what RGB Fusion sends while it changes a color, and the answer is in that trace. Until someone runs it, the pod is Synced/Healthy and the ConfigMap is aspiration.
 
 ## ArgoCD Integration
 
@@ -212,17 +226,27 @@ spec:
 
 Your LED colors are now protected by GitOps from a threat that does not exist.
 
-## What We Have Now
+## Why there is no verification section
 
-To control six case fans we: ruled out I2C, ran a discovery pod, wrote a DaemonSet and ConfigMap, registered an ArgoCD Application, set up a namespace with {{< abbr "PSA" >}} labels, built a custom container image with a GitHub Actions pipeline, ran 245 HID feature report writes with correct ioctls and verified register state, and reverse-engineered enough of the IT5701 protocol to know exactly why it does not work.
+There is no verification section at the end of this one, and that is deliberate rather than an omission. Every other layer here closes with commands you can run when something looks wrong. This layer has no alert rule watching it, no entry in the manual-operations runbook, and no test guarding it, because there is no failure it could have that anyone would need to catch. The write lock does not intermittently fail. Changing the ConfigMap is inert by design, and a section pretending otherwise would be a section I made up.
 
-The fans are rainbow. They were rainbow when we started. They are rainbow now.
+For the record, the full inventory required to control six case fans: rule out I2C, run a discovery pod, write a DaemonSet and ConfigMap, register an ArgoCD Application, set up a namespace with {{< abbr "PSA" >}} labels, build a custom container image with a GitHub Actions pipeline, issue 245 HID feature report writes with correct ioctls, verify register state, and learn enough of the IT5701 protocol to know exactly why none of it works.
 
-The pod requests 10 millicores of CPU and 32Mi of memory. It is Synced/Healthy. It runs `sleep infinity` approximately full-time. The LEDs ignore it completely.
+The fans are rainbow. They were rainbow when we started. They are rainbow now. The pod requests 10 millicores and 32Mi, is Synced/Healthy, and runs `sleep infinity` approximately full-time.
 
-So there is no verification section at the end of this one, and that is deliberate rather than an omission. Every other layer here closes with commands you can run when something looks wrong. This layer has no alert rule watching it, no entry in the manual-operations runbook, and no test guarding it, because there is no failure it could have that anyone would need to catch. The write lock does not intermittently fail. Changing the ConfigMap is inert by design, and a section pretending otherwise would be a section I made up.
+## What transfers
 
-But we now know more about HID feature reports, IT5701 firmware versioning, and Talos udev rule syntax than any reasonable person should. And when KubeVirt arrives and we finally capture that Windows USB traffic, we will have the best-documented RGB setup in any homelab that has never successfully changed an LED color on demand.
+**When a device accepts your writes and physically does nothing, the bug is almost never in your code, and the order you eliminate causes in decides whether you lose an afternoon or a week.**
+
+Check permissions first, then power management, then read the register back. Those three take minutes and between them they separate "my write never arrived" from "my write arrived and was ignored". The readback is the pivot: once you can show the device stored the value and did not act on it, every software-side explanation is dead and you can stop testing them. Here it killed the udev theory, the autosuspend theory and the wrong-ioctl theory in one measurement.
+
+What is left after that is a **handshake you are not sending**, and the most likely reason you are not sending it is that something underneath you changed while you were not looking. Firmware ships inside BIOS updates. Nobody announces it, no package manager records it, and the version you are talking to today is not necessarily the version the tool was written against. **Read the firmware version before you read the source of the driver.** It is one line in `dmesg` and it reframes the entire investigation.
+
+The last piece is knowing when to stop. Reverse-engineering an undocumented protocol from the outside is unbounded work; capturing it from a client that already succeeds is bounded work. If a working implementation exists on some other operating system, the cheapest remaining move is usually to run that implementation and watch the wire, not to keep guessing at the bytes.
+
+And one for the GitOps enthusiasts specifically: **a pipeline can be green end to end and still terminate in nothing.** Every stage here reports success. The Application syncs, the pod runs, the write returns zero. Success at each stage says nothing about effect at the end of the chain, which is why the only honest test of this layer is a human looking at a fan.
+
+We now know more about HID feature reports, IT5701 firmware versioning and Talos udev rule syntax than any reasonable person should. And when KubeVirt arrives and we finally capture that Windows USB traffic, we will have the best-documented RGB setup in any homelab that has never successfully changed an LED color on demand.
 
 ## Missteps
 
@@ -237,6 +261,6 @@ But we now know more about HID feature reports, IT5701 firmware versioning, and 
 - [OpenRGB](https://openrgb.org/) — Open-source RGB lighting control
 - [OpenRGB GitLab Repository](https://gitlab.com/CalcProgrammer1/OpenRGB) — Source and device compatibility
 - [Linux HID Subsystem](https://www.kernel.org/doc/html/latest/hid/index.html) — Kernel docs for USB HID and hidraw
-- [IT5701 Investigation Notes](https://github.com/derio-net/frank/blob/main/docs/superpowers/plans/2026-03-09-openrgb-it5701-investigation.md) — Full analysis of the firmware write lock
+- [IT5701 Investigation Notes](https://github.com/derio-net/frank/blob/main/docs/superpowers/implemented/investigations/2026-03-09--fun--openrgb-it5701-investigation.md) — Full analysis of the firmware write lock, including the rejected timing hypothesis
 
 **Next: [Observability — Metrics and Logs with VictoriaMetrics](/docs/building/07-observability)**

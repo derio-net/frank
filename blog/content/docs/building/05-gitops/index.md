@@ -12,18 +12,20 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-By Layer 5, the cluster had working networking, storage, and GPU compute — all installed by hand or via ad-hoc Helm commands. Cilium was a `helm install` I ran from a laptop that left no trace in Git. Longhorn was the same. If that laptop died, or if I needed to rebuild the cluster from scratch, I would have to reconstruct every `helm install` from memory.
+This blog builds one cluster in numbered layers, each layer a post. By the fifth of them, the cluster had working networking, storage and GPU compute, all of it installed by hand or through ad-hoc Helm commands. Cilium was a `helm install` I ran from a laptop that left no trace in Git. Longhorn was the same. If that laptop died, or if I needed to rebuild the cluster from scratch, I would have to reconstruct every `helm install` from memory.
 
 That is not infrastructure. That is a collection of fragile coincidences.
 
-GitOps means the Git repo is the single source of truth for everything running on the cluster. Not just application code — the entire infrastructure stack: {{< abbr "CNI" >}}, storage, GPU drivers, ingress, observability. Every change goes through a pull request. Every sync is automated. Drift is detected and corrected.
+GitOps means the Git repo is the single source of truth for everything running on the cluster, and not only for application code. The whole infrastructure stack goes in: {{< abbr "CNI" >}}, storage, GPU drivers, ingress, observability. Every change goes through a pull request. Every sync is automated. Drift is detected and corrected.
 
-This post covers the migration from Flux CD to ArgoCD, the Pulumi detour that did not work out, and building an App-of-Apps Helm chart to manage all workloads via GitOps — adopting Cilium and Longhorn in place without a single pod restart.
+This post covers the migration from Flux CD to ArgoCD, the Pulumi detour that did not work out, and building an App-of-Apps Helm chart to manage all workloads via GitOps, adopting Cilium and Longhorn in place without a single pod restart.
+
+One piece of ArgoCD notation appears in the diagram below before it is explained, so here it is early. **`$values/`** is a reference to a *second* source declared on the same Application. ArgoCD lets an Application list several sources; one of them can be tagged `ref: values`, and any other source may then address files inside it with the `$values/` prefix. That is how a chart pulled from `helm.cilium.io` reads its values file out of a GitHub repo it knows nothing about.
 
 ```mermaid
 flowchart LR
   subgraph Git[Git Repo]
-    Chart[apps/root/ — App-of-Apps chart]
+    Chart[apps/root/: App-of-Apps chart]
     Apps[apps/cilium/, apps/longhorn/...]
   end
   subgraph ArgoCD[ArgoCD]
@@ -36,9 +38,9 @@ flowchart LR
     GPUCH[helm.ngc.nvidia.com]
   end
   subgraph Cluster[Live Cluster]
-    Cilium[cilium — adoption]
-    Longhorn[longhorn — adoption]
-    GPU[gpu-operator — manual sync]
+    Cilium[cilium: adopted in place]
+    Longhorn[longhorn: adopted in place]
+    GPU[gpu-operator: installed by ArgoCD]
   end
 
   Git --> Root
@@ -51,6 +53,8 @@ flowchart LR
   LonghornCH --> Longhorn
   GPUCH --> GPU
 ```
+
+The three boxes on the right are not doing the same thing. Cilium and Longhorn already existed as standalone Helm releases and had to be **adopted** without restarting a pod, which is most of the interesting work below. The GPU operator had no pre-existing release to adopt: ArgoCD installed it outright. All three end up with identical `selfHeal: true` sync policies, so the distinction is historical rather than operational.
 
 ## The Pulumi Detour
 
@@ -65,9 +69,9 @@ Omni and Pulumi occupy the same layer. Since Omni was already managing all seven
 Flux CD was deployed first. It worked for about a day before breaking with a `kustomization path not found` error that proved stubborn to debug. But the real issues were architectural:
 
 - **Flux has no UI.** Debugging sync failures means reading `kubectl` output and parsing YAML status conditions. ArgoCD ships a web dashboard showing the full resource tree, sync status, and diff for every application.
-- **Multi-source support.** ArgoCD pulls a Helm chart from an upstream registry and overlays values from a Git repo — in a single Application {{< abbr "CR" >}}. Flux requires separate `HelmRepository`, `HelmRelease`, and `Kustomization` resources.
+- **Multi-source support.** ArgoCD pulls a Helm chart from an upstream registry and overlays values from a Git repo inside a single Application {{< abbr "CR" >}}. Flux requires separate `HelmRepository`, `HelmRelease`, and `Kustomization` resources.
 - **App-of-Apps.** ArgoCD has a first-class pattern for bootstrapping a cluster from a single Helm chart that renders child Application CRs. One `kubectl apply` declares every workload.
-- **Zero-downtime adoption.** ArgoCD takes ownership of existing resources through annotation-based tracking — no delete-and-recreate. Cilium and Longhorn were adopted in place.
+- **Zero-downtime adoption.** ArgoCD takes ownership of existing resources through annotation-based tracking, with no delete-and-recreate. Cilium and Longhorn were adopted in place.
 
 Flux was uninstalled (`flux uninstall`), its namespace deleted, its {{< abbr "CRD" "CRDs" >}} cleaned up. None of this touched the running Cilium or Longhorn pods — those were standalone Helm releases continuing independently.
 
@@ -106,7 +110,7 @@ root (Application)
         values:   apps/gpu-operator/values.yaml
 ```
 
-Each main app pulls its Helm chart from upstream. Each `-extras` or `-config` companion points at a `manifests/` directory for resources outside the chart — Cilium's `LoadBalancerIPPool`, Longhorn's `StorageClass`, LoadBalancer services at fixed IPs.
+Each main app pulls its Helm chart from upstream. Each `-extras` or `-config` companion points at a `manifests/` directory for the resources no upstream chart ships: Cilium's `LoadBalancerIPPool`, Longhorn's `StorageClass`, LoadBalancer services at fixed IPs.
 
 ### Root Chart Structure
 
@@ -130,6 +134,8 @@ destination:
 
 These are injected into every child Application template via `{{ .Values.repoURL }}`. Changing the repo URL or branch in one place updates everything.
 
+An `AppProject` is ArgoCD's permission boundary. Every Application must belong to one, and the project decides which repos that Application may read from, which namespaces and clusters it may write to, and which cluster-scoped resource kinds it may create at all. In a multi-tenant ArgoCD this is where you stop one team's Application from installing a `ClusterRole`. Frank has one tenant, so the project called `infrastructure` grants everything and exists only because ArgoCD requires it:
+
 ```yaml
 # apps/root/templates/project.yaml
 apiVersion: argoproj.io/v1alpha1
@@ -148,9 +154,11 @@ spec:
       kind: '*'
 ```
 
+Three wildcards is an honest description of a single-operator homelab and a bad default for anything else. If you copy this chart, the project is the first file to tighten.
+
 ### Multi-Source Applications
 
-Each Application CR declares two sources — the upstream Helm chart and a Git ref for local values:
+Each Application CR declares two sources: the upstream Helm chart, and a Git ref supplying local values.
 
 ```yaml
 # apps/root/templates/cilium.yaml
@@ -187,14 +195,14 @@ spec:
         - /data
 ```
 
-The second source uses `ref: values`. The first source references it as `$values/apps/cilium/values.yaml`. ArgoCD pulls the chart from one place and the values from another, all in a single Application.
+The second source uses `ref: values`. The first source addresses it as `$values/apps/cilium/values.yaml`. ArgoCD pulls the chart from one place and the values from another, all in a single Application.
 
 Key decisions in every template:
 
-- **`ServerSideApply=true`** — critical for adoption. Uses server-side apply semantics that merge fields rather than replacing entire objects. Prevents ArgoCD from blowing away fields set by other controllers.
-- **`selfHeal: true`** — if someone manually edits a resource, ArgoCD reverts it within minutes. Git is the source of truth.
-- **No `prune` line at all** — pruning stays off, which is the schema default. Writing `prune: false` explicitly says the same thing and then causes a problem: ArgoCD normalises it back to absent, the rendered manifest and the live object disagree forever, and the parent Application never leaves `OutOfSync`. Say nothing and you get the same behaviour without the drift. There is a note in `apps/root/values.yaml` explaining this, because it is not the kind of thing you rediscover cheaply.
-- **`ignoreDifferences` on Secrets** — prevents ArgoCD from flagging Cilium's auto-generated secrets as out of sync.
+- **`ServerSideApply=true`** is critical for adoption. It merges fields rather than replacing whole objects, which stops ArgoCD blowing away fields set by other controllers.
+- **`selfHeal: true`** reverts any manual edit to a resource within minutes. Git is the source of truth.
+- **No `prune` line at all.** Pruning stays off, which is the schema default. Writing `prune: false` explicitly says exactly the same thing and then causes a problem: ArgoCD normalises it back to absent, so the rendered manifest and the live object disagree forever and the parent Application never leaves `OutOfSync`. Say nothing and you get identical behaviour without the drift. `apps/root/values.yaml` carries the warning at the top of the file so nobody re-adds it: *"Application templates do NOT set automated.prune explicitly. The schema default (false) is our project-wide convention (manual pruning only). ArgoCD normalizes explicit `prune: false` to absent, which caused permanent drift on the root Application until we dropped the line from the templates."*
+- **`ignoreDifferences` on Secrets** stops ArgoCD flagging Cilium's auto-generated secrets as out of sync.
 
 ## Adopting Existing Workloads
 
@@ -209,7 +217,7 @@ configs:
     application.resourceTrackingMethod: annotation
 ```
 
-With this setting, ArgoCD does not conflict with existing Helm labels. When it syncs, it adds an `argocd.argoproj.io/tracking-id` annotation and begins managing the resource — no delete-and-recreate, no label overwrites.
+With this setting, ArgoCD does not conflict with existing Helm labels. When it syncs, it adds an `argocd.argoproj.io/tracking-id` annotation and begins managing the resource. No delete-and-recreate, no label overwrites.
 
 The adoption sequence:
 
@@ -266,11 +274,11 @@ configs:
     application.resourceTrackingMethod: annotation
 ```
 
-- **Single replicas** — homelab, not production SaaS.
-- **`--insecure`** — Traefik handles {{< abbr "TLS" >}} termination externally.
-- **Cilium LoadBalancer IP** — pins ArgoCD to `192.168.55.200`.
-- **Node affinity to `zone: core`** — keeps ArgoCD on the minis, not the GPU node or Raspberry Pis.
-- **Dex disabled** — {{< abbr "SSO" >}} arrived later and does not need it. Layer 13 wired ArgoCD straight to Authentik through `configs.cm.oidc.config`, so the login page hands off to `auth.frank.derio.net` and Dex never enters the picture.
+- **Single replicas**, because this is a homelab and not production SaaS.
+- **`--insecure`**, because Traefik handles {{< abbr "TLS" >}} termination externally.
+- **Cilium LoadBalancer IP** pins ArgoCD to `192.168.55.200`.
+- **Node affinity to `zone: core`** keeps ArgoCD on the minis, off the GPU node and off the Raspberry Pis.
+- **Dex disabled.** {{< abbr "SSO" >}} arrived later and did not need it: Layer 13 wired ArgoCD straight to Authentik through `configs.cm.oidc.config`, so the login page hands off to `auth.frank.derio.net` and Dex never enters the picture.
 
 ## Verify the loop, and read the sync status honestly
 
@@ -289,9 +297,9 @@ $ kubectl -n argocd get applications -o json | jq -r \
 68
 ```
 
-If that number collapses, root has stopped templating and nothing below it is being reconciled any more.
+Sixty-eight is *my* number, not a target. Run that command on a healthy day, write the result down next to your runbook, and re-derive it whenever you add or remove an Application. What matters is the drop: if the count falls without a matching commit, root has stopped templating and nothing below it is being reconciled any more. The count you compare against is the one you recorded, and a count nobody ever recorded is a check nobody can perform.
 
-Now the part where I have to be honest with you, because the aggregate is more interesting than the count:
+Now the aggregate, which is more interesting than the count:
 
 ```console
 $ kubectl get applications -n argocd \
@@ -303,9 +311,95 @@ $ kubectl get applications -n argocd \
    1 OutOfSync Missing
 ```
 
-Sixty-two of sixty-nine green, and I am not going to pretend the other seven are a rounding error. `OutOfSync Healthy` means the workload is running fine while git and the cluster disagree about something; `Synced Suspended` is a deliberately scaled-down app; `OutOfSync Missing` is an app whose resources are not there at all. All three are states you reach on purpose and then forget about. A cluster where this command has printed one line for months is a cluster nobody is changing.
+Sixty-two of sixty-nine green, and I am not going to pretend the other seven are a rounding error. `OutOfSync Healthy` means the workload is running fine while git and the cluster disagree about something. `Synced Suspended` is a deliberately scaled-down app. `OutOfSync Missing` is an app whose resources are not there at all.
 
-What you must not do is treat `Synced` as proof a change landed. It means the repo-server's view of the manifest matches the live object, and that view can be stale. I have watched an Application report `Synced/Healthy` while the live ConfigMap was missing a key that `helm template` renders. Assert on the artefact you changed, not on the status column above it.
+### Deciding whether an OutOfSync app is your problem
+
+Knowing what those statuses *can* mean is not the same as knowing which kind you are looking at, and only the second one helps at the moment you need it. The status column cannot tell you: `OutOfSync` is the same word for "a controller added a field git never mentioned" and "the thing you merged an hour ago never landed". Two more commands separate them.
+
+First, ask the Application which of its own resources disagree. Every Application carries a per-resource verdict in `.status.resources`, and it names the offenders:
+
+```console
+$ kubectl -n argocd get application root -o json | jq -r \
+    '.status.resources[] | select(.status=="OutOfSync") | "\(.kind)/\(.name)"'
+Application/gpu-operator
+Application/longhorn
+Application/sympozium
+```
+
+That already changes the question from "root is unhealthy" to "three of root's sixty-eight children differ, and here they are". Sympozium, which also turns up in the missteps table below, is the agentic control plane added in a later layer, where every agent is a Pod and every policy a CRD. Nothing about what it does matters here. It matters only that its Application is one of the three.
+
+Second, ask what the difference actually *is*. `argocd app diff` renders the desired manifest and diffs it against live. It normally wants a logged-in API server, but `--core` skips the server entirely and talks to Kubernetes through your kubeconfig, which is what you want from a laptop mid-incident:
+
+```console
+$ argocd app diff root --core
+===== argoproj.io/Application argocd/gpu-operator ======
+11,12d10
+<   - post-delete-finalizer.argocd.argoproj.io
+<   - post-delete-finalizer.argocd.argoproj.io/cleanup
+
+===== argoproj.io/Application argocd/longhorn ======
+10,11d9
+<   - pre-delete-finalizer.argocd.argoproj.io
+<   - pre-delete-finalizer.argocd.argoproj.io/cleanup
+
+===== argoproj.io/Application argocd/sympozium ======
+10,11d9
+<   - pre-delete-finalizer.argocd.argoproj.io
+<   - pre-delete-finalizer.argocd.argoproj.io/cleanup
+```
+
+And there is the answer. Every one of root's differences is a pair of Helm cleanup finalizers that ArgoCD's own machinery attached to the live object and that git never declared. Nothing I wrote is being ignored, and nothing is drifting away from the repo. Note also that the difference survives syncing: `longhorn`'s last sync operation finished the day before I ran that diff and the finalizers are still there, which is what tooling exhaust looks like rather than a stuck sync. It can wait.
+
+Compare that with a diff showing an image tag, a replica count or a resource limit that does not match your last merge. Same status column, entirely different afternoon. **`OutOfSync` is not a severity, it is a prompt to run the diff.**
+
+One trap with `--core`: it reads its configuration from the ConfigMap `argocd-cm` in whatever namespace your kubeconfig context currently points at. Point it anywhere else and you get `configmap "argocd-cm" not found`, which reads like a broken install rather than a wrong namespace. Set the context first:
+
+```console
+$ kubectl config set-context --current --namespace=argocd
+Context "omni-frank" modified.
+```
+
+### What `Synced` does not mean
+
+What you must not do is treat `Synced` as proof a change landed. It means the repo-server's view of the manifest matches the live object, and that view can be stale.
+
+This is not a hypothetical. On 2026-07-27, minutes after merging a values change that added `defaultSettings.storageOverProvisioningPercentage: 150`, the `longhorn` Application reported `Synced/Healthy` while the live `longhorn-default-setting` ConfigMap simply did not contain the key. The neighbouring settings from the same file (`storage-minimal-available-percentage: "15"`, `default-replica-count: "3"`) were all present, so the mechanism was working perfectly, just not for that commit. A `refresh: hard` annotation did not clear it. An explicit sync operation cleared it in seconds. The same session produced a second instance on a different app, where a PVC merged at `40Gi` sat live at `20Gi` under a green tile.
+
+Both were multi-source Applications: an upstream chart plus a `$values` ref into this repo. That shape appears to be the exposed one, because the values half can be served from cache while the app compares clean against it.
+
+So before you blame ArgoCD, prove the desired state contains what you think it does, since a chart silently dropping an unrecognised key looks identical from the cluster and is more common:
+
+```console
+$ helm template lh longhorn/longhorn --version 1.11.2 -f apps/longhorn/values.yaml \
+    | grep -A14 'name: longhorn-default-setting'
+  name: longhorn-default-setting
+  namespace: default
+  labels:
+    app.kubernetes.io/name: longhorn
+    helm.sh/chart: longhorn-1.11.2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: lh
+    app.kubernetes.io/version: v1.11.2
+data:
+  default-setting.yaml: |-
+    storage-over-provisioning-percentage: "150"
+    storage-minimal-available-percentage: "15"
+    default-replica-count: "3"
+    default-data-locality: "best-effort"
+    priority-class: "longhorn-critical"
+```
+
+Count your context lines generously. The ConfigMap's labels eat the first eight, so a `grep -A5` shows you the object and none of its data, which looks a lot like the key is missing.
+
+If the key renders locally and is absent live while the app claims `Synced`, it is the sync. Force it, passing the sync options explicitly, because a manually-triggered sync does **not** inherit `spec.syncPolicy.syncOptions`:
+
+```console
+$ kubectl -n argocd patch application <app> --type=merge \
+    -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+```
+
+### The failure that hits every app at once
 
 There is one failure that does *not* show up as a per-app problem, and it is the worst one, so check it separately:
 
@@ -317,15 +411,18 @@ $ kubectl -n argocd get applications -o json \
 
 Both silent, which is the healthy answer. A single symlink that escapes the repo root raises `ComparisonError` on *every* Application at once and drops them all to sync status `Unknown`, because the repo-server gives up on rendering the tree rather than on one file in it. That happened here on 2026-05-13: a `.claude/skills` symlink with one `..` too many took the whole GitOps loop down for about fourteen hours before anyone noticed, because a cluster that has stopped reconciling looks exactly like a cluster with nothing to do. Run the pair after any commit that adds a symlink.
 
-## What We Have Now
+## What transfers
 
-- **Full GitOps via ArgoCD App-of-Apps** — one root chart bootstraps the entire infrastructure stack.
-- **Multi-source Applications** — upstream Helm charts paired with local values, no chart vendoring.
-- **Zero-downtime adoption** — Cilium and Longhorn absorbed with annotation-based tracking, no restarts.
-- **Self-healing** — ArgoCD detects and corrects configuration drift via `selfHeal: true`.
-- **Single repo** — machine config in `patches/`, workload config in `apps/`, same Git repo.
+One rule, and it is smaller and stranger than "use GitOps".
 
-The two-layer split is clean: Omni owns the machines, ArgoCD owns the workloads. They never overlap.
+**Never write down a value your controller normalises away, even when it is the value you want.** Fifty-odd Application templates here carried `automated.prune: false`. False is correct. False is what those apps should do. And writing it cost the root Application months of permanent `OutOfSync`, because ArgoCD stores an absent `prune` and an explicit `false` as the same thing, then renders only one of them. The manifest and the live object could never agree, and the fix was deleting fifty lines that did nothing.
+
+The generalisation is worth more than the ArgoCD specifics. Any declarative system with defaulting has this shape: Kubernetes webhooks that fill in fields, Terraform providers that normalise casing, Helm charts that omit empty values. Wherever a controller can rewrite what you wrote, **stating the default is not a harmless clarification, it is a permanent diff.** Two consequences you can act on today:
+
+- When something is `OutOfSync` and nothing you changed is in the diff, suspect a field the controller owns before you suspect yourself. The `argocd app diff --core` output above is that exact case: finalizers the tooling added, forever different from a repo that never mentioned them.
+- Keep the comment where the mistake would recur. The note in `apps/root/values.yaml` exists because the *absence* of a line is invisible to the next person, and an invisible convention gets helpfully re-added by someone tidying up.
+
+And the sharper edge of the same idea: a green sync tile means ArgoCD believes live matches **what it fetched**, not that live matches `main`. Assert on the artefact you changed. That habit costs one command and it is the difference between deploying a config and believing you did.
 
 ## Missteps
 
