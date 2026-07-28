@@ -17,6 +17,15 @@ Enforced (each toggle lives in `quality.gate`):
   - diagram          how-to / tutorial posts carry >= 1 ```mermaid block
                      (waive one post with `diagram_exempt: <reason>`)
 
+Lint layer (warnings-first; config block `quality.lint`, data from the fenced
+yaml block in skills/educational-writing/references/ai-tells.md — in a
+materialized blog, the sibling scripts/ai-tells.md):
+  - ai-vocabulary hits FAIL by default; em-dash / negative-parallelism / triad
+    densities, cliche conclusion openers, and a missing what-transfers section
+    on tutorial/explanation posts WARN. Per-check severity: fail | warn | off.
+    Lint failures exit nonzero alongside gate failures; warnings never do.
+    `quality.lint.enabled: false` skips the lint (gate-only run).
+
 Scope: only `content_type: posts` posts. Papers and explainers ship their own
 validators and their own structure, so a post whose series is a papers/explainers
 content-type is skipped. A post may opt out with `quality_exempt: <reason>` in
@@ -32,6 +41,7 @@ from __future__ import annotations
 
 import re
 import sys
+from pathlib import Path
 
 # Canonical Diataxis modes (see references/diataxis.md). Aliases normalize in.
 _DIATAXIS = {"tutorial", "how-to", "reference", "explanation"}
@@ -65,6 +75,53 @@ _DEFAULT_GATE = {
 
 # Diátaxis modes that teach a procedure — these must carry a diagram.
 _DIAGRAM_MODES = {"how-to", "tutorial"}
+
+# Lint layer (warnings-first, spec §5): built-in per-check severities. Only the
+# conservative vocabulary list fails by default — densities warn so prose is
+# never written to a regex. Overridable via `quality.lint.severities`
+# (fail | warn | off). Thresholds come from the ai-tells data block,
+# overridable via `quality.lint.thresholds`.
+_LINT_SEVERITIES = {
+    "vocabulary": "fail",
+    "em_dash": "warn",
+    "negative_parallelism": "warn",
+    "triad": "warn",
+    "conclusion": "warn",
+    "what_transfers": "warn",
+}
+
+
+def load_lint_data(path: str | None = None) -> dict:
+    """Parse the fenced yaml block in ai-tells.md (single source for lint data).
+
+    Resolution order: explicit `path` → the plugin checkout
+    (skills/educational-writing/references/ai-tells.md) → a sibling ai-tells.md
+    next to this script (how a materialized blog ships it — scripts/ has no
+    skills/ tree). Raises FileNotFoundError when no candidate exists; the CLI
+    turns that into a loud LINT SKIPPED, never a crash.
+    """
+    import yaml
+    here = Path(__file__).resolve().parent
+    candidates = (
+        [Path(path)]
+        if path
+        else [
+            here.parent / "skills/educational-writing/references/ai-tells.md",
+            here / "ai-tells.md",
+        ]
+    )
+    for p in candidates:
+        if not p.is_file():
+            continue
+        m = re.search(r"```yaml\n(.*?)```", p.read_text(encoding="utf-8"), re.DOTALL)
+        if not m:
+            raise ValueError(f"no fenced yaml block in {p}")
+        return yaml.safe_load(m.group(1))
+    raise FileNotFoundError(
+        "ai-tells.md not found (looked at: "
+        + ", ".join(str(p) for p in candidates)
+        + ")"
+    )
 
 
 def split_frontmatter(text: str) -> tuple[dict, str]:
@@ -211,6 +268,139 @@ def validate_post(fm: dict, body: str, gate: dict | None = None) -> list[str]:
     return fails
 
 
+# ------------------------------------------------------------------ lint layer
+
+def _prose_lines(body: str) -> list[str]:
+    """The lines of *body* outside fenced code blocks.
+
+    Fence tracking follows CommonMark's closing rule: a block opened by a
+    fence of N backticks/tildes closes only on a fence of the SAME character
+    at least N long — so a ````markdown block that itself contains ``` lines
+    stays one block, and its inner content never leaks into the prose scan.
+    """
+    out: list[str] = []
+    fence_char = ""
+    fence_len = 0
+    for line in body.splitlines():
+        m = re.match(r"^(`{3,}|~{3,})", line.strip())
+        if m:
+            marker = m.group(1)
+            if not fence_char:  # opening fence
+                fence_char = marker[0]
+                fence_len = len(marker)
+            elif marker[0] == fence_char and len(marker) >= fence_len:
+                fence_char = ""  # closing fence
+                fence_len = 0
+            # else: a shorter/other-char fence inside an open block is content
+            continue
+        if fence_char:
+            continue
+        out.append(line)
+    return out
+
+
+def _prose_only(body: str) -> str:
+    """Prose with fenced code blocks, inline code spans, and heading markup gone.
+
+    The lint must never fire on code — a command containing "delve" is not a
+    tell. Heading TEXT stays (it is prose); only the leading #s are stripped.
+    Typographic apostrophes normalize to ASCII so "isn’t" matches "isn't".
+    """
+    out = [re.sub(r"^#{1,6}\s+", "", line) for line in _prose_lines(body)]
+    text = re.sub(r"`[^`\n]+`", " ", "\n".join(out))
+    return text.replace("’", "'")
+
+
+def lint_post(
+    fm: dict, body: str, lint_cfg: dict | None = None, data: dict | None = None
+) -> tuple[list[str], list[str]]:
+    """AI-tells lint (warnings-first). Returns (failures, warnings).
+
+    `lint_cfg` is the config's `quality.lint` dict (may be None); `data` is the
+    parsed ai-tells block (defaults to load_lint_data()). Matching is
+    case-insensitive and runs over _prose_only(body) — code and frontmatter
+    never trip the lint.
+    """
+    if data is None:
+        data = load_lint_data()
+    cfg = lint_cfg or {}
+    severities = dict(_LINT_SEVERITIES)
+    severities.update(cfg.get("severities") or {})
+    thresholds = dict(data.get("thresholds") or {})
+    thresholds.update(cfg.get("thresholds") or {})
+
+    prose = _prose_only(body)
+    low = prose.lower()
+    words = max(len(prose.split()), 1)
+    failures: list[str] = []
+    warnings: list[str] = []
+
+    def emit(check: str, msg: str) -> None:
+        sev = severities.get(check, "warn")
+        if sev == "fail":
+            failures.append(msg)
+        elif sev == "warn":
+            warnings.append(msg)
+        # "off" drops the message entirely
+
+    # vocabulary: word/phrase-boundary count per entry
+    for term in data.get("vocabulary") or []:
+        n = len(re.findall(r"\b" + re.escape(str(term).lower()) + r"\b", low))
+        if n:
+            emit("vocabulary", f"ai-vocabulary: '{term}' ({n}x)")
+
+    # em-dash density per 1000 words
+    t = thresholds.get("em_dash_per_1000")
+    if t is not None:
+        d = prose.count("—") * 1000.0 / words
+        if d > t:
+            emit("em_dash", f"em-dash density {d:.1f}/1000 words (threshold {t})")
+
+    # regex-pattern densities per 1000 words
+    patterns = data.get("patterns") or {}
+    for check, tkey, label in (
+        ("negative_parallelism", "negative_parallelisms_per_1000",
+         "negative-parallelism (not X, but Y)"),
+        ("triad", "triads_per_1000", "triad (rule of three)"),
+    ):
+        pat = patterns.get(check)
+        t = thresholds.get(tkey)
+        if pat and t is not None:
+            d = len(list(re.finditer(pat, low))) * 1000.0 / words
+            if d > t:
+                emit(check, f"{label} density {d:.1f}/1000 words (threshold {t})")
+
+    # what-transfers: tutorial/explanation posts end with what the reader KEEPS.
+    # Keys off the diataxis frontmatter ONLY — never series names.
+    if set(_normalize_modes(fm.get("diataxis"))) & {"tutorial", "explanation"}:
+        marks = [str(h).lower() for h in data.get("transfer_headings") or []]
+        # Headings are collected from prose lines only — a `# takeaway:`
+        # comment inside a fenced code block is code, not a heading.
+        heads = [
+            m.group(1).lower()
+            for m in (re.match(r"^#{1,6}\s+(.*)$", ln) for ln in _prose_lines(body))
+            if m
+        ]
+        if not any(mark in head for head in heads for mark in marks):
+            emit(
+                "what_transfers",
+                "no what-transfers closing section "
+                "(expected for tutorial/explanation posts)",
+            )
+
+    # cliche conclusion openers: any paragraph starting with one. Boundary-
+    # aware — "In the ending scene..." must not trip "in the end".
+    openers = [str(o).lower() for o in data.get("conclusion_openers") or []]
+    for para in re.split(r"\n\s*\n", low):
+        p = para.strip()
+        for opener in openers:
+            if re.match(re.escape(opener) + r"(?!\w)", p):
+                emit("conclusion", f"cliche conclusion opener: '{opener}'")
+                break
+
+    return failures, warnings
+
+
 # --------------------------------------------------------------------------- CLI
 
 def _non_posts_series_keys(cfg: dict) -> set[str]:
@@ -241,10 +431,25 @@ def _main(argv):
     a = ap.parse_args(argv)
 
     cfg = yaml.safe_load(open(a.config)) or {}
-    gate = ((cfg.get("quality") or {}).get("gate") or {})
+    quality = (cfg.get("quality") or {})
+    gate = (quality.get("gate") or {})
+    lint_cfg = (quality.get("lint") or {})
     skip_series = _non_posts_series_keys(cfg)
 
+    # Lint runs unless explicitly disabled; missing data skips it LOUDLY
+    # (a materialized blog whose scripts/ predates ai-tells.md stays gate-only).
+    lint_data = None
+    if lint_cfg.get("enabled") is not False:
+        try:
+            lint_data = load_lint_data()
+        except (FileNotFoundError, ValueError) as e:
+            print(
+                f"LINT SKIPPED: {e} — running the structural gate only",
+                file=sys.stderr,
+            )
+
     failed: dict[str, list[str]] = {}
+    lint_failed = False
     checked = 0
     skipped = 0
     for p in a.paths:
@@ -265,6 +470,14 @@ def _main(argv):
         checked += 1
         if fails:
             failed[p] = fails
+        if lint_data is not None:
+            lfails, lwarns = lint_post(fm, body, lint_cfg, lint_data)
+            for msg in lfails:
+                print(f"LINT FAIL: {p}: {msg}")
+            for msg in lwarns:
+                print(f"LINT WARN: {p}: {msg}")
+            if lfails:
+                lint_failed = True
 
     if failed:
         print("POST QUALITY GATE FAILED (educational-writing)", file=sys.stderr)
@@ -278,6 +491,13 @@ def _main(argv):
             "`diagram_exempt: <reason>` to waive just the diagram check.",
             file=sys.stderr,
         )
+    if lint_failed:
+        print(
+            "POST LINT FAILED (ai-tells): see LINT FAIL lines above — rewrite "
+            "the hits or tune severities under `quality.lint` (fail | warn | off)",
+            file=sys.stderr,
+        )
+    if failed or lint_failed:
         return 1
     print(f"POST QUALITY OK: {checked} post(s) checked, {skipped} skipped")
     return 0
