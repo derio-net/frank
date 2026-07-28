@@ -65,13 +65,23 @@ def _main(argv):
     ap.add_argument("--config", required=True)
     ap.add_argument("paths", nargs="+")
     a = ap.parse_args(argv)
-    papers = ((yaml.safe_load(open(a.config)).get("content_types") or {}).get("papers") or {})
+    cfg = yaml.safe_load(open(a.config)) or {}
+    papers = ((cfg.get("content_types") or {}).get("papers") or {})
     offset = int(papers.get("weight_offset", 1))
+    # The papers SERIES KEY, not the literal "papers". A blog may name the series
+    # anything, and scaffold-paper.sh writes that key into every bundle it
+    # creates. `validate_paper` has taken the key since it was written; the CLI
+    # never passed it, so on a renamed blog the check compared against a default
+    # nothing could satisfy and every paper failed on the one field the tool
+    # itself had written. Same derivation as scaffold-paper.sh.
+    papers_key = next((s["key"] for s in (cfg.get("series") or [])
+                       if isinstance(s, dict) and s.get("content_type") == "papers"
+                       and s.get("key")), "papers")
     failed = {}
     for p in a.paths:
         try:
             fm = parse_frontmatter(open(p).read())
-            fails = validate_paper(fm, offset)
+            fails = validate_paper(fm, offset, papers_key)
         except (ValueError, Exception) as e:  # noqa: BLE001
             fails = [f"parse error: {e}"]
         if fails:

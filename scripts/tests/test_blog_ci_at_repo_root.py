@@ -14,10 +14,20 @@ nobody ever did: it invoked `--config .blog-craft.yaml` and
 `docs/papers-dossiers/*` relative to the site root, and in frank both of those
 live at the repo root.
 
-WHY THIS CAN REGRESS. `/update` re-adds any managed path that is missing
-(`plan_update` classifies an absent file as `add`), and `.github/**` is a
-managed path. So the next blog-craft resync WILL recreate the inert copy. That
-is not a hypothetical — it is the documented behaviour of the updater.
+WHY THIS EXISTED, AND WHAT IT IS NOW. Until blog-craft v0.17.0 every `/update`
+re-added the inert copy — `plan_update` classifies an absent managed path as
+`add`, and `.github/**` was mapped under `site_dir` — so each resync recreated a
+file GitHub would never run, and this test was the only thing that made it loud.
+
+blog-craft#61 fixed it upstream: the manifest now declares a path ROOT per file,
+`.github/**` is repo-rooted, and `/update` RELOCATES a stale copy instead of
+leaving two. Verified against v0.17.0 — the resync plan no longer mentions
+`blog/.github/` at all.
+
+So this is now a REGRESSION guard rather than a live tripwire. It stays because
+the failure it catches is silent by construction: a workflow in the wrong
+directory produces no error, no skipped run and no empty check, and nothing else
+in this repo would notice.
 
 WHAT THIS CHECKS. Offline, at PR time:
 

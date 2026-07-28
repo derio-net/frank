@@ -8,6 +8,7 @@ a build.
 | Check                                             | Severity |
 |---------------------------------------------------|----------|
 | a {{< abbr >}} marker with no registry entry       | error    |
+| a marker inside a renderer-source shortcode body   | error    |
 | an entry missing / blank `name` or `description`   | error    |
 | `url` present but not an absolute http(s) URL      | error    |
 | two keys differing only in case                    | error    |
@@ -29,16 +30,28 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from glossary_scan import load_registry, markers_in  # noqa: E402
+from glossary_scan import load_registry, markers_in, misplaced_markers  # noqa: E402
 
 _REQUIRED = ("name", "description")
 
 
 def validate_glossary(registry: dict,
-                      marked: list[tuple[str, str, int]]) -> tuple[list[str], list[str]]:
+                      marked: list[tuple[str, str, int]],
+                      misplaced: list[tuple[str, str, int]] = ()) -> tuple[list[str], list[str]]:
+    """`marked` is [(term, file, line)]; `misplaced` is [(shortcode, file, line)].
+
+    Placement lives here rather than in the CLI so every caller gets it: the key
+    can be perfectly valid and the marker still fatal, because it renders inside
+    a diagram. An existence-only check cannot see that.
+    """
     errors: list[str] = []
     warnings: list[str] = []
     registry = registry or {}
+
+    for shortcode, path, line in misplaced:
+        errors.append(
+            f"{path}:{line}: marker inside a {shortcode} body — that body is "
+            f"renderer source, not prose, and the expanded HTML will not parse")
 
     for term, path, line in marked:
         if term not in registry:
@@ -101,12 +114,14 @@ def _main(argv: list[str]) -> int:
 
     registry = load_registry(a.config)
     marked: list[tuple[str, str, int]] = []
+    misplaced: list[tuple[str, str, int]] = []
     for p in a.paths:
         with open(p) as f:
             text = f.read()
         marked.extend((term, p, line) for term, line in markers_in(text))
+        misplaced.extend((name, p, line) for name, line in misplaced_markers(text))
 
-    errors, warnings = validate_glossary(registry, marked)
+    errors, warnings = validate_glossary(registry, marked, misplaced)
     for w in warnings:
         print(f"  warning: {w}", file=sys.stderr)
     if errors:

@@ -1,25 +1,38 @@
 # Blog validation gates — the blog-craft surface, wired where GitHub can see it.
 #
-# WHY THIS FILE IS AT THE REPO ROOT. blog-craft materializes its CI under the
-# Hugo site root, which for frank means `blog/.github/workflows/blog-ci.yml`.
-# GitHub Actions only ever reads `.github/workflows/` at the REPOSITORY root, so
-# that copy was inert from the day it arrived (#667) — its papers, mermaid and
-# image gates never ran once, while looking for all the world like they did.
-# Any blog-craft blog whose `site_dir` is not "." has this problem.
+# HISTORY, because the shape of this file is otherwise puzzling. blog-craft used
+# to materialize its CI under the Hugo site root — for frank,
+# `blog/.github/workflows/blog-ci.yml`. GitHub Actions reads workflows ONLY from
+# `.github/workflows/` at the REPOSITORY root, so that copy was inert from the
+# day it arrived (#667): its papers, mermaid and image gates never ran once,
+# while looking for all the world like they did. It could not have passed even
+# if GitHub had run it, which is the tell that nobody ever did — it invoked
+# `--config .blog-craft.yaml` and `docs/papers-dossiers/*` site-relative, and
+# both live at the repo root here.
 #
-# The materialized copy also assumed CWD = site root (`--config .blog-craft.yaml`,
-# `docs/papers-dossiers/*`), which is wrong for frank twice over: the config and
-# the dossiers both live at the repo root. So it could not have passed even if
-# GitHub had run it. Paths below follow deploy-blog.yml, which is the invocation
-# style proven in the live workflow: repo root, `blog/scripts/…`, and
-# `working-directory: blog` only where Hugo genuinely needs it.
+# FIXED UPSTREAM in blog-craft v0.17.0 (blog-craft#61): the manifest now declares
+# a path ROOT per file, `.github/**` is repo-rooted, the shipped template renders
+# site-relative paths from `site_dir`, and `/update` RELOCATES a stale copy
+# instead of leaving two. So this is no longer a local deviation — the template
+# and this file now agree on every validator, glob and working-directory.
 #
-# The upstream `deploy` job is deliberately NOT carried over — it is a stub
-# (`echo "wire your registry + cluster manifest bump"`), and frank's real deploy
-# is deploy-blog.yml. Two deploy paths for one site is how you get a race.
+# WHAT FRANK STILL ADDS, and why each is deliberate rather than drift:
+#   - Setup Go — Hextra is a Hugo module, so the build needs a Go toolchain to
+#     fetch it. The template has no such step. Deliberately no `hugo mod get`:
+#     it resolves to latest and rewrites the theme pin in blog/go.mod, so CI
+#     would test a different Hextra than the one committed.
+#   - peaceiris/actions-hugo pinned by commit SHA rather than a tag.
+#   - job name `blog-validate`, not `validate` — agent-config.yml already
+#     publishes a check called `validate`, and two identically-named checks on
+#     one PR are unreadable.
+#   - `paths:` filters, so an infra-only PR does not run a Hugo build.
+#   - `permissions: contents: read`.
+#   - the upstream `deploy` job is NOT carried over: it is an echo stub, and
+#     frank deploys via deploy-blog.yml. Two deploy paths for one site is a race.
 #
-# `scripts/tests/test_blog_ci_at_repo_root.py` fails if the inert copy comes
-# back, which it will: /update re-adds any managed path that is missing.
+# `scripts/tests/test_blog_ci_at_repo_root.py` guards the placement and the gate
+# list. Its inert-copy check is now a regression guard rather than a live
+# tripwire — v0.17.0 no longer re-adds the file.
 name: blog
 
 # The two path lists are duplicated on purpose: GitHub Actions' workflow parser

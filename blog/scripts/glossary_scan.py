@@ -47,6 +47,55 @@ _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _HEADING = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")
 _INDENTED = re.compile(r"^(?: {4}|\t)")
 
+# Paired shortcodes whose BODY is not prose — it is source handed to a renderer.
+# `papers/landscape` wraps its `.Inner` in `<pre class="mermaid">` after a
+# `quadrantChart` header, so a marker there expands to a whole
+# `<button popovertarget>` + `<span popover>` tree inside a chart axis and
+# mermaid dies with `Lexical error on line 4. Unrecognized text.`
+#
+# The criterion is "the body is handed to a renderer", NOT "the shortcode has a
+# body": `papers/pullquote` and `papers/scar` also take `.Inner` and it is
+# ordinary prose that SHOULD be marked. Excluding every shortcode body would
+# silently drop legitimate markers. Audited against every shipped shortcode —
+# landscape is the only one that qualifies; capability-matrix, dossier-link and
+# references-index take no body at all.
+OPAQUE_BODY_SHORTCODES = frozenset({"papers/landscape"})
+
+def _opaque_pattern(name: str, lo: str, hi: str) -> re.Pattern:
+    """opening tag … body … (closing tag), for one shortcode and one delimiter pair.
+
+    The body is TEMPERED — it may not contain another opening tag for the same
+    shortcode. Without that, a `*?` body reaches past an unclosed opener to the
+    NEXT block's closer, swallowing every paragraph in between; the unclosed
+    opener then silently un-marks prose instead of matching nothing.
+    """
+    esc, lo_e, hi_e = re.escape(name), re.escape(lo), re.escape(hi)
+    return re.compile(
+        # Opening tag — TEMPERED so it cannot run past its own closing delimiter.
+        # A plain `.*?` here is not enough: when the body fails to match, the
+        # engine backtracks by EXTENDING the tag, so an opener inside inline code
+        # will happily reach the next block's `>}}` and report that block's body
+        # as its own. Tempering the body without tempering the tag just moves the
+        # bug.
+        lo_e + r"\s*" + esc + r"\b(?:(?!" + hi_e + r").)*?" + hi_e
+        # Body — tempered so it cannot contain another opening tag for the same
+        # shortcode; otherwise an unclosed opener reaches the NEXT block's closer
+        # and every paragraph between them becomes unmarkable.
+        + r"(?P<body>(?:(?!" + lo_e + r"\s*" + esc + r"\b).)*?)"
+        + r"(?=" + lo_e + r"\s*/\s*" + esc + r"\s*" + hi_e + r")",
+        re.S,
+    )
+
+
+# Both Hugo delimiter pairs. `{{%` renders its body as markdown, which breaks a
+# diagram just as thoroughly — and an asymmetry here would be a trap rather than
+# a saving.
+_OPAQUE_BODY = tuple(
+    (name, _opaque_pattern(name, lo, hi))
+    for name in sorted(OPAQUE_BODY_SHORTCODES)
+    for lo, hi in (("{{<", ">}}"), ("{{%", "%}}"))
+)
+
 # Inline constructs. Each requires a closing delimiter, so an unmatched opener in
 # prose can never swallow the rest of the document.
 _INLINE_PATTERNS = (
@@ -125,7 +174,63 @@ def excluded_spans(text: str) -> list[tuple[int, int]]:
     spans = _block_spans(text)
     for pat in _INLINE_PATTERNS:
         spans.extend((m.start(), m.end()) for m in pat.finditer(text))
+    spans.extend(opaque_body_spans(text))
     return sorted(spans)
+
+
+def _opaque_bodies(text: str) -> list[tuple[str, int, int]]:
+    """(shortcode, body_start, body_end) for each renderer-source body.
+
+    Separate from `_block_spans` because this is a construct question, not a
+    line one: the body is delimited by the shortcode's own tags and can hold
+    blank lines, indentation and anything else.
+
+    A block whose OPENING TAG sits inside a code region is documentation — a
+    post showing what the shortcode looks like — so it is skipped. Without that,
+    an opener inside inline code pairs with a real block further down and the
+    prose between them becomes unmarkable, which is exactly the over-broad
+    exclusion this feature must not have.
+    """
+    skip = code_spans(text)
+    out: list[tuple[str, int, int]] = []
+    for name, pat in _OPAQUE_BODY:
+        for m in pat.finditer(text):
+            if _in_any(m.start(), m.start("body"), skip):
+                continue
+            out.append((name, m.start("body"), m.end("body")))
+    return out
+
+
+def opaque_body_spans(text: str) -> list[tuple[int, int]]:
+    """Bodies of shortcodes that hand their `.Inner` to a renderer, not to prose."""
+    return [(s, e) for _, s, e in _opaque_bodies(text)]
+
+
+def misplaced_markers(text: str) -> list[tuple[str, int]]:
+    """Executed {{< abbr >}} markers sitting in an opaque body, as (shortcode, line).
+
+    `excluded_spans` stops NEW ones being proposed or inserted; this reports the
+    ones already in a post. Both are needed: a blog swept before the exclusion
+    existed carries markers the scanner will now never touch again — idempotent
+    means it also never removes them — so without this check they stay until a
+    build fails somewhere that names a mermaid lexer position and nothing points
+    back at the glossary.
+
+    "Executed" is the operative word, and it is why `code_spans` is subtracted
+    here exactly as `markers_in` subtracts it: a post that DOCUMENTS the
+    shortcode inside a fence must not be failed by its own example. Two
+    functions disagreeing about what counts as a marker is the drift this
+    module's shared scanner exists to prevent.
+    """
+    skip = code_spans(text)
+    out: list[tuple[str, int]] = []
+    for name, start, end in _opaque_bodies(text):
+        for mark in MARKER_RE.finditer(text[start:end]):
+            pos = start + mark.start()
+            if _in_any(pos, pos + len(mark.group(0)), skip):
+                continue
+            out.append((name, text.count("\n", 0, pos) + 1))
+    return sorted(out, key=lambda t: t[1])
 
 
 def code_spans(text: str) -> list[tuple[int, int]]:

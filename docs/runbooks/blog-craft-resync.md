@@ -59,22 +59,34 @@ CI, …); frank's authored content (`content/**`, `data/**`, images,
 `.blog-craft.yaml`) is `content`-class and left alone. `data/layer_palette.yaml`
 is content-class too — regenerate it explicitly (above), it is not auto-updated.
 
-## MANDATORY after every update: delete `blog/.github/`
+## RETIRED at v0.17.0: the `rm -rf blog/.github` step
 
-blog-craft materializes `.github/**` under `site_dir`, so an update **always
-re-adds** `blog/.github/workflows/blog-ci.yml` (an absent managed path is an
-`add`, unconditionally). GitHub only ever reads workflows from the **repo root**,
-so that copy runs nothing — it sat there inert from #667 until 2026-07-27, and
-its papers/mermaid/image gates never fired once. frank's live workflow is
-`.github/workflows/blog-ci.yml`; delete the re-added copy every time:
+Until blog-craft v0.17.0 this was a mandatory post-update chore. blog-craft
+materialized `.github/**` under `site_dir`, so every update re-added
+`blog/.github/workflows/blog-ci.yml` — an absent managed path is an `add`,
+unconditionally. GitHub only ever reads workflows from the **repo root**, so
+that copy ran nothing: it sat inert from #667 until 2026-07-27, and its
+papers/mermaid/image gates never fired once.
 
-```bash
-rm -rf blog/.github
-```
+**blog-craft#61 fixed it upstream.** The manifest now declares a path ROOT per
+file, `.github/**` is repo-rooted, and `/update` RELOCATES a stale copy rather
+than leaving two. Verified on the v0.17.0 resync: the plan no longer mentions
+`blog/.github/` at all, and the hookify guard moved itself from
+`blog/.hookify.warn-hextra-weight-zero.md` to
+`.claude/hookify.warn-hextra-weight-zero.local.md` by the same mechanism.
 
-`scripts/tests/test_blog_ci_at_repo_root.py` fails the PR if you forget, so this
-cannot ship silently again. Tracked upstream as **blog-craft#61** — drop this
-step once `.github/**` joins `map_dest`'s config-rooted allowlist.
+There is nothing to delete after an update any more. If `blog/.github/` ever
+reappears that is a genuine regression — `scripts/tests/test_blog_ci_at_repo_root.py`
+still fails the PR, and it is worth finding out what put it back rather than
+quietly deleting it again.
+
+`.github/workflows/blog-ci.yml` is a deliberate **superset** of the shipped
+template, not a fork: same validators, same globs, same `working-directory`. The
+additions — Setup Go for the Hextra module, a SHA-pinned action, the
+`blog-validate` job name, `paths:` filters, and no upstream `deploy` stub — are
+listed with their reasons in that file's own header. Keep them across a resync.
+A `MERGE` or `NOOP` on that path is expected; a `CONFLICT` means the template
+moved and the header list is what to re-read.
 
 ## `.blog-craft.sync.yaml` — commit it, and read the backfill warning once
 
