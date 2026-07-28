@@ -64,6 +64,15 @@ backlog, check the gate before working the backlog.**
 | invalid `diataxis: explainer` | building `01-introduction` |
 | lint FAIL `'seamless'` | operating `22-cicd-platform` |
 
+> **Two counters, one table — do not add them up.** The validator reports gate
+> findings as indented `x` lines under a post heading, and lint hits as separate
+> top-level `LINT FAIL:` lines. The table above lists both for convenience, but
+> they are independent totals: **15 gate findings + 1 lint FAIL**, not 16 of one
+> thing. Phase 1's step was authored against the merged number and predicted 13
+> where the answer is 14. The executor caught it by measuring a baseline instead
+> of reaching for the stated figure — which is the same discipline this spec
+> asks for everywhere else. Later phases quote gate findings only.
+
 ## Design constraints
 
 ### 1. The gate is trivially gameable — green is not the goal
