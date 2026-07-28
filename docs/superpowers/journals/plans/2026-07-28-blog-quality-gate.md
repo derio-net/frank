@@ -214,3 +214,116 @@ Two RecurringJobs in, two CronJobs out, same names, same cron expressions, 142d 
 Also found while checking it: **the post's link to that investigation was dead.** It pointed at `docs/superpowers/plans/2026-03-09-openrgb-it5701-investigation.md`; the file is at `docs/superpowers/implemented/investigations/2026-03-09--fun--openrgb-it5701-investigation.md`. Nothing in the blog CI checks repo-relative GitHub links, so this would not have surfaced on its own. Worth a Phase 6 thought: the tripwire could cheaply assert that every `github.com/derio-net/frank/blob/main/<path>` link resolves to a file in the working tree.
 
 Unresolved, flagged not fixed: the post says the fans are rainbow; the investigation's "Current State" section says the LEDs are black, replaying the NV-saved colour from before the BIOS update. One of the two is stale. I have no way to observe the physical LEDs from here, so I left both alone rather than guess.
+
+<!-- fr:journal kind=finding scope=plan id=cef05b5a55c7 created=2026-07-29T00:46:13 phase=3 state=fixed -->
+### cef05b5a55c7 · finding [fixed] · Seven of eight commit hashes cited in two Missteps tables were fabricated - real commits, wrong rows (phase 3)
+
+The retrofit was supposed to be a prose pass over three already-green posts. Most of the work turned out to be repair, and the highest-yield check was the cheapest one available: paste every cited commit hash into `git show` and read the subject line.
+
+**Seven of the eight commit citations across the two Missteps tables were wrong, and the two tables were wrong in different ways.**
+
+`building/01-introduction` cited `ce2fcd9e` in two unrelated rows (adding Pi edge workers; rewriting bootstrap docs). It is neither: `docs(orch): hermes-agent-shell blog posts + plan archive`, 2026-06-06. `building/00-overview` cited `ce2fcd9e` a third time, for the same bootstrap-rewrite claim, plus `cfb7dd1e`, `39cfcec4` and `bd0415e6` for its other three rows. Checked one by one:
+
+| cited | claim in the row | what the commit actually is |
+|---|---|---|
+| `ce2fcd9e` (x3) | Pi edge workers / bootstrap rewrite | hermes-agent-shell blog posts, 2026-06-06 |
+| `cfb7dd1e` | adopting the 12-layer model | page-derived series-index adoption, 2026-07-04 |
+| `39cfcec4` | building/operating split | blog-post auto-append + workflow fix, 2026-07-03 |
+| `bd0415e6` | relref-to-draft fix | the blog-craft cutover, 2026-07-03 |
+
+Every one is a real commit in this repo, recent, and plausible at a glance. None is the commit its row describes. That is the signature of hashes written to fill a column rather than looked up, and a `Commit` column is the last place a reader expects to have to verify. Only `46673fde` (the homelab photo) checked out, and its row was cut anyway for being about the post rather than the system.
+
+The real commits exist and took minutes to find: `d7678b9e` (2026-03-21, Phase to Layer convention), `7f5ff73f` plus `fc274975` (2026-03-13, the building/ move and the operating series), `2840cce7` (2026-04-18, the relref fix). Note that last one is a **different** relref bug from the one claimed: a missing `/docs/` prefix, not a draft target. No evidence for the draft-target story exists anywhere in the history, so the row was rewritten around the bug that did happen.
+
+Two rows also failed on substance, not just citation. `01-introduction`'s "Zone D was originally just pc-1, the Raspberry Pis were added months later" is contradicted by `26d7d08f` (2026-03-02), which adds label patches for **all seven nodes in one commit**, four days before the post's own date. And "Management ran on mini-1, Omni and Authentik shared the first control-plane node" has no support anywhere in the repo, and is a chicken-and-egg impossibility for Omni specifically, which has to exist before the node it provisions does.
+
+Three rules fall out, for Phases 4 and 5:
+
+1. **`git show` every hash in a Missteps table before touching anything else.** Thirty seconds per row, and the highest-yield check in this plan so far.
+2. **A citation column raises trust faster than it earns it.** Readers discount prose. Nobody discounts a hash.
+3. **When you cannot find the real commit, ask whether the row is about the system at all.** Two of the four rows removed here were about the *drafting* of the post rather than the building of the cluster, which is also why no commit fitted them.
+
+<!-- fr:journal kind=finding scope=plan id=a6be9fd74671 created=2026-07-29T00:46:43 phase=3 state=fixed -->
+### a6be9fd74671 · finding [fixed] · operating/22 published three broken commands, not one - and the two the brief missed both fail silently (phase 3)
+
+The phase brief flagged one broken command in `operating/22-cicd-platform`. Running the rest of the post found two more, and the two the brief missed are worse, because the flagged one fails loudly and they do not.
+
+**1. `kubectl logs -c step-*` (the flagged one).** `-c` takes a single container name and does not glob. Reproduced live:
+
+    error: container step-* is not valid for pod kid-laptops-main-sync-4ps98-pull-and-push-pod
+    out of: step-pull-from-github-push-to-gitea, prepare (init), place-scripts (init)
+
+Bad, but self-announcing: you cannot mistake it for working. Replaced with `--all-containers --prefix`, which is what the reader wanted anyway since a PodSecurity violation can surface in an init container. The post now also shows how to list a pod's step containers first, because their names come from the Task's step names and there is nothing to guess from.
+
+**2. The Verify block's mirror check silently returned nulls.** The published line was unauthenticated, and `tekton-bot/frank` is a private repo, so Gitea answers `404` and `jq` renders that as a tidy object:
+
+    unauthenticated -> {"mirror": null, "updated_at": null}
+    with the token  -> {"mirror": true, "updated_at": "2026-07-28T22:10:37Z"}
+
+A missing credential and a deleted mirror produce byte-identical output. Anyone who ran the documented health check on the documented service got a clean-looking answer that proved nothing, forever.
+
+**3. "Trigger a Mirror Sync" returned 401, silently.** It passed the Gitea **admin password** as `Authorization: token`, which wants an API token. Measured, same endpoint, same second:
+
+    admin password as bearer token -> HTTP 401
+    tekton-bot API token           -> HTTP 200
+
+And the published invocation used `curl -sf`, so the 401 produced no output at all and only a non-zero exit — indistinguishable from success to anyone not checking `$?`. Fixed by sourcing the token from the `gitea-api-token` Secret in `tekton-pipelines` and printing `%{http_code}`.
+
+The pattern across all three, and the reason this belongs in the plan rather than in a fix commit: **the gate's failure model is a heading with nothing under it, and every one of these is a heading with a command under it.** Two of the three exit 0 or print nothing. Structurally they are indistinguishable from working documentation, and they had been published for months in the one post a reader reaches mid-incident.
+
+Two more things fell out of running the rest of the post:
+
+- `ALLOWED_HOST_LIST` was cited under "Gitea Mirror Not Updating" with the advice to check that it "includes GitHub". It is a `[webhook]` setting governing outbound webhook *targets*; mirror pulls are unaffected by it. So the recovery step pointed at a knob that cannot cause the symptom, in the section a reader lands on when the symptom occurs.
+- `CI_AUTHORITY` was documented as still being `github` pending cutover. Live value on the Gitea org is `gitea`, flipped 2026-07-22.
+
+Carry into Phases 4 and 5: **run every command a post already publishes, not only the ones you add.** The brief's list of defects was a floor, not a ceiling, and the defects it missed were exactly the ones that produce no error message.
+
+<!-- fr:journal kind=discovery scope=plan id=40a33e0b5009 created=2026-07-29T00:47:13 phase=3 -->
+### 40a33e0b5009 · discovery · A one-directional grep is the half of a boundary check guaranteed to pass - the reverse found four Layer 2 files in the Layer 1 tree (phase 3)
+
+`building/01-introduction` claimed a universal ("Omni never touches workloads. ArgoCD never touches machine config.") and offered as proof a single grep for one string in one direction:
+
+    grep -rn 'zone: ai-compute' patches/ apps/
+    -> patches/phase01-node-config/03-labels-gpu-1.yaml:13
+
+Clean, and it has always been clean. It asks whether a *machine fact* leaked into the *workload* tree. It never asks the reverse, and the reverse is where this repo actually leaks. Discriminator: every genuine Omni resource declares a `type:` ending in `.omni.sidero.dev`, so anything in the machine-config tree without that string is either a false positive or a leak.
+
+    git ls-files 'patches/**/*.yaml' | xargs grep -L 'omni.sidero.dev'
+    patches/phase02-cilium/cilium-values.yaml
+    patches/phase03-longhorn/longhorn-gpu-local-sc.yaml
+    patches/phase03-longhorn/longhorn-values.yaml
+    patches/phase04-gpu/gpu-operator-values.yaml
+    patches/phase13-auth/oidc-apiserver.yaml
+
+One false positive (`oidc-apiserver.yaml` is a raw Talos `cluster:` patch with no Omni envelope, correctly Layer 1). The other four are two Helm values files, a Kubernetes StorageClass and a third Helm values file: Layer 2 artefacts, tracked and non-empty, in the Layer 1 tree. All four have live counterparts under `apps/` (`apps/cilium/values.yaml`, `apps/longhorn/values.yaml`, `apps/longhorn/manifests/gpu-local-sc.yaml`, `apps/gpu-operator/values.yaml`), and `patches/README.md` says as much, so they are archaeology rather than a live violation. Nothing in the repo applies them.
+
+Three notes worth carrying:
+
+1. **The direction you check is the direction you were careful about.** That is the whole trap. A one-directional check is not 50% of a boundary check, it is the half guaranteed to pass, because the string you think to grep for is the one you already policed. The post now runs both and states what each does and does not establish.
+
+2. **`kubectl get nodes -L zone,tier,accelerator` was billed as "the cheapest probe" of the boundary and proves nothing about it.** A hand-typed `kubectl label node` yields byte-identical output, which the post conceded two paragraphs later without noticing it had refuted its own evidence. The command is still worth running: it shows Zone A has no node, which is a real claim. It just cannot distinguish declarative from imperative, and being explicit about that is the difference between evidence and a screenshot.
+
+3. **Dead files rot in place and lie confidently.** `patches/phase03-longhorn/longhorn-values.yaml` documents `helm install --version 1.11.0` against `patches/phase3-longhorn/` — a chart version the cluster left in June (instance-manager heap leak, chart now 1.11.2) and a directory path a zero-padding rename retired. Three wrong facts in one file nobody reads, and a paper dossier still cites its sibling as a live artefact. The post names them rather than deleting them, because deleting was out of scope and the checkable claim is more useful than the tidy one.
+
+<!-- fr:journal kind=discovery scope=plan id=bbf76d4a5593 created=2026-07-29T00:47:42 phase=3 -->
+### bbf76d4a5593 · discovery · Documenting a Hugo shortcode trap re-triggered it - and it surfaced as six failures in files I never touched (phase 3)
+
+While rewriting `building/00-overview`'s Missteps table I documented an old Hugo trap: a `relref` without the `/docs/` prefix is not a warning, it is `REF_NOT_FOUND` and a dead build. I wrote the example inside backticks, assuming an inline code span would keep Hugo out of it.
+
+It does not. Hugo evaluates shortcodes inside inline code spans, so the example resolved as a real `relref`, failed exactly as documented, and took the build down:
+
+    ERROR [en] REF_NOT_FOUND: Ref "building/...": ".../00-overview/index.md:133:161": page not found
+    ERROR error building site: logged 1 error(s)
+
+The row about the bug caused the bug. Fixed with Hugo's escape form, which the repo already uses in `operating/25-frank-papers`: open with `{{<` + `/*` and close with `*/` + `>}}`.
+
+The part worth recording is not the trap, it is **how it presented**. The educational gate passed the post. The blog build I had already run passed, because I ran it before writing that row. What caught it was `pytest`, and it caught it as **six failures in files I had never touched** — five in `test_series_index_adoption.py` and one in `test_image_optimization_adoption.py`. Both suites build the whole site into a temp dir and then assert on the rendered HTML, so a single unresolvable ref in one post's table cell surfaces as "the series index cards are wrong" and "the build emits no webp". Nothing in those six failure messages names `00-overview`; the cause is two stack frames down, inside a shared `build_site()` helper, in the assertion text rather than the test name.
+
+Same neighbourhood as the earlier finding in this plan about `-l longhornvolume` reporting a catastrophe in the same words as a wrong selector: **the failure message described a plausible different problem.** I very nearly filed all six as pre-existing baseline breakage against `origin/main`, which would have been the reasonable-looking move and would have shipped a broken build.
+
+Two rules:
+
+1. **Run the full `pytest`, not just the blog build, after editing content.** The Hugo build I ran mid-edit was green; the one inside pytest was not, because I had written the offending row between them. Order of operations matters more than which command you run.
+2. **When N unrelated-looking tests fail at once, read the assertion body before the test names.** A shared expensive fixture (build the site once, assert many things) converts one root cause into N misleading symptoms by design.
+
+There is also a cheap tripwire available if anyone wants it: the corpus already has a Hugo-build guard, but nothing flags an *unescaped* shortcode inside an inline code span, which is a purely lexical check and the exact shape of this bug.
