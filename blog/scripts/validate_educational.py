@@ -58,10 +58,23 @@ _DIATAXIS_ALIASES = {
 
 # Headings a reader in a hurry can act on. Matched case-insensitively against
 # the heading text (not the leading #s).
+#
+# Verb stems, NOT `\bword\b`. Writers inflect: real headings say "Verifying the
+# Bootstrap" and "Recovery Path", not "Verify" and "Recover". The anchored form
+# rejected exactly the sections this check exists to find — on one 83-post blog,
+# 27 of 34 gate failures already had such a heading. Trailing `\w*` handles
+# verify/verifying/verification and recover/recovery/recovering.
+#
+# Kept deliberately narrow at the other end: a pattern that matches any heading
+# is as useless as one that matches none. `\bsteps\b` stays anchored so
+# "Missteps" is not a hit, and narrative headings (Background, Architecture,
+# Data Flow) must keep failing — pinned by
+# test_narrative_headings_still_do_not_count_as_actionable.
 _ACTIONABLE = re.compile(
     r"(reproduce|try\s+it\s+yourself|run\s*book|step[\s-]*by[\s-]*step|"
-    r"\bsteps\b|\bprocedure\b|\bhow\s+to\b|\bverify\b|\brecover\b|"
-    r"\brollback\b|\bchecklist\b|\bwalkthrough\b|\brunbook\b)",
+    r"\bsteps\b|\bprocedure\b|\bhow\s+to\b|\bverif\w*|\brecover\w*|"
+    r"\brollback\b|\bchecklist\b|\bwalkthrough\b|\brunbook\b|"
+    r"\btroubleshoot\w*|\bdiagnos\w*|\bsmoke\s*test)",
     re.IGNORECASE,
 )
 

@@ -1,5 +1,5 @@
 version: 5
-blog_craft_version: "v0.18.0"   # blog-craft RELEASE frank is synced to (was v0.17.0).
+blog_craft_version: "v0.18.1"   # blog-craft RELEASE frank is synced to (was v0.18.0).
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump
