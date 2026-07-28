@@ -78,6 +78,47 @@ This post is a **living document**: it gets updated as new technologies and capa
 | pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
 | raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
 
+## Verify this page against a live cluster
+
+Everything in the Technology → Capability Map arrives as an ArgoCD Application, so the table is checkable rather than a claim you have to take on trust. The `kubectl` lines below want a kubeconfig for a cluster; the `grep` lines want a clone of [derio-net/frank](https://github.com/derio-net/frank) and run from its root. Start with the count:
+
+```console
+$ kubectl -n argocd get applications --no-headers | wc -l
+      69
+```
+
+Sixty-eight of those are templated by the App-of-Apps. The sixty-ninth is `root` itself, applied by hand once at bootstrap, because at that moment nothing exists yet to apply it:
+
+```console
+$ grep -l 'kind: Application' apps/root/templates/*.yaml | wc -l
+      68
+```
+
+That arithmetic is the whole GitOps claim in one line. When the two numbers stop agreeing, something on the cluster was made outside git, and I would rather learn that from a shell prompt than during an incident.
+
+Existing and converged are different questions, so ask the second one separately:
+
+```console
+$ kubectl -n argocd get applications \
+    -o jsonpath='{range .items[*]}{.status.sync.status}{" "}{.status.health.status}{"\n"}{end}' \
+  | sort | uniq -c | sort -rn
+  62 Synced Healthy
+   5 OutOfSync Healthy
+   1 Synced Suspended
+   1 OutOfSync Missing
+```
+
+Sixty-two green out of sixty-nine, on an ordinary afternoon. The `Suspended` row is a canary parked at a manual promotion gate, which is Argo Rollouts doing its job rather than a fault. The `OutOfSync` rows are live state disagreeing with git about something. None of it is an emergency. I show it because a cluster that reports all green all the time is usually one nobody is asking hard questions of.
+
+The roadmap at the top is numbered by published post. The layer codes that plan filenames and commit messages use are a separate registry:
+
+```console
+$ grep -c '^  - code:' docs/layers.yaml
+22
+```
+
+Twenty-one numbered capability layers, plus `repo` for meta-work that is not a cluster capability at all. The two sequences match through Layer 17 and diverge after it, because layers stopped shipping in the order they were planned. If you are looking for the post that covers a layer, follow the roadmap; if you are looking for the plan that built it, follow the code.
+
 ## Missteps
 
 The roadmap has evolved significantly since the cluster was first built. Here are the decisions that got revised:

@@ -71,6 +71,37 @@ Omni never touches workloads. ArgoCD never touches machine config. When a proble
 
 ![Omni cluster dashboard showing all seven nodes, their roles, and resource usage](omni-cluster.png)
 
+## Verify the boundary on your own cluster
+
+A boundary is easy to describe and easy to violate, so check it rather than believe it. The zone labels are the cheapest probe: they are declared in machine config, which means Layer 1 put them there and Kubernetes is only reporting them back.
+
+```console
+$ kubectl get nodes -L zone,tier,accelerator
+NAME      STATUS   ROLES           AGE    VERSION   ZONE         TIER        ACCELERATOR
+gpu-1     Ready    <none>          148d   v1.35.3   ai-compute   standard    nvidia
+mini-1    Ready    control-plane   148d   v1.35.3   core         standard    intel-igpu
+mini-2    Ready    control-plane   148d   v1.35.3   core         standard    intel-igpu
+mini-3    Ready    control-plane   148d   v1.35.3   core         standard    intel-igpu
+pc-1      Ready    <none>          148d   v1.35.3   edge         standard
+raspi-1   Ready    <none>          148d   v1.35.3   edge         low-power
+raspi-2   Ready    <none>          148d   v1.35.3   edge         low-power
+```
+
+Seven nodes, three zones. Zone A is not in that list, and its absence is the whole point: management lives outside the cluster it manages, so it has no node to appear as. The day Zone A shows up in `kubectl get nodes` is the day the separation quietly collapsed.
+
+Run that against a fresh cluster of your own and the last three columns come back empty, which is the useful part. Empty means nothing has claimed those machines yet. Filling the columns by hand with `kubectl label node` also works, and it is the wrong answer: the label then lives only in etcd, so it survives exactly until the node is reimaged.
+
+Now trace one of those labels back to the file that declares it:
+
+```console
+$ grep -rn 'zone: ai-compute' patches/ apps/
+patches/phase01-node-config/03-labels-gpu-1.yaml:13:                zone: ai-compute
+```
+
+One hit, and it is under `patches/`. Nothing under `apps/`. That is the two-layer model reduced to a grep: machine facts are declared where Omni can see them, and workloads are declared where ArgoCD can see them. Neither directory carries the other's business.
+
+Run the same grep against your own repo. If a node label turns up inside a Helm chart, the layers have started to leak, and the first question of every future debugging session ("which layer owns this?") no longer has an answer.
+
 ## What the Series Covers
 
 Each post in this series builds one layer on top of the last. The roadmap below shows the full sequence — the post you are reading sits at Layer 0, the motivation.
@@ -84,6 +115,14 @@ Each post in this series builds one layer on top of the last. The roadmap below 
 - About 30 minutes per layer post
 
 The series assumes you are building alongside. Each post ends with a running cluster state you can verify.
+
+## What Transfers
+
+None of this is specific to my hardware. Three things are worth carrying to whatever you build next:
+
+- **Give every fact one owner, and make ownership greppable.** The value of the two-layer split is not tidiness. It is that "which layer owns this?" is answerable with `grep` at 2am instead of being a matter of opinion.
+- **Put management outside the thing it manages.** Anything you need in order to fix the cluster should not require the cluster to be working. That rule cost me a rebuild to learn, and it applies equally to a CI runner, a backup target, or a secrets store.
+- **Mismatched hardware is a feature while you are learning.** Identical nodes teach you the happy path. A Raspberry Pi and an RTX 5070 in the same scheduler teach you what a node selector is actually for, and they do it on the first day rather than the first outage.
 
 ## Missteps
 
