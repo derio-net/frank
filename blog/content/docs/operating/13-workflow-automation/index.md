@@ -38,6 +38,7 @@ graph TB
     end
 
     subgraph users["Access"]
+        direction TB
         ui["Web UI<br/>/healthz"]
         api["REST API"]
         agent["Agent Session<br/>Sidecar"]

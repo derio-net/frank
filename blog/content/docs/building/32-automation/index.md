@@ -23,7 +23,7 @@ Ansible has exactly that verb. So this layer — `auto` — is me growing an imp
 ArgoCD installs the awx-operator Helm chart and applies an `AWX` custom resource. That is all ArgoCD manages. Then the *operator* takes over: it reconciles the {{< abbr "CR" >}} into a Deployment for the web pod, the task pod, a StatefulSet for Postgres, migrations Job, Services. None of that is in Git.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph ArgoCD
     CHART[awx-operator Helm chart]
     CR[AWX custom resource]

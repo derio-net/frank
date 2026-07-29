@@ -29,10 +29,11 @@ source .env_devops   # sets OMNICONFIG + service accounts
 ```mermaid
 flowchart TD
     subgraph "kali container (s6-overlay)"
-        A["s6-svscan (PID 1)"]
-        A --> B["s6-supervise sshd"]
-        A --> C["s6-supervise supercronic"]
-        B --> D["sshd (port 2222)"]
+        direction LR
+        A["s6-svscan<br/>(PID 1)"]
+        A --> B["s6-supervise<br/>sshd"]
+        A --> C["s6-supervise<br/>supercronic"]
+        B --> D["sshd<br/>(port 2222)"]
         C --> E["supercronic"]
         E --> F["session-manager.sh"]
         E --> G["push-heartbeat.sh"]
@@ -40,10 +41,10 @@ flowchart TD
         E --> I["audit-digest.sh"]
     end
     subgraph "vk-local sidecar (tini)"
-        J["vibe-kanban (port 8081)"]
+        J["vibe-kanban<br/>(port 8081)"]
     end
     D -->|TCP:2222| K["ReadinessProbe"]
-    K --> L["LoadBalancer 192.168.55.215:22"]
+    K --> L["LoadBalancer<br/>192.168.55.215:22"]
 ```
 
 Each supervised service runs in signal isolation — a crash in `supercronic` can't take down `sshd`. s6 respawns failed services within ~1s; 5 deaths in 60s triggers a crashloop bail that stops respawning without killing the pod.

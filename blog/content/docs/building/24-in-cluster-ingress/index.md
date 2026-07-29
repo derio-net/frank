@@ -19,12 +19,13 @@ This post moves the ingress controller inside the cluster: Traefik v3 on the ras
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Internet
     DNS[Pi-hole<br/>*.cluster.derio.net → 192.168.55.220]
   end
   subgraph Cluster[Frank Cluster]
     subgraph Traefik[traefik-system namespace]
+      direction TB
       T[Traefik — raspi-1/raspi-2]
       AC[ACME — Cloudflare DNS-01<br/>*.cluster.derio.net]
       MW[Middlewares<br/>ip-allowlist + security-headers]

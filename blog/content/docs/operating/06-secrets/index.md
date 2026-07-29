@@ -59,7 +59,7 @@ kubectl get clustersecretstore
 ```
 
 ```mermaid
-graph LR
+graph TD
   subgraph BOOT["Bootstrap Layer"]
     S1["SOPS-encrypted<br/>secrets/ files"]
     S1 -->|"sops --decrypt"| INF["Infisical<br/>192.168.55.204:8080"]

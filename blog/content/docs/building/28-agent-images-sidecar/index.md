@@ -19,7 +19,7 @@ This post unbakes all of it into three moves: a new `derio-net/agent-images` rep
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph VK[vibe-kanban fork]
     CI1[Fork CI<br/>vk-remote + vk-build]
   end

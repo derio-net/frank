@@ -214,6 +214,7 @@ flowchart TD
         A["one image, baked once"]
     end
     subgraph NODES["Physical fleet (N × identical RPi 4)"]
+        direction TB
         P1["raspi-1"]
         P2["raspi-2"]
         P3["raspi-3"]
@@ -285,14 +286,14 @@ fleet at once, a single golden-image rev.
 ```mermaid
 flowchart TD
     subgraph DECL["Declarative (Talos + Omni)"]
-        P1[("patches/phase01-node-config/03-labels-*.yaml")]
+        P1[("patches/phase01-node-config/<br/>03-labels-*.yaml")]
         A["talosctl apply-config per node"]
     end
     subgraph NODES["Physical fleet (7 nodes, 4 hardware classes)"]
-        M1["mini-1/2/3<br/>Intel Ultra 5 / 64GB / iGPU"]
-        G1["gpu-1<br/>i9 / RTX 5070 Ti / 128GB"]
-        PC1["pc-1<br/>Z77 / i5-3570K / 32GB"]
-        R12["raspi-1/2<br/>RPi 4 / ARM / 4GB"]
+        M1["mini-1/2/3<br/>Intel Ultra 5<br/>64GB · iGPU"]
+        G1["gpu-1<br/>i9 · 128GB<br/>RTX 5070 Ti"]
+        PC1["pc-1<br/>Z77 · i5-3570K<br/>32GB"]
+        R12["raspi-1/2<br/>RPi 4 · ARM<br/>4GB"]
     end
     subgraph SCHED["K8s scheduler"]
         NS{{"nodeSelector:<br/>kubernetes.io/hostname<br/>frank/zone, frank/hardware"}}

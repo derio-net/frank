@@ -26,7 +26,7 @@ Two components join the monitoring namespace alongside VictoriaMetrics and Grafa
 | **Pushgateway** | Heartbeat metric ingestion | Cron scripts push `willikins_heartbeat_last_success_timestamp` after each successful run |
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Monitoring[monitoring namespace]
     VM[VictoriaMetrics]
     BB[Blackbox Exporter]

@@ -18,7 +18,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/faa3f993
 This is the operational companion to [Building The Frank Papers]({{< relref "/docs/building/30-frank-papers" >}}). That post explains *why* there's a third series and what the dossier gate is for. This one is the cookbook: scaffold, dossier, prose, cover, ship.
 
 ```mermaid
-graph LR
+graph TD
     subgraph repo["Repository"]
         scaffold["blog/content/docs/papers/NN-slug/index.md"]
         dossier["docs/papers-dossiers/NN-slug/dossier.md"]

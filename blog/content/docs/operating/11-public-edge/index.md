@@ -39,9 +39,11 @@ graph TB
     end
 
     subgraph hetzner["Hetzner Cloud"]
+        direction TB
         hop["hop-1<br/>CX23 VM<br/>Talos Linux"]
 
         subgraph k8s["Kubernetes"]
+            direction TB
             caddy["Caddy<br/>hostPort 80/443"]
             cs["CrowdSec<br/>LAPI + Bouncer"]
             hs["Headscale<br/>Control Server"]
@@ -56,6 +58,7 @@ graph TB
     end
 
     subgraph mesh["Tailscale Mesh"]
+        direction TB
         laptop["Laptop"]
         raspi["Raspi<br/>Subnet Router"]
         phone["Phone"]

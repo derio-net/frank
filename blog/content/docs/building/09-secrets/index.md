@@ -19,7 +19,7 @@ Layer 9 replaces the runtime half. The goal: secrets live in a versioned, audite
 But deploying Infisical's standalone chart surfaced three bugs in quick succession — duplicate environment variables, hardcoded Redis password paths, and Bitnami image registry issues — that forced splitting one ArgoCD application into three.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Infisical[Infisical — Secret Store]
     PG[PostgreSQL<br/>separate ArgoCD app]
     Redis[C<br/>separate ArgoCD app]
