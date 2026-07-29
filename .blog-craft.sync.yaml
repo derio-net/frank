@@ -11,8 +11,8 @@
 #
 # COMMIT THIS FILE. Without it the updater falls back to the current config and
 # says so. Delete it only to deliberately forget what was last synced.
-version: 5
-blog_craft_version: "v0.18.0"   # blog-craft RELEASE frank is synced to (was v0.17.0).
+version: 6
+blog_craft_version: "v0.19.0"   # blog-craft RELEASE frank is synced to (was v0.18.1).
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump
@@ -244,6 +244,14 @@ features:
   # blog without one (the theme's block would still run, racing two observers).
   # blog-craft #58 / CONFIG.md §10; frank first shipped this locally in #710.
   mermaid_csp_init: true
+  # Render diagrams at their AUTHORED size inside a framed horizontal scroller,
+  # instead of letting mermaid's `useMaxWidth` shrink every SVG into Hextra's
+  # 672px content column (a 2139px diagram painted 14px labels at 4.4px — the
+  # same 31% scale on a 4K panel as on a laptop, so it was never a wide-screen
+  # problem). Pure CSS, plus a `render-codeblock-mermaid.html` override making
+  # the scroller keyboard-focusable (WCAG 2.1 SC 2.1.1). Set false to restore
+  # pre-v0.19.0 rendering. blog-craft CHANGELOG 0.19.0 / CONFIG.md §12.
+  mermaid_view: true
   # Mermaid palette is in custom.css (.content scoping = all docs posts).
   # css.mermaid_palette is not used because frank's theme applies global
   # SVG overrides via CSS nesting; the papers quadrant-chart selectors

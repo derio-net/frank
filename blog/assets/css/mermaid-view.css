@@ -1,0 +1,159 @@
+/* ===================================================================
+   features.mermaid_view — diagrams at their authored size, in a framed
+   horizontal scroller.
+
+   THE MECHANISM (read this before editing anything below).
+
+   Mermaid's `useMaxWidth` shrinks every SVG to fit Hextra's 672px
+   content column — measured ~31% scale on frank's wider diagrams, i.e.
+   unreadable. But mermaid also writes
+
+       style="max-width: <natural>px"
+
+   INLINE on each rendered SVG, where <natural> is the diagram's
+   authored width. Inline author declarations beat stylesheet ones, and
+   `max-width` beats `width` regardless of origin. So the single rule
+
+       .content .mermaid svg { width: 200rem }
+
+   resolves to min(200rem, natural): a 428px diagram stays 428px and
+   never scrolls; a 2139px diagram renders full size inside the
+   scroller; nothing is ever enlarged past its authored size. One rule,
+   self-scaling across every diagram in the blog, no per-diagram tuning.
+
+   DO NOT add a `max-width` to the SVG here. It would compete with the
+   value the whole feature depends on. (It also would not help: the
+   inline declaration wins anyway — which is why the `max-width: 100%`
+   already shipped at custom.css.tmpl:143 is inert once mermaid has
+   rendered, and why removing it is neither needed nor sufficient.)
+   tests/unit/test_mermaid_view.py asserts its ABSENCE for this reason.
+
+   WHY CSS AND NOT JS. templates/features/mermaid-csp/assets/js/
+   mermaid-init.js:48-61 re-renders every diagram on the dark/light
+   toggle by resetting innerHTML. Any JS-attached wrapper, handler or
+   measured width would be destroyed at that moment; CSS re-applies for
+   free.
+
+   LOAD ORDER. head-end.html loads this sheet BEFORE custom.css, so a
+   blog can still override the frame from its own stylesheet (frank has
+   already rewritten its `.content .mermaid` block). That is deliberate:
+   everything here is a default, not a lock.
+=================================================================== */
+
+.content .mermaid {
+  /* The diagram is now free to be wider than the column, so the block
+     has to become a scroller — otherwise the page clips it, which is
+     strictly worse than the 31% shrink this replaces. */
+  overflow-x: auto;
+
+  /* Frame. All colours derived with color-mix(in srgb, currentColor …)
+     so ONE rule serves light and dark: currentColor is already the
+     theme's body text colour, so the border and tint track the theme
+     without a second `.dark` rule to keep in sync. */
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  padding: 1rem 1.25rem;
+  margin: 1.75rem 0;
+
+  /* --- scroll affordance 2 of 2: shadows ---------------------------
+     Two cover gradients in the frame's own colour, attached `local` so
+     they travel WITH the content, sitting on top of two edge shadows
+     attached `scroll` so they stay pinned to the scroller. At the left
+     end the left cover hides the left shadow; scroll right and the
+     cover slides away, uncovering it. Self-cancelling at both ends,
+     no JS, and therefore untouched by mermaid-init.js's re-render.
+
+     The colours are custom properties because they must INVERT with the
+     theme: a black shadow is invisible against a #111 frame, so the cue
+     would silently disappear in dark mode — the same failure mode as
+     the overlay scrollbar, by a second route. #fff / #111 are Hextra's
+     measured light and dark body backgrounds (getComputedStyle on a
+     built site), and the covers must match the page behind the frame,
+     not merely be "light" or "dark".
+
+     ORDER IS LOAD-BEARING: the four background-attachment values index
+     the four background-image layers positionally. Reorder one list and
+     the covers become pinned and the shadows scroll away, permanently
+     hiding both cues. The `background` shorthand above also RESETS
+     these longhands, so it must stay above them. */
+  --frame-bg: #fff;
+  --frame-shadow: rgba(0, 0, 0, 0.28);
+  background-image:
+    linear-gradient(to right, var(--frame-bg), rgba(255, 255, 255, 0)),
+    linear-gradient(to left,  var(--frame-bg), rgba(255, 255, 255, 0)),
+    linear-gradient(to right, var(--frame-shadow), rgba(0, 0, 0, 0)),
+    linear-gradient(to left,  var(--frame-shadow), rgba(0, 0, 0, 0));
+  background-position: left center, right center, left center, right center;
+  background-size: 32px 100%, 32px 100%, 16px 100%, 16px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+.dark .content .mermaid {
+  /* Only the two colours flip; every other frame value is already
+     currentColor-derived and needs no dark counterpart. The shadow is a
+     pale blue-white here because a dark frame can only be shaded by
+     LIGHT — inverting the cue, not merely re-tinting it. */
+  --frame-bg: #111;
+  --frame-shadow: rgba(190, 215, 255, 0.22);
+}
+
+/* --- scroll affordance 1 of 2: a scrollbar that is actually painted ---
+   macOS (and iPadOS, and Chrome with overlay scrollbars) defaults to an
+   overlay scrollbar that paints NOTHING at rest. Measured on the
+   prototype: offsetHeight - clientHeight == 0 with the naive version,
+   9px once -webkit-appearance: none is set. Without it the diagram is
+   SILENTLY TRUNCATED — it looks complete and the reader never learns
+   the right-hand third exists. Sizing the pseudo-element alone does not
+   opt out; -webkit-appearance is the only lever. */
+.content .mermaid::-webkit-scrollbar {
+  -webkit-appearance: none;
+  height: 9px;
+}
+
+.content .mermaid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content .mermaid::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 5px;
+}
+
+.content .mermaid::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* THE TRAP, and the reason for this feature query.
+   Firefox has no ::-webkit-scrollbar and needs the standard properties.
+   But in Chrome/Safari `scrollbar-width` / `scrollbar-color` WIN over
+   the pseudo-elements above and disable them — restoring the invisible
+   overlay bar with no warning, no error, nothing in devtools. Measured
+   and confirmed. The two mechanisms are mutually exclusive, so the gate
+   is load-bearing: it must stay, and these properties must never be
+   hoisted out of it "for tidiness". */
+@supports not selector(::-webkit-scrollbar) {
+  .content .mermaid {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, currentColor 35%, transparent) transparent;
+  }
+}
+
+.content .mermaid svg {
+  /* The load-bearing line. See the header comment. NOT a literal size —
+     an upper bound that mermaid's inline max-width always clamps. */
+  width: 200rem;
+
+  /* Block-level, and NOT because of aesthetics. custom.css.tmpl:142
+     ships `.content .mermaid { text-align: center }`. A centred INLINE
+     child wider than its scroll container overflows on BOTH sides, and
+     left overflow is outside the scrollable overflow region — the left
+     edge of a wide diagram would be permanently unreachable. As a block
+     the SVG is out of the line box, so text-align cannot touch it:
+     `margin-inline: auto` centres it while it fits, and once it does not
+     the over-constrained block resolves both auto margins to 0, sending
+     all overflow right where all of it can be scrolled to. */
+  display: block;
+  margin-inline: auto;
+}
