@@ -105,6 +105,23 @@ Status key: **[filed]** already upstream · **[open]** to file · **[local]** fi
     pre-BIOS-update colour from NV memory. One is stale. Nobody in the session
     can see the physical machine.
 
+## super-fr — sanction this list as process
+
+30. **[open] Make an improvements list a first-class artifact, alongside the
+    journal.** The journal holds findings *about the work*
+    (`fr journal add --kind finding|discovery`). This file holds findings *about
+    the machinery doing the work* — tooling defects, pipeline gaps, process
+    corrections — and there is nowhere for it to live. It exists here only
+    because the operator asked mid-run; a session that ends without that prompt
+    loses the lot.
+    Same argument as journaling: durable run-state that outlives the context
+    window, written when the insight is fresh rather than reconstructed at PR
+    time. Shape could be `fr journal add --kind improvement --target <repo>`
+    (rendered into a separate section, and into the PR body the way findings
+    and decisions already are), or a sanctioned `_improvements.md` per plan
+    folder. The `--target` matters: these route to *other* repos, so they need
+    to survive the plan being archived.
+
 ## Process (the pipeline itself)
 
 24. **Negative claims from a read-only researcher are unreliable.** Two of four
@@ -128,6 +145,32 @@ Status key: **[filed]** already upstream · **[open]** to file · **[local]** fi
 29. **A verify section can be fully evidenced and still not be a decision
     procedure.** Test: for each command, *what would I do differently depending on
     its output?* "Nothing" means it is documentation, not verification.
+30. **The cold-reader is not mode-aware, and the orchestrator must be.** It reads
+    `reader-arc.md`, which is prose and applies teaching-post expectations to
+    every draft. The *validator* is mode-gated — its what-transfers check says
+    `(expected for tutorial/explanation posts)` and never fires on `reference`.
+    On `00-overview` (`diataxis: reference`) the cold-reader reported a missing
+    what-transfers section as an arc failure; the orchestrator relayed it
+    unfiltered; the executor added three ~90-word prose bullets to a page whose
+    register is tables. **Regression, caught by the operator, not by the
+    pipeline.**
+    Two fixes: state the post's diataxis mode in every cold-reader brief and ask
+    for mode-appropriate expectations; and treat the critique as *evidence*, not
+    as a work order — the orchestrator is the only actor that knows the genre.
+    Upstream: `reader-arc.md`'s ending requirement should mirror the lint's mode
+    gating, or say plainly that it does not apply to `reference`.
+31. **Briefs must carry the invariant rules, not just the per-post findings.**
+    In the same pass, `01-introduction`'s brief said "remove Missteps rows about
+    the post's drafting history — the methodology counts a wrong turn in building
+    the system, not in writing the post," and `00-overview`'s brief said only
+    "reframe rows as forks." Same executor, opposite outcomes: `00` gained a row
+    narrating its own correction, plus session narration inside a table cell
+    ("failed the build again while this row was being drafted"). Anything true
+    for every post belongs in a standing preamble, not re-derived per brief.
+32. **Watch for register drift when acting on a critique.** `00-overview`'s
+    Missteps cells went from terse to 60–100-word paragraphs — a table in name
+    only — because each critique point was answered with prose. Fixing a finding
+    should not change what kind of document the page is.
 
 ---
 
