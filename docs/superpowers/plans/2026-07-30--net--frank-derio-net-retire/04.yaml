@@ -21,7 +21,7 @@ tasks:
       Complete browser OIDC round trips at ArgoCD, Grafana, and Infisical on `.cluster.derio.net`, plus forward-auth checks for Longhorn, Hubble, Sympozium, and n8n through their existing cluster proxy providers. Require no redirect to a non-Omni `.frank` hostname.
   - id: P4.T1.S3
     text: |
-      Mint a new k8s-agent token through `auth.cluster.derio.net`; require `iss` to equal the cluster issuer and TokenReview to return the same username/groups as the retained old token. Re-run TokenReview for the old token and require it still succeeds under authenticator A.
+      Mint a new k8s-agent token through `auth.cluster.derio.net`; require `iss` to equal the cluster issuer and TokenReview to return the same normalized `authentik:<preferred_username>` and groups as the retained old token. Re-run TokenReview for the old token and require it still succeeds under authenticator A.
 - number: 2
   title: Close the token overlap
   steps:

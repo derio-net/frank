@@ -4,8 +4,6 @@ phase:
   title: PR 1 - additive OIDC preparation and dual-issuer configuration
   tag: agentic
   depends_on: []
-  acceptance:
-  - net-oidc-cutover-continuity
   tracking_issue: null
 tasks:
 - number: 1
@@ -22,7 +20,7 @@ tasks:
   steps:
   - id: P1.T2.S1
     text: |
-      Replace the payload in `patches/phase13-auth/omni-configpatch.yaml`: write `/etc/kubernetes/authn-config.yaml` via `machine.files` (`op: overwrite`, mode 0600), mount that same host path read-only into kube-apiserver with `cluster.apiServer.extraVolumes`, set `extraArgs.authentication-config` to the mounted path, and remove all four legacy `oidc-*` keys. Use two JWT entries with audience `k8s-agent`; preserve the old TokenReview username and groups exactly through explicit `claimMappings`. Delete `patches/phase13-auth/oidc-apiserver.yaml` so only the applied Omni representation remains.
+      Replace the payload in `patches/phase13-auth/omni-configpatch.yaml`: write the new `/etc/kubernetes/authn-config.yaml` via `machine.files` (`op: create`, mode 0600), mount that same host path read-only into kube-apiserver with `cluster.apiServer.extraVolumes`, set `extraArgs.authentication-config` to the mounted path, and remove all four legacy `oidc-*` keys. Use two JWT entries with audience `k8s-agent`; map `preferred_username` with the same explicit `authentik:` prefix for both issuers and map `groups` with an empty prefix. This deliberately replaces the legacy implicit `<issuer>#` username prefix so identity no longer depends on the retiring hostname; authorization remains group-bound. Delete `patches/phase13-auth/oidc-apiserver.yaml` so only the applied Omni representation remains.
   - id: P1.T2.S2
     text: |
       Keep a standalone, reviewable source at `patches/phase13-auth/authn-config.yaml` and make the embedded `machine.files.content` byte-for-byte equivalent after YAML parsing. Re-run the focused test; the structured-auth assertions must pass while callback assertions remain red.
@@ -38,30 +36,30 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:09:02+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:09:04+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:10:33+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:10:35+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:11:45+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-30T21:12:56+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-07-30T21:12:58+00:00'
     note: null
     observed_prs: []

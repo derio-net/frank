@@ -52,7 +52,7 @@ commands:
 verify:
   - All three kube-apiserver pods are Ready and /readyz?verbose passes.
   - Only --authentication-config is present; no --oidc-* flag remains.
-  - Old-token TokenReview returns the same username and groups as before rollout.
+  - Old-token TokenReview returns `authentik:<preferred_username>` and the same groups as before rollout.
   - Omni service-account administration still succeeds.
 status: pending
 ```

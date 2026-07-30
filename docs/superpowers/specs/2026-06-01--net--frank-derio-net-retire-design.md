@@ -97,7 +97,7 @@ The cure is K8s structured `AuthenticationConfiguration` (GA on K8s 1.35), which
 
 No token-rejection window. Once the old-token TTL elapses, authenticator A is removed and `auth.frank.derio.net` DNS can be retired.
 
-**Consequence:** structured `AuthenticationConfiguration` and the legacy `--oidc-issuer-url` flag are **mutually exclusive** on the apiserver. This is not "add a second issuer flag" — it is *replacing* the legacy `oidc-*` extraArgs in `patches/phase13-auth/` with a Talos-delivered `AuthenticationConfiguration` file mounted into the apiserver via `cluster.apiServer.extraVolumes` + `--authentication-config`. The work to determine which existing patch (`oidc-apiserver.yaml` vs `omni-configpatch.yaml`) is authoritative is a Phase 1 lookup.
+**Consequence:** structured `AuthenticationConfiguration` and the legacy `--oidc-issuer-url` flag are **mutually exclusive** on the apiserver. This is not "add a second issuer flag" — it is *replacing* the legacy `oidc-*` extraArgs in the authoritative `omni-configpatch.yaml` with a Talos-delivered `AuthenticationConfiguration` file mounted into the apiserver via `cluster.apiServer.extraVolumes` + `--authentication-config`. The duplicate raw `oidc-apiserver.yaml` is removed in Phase 1.
 
 ### Single coordinated app-reference flip (vs. per-app incremental)
 
@@ -182,7 +182,7 @@ Fully reversible. Establishes the safety net and gathers the unknowns.
 
 The riskiest phase. Touches Talos machine config + control-plane rollout.
 
-- Author `AuthenticationConfiguration` YAML listing two JWT authenticators (`auth.frank.derio.net` and `auth.cluster.derio.net`). Define `claimMappings` for username + groups identically to the current `--oidc-username-claim` / `--oidc-groups-claim` flags.
+- Author `AuthenticationConfiguration` YAML listing two JWT authenticators (`auth.frank.derio.net` and `auth.cluster.derio.net`). Map `preferred_username` with the same explicit neutral `authentik:` prefix for both issuers and map `groups` with an empty prefix. The legacy flag implicitly used `<issuer>#` for usernames, which would make identities hostname-dependent; no RBAC binding targets `kind: User`, so this one-time normalization does not change authorization. Group names remain identical.
 - Deliver it via Talos `machine.files` (write to `/etc/kubernetes/authn-config.yaml`) + `cluster.apiServer.extraVolumes` mount + `cluster.apiServer.extraArgs.authentication-config: /etc/kubernetes/authn-config.yaml`.
 - Replace the legacy `oidc-*` extraArgs in the authoritative Omni ConfigPatch and remove the duplicate raw patch representation.
 - Roll out to all three control-plane nodes via Omni.
