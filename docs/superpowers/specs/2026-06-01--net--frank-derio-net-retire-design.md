@@ -198,7 +198,7 @@ One PR, one merge, one ArgoCD sync wave for the whole reference set.
 - `apps/n8n-01/manifests/deployment.yaml`: `WEBHOOK_URL` → `cluster.derio.net`.
 - `apps/paperclip/manifests/configmap.yaml`: remove the legacy hostname from `PAPERCLIP_ALLOWED_HOSTNAMES` and its accompanying comment.
 - The ArgoCD, Grafana, and Infisical `blueprints-provider-*.yaml` files: redirect URIs + `meta_launch_url` → `cluster.derio.net` (the additive cluster URIs from Phase 1 stay; the frank ones come out only in Phase 4). AWX is already cluster-only.
-- `blueprints-proxy-providers.yaml`: `external_host` + `meta_launch_url` for Longhorn / Hubble / Sympozium / n8n → `cluster.derio.net`.
+- Leave `blueprints-proxy-providers.yaml` unchanged during the cutover. The cluster-host proxy providers already exist as separate objects in `blueprints-cluster-proxy-providers.yaml`; rewriting the legacy objects would create duplicates.
 - `apps/blackbox-exporter/manifests/vmprobe.yaml`: `paperclip.frank` + `grafana.frank` probes → `cluster.derio.net`.
 - `clusters/hop/apps/landing/manifests/configmap.yaml`: ArgoCD / Grafana / Longhorn links → `cluster.derio.net`.
 - `references/access.md`: Infisical operator URL → `cluster.derio.net`.
@@ -212,7 +212,7 @@ One PR, one merge, one ArgoCD sync wave for the whole reference set.
 TTL-gated, see decision rule above.
 
 - Remove authenticator A (`auth.frank`) from the `AuthenticationConfiguration`; roll out.
-- Remove the now-orphaned `frank.derio.net` redirect URIs from the OIDC providers and delete the legacy proxy-provider/application entries.
+- Remove the now-orphaned `frank.derio.net` redirect URIs from the OIDC providers and change the legacy proxy-provider/application blueprint entries to `state: absent`. Keep that tombstone blueprint tracked so Authentik can enforce deletion without reintroducing hostname references.
 - Delete all outage-era `*-frank` IngressRoutes and their `*.frank.derio.net` certificate requests from the in-cluster Traefik manifest.
 - **`# manual-operation`** (synced to `docs/runbooks/manual-operations.yaml`):
   - Strip raspi-omni Traefik config to Omni-only (Ansible playbook).
@@ -274,7 +274,7 @@ This is a fix/extension of the existing **net** layer, so per `agents/rules/plan
 | `apps/authentik-extras/manifests/blueprints-provider-argocd.yaml` | Redirect URIs + launch → cluster.derio.net |
 | `apps/authentik-extras/manifests/blueprints-provider-grafana.yaml` | Redirect + launch → cluster.derio.net |
 | `apps/authentik-extras/manifests/blueprints-provider-infisical.yaml` | Redirect + launch → cluster.derio.net |
-| `apps/authentik-extras/manifests/blueprints-proxy-providers.yaml` | `external_host` + launch for Longhorn/Hubble/Sympozium/n8n → cluster.derio.net |
+| `apps/authentik-extras/manifests/blueprints-proxy-providers.yaml` | Replace legacy Longhorn/Hubble/Sympozium/n8n objects with `state: absent` tombstones in Phase 4 |
 | `apps/authentik-extras/manifests/lb-service.yaml` | Stale comment update |
 | `apps/blackbox-exporter/manifests/vmprobe.yaml` | Probe targets `paperclip.frank` + `grafana.frank` → cluster.derio.net |
 | `clusters/hop/apps/landing/manifests/configmap.yaml` | Landing links → cluster.derio.net |
@@ -288,8 +288,8 @@ This is a fix/extension of the existing **net** layer, so per `agents/rules/plan
 | `README.md` | Service Access entries pruned (via `/update-readme`) |
 | `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md` | Mark Phase 2 of Future Work as done |
 
-## Implementation plans
+## Implementation Plans
 
-| Plan | Repo | File |
-|------|------|------|
-| Retire frank.derio.net (Phase 2) Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-06-01--net--frank-derio-net-retire.md` *(to be written)* |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-07-30--net--frank-derio-net-retire | `derio-net/frank` | `2026-07-30--net--frank-derio-net-retire` | — |

@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Manual gate - deploy PR 3 and retire external legacy DNS
+  tag: manual
+  depends_on:
+  - 5
+  acceptance:
+  - net-cluster-domain-canonical
+  - net-legacy-domain-retired
+  - net-omni-domain-preserved
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy the final in-repo state
+  steps:
+  - id: P6.T1.S1
+    text: |
+      Merge PR 3 and wait for Authentik, authentik-extras, Traefik, Paperclip, and monitoring applications to become Synced/Healthy. Verify the legacy Authentik objects are absent and all `*-frank` routes are gone from the live cluster.
+  - id: P6.T1.S2
+    text: |
+      Apply the merged single-issuer `patches/phase13-auth/omni-configpatch.yaml` with `omnictl apply -f`. Require all three kube-apiserver pods Ready, no legacy `--oidc-*` flags, and a mounted AuthenticationConfiguration containing only `auth.cluster.derio.net`. Verify a cluster token and Omni service-account kubeconfig both succeed; require the expired old token to remain rejected.
+- number: 2
+  title: Remove the external edge and DNS remnants
+  steps:
+  - id: P6.T2.S1
+    text: |
+      Run the Ansible-managed raspi-omni change that removes every non-Omni `*.frank.derio.net` router and certificate configuration while preserving Omni UI, discovery, `:8100`, and certificate renewal. Restart/reload its Traefik only after configuration validation succeeds.
+  - id: P6.T2.S2
+    text: |
+      Remove non-Omni `*.frank.derio.net` DNS records from the authoritative on-prem DNS configuration. Keep `omni.frank.derio.net` and keep Headscale's `frank.derio.net` split resolver. Verify named legacy hosts return NXDOMAIN/no route from LAN and mesh clients, while Omni UI returns 200, discovery returns 200, and unauthenticated `:8100` returns 401.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

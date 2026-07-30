@@ -1,0 +1,52 @@
+schema_version: 2
+phase:
+  number: 3
+  title: PR 2 - coordinated application cutover to cluster.derio.net
+  tag: agentic
+  depends_on:
+  - 2
+  acceptance:
+  - net-cluster-domain-canonical
+  - net-oidc-cutover-continuity
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Extend the domain contract for the overlap state
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Extend `scripts/tests/test_frank_domain_retirement.py` with an overlap-state inventory. Require `AUTHENTIK_HOST`, ArgoCD, Grafana, Infisical launch URLs, n8n webhook URL, Paperclip primary host, blackbox probes, Hop landing links, and `references/access.md` to use `.cluster.derio.net`. Explicitly allow `.frank` only in both JWT issuers, legacy callback entries, outage-era compatibility routes, the legacy Paperclip allowlist entry, Omni files, and the Headscale split-DNS suffix. Run the focused test and retain the red inventory.
+  - id: P3.T1.S2
+    text: |
+      Add assertions that the cluster proxy-provider blueprint remains the owner of cluster hosts and the legacy proxy-provider blueprint remains unchanged during PR 2; this prevents duplicate Authentik proxy objects.
+- number: 2
+  title: Flip every consumer in one review unit
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Change `AUTHENTIK_HOST`, ArgoCD external URL and issuer, Grafana root/OAuth URLs, n8n webhook URL, OIDC-provider launch URLs, feature-health probes, Hop landing links, and `references/access.md` to their established `.cluster.derio.net` names. Keep both callback URI sets, both JWT issuers, all temporary `*-frank` IngressRoutes, and the legacy Paperclip allowed hostname until cleanup.
+  - id: P3.T2.S2
+    text: |
+      Run the focused domain test, all existing Authentik/Traefik/OIDC tests, `kubectl apply --dry-run=client -f apps/traefik/manifests/ -o yaml >/dev/null`, `kubectl apply --dry-run=client -f apps/authentik-extras/manifests/ -o yaml >/dev/null`, and `git diff --check`. Require green and confirm no cleanup-only deletion entered PR 2.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
