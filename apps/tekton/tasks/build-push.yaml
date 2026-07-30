@@ -18,6 +18,7 @@ spec:
       default: "."
   results:
     - name: IMAGE_DIGEST
+      type: string
       description: "Digest of the built image (e.g., sha256:abc123)"
   workspaces:
     - name: source
