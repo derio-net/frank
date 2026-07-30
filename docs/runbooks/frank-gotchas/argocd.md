@@ -200,10 +200,13 @@ per-item fields explicitly in the manifests so no drift appears (bindings get
 `kind: TriggerBinding`, cel interceptor refs get `kind: ClusterInterceptor`).
 Tripwire: `scripts/tests/test_tekton_ignore_rules_no_arrays.py`.
 
-Known remaining debt: the Pipeline/Task rules in the same Application still
-use `.spec.tasks[]?` / `.spec.results[]?` expressions — Pipeline/Task UPDATES
-are frozen the same way until they get the explicit-defaults treatment
-(exempted in the tripwire; follow-up tracked in the plan's rework notes).
+Resolved for `tekton-extras` on 2026-07-30: its Pipeline, Task, and
+EventListener manifests now declare the API defaults and the corresponding
+ignore rules are gone. Known remaining debt is isolated to
+`stoa-live-mirror-sync`: its externally sourced EventListener and Task still
+carry `.spec.triggers[]?` / `.spec.results[]?` rules. Both are explicit
+tripwire exemptions until the defaults land in the companies repo and Frank's
+pinned revision is bumped.
 
 ## `Synced` against a stale revision (2026-07-27)
 

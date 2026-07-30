@@ -25,6 +25,8 @@ spec:
         - {name: source, workspace: shared-workspace}
         - {name: ssh,    workspace: ssh-creds}
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - {name: github-repo, type: string}
           - {name: gitea-repo,  type: string}
@@ -78,6 +80,8 @@ spec:
       workspaces:
         - {name: source, workspace: shared-workspace}
       taskSpec:
+        metadata: {}
+        spec: null
         workspaces:
           - {name: source}
         steps:

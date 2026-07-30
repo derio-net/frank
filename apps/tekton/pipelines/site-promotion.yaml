@@ -31,6 +31,8 @@ spec:
         - name: sha
           value: $(params.sha)
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - name: sha
             type: string

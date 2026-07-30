@@ -5,6 +5,7 @@ metadata:
   namespace: tekton-pipelines
 spec:
   serviceAccountName: tekton-triggers-sa
+  namespaceSelector: {}
   triggers:
     # ──────────────────────────────────────────────────────────────────
     # Per-repo CI triggers (Phase 4) — fire on PR opened/synchronized/
@@ -355,7 +356,10 @@ spec:
     kubernetesResource:
       spec:
         template:
+          metadata:
+            creationTimestamp: null
           spec:
+            containers: null
             nodeSelector:
               kubernetes.io/hostname: pc-1
 ---

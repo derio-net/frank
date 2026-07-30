@@ -7,17 +7,15 @@ while syncs report Succeeded. Incident 2026-07-20: both EventListeners were
 frozen at their Jun 13 state for five weeks (cnc triggers, gitea-actions
 triggers never went live) because of `.spec.triggers[]?` rules added Jul 6.
 
-Defaulted per-item fields must instead be set explicitly in the manifests
-(bindings `kind: TriggerBinding`, cel refs `kind: ClusterInterceptor`) so no
-ignore rule is needed. This test also pins that convention.
+Defaulted fields must instead be set explicitly in the manifests so no ignore
+rule is needed. This test also pins that convention for EventListeners,
+Pipelines, and Tasks.
 
-Known debt, all exempted below with reasons:
-  - Pipeline/Task rules in tekton-extras still use array-item expressions
-    (`.spec.tasks[]?`, `.spec.results[]?`) and carry the same freeze risk for
-    Pipeline/Task UPDATES.
-  - stoa-live-mirror-sync still has `.spec.triggers[]?` rules on its own
-    EventListener — found 2026-07-26 only because this test was widened from a
-    single file to every Application. Its fix is cross-repo.
+Known debt, exempted below with reasons:
+  - stoa-live-mirror-sync still has `.spec.triggers[]?` and
+    `.spec.results[]?` rules on its externally sourced EventListener and Task.
+    Found 2026-07-26 only because this test was widened from a single file to
+    every Application; the fix is cross-repo.
 
 The widening is the lesson: this file had forbidden `.spec.triggers[]?` since
 July while a second Application carried exactly that pattern, unseen, because
@@ -43,9 +41,6 @@ APP_TEMPLATE_DIRS = [
     REPO_ROOT / "apps/root/templates",
     REPO_ROOT / "clusters/hop/apps/root/templates",
 ]
-
-# TODO(follow-up): shrink to empty by fixing Pipeline/Task the same way.
-EXEMPT_KINDS = {"Pipeline", "Task"}
 
 # Per-offender exemptions, each with the reason it is tolerated. Keyed by
 # "<template>::<kind>". An entry here is a deliberate, reviewable act — the
@@ -77,6 +72,8 @@ EXEMPT_RULES = {
     # people learn to ignore. Do both halves together.
     "apps/root/templates/stoa-live-mirror-sync.yaml::EventListener":
         "FREEZE RISK, tracked: fix needs explicit defaults in the stoa repo's EventListener manifest",
+    "apps/root/templates/stoa-live-mirror-sync.yaml::Task":
+        "FREEZE RISK, tracked: fix needs explicit result types in the stoa repo's Task manifest",
 }
 
 
@@ -104,8 +101,6 @@ def _array_item_rules():
     out = []
     for path, app in _apps():
         for rule in app["spec"].get("ignoreDifferences", []) or []:
-            if rule.get("kind") in EXEMPT_KINDS:
-                continue
             for expr in rule.get("jqPathExpressions", []) or []:
                 if "[]" in expr:
                     out.append((f"{path}::{rule.get('kind')}", path, rule.get("kind"), expr))
@@ -131,6 +126,10 @@ def test_eventlistener_manifests_carry_explicit_defaults():
         ):
             if not doc or doc.get("kind") != "EventListener":
                 continue
+            assert "namespaceSelector" in doc["spec"], f
+            pod_template = doc["spec"]["resources"]["kubernetesResource"]["spec"]["template"]
+            assert pod_template.get("metadata", {}).get("creationTimestamp", "ABSENT") is None, f
+            assert pod_template["spec"].get("containers", "ABSENT") is None, f
             for trig in doc["spec"]["triggers"]:
                 for b in trig.get("bindings", []):
                     assert b.get("kind") == "TriggerBinding", (f, trig["name"], b)
@@ -138,6 +137,35 @@ def test_eventlistener_manifests_carry_explicit_defaults():
                     assert i["ref"].get("kind") == "ClusterInterceptor", (
                         f, trig["name"], i["ref"],
                     )
+
+
+def test_pipeline_and_task_manifests_carry_explicit_defaults():
+    for f in sorted((REPO_ROOT / "apps/tekton").rglob("*.yaml")):
+        if "vendor" in f.parts:
+            continue
+        for doc in yaml.safe_load_all(f.read_text()):
+            if not doc or doc.get("kind") not in {"Pipeline", "Task"}:
+                continue
+            spec = doc["spec"]
+            if doc["kind"] == "Task":
+                for result in spec.get("results", []):
+                    assert "type" in result, (f, result)
+                continue
+
+            for task in [*spec.get("tasks", []), *spec.get("finally", [])]:
+                if "taskRef" in task:
+                    assert "kind" in task["taskRef"], (f, task)
+                if "taskSpec" not in task:
+                    continue
+                task_spec = task["taskSpec"]
+                assert "metadata" in task_spec, (f, task["name"])
+                assert "spec" in task_spec, (f, task["name"])
+                if "stepTemplate" in task_spec:
+                    assert "computeResources" in task_spec["stepTemplate"], (
+                        f, task["name"], "stepTemplate"
+                    )
+                for step in task_spec.get("steps", []):
+                    assert "computeResources" in step, (f, task["name"], step["name"])
 
 
 def test_exempt_rules_are_all_still_present():

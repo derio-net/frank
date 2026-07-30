@@ -38,8 +38,10 @@ spec:
       default: "true"
   results:
     - name: commit
+      type: string
       description: The precise commit SHA that was fetched by this Task.
     - name: url
+      type: string
       description: The precise URL that was fetched by this Task.
   steps:
     - name: clone
