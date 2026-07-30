@@ -25,6 +25,7 @@ graph TB
         n8n ---|"DB connection"| pg
 
         subgraph mounts["Persistent Storage"]
+            direction TB
             config["Config PVC"]
             data["Data PVC"]
         end
@@ -33,6 +34,7 @@ graph TB
     end
 
     subgraph svc["Service Layer"]
+        direction TB
         lb["LoadBalancer Service<br/>External IP"]
         cluster["ClusterIP Service<br/>Internal"]
     end
@@ -51,6 +53,7 @@ graph TB
     n8n -.- agent
 
     subgraph metrics["Observability"]
+        direction TB
         probe["Blackbox Probe<br/>/healthz"]
         met["/metrics endpoint"]
     end
