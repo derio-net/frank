@@ -60,7 +60,6 @@ spec:
     - name: ssh-creds
   tasks:
     - name: pull-and-push
-      timeout: "59m0s"
       workspaces:
         - name: source
           workspace: shared-workspace
