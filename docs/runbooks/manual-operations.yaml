@@ -679,6 +679,21 @@ operations:
   - 'dig +short blog.derio.net  # should return Hetzner IP'
   - 'dig +short www.derio.net  # should return Hetzner IP'
   status: done
+- id: edge-hop-headscale-api-key-rotation
+  layer: edge
+  app: headplane
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: Annually before 2027-07-29, or whenever https://headplane.hop.derio.net stops accepting logins
+  why_manual: Headscale API keys are minted by the headscale binary and shown exactly once at creation — they cannot be generated declaratively, and the Secret is applied out-of-band (Hop uses plain kubectl Secrets, not SOPS/ESO)
+  commands:
+  - "# Diagnose first — expired rows print red. Compare against the live Secret.\nsource .env_hop\nkubectl -n headscale-system exec deploy/headscale -- headscale apikeys list\nkubectl -n headscale-system get secret headplane-api-key \\\n  -o jsonpath='{.data.api-key}' | base64 -d | cut -c1-7\n"
+  - "# 1. Mint + rotate the key Headplane uses. Capture it: the value is shown\n#    ONLY at creation, so an uncaptured key is unrecoverable — delete it\n#    (headscale apikeys delete --prefix <p>) rather than leaving it live.\nNEW=$(kubectl -n headscale-system exec deploy/headscale -- \\\n  headscale apikeys create --expiration 1y | tail -n1 | tr -d '\\r\\n')\nkubectl -n headscale-system patch secret headplane-api-key --type=merge \\\n  -p \"{\\\"stringData\\\":{\\\"api-key\\\":\\\"$NEW\\\"}}\"\n# 2. MANDATORY — the env var is read once at boot, so patching the Secret\n#    alone leaves the running pod serving the dead key indefinitely.\nkubectl -n headscale-system rollout restart deploy/headplane\nkubectl -n headscale-system rollout status deploy/headplane --timeout=90s\n"
+  - "# 3. Refresh the operator's own key in .env_hop. This is a DELIBERATELY\n#    SEPARATE key from Headplane's, so either can be revoked alone.\n#    .env_hop is gitignored: edit it in the base clone (FR_BASE_OK=1),\n#    never in an fr worktree, and keep it 0600.\nkubectl -n headscale-system exec deploy/headscale -- \\\n  headscale apikeys create --expiration 1y\n# paste into export HEADSCALE_API_KEY=... in .env_hop\n"
+  verify:
+  - kubectl -n headscale-system exec deploy/headscale -- headscale apikeys list → the new key's expiration is ~1y out and NOT red
+  - "# Prove the RUNNING pod authenticates. Run the probe from the HEADPLANE pod:\n# the headscale image is distroless and has no `sh`, so exec-ing a shell\n# one-liner into it fails with \"executable file not found in $PATH\".\nkubectl -n headscale-system exec deploy/headplane -- sh -c \\\n  'wget -q -O- --header=\"Authorization: Bearer $HEADPLANE_HEADSCALE_API_KEY\" \\\n     http://headscale.headscale-system.svc:8080/api/v1/apikey'\n"
+  - 'Browser: https://headplane.hop.derio.net/admin/ logs in (mesh-only — Caddy 403s any source outside 100.64.0.0/10)'
+  status: done
 - id: edge-hop-headscale-first-client
   layer: edge
   app: headscale
