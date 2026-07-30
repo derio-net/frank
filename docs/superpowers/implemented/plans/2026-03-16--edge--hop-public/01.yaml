@@ -2207,7 +2207,7 @@ tasks:
       **Original:** API key created once with `headscale apikeys create`, no expiry discussion.
       **Actual:** `headscale apikeys create` defaults to a **90-day** TTL. Both keys silently lapsed and Headplane's login broke with no signal anywhere: ArgoCD `Synced`, pod `1/1 Running`, logs showing a clean boot with no auth error. Headplane only uses the key when a request needs it and never logs the rejection, so the sole symptom is the browser login failing — discovered 2026-07-29, by which point the Secret's key (ID 1) had been dead 42 days and `.env_hop`'s separate `HEADSCALE_API_KEY` (ID 2) 41 days. All 7 preauth keys were expired too.
       **Impact:** Both keys re-minted at `--expiration 1y` (next cliff **2027-07-29**); `.env_hop` refreshed and its permissions tightened `0644` → `0600`; rotation captured as manual-operation `edge-hop-headscale-api-key-rotation` below; gotcha added to `agents/rules/hop-gotchas.md`; Deviation 8 of the building post expanded with the full procedure.
-      **Still open:** nothing monitors this. A dead-man's-switch on key expiry (the pattern already used for `alert-agent-cred-expiry-heartbeat-stale`) would turn a silent 6-week outage into a page; not built.
+      **Monitoring follow-up (2026-07-30):** an hourly `headscale-api-key-expiry` CronJob now calls the real API with Headplane's Secret, checks both deliberately separate consumer-key prefixes, and emits a structured heartbeat. Frank Grafana pages Telegram directly when either key is missing/unreadable or within 30 days of expiry, and a separate dead-man rule pages if the heartbeat stops for 3 hours. The 2027 cliff is now monitored rather than merely documented.
 
       ```yaml
       # manual-operation
@@ -2244,6 +2244,11 @@ tasks:
           kubectl -n headscale-system exec deploy/headscale -- \
             headscale apikeys create --expiration 1y
           # paste into export HEADSCALE_API_KEY=... in .env_hop
+        - |
+          # 4. Update EXPECTED_PREFIXES in the declarative expiry checker with the
+          #    two new 7-character prefixes, merge/sync it, then delete old keys.
+          #    Keeping both consumers explicit prevents temporary keys from paging.
+          $EDITOR clusters/hop/apps/headscale/manifests/key-expiry-cronjob.yaml
       verify:
         - "kubectl -n headscale-system exec deploy/headscale -- headscale apikeys list → the new key's expiration is ~1y out and NOT red"
         - |
@@ -2254,6 +2259,7 @@ tasks:
             'wget -q -O- --header="Authorization: Bearer $HEADPLANE_HEADSCALE_API_KEY" \
                http://headscale.headscale-system.svc:8080/api/v1/apikey'
         - "Browser: https://headplane.hop.derio.net/admin/ logs in (mesh-only — Caddy 403s any source outside 100.64.0.0/10)"
+        - "kubectl -n headscale-system delete job headscale-api-key-expiry-manual --ignore-not-found && kubectl -n headscale-system create job --from=cronjob/headscale-api-key-expiry headscale-api-key-expiry-manual && kubectl -n headscale-system logs -f job/headscale-api-key-expiry-manual → verdict=ok, alert=false, checked=2"
       status: done
       ```
 

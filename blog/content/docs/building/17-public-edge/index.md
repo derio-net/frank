@@ -9,7 +9,7 @@ summary: "Deploying a single-node Talos cluster on Hetzner Cloud as a public edg
 weight: 18
 reader_goal: "Deploy a single-node Talos edge cluster on Hetzner with Headscale mesh, Caddy reverse proxy, and Split-DNS — working around the ten deployment deviations"
 diataxis: tutorial
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 ---
 
 The Frank cluster lives behind residential {{< abbr "NAT" >}}. Every service is reachable only from `192.168.55.x`. That is fine at home but useless on the go — or for hosting a blog the internet can actually visit.
@@ -240,6 +240,8 @@ kubectl -n headscale-system exec deploy/headplane -- sh -c \
 ```
 
 Note the probe runs from the *headplane* pod. The Headscale image is distroless and has no `sh`, so `kubectl exec` into it for a shell one-liner fails with `executable file not found in $PATH`.
+
+The follow-up closes the silent-clock gap rather than setting another calendar reminder. An hourly CronJob calls that same API with Headplane's Secret and checks the explicit prefixes for both consumer keys. It emits `headscale-api-key-expiry-check` with the earliest days remaining. Frank's Grafana pages Telegram directly if a key is missing, unreadable, or within 30 days of expiry; a second rule pages if no heartbeat arrives for three hours. Rotation must update `EXPECTED_PREFIXES` in `key-expiry-cronjob.yaml`, otherwise the checker correctly reports that an expected consumer key disappeared.
 
 IPv4 binding: `wget localhost:3000` fails because `localhost` resolves to `::1` in Alpine containers. Use `wget 127.0.0.1:3000`.
 
