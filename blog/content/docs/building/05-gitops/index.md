@@ -21,7 +21,7 @@ GitOps means the Git repo is the single source of truth for everything running o
 This post covers the migration from Flux CD to ArgoCD, the Pulumi detour that did not work out, and building an App-of-Apps Helm chart to manage all workloads via GitOps — adopting Cilium and Longhorn in place without a single pod restart.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Git[Git Repo]
     Chart[apps/root/ — App-of-Apps chart]
     Apps[apps/cilium/, apps/longhorn/...]

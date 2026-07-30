@@ -19,7 +19,7 @@ That is fine for one person. It is not fine the moment you add a second person, 
 Layer 13 fixes this with Authentik — one identity provider for the entire cluster.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph IdP[Authentik — 192.168.55.211]
     Server[Server + Worker]
     Outpost[Embedded Proxy Outpost]

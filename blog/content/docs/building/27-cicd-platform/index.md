@@ -19,7 +19,7 @@ This post changes that. We deploy a complete CI/CD platform on pc-1: **Gitea** m
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph GitHub
     FR[derio-net/frank]
     AS[agentic-stoa repos]
@@ -251,7 +251,7 @@ It does **not** work when Paperclip AI opens PRs on agentic-stoa repos. Papercli
 ### Architecture (Inverted Slice)
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph GitHub[GitHub — agentic-stoa]
     EV[PR opened/synchronized/reopened]
     PV[Push to main]

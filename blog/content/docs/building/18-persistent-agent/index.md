@@ -15,7 +15,7 @@ last_updated: 2026-07-15
 My laptop is not always online. The Claude mobile app is useful but cannot run terminal commands, install tools, or maintain a persistent workspace. This post covers deploying a persistent Kali Linux container on gpu-1 as an always-on development workstation, accessible via SSH from anywhere on the network.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph GPU1[gpu-1 — i9, 128GB RAM]
     Kali[kali container<br/>kalilinux/kali-rolling]
     SSHD[SSH server<br/>port 2222]

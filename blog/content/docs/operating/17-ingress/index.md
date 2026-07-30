@@ -39,12 +39,14 @@ graph TB
 
     subgraph cluster["Frank Cluster"]
         subgraph traefikNS["traefik namespace"]
+            direction TB
             ext["Traefik External<br/>Entrypoint"]
             int["Traefik Internal<br/>Entrypoint"]
             acme["ACME Certificate"]
         end
 
         subgraph routes["IngressRoutes"]
+            direction TB
             r1["ArgoCD Route<br/>→ authentik SSO"]
             r2["App Route<br/>→ Service"]
             r3["Internal Route<br/>→ ClusterIP"]

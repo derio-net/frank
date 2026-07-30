@@ -19,7 +19,7 @@ This post is about handing them back. Nous Research now publishes an official `n
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Pod[hermes pod — gpu-1, three containers]
     subgraph Main[hermes — official image]
       GW[hermes gateway run<br/>root → s6 → UID 1000]
@@ -28,6 +28,7 @@ flowchart LR
       SSHD[sshd — key-only, port 22]
     end
     subgraph Hindsight[hindsight sidecar — agent-images]
+      direction TB
       PG[PostgreSQL 18.4<br/>pgvector 0.8.3]
       HA[hindsight-api<br/>127.0.0.1:8888]
       EMB[BAAI/bge-small-en-v1.5<br/>baked model]

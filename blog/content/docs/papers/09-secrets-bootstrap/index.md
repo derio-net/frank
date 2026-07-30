@@ -295,6 +295,7 @@ this is often the right answer.
 ```mermaid
 flowchart TD
     subgraph SEAL["Vault unseal ceremony (manual)"]
+        direction TB
         SK1{"Shamir key share 1"}
         SK2{"Shamir key share 2"}
         SK3{"Shamir key share 3"}

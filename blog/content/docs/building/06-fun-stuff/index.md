@@ -17,7 +17,7 @@ Every serious infrastructure project needs a completely unnecessary feature. Thi
 It does not work. We know exactly why, we know what it would take to fix it, and we have not fixed it yet. This is the honest version of that story.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Hardware[gpu-1 Hardware]
     Fans[6x ARGB Fans]
     Hub[Fan Hub<br/>button does nothing]

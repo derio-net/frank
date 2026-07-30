@@ -19,7 +19,7 @@ The good news: VK's remote crate already supports self-hosting with local auth. 
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Agent[secure-agent-pod — gpu-1]
     VK[vk-local — port 8081<br/>SQLite workspaces]
   end

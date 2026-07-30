@@ -18,7 +18,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/eff627fb
 This is the operational companion to [VK Remote — Self-Hosting the Kanban Backend]({{< relref "/docs/building/26-vk-remote-self-host" >}}). That post explains the architecture. This one is the day-to-day runbook.
 
 ```mermaid
-graph LR
+graph TD
     subgraph agents["agents namespace"]
         pg["postgres-vk<br/>PostgreSQL<br/>wal_level=logical"]
         electric["electric<br/>ElectricSQL<br/>replication consumer"]

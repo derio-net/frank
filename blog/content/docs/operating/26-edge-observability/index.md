@@ -20,7 +20,7 @@ The companion to [Edge Observability]({{< relref "/docs/building/31-edge-observa
 Assumes both `.env` (Frank) and `.env_hop` (Hop) are available. Sourcing the wrong one silently sends commands to the wrong cluster — the single most common mistake.
 
 ```mermaid
-graph LR
+graph TD
     subgraph hop["Hop Edge"]
         caddy["Caddy<br/>access logs"]
         cs_agent["CrowdSec Agent<br/>parses → decides"]
