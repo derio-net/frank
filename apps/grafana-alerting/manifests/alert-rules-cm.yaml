@@ -1764,6 +1764,85 @@ data:
               summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 30h. The daily check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
               runbook: "Check the alert-agent pod + its supercronic cron: kubectl -n alert-agent get pods; kubectl -n alert-agent exec deploy/alert-agent -c agent -- /opt/alert-agent-bin/cred-expiry-check (should print a cred-expiry-check heartbeat). Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md"
 
+      # Headscale API keys expire silently: Headplane stays Running and logs no
+      # authentication error. An hourly Hop CronJob checks both expected consumer
+      # keys through the real API and emits one structured heartbeat. The first
+      # rule pages for expiry within 30 days, a missing key, or an API failure;
+      # the second pages if the checker itself stops. Hop logs use `log`, not
+      # Frank's `_msg` field.
+      - orgId: 1
+        name: headscale-api-key-expiry
+        folder: feature-health
+        interval: 1h
+        rules:
+          - uid: headscale-api-key-expiry-warning
+            title: Headscale API key expiry warning
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:headscale-system AND log:"headscale-api-key-expiry-check" AND log:"alert=true" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "Headscale API-key expiry checker reports an expiring, missing, or unreadable consumer key. Headplane can remain Running and ArgoCD green while login is broken."
+              runbook: "On Hop, inspect the latest headscale-api-key-expiry Job logs and list keys: kubectl -n headscale-system logs job/<latest-job>; kubectl -n headscale-system exec deploy/headscale -- headscale apikeys list. Rotate per edge-hop-headscale-api-key-rotation."
+
+          - uid: headscale-api-key-expiry-heartbeat-stale
+            title: Headscale API key expiry heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 10800, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:headscale-system AND log:"headscale-api-key-expiry-check" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 10800, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 10800, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "Headscale API-key expiry heartbeat stale: no checker result from Hop in 3h, so silent credential expiry is unmonitored."
+              runbook: "On Hop, check kubectl -n headscale-system get cronjob,jobs,pods -l app.kubernetes.io/name=headscale-api-key-expiry and inspect the latest Job logs."
+
       # =====================================================================
       # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to
       # the AI Helper Webhook (added in phase 5). For now they route through

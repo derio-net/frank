@@ -16,7 +16,8 @@ spec:
     namespace: headscale-system
   syncPolicy:
     automated:
-      prune: false
+      # Required for hash-suffixed checker script ConfigMaps.
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
