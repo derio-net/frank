@@ -240,6 +240,19 @@ This is a fix/extension of the existing **net** layer, so per `agents/rules/plan
 - raspi-omni Traefik config (verified out-of-band on the host) serves only Omni.
 - `rg "[a-z0-9-]+\.frank\.derio\.net" apps patches clusters references secrets` returns no non-historical matches except `omni.frank.derio.net` and the retained `frank.derio.net` Headscale split-DNS suffix.
 
+## Test Plan
+
+Post-merge Phase 1 verification is operator-driven and must complete before application cutover work begins:
+
+1. Resolve or explicitly account for root ArgoCD drift, then prove the Omni service-account kubeconfig has cluster-admin access without an Authentik login.
+2. Before applying the new patch, mint a direct old-issuer k8s-agent token. Record only its `iss`, `aud`, `exp`, `preferred_username`, groups, and TokenReview result; never commit token material.
+3. Wait for `authentik-extras` to reconcile and confirm the live ArgoCD, Grafana, and Infisical providers contain both old and cluster callback URIs.
+4. Record the pre-change ConfigPatch commit for rollback, then apply `patches/phase13-auth/omni-configpatch.yaml` through Omni.
+5. Require all three kube-apiserver static pods Ready and `/readyz?verbose` passing throughout the rollout.
+6. Inspect every kube-apiserver command and mount: exactly one `--authentication-config=/etc/kubernetes/authn-config.yaml`, no `--oidc-*` flags, and the authentication file mounted read-only.
+7. Re-run TokenReview with the retained old token. Require username `authentik:<preferred_username>`, unchanged groups, and successful authorization; also verify Omni service-account administration still succeeds.
+8. On any failed readiness, flag, mount, identity, group, or authorization check, re-apply the recorded legacy ConfigPatch and stop before Phase 3.
+
 ## Risks & rollback
 
 | Risk | Mitigation | Rollback |

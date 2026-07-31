@@ -14,3 +14,13 @@ Fixed in Phase 1: the Omni payload and test use op=create for the new authn-conf
 ### removed-oidc-patch-doc-refs · finding [fixed] · Deleted patch remains named by operational docs (phase 1)
 
 Fixed in Phase 1: the patch README, outage-era Traefik comment, and design now point to the authoritative Omni ConfigPatch.
+
+<!-- fr:journal kind=finding scope=plan id=spec-explicit-test-plan created=2026-07-31T11:28:28 phase=1 state=fixed -->
+### spec-explicit-test-plan · finding [fixed] · Spec lacks explicit post-merge Test Plan (phase 1)
+
+Fixed before delivery: the spec now carries the operator-driven Phase 1 post-merge Test Plan verbatim, including rollback criteria.
+
+<!-- fr:journal kind=finding scope=plan id=plan-fr-version-acceptance created=2026-07-31T11:29:43 phase=1 state=fixed -->
+### plan-fr-version-acceptance · finding [fixed] · Plan version floor predates acceptance linkage (phase 1)
+
+Fixed before delivery: `_meta.yaml` now requires fr `>=3.7.0,<4.0.0`, the first acceptance-aware release line.
