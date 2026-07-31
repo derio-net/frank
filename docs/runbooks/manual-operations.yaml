@@ -2046,6 +2046,56 @@ operations:
   verify:
   - Every node's talosctl get resolvers lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready; gpu-1 Omni REBOOTS count unchanged (applied live, no reboot)
   status: pending
+- id: net-frank-domain-dual-issuer-rollout
+  layer: net
+  app: kube-apiserver
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 1 merges and additive Authentik callbacks are live.
+  why_manual: Omni ConfigPatch application changes kube-apiserver authentication on all three control-plane nodes and requires a live old-token continuity gate.
+  commands:
+  - Verify the Omni service-account kubeconfig has cluster-admin access without Authentik.
+  - Mint and retain a temporary old-issuer k8s-agent test credential in a local 0600 file.
+  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml.
+  - Inspect every kube-apiserver command and readiness endpoint.
+  verify:
+  - All three kube-apiserver pods are Ready and /readyz?verbose passes.
+  - Only --authentication-config is present; no --oidc-* flag remains.
+  - Old-token TokenReview returns authentik:<preferred_username> and the same groups as before rollout.
+  - Omni service-account administration still succeeds.
+  status: pending
+- id: net-frank-domain-final-retirement
+  layer: net
+  app: omni-traefik-dns
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 3 merges and the old test token is proven expired.
+  why_manual: Final Omni ConfigPatch application, raspi-omni Ansible configuration, and authoritative DNS changes are outside ArgoCD and can remove the remaining recovery hostname.
+  commands:
+  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml.
+  - Apply the Ansible change that leaves raspi-omni Traefik serving only Omni.
+  - Remove every non-Omni frank.derio.net DNS record; retain omni.frank.derio.net.
+  - Retain the Headscale frank.derio.net split resolver.
+  verify:
+  - kube-apiserver trusts only auth.cluster.derio.net and cluster-token authentication succeeds.
+  - Named legacy service hosts return NXDOMAIN or no route from LAN and mesh clients.
+  - Omni UI and discovery return 200; unauthenticated :8100 returns 401.
+  - raspi-omni Traefik and certificate renewal contain only Omni.
+  status: pending
+- id: net-frank-domain-overlap-gate
+  layer: net
+  app: authentik
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 2 merges and all consumers use cluster.derio.net.
+  why_manual: Browser OIDC round trips and the eight-hour access-token overlap require live credentials and elapsed wall-clock time.
+  commands:
+  - Verify ArgoCD, Grafana, and Infisical OIDC logins on cluster.derio.net.
+  - Verify cluster-host forward-auth for Longhorn, Hubble, Sympozium, and n8n.
+  - Mint one cluster-issuer token and record T0 for the final old-issuer token.
+  - Wait at least eight hours while auth.frank discovery, JWKS, DNS, and ingress remain healthy.
+  verify:
+  - New-token TokenReview succeeds with the expected username and groups.
+  - Old-token TokenReview succeeds before T0+8h and fails expired afterward.
+  - Omni service-account administration succeeds throughout.
+  status: pending
 - id: net-gpu1-clear-dhcp-drift
   layer: net
   app: talos-machine-config

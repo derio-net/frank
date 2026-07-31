@@ -34,6 +34,8 @@ data:
           redirect_uris:
             - matching_mode: strict
               url: https://infisical.frank.derio.net/api/v1/sso/oidc/callback
+            - matching_mode: strict
+              url: https://infisical.cluster.derio.net/api/v1/sso/oidc/callback
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]

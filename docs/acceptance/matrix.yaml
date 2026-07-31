@@ -669,3 +669,43 @@ rows:
     status: not-implemented
     notes: Design-only in this run; no KubeVirt on the cluster yet. Deliberately broad
       — it is the claim the whole virt layer exists to make.
+  - id: net-cluster-domain-canonical
+    capability: Canonical cluster service access
+    acceptance: Operators can reach and authenticate to every Frank cluster service
+      using its cluster.derio.net URL without depending on a legacy frank.derio.net
+      route.
+    origin:
+    - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
+    levels: {}
+    status: not-implemented
+    notes: End-to-end service and login verification is defined by migration Phases
+      3 and 4.
+  - id: net-oidc-cutover-continuity
+    capability: Canonical cluster service access
+    acceptance: Existing Kubernetes OIDC credentials continue to authenticate during
+      the issuer migration while newly minted credentials use auth.cluster.derio.net.
+    origin:
+    - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
+    levels: {}
+    status: not-implemented
+    notes: Requires live old-token and new-token proof during the dual-issuer overlap.
+  - id: net-legacy-domain-retired
+    capability: Canonical cluster service access
+    acceptance: Every non-Omni frank.derio.net service name is removed from application
+      configuration, ingress, and DNS after the migration overlap closes.
+    origin:
+    - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
+    levels: {}
+    status: not-implemented
+    notes: Verified by repository reference checks plus live DNS and route probes after
+      Phase 4.
+  - id: net-omni-domain-preserved
+    capability: Canonical cluster service access
+    acceptance: Omni remains reachable and usable at omni.frank.derio.net after all
+      other frank.derio.net service names are retired.
+    origin:
+    - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
+    levels: {}
+    status: not-implemented
+    notes: Requires UI, discovery, API-authentication, certificate, and mesh-resolution
+      checks after DNS cleanup.
