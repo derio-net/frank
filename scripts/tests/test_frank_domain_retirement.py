@@ -13,6 +13,7 @@ AUTHN_CONFIG = REPO / "patches/phase13-auth/authn-config.yaml"
 OLD_ISSUER = "https://auth.frank.derio.net/application/o/k8s-agent/"
 NEW_ISSUER = "https://auth.cluster.derio.net/application/o/k8s-agent/"
 AUTHN_PATH = "/etc/kubernetes/authn-config.yaml"
+AUTHN_HOST_PATH = "/var/lib/kubernetes/authn-config.yaml"
 
 BLUEPRINT_CALLBACKS = {
     "blueprints-provider-argocd.yaml": {
@@ -76,16 +77,20 @@ def test_omni_patch_delivers_dual_issuer_authentication_config():
     assert extra_args == {"authentication-config": AUTHN_PATH}
     assert not any(key.startswith("oidc-") for key in extra_args)
     assert api_server["extraVolumes"] == [
-        {"hostPath": AUTHN_PATH, "mountPath": AUTHN_PATH, "readonly": True}
+        {
+            "hostPath": AUTHN_HOST_PATH,
+            "mountPath": AUTHN_PATH,
+            "readonly": True,
+        }
     ]
 
     authn_file = next(
         item
         for item in machine_config["machine"]["files"]
-        if item["path"] == AUTHN_PATH
+        if item["path"] == AUTHN_HOST_PATH
     )
     assert authn_file["op"] == "create"
-    assert str(authn_file["permissions"]) in {"0o600", "384"}
+    assert str(authn_file["permissions"]) in {"0o644", "420"}
 
     standalone = yaml.safe_load(AUTHN_CONFIG.read_text())
     assert yaml.safe_load(authn_file["content"]) == standalone

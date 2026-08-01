@@ -135,6 +135,24 @@ The Pi death was **near-silent across the whole stack**: the Derio Ops board sta
 
 The root problem is the un-HA'd single-Pi SPOF, not this one death. The replacement is **not another Pi**: Omni is being rehomed onto an **Ansible-managed Proxmox host with HA + UPS** for the whole homelab. That migration is its own Layer 2 build/operating post (this incident is its cold open), and it also retires the **wedge** gotcha above — a UPS plus a real RTC end the cold-boot clock-jump class outright. Until then the temporary `*.frank` re-fronting (`networking.md`) carries the services.
 
+## Talos `machine.files create` must stay under `/var`
+
+Talos v1.12.6 rejects `machine.files` entries with `op: create` outside `/var` during boot. The machine stops before kubelet, trustd, and etcd start. A cluster-wide ConfigPatch therefore turns one bad path into a fleet-wide outage rather than a failed application rollout.
+
+The dual-issuer authentication rollout exposed this on 2026-08-01. It wrote `/etc/kubernetes/authn-config.yaml` with mode 0600. Talos logged `create operation not allowed outside of /var`, and the control planes lost etcd quorum. Even if Talos had accepted the path, kube-apiserver runs as UID 65534 and could not read a root-owned 0600 host file.
+
+The corrected pattern separates host and container paths:
+
+- `machine.files` writes `/var/lib/kubernetes/authn-config.yaml` with `op: create` and mode 0644. The file contains issuer and claim mappings, not secrets.
+- `cluster.apiServer.extraVolumes` mounts that host file read-only at `/etc/kubernetes/authn-config.yaml` inside the pod.
+- `--authentication-config` uses the container path.
+
+### Rollback race on Omni v1.5
+
+Reverting the ConfigPatch restored the correct desired config but did not recover every machine. Omni v1.5 had already pushed the reboot-requiring bad config without confirming it. Its recorded hash still matched the reverted desired config, so it did not resend the rollback to nodes that had persisted the bad version.
+
+Recovery used temporary per-machine ConfigPatches that created a harmless marker under `/var`. The real hash change forced Omni to send each node's full corrected config. After all seven machines were Running, Ready, applied, and config-up-to-date, deleting the temporary patches returned the fleet to the clean legacy desired state. Do not accept one healthy sample: Omni can report config applied immediately before a scheduled reboot. Require every machine at stage 4 for several consecutive samples.
+
 ## `OMNI_SERVICE_ACCOUNT_KEY` — the `devops` Omni service account (non-interactive auth)
 
 `OMNI_SERVICE_ACCOUNT_KEY` (in `.env_devops`) is what lets `omnictl` and

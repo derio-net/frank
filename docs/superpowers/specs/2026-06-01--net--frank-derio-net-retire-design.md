@@ -183,7 +183,7 @@ Fully reversible. Establishes the safety net and gathers the unknowns.
 The riskiest phase. Touches Talos machine config + control-plane rollout.
 
 - Author `AuthenticationConfiguration` YAML listing two JWT authenticators (`auth.frank.derio.net` and `auth.cluster.derio.net`). Map `preferred_username` with the same explicit neutral `authentik:` prefix for both issuers and map `groups` with an empty prefix. The legacy flag implicitly used `<issuer>#` for usernames, which would make identities hostname-dependent; no RBAC binding targets `kind: User`, so this one-time normalization does not change authorization. Group names remain identical.
-- Deliver it via Talos `machine.files` (write to `/etc/kubernetes/authn-config.yaml`) + `cluster.apiServer.extraVolumes` mount + `cluster.apiServer.extraArgs.authentication-config: /etc/kubernetes/authn-config.yaml`.
+- Deliver it via Talos `machine.files` at `/var/lib/kubernetes/authn-config.yaml` (`op: create`, mode 0644), then mount that host file read-only at `/etc/kubernetes/authn-config.yaml` inside kube-apiserver and point `cluster.apiServer.extraArgs.authentication-config` at the container path. Talos v1.12 rejects `create` outside `/var`; mode 0600 also blocks kube-apiserver's non-root UID from reading the non-secret file.
 - Replace the legacy `oidc-*` extraArgs in the authoritative Omni ConfigPatch and remove the duplicate raw patch representation.
 - Roll out to all three control-plane nodes via Omni.
 - **Verify before proceeding:** existing `k8s-agent` kubeconfig (`iss: auth.frank`) still authenticates kubectl after the rollout. If it does not, roll back the patch and diagnose before any user-facing flip.
