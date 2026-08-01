@@ -12,8 +12,6 @@ last_updated: 2026-07-29
 
 The **Frank, the Talos Cluster** series is a walkthrough of building an AI-hybrid Kubernetes homelab from scratch, one layer per post. This post is not part of that walkthrough. It is the index to it: the roadmap, the capability map, the hardware, and a set of commands for checking whether any of it is still true.
 
-That last part matters more than it sounds. The tables below get updated when the cluster changes, which means they are accurate exactly as often as I remember to update them. Every number in the verify section is stamped with the date I ran the command. Treat the commands as the durable part and the numbers as a photograph.
-
 ## Roadmap
 
 {{< roadmap >}}
@@ -34,7 +32,7 @@ That last part matters more than it sounds. The tables below get updated when th
 | **Longhorn Backup + Cloudflare R2** | {{< abbr "PVC" >}} backup/restore, daily + weekly schedules, offsite storage |
 | **Infisical + External Secrets Operator** | Secret management with audit trail, ExternalSecret → K8s Secret sync (`192.168.55.204`) |
 | **Ollama** | Local {{< abbr "LLM" >}} inference on gpu-1's RTX 5070 Ti (16GB). Six base models as of 2026-07-29: Mistral Small 3.2 24B (default), Gemma 4 12B and Qwen2.5-VL 7B (multimodal), Qwen2.5-Coder 14B, Qwen3 14B (reasoning), Qwen3.6 35B-A3B (MoE, partial CPU offload). Lineup lives in `apps/litellm/values.yaml` |
-| **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`). **Local-only since 2026-06-04** — the OpenRouter free-tier section was removed because rate-limited cloud aliases are worse than missing ones for anything automated. A paid provider is allowed; a `:free` one is not |
+| **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`). Local-only since 2026-06-04 — no free-tier cloud aliases |
 | **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy={{< abbr "CRD" >}}, execution=Job (`192.168.55.207`) |
 | **cert-manager** | Automated {{< abbr "TLS" >}} certificate lifecycle for webhooks and internal services |
 | **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
@@ -50,8 +48,8 @@ That last part matters more than it sounds. The tables below get updated when th
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 | **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
-| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), {{< abbr "ACME" >}} via Cloudflare DNS-01, Authentik forward-auth (`192.168.55.220`). Count the protected routes rather than trusting this row: `grep -c 'name: authentik-forwardauth' apps/traefik/manifests/ingressroutes.yaml` |
-| **{{< abbr "VK" >}} Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server (`vk.cluster.derio.net`). Auth is the app's own local {{< abbr "JWT" >}}, fronted by an IP allowlist. Its route carries **no** Authentik forward-auth, deliberately: forward-auth is for apps that cannot authenticate a caller themselves, and an API consumed by machines cannot complete an SSO redirect anyway |
+| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), {{< abbr "ACME" >}} via Cloudflare DNS-01, Authentik forward-auth (`192.168.55.220`) |
+| **{{< abbr "VK" >}} Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server (`vk.cluster.derio.net`). Local {{< abbr "JWT" >}} auth behind an IP allowlist, no forward-auth |
 | **VK Relay** | WebSocket relay sidecar tunneling browser API calls to local VK agent server via yamux multiplexing, {{< abbr "SPAKE2" >}} pairing, Ed25519 request signing |
 | **gethomepage.dev** | Cluster dashboard at `master.cluster.derio.net` — service catalog with HTTP health indicators, custom bookmarks |
 | **Gitea** | Self-hosted git forge with GitHub pull-mirror, Authentik OIDC SSO (`192.168.55.209`) |
@@ -63,7 +61,7 @@ That last part matters more than it sounds. The tables below get updated when th
 | **GoatCounter** | Cookieless blog analytics — public beacon via Hop's Caddy at `counter.derio.net`, mesh-only admin at `counter.cluster.derio.net` with Authentik forward-auth (`192.168.55.224`) |
 | **CrowdSec + caddy-crowdsec-bouncer** | Edge HTTP security — agent tails Caddy logs on Hop, Caddy bouncer enforces decisions locally without round-tripping to Frank |
 | **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
-| **alert-agent** | Autonomous `claude` agent on multi-agent-shell — daily blog digest, Grafana-alert triage, traffic-surge detection, inbound Telegram Q&A. HTTP-only, no kube credential; deterministic facts come from a `frank-facts` CLI. **Replaced the FastAPI `ai-alert-helper` on 2026-06-16**, chiefly to break the circular dependency where the thing that reports on the inference stack ran on the inference stack |
+| **alert-agent** | Autonomous `claude` agent on multi-agent-shell — daily blog digest, Grafana-alert triage, traffic-surge detection, inbound Telegram Q&A. HTTP-only, no kube credential; deterministic facts from a `frank-facts` CLI. Replaced the FastAPI `ai-alert-helper` on 2026-06-16 |
 | **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` {{< abbr "CR" >}} (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
 | **hermes (Nous Research)** | Terminal-native agent CLI in a dedicated `agent-shell-base` pod on gpu-1 — {{< abbr "BYOK" >}} to LiteLLM (provider pinned via `config.yaml` mapping), profile.d shim defeating the sshd env-scrub, SSH+Mosh on `192.168.55.226` |
 | **metrics-server** | Aggregated resource Metrics API (`metrics.k8s.io`) on Talos — restores `kubectl top nodes/pods` and unblocks CPU/memory {{< abbr "HPA" >}}; `--kubelet-insecure-tls` for self-signed kubelet certs. Custom/external metrics deferred to a VM-backed prometheus-adapter |
@@ -83,7 +81,7 @@ Four zones, lettered A to D. **Zone A** is management and has no row here on pur
 
 Everything in the Technology → Capability Map arrives as an ArgoCD Application, so the table is checkable rather than a claim you have to take on trust. The `kubectl` lines below want a kubeconfig for a cluster; the `grep` lines want a clone of [derio-net/frank](https://github.com/derio-net/frank) and run from its root.
 
-**Every number in this section was captured on 2026-07-29 and will be wrong by the time you read it.** That is fine and is the point of printing the command above the number: run it against your own cluster and the arithmetic still works, even though none of my digits do. Start with the count:
+**Every number below was captured on 2026-07-29** and will have moved since. The command is the durable part; the digits are a sample so you can tell whether you typed it right. Start with the count:
 
 ```console
 $ kubectl -n argocd get applications --no-headers | wc -l
@@ -97,7 +95,7 @@ $ grep -l 'kind: Application' apps/root/templates/*.yaml | wc -l
       68
 ```
 
-That arithmetic is the whole GitOps claim in one line. When the two numbers stop agreeing, something on the cluster was made outside git, and I would rather learn that from a shell prompt than during an incident.
+That arithmetic is the whole GitOps claim in one line. When the two numbers stop agreeing, something on the cluster was made outside git.
 
 Existing and converged are different questions, so ask the second one separately:
 
@@ -111,7 +109,7 @@ $ kubectl -n argocd get applications \
    1 OutOfSync Missing
 ```
 
-Sixty-two green out of sixty-nine, on an ordinary afternoon. The `Suspended` row is a canary parked at a manual promotion gate, which is Argo Rollouts doing its job rather than a fault. The `OutOfSync` rows are live state disagreeing with git about something. None of it is an emergency. I show it because a cluster that reports all green all the time is usually one nobody is asking hard questions of.
+Sixty-two green out of sixty-nine, on an ordinary afternoon. `Suspended` is a canary parked at a manual promotion gate — Argo Rollouts doing its job, not a fault. `OutOfSync` is live state disagreeing with git. Neither is an emergency, and a cluster reporting all green all the time is usually one nobody is asking hard questions of.
 
 The roadmap at the top is numbered by published post. The layer codes that plan filenames and commit messages use are a separate registry:
 
@@ -124,19 +122,10 @@ Twenty-one numbered capability layers, plus `repo` for meta-work that is not a c
 
 ## Missteps
 
-Four forks where the obvious choice was the wrong one. Every commit below is real; check them.
+Three forks where the obvious choice was the wrong one.
 
 | The fork | Why the obvious branch was wrong | What Frank does now | Evidence |
 |----------|----------------------------------|---------------------|----------|
-| **Maintain the index by hand, or derive it from the pages** — a flat numbered list of capabilities, appended to on every new layer | Hand-maintained indexes drift silently, because nothing fails when you forget. Reordering meant editing every entry, so the sequence stopped reflecting reality as soon as prerequisites turned up out of order | A layer registry in `docs/layers.yaml`, plus `{{</* roadmap */>}}` and `{{</* series-index */>}}` shortcodes that derive their cards from page frontmatter. Adding a post updates the index by existing | `d7678b9e`, `cfb7dd1e` |
-| **One series or two** — build narrative and operational runbook in a single flat directory | The two have different readers and, more importantly, different half-lives. A build post is a dated story and should age. A runbook has to stay true, and burying it inside a narrative guarantees nobody updates it | Split into `building/` and `operating/`, cross-linked at render time so neither index needs hand-editing | `7f5ff73f`, `fc274975` |
-| **`relref` or a plain path for cross-post links** — `relref` is the idiomatic Hugo answer and validates targets at build time | Validation cuts both ways: `{{</* relref "building/NN-slug" */>}}` without the `/docs/` prefix is not a broken link warning, it is `REF_NOT_FOUND` and a dead `build-pages` job, which then cascaded into `build-container`. Writing that example unescaped in this very table failed the build again while this row was being drafted, because Hugo evaluates shortcodes inside inline code spans too | Prefix every `relref` with the full section path, and escape any shortcode you are merely quoting as `{{</*` … `*/>}}`. The strictness is worth keeping; it catches real dead links, as long as you learn it once and loudly | `2840cce7` |
-| **This page called itself a living document while three of its rows were dead** — the capability map named a FastAPI service retired 2026-06-16, an OpenRouter free tier purged 2026-06-04, and two Ollama models replaced before either | "Living document" is a description of a process, not a property of a page. Nothing re-derives these tables, nothing fails when they rot, and the label made the staleness harder to spot rather than easier: it read as a promise that someone was watching | Rows corrected and dated, and the verify section above now prints the command that produces every number | `apps/alert-agent/`, `apps/litellm/values.yaml:85-89,104,179` |
-
-## What Transfers
-
-An index page for a system that keeps changing is a specific genre with a specific failure mode, and three rules cover most of it.
-
-- **Publish the query, not the answer.** Any number a command can derive should ship as that command, plus one dated sample so the reader can tell whether they typed it right. The sample rots on schedule and harmlessly. The command does not rot at all, and it works on the reader's system rather than mine, which was always the more useful thing. Everything that went stale on this page was a fact I had typed out instead of a fact I had shown you how to get.
-- **Prefer facts that check each other.** `69` and `68` are not two numbers, they are one claim: every Application on the cluster is templated by the App-of-Apps, plus `root` itself. Written that way, a divergence is self-announcing. Written as two independently maintained figures, a divergence is invisible. When you cannot derive a number live, look for a second number it has to agree with.
-- **"Living document" is a process claim, so name the process or drop the label.** If a page is re-derived by a build step or a scheduled job, say which. If it is re-derived by someone remembering, the honest label is a date. The reassuring version is worse than nothing, because it converts "this might be old" into "someone is on it" for a reader with no way to tell the difference.
+| **Maintain the index by hand, or derive it from the pages** | Hand-maintained indexes drift silently — nothing fails when you forget, and reordering means editing every entry | Layer registry in `docs/layers.yaml`; `{{</* roadmap */>}}` and `{{</* series-index */>}}` derive their cards from page frontmatter | `d7678b9e`, `cfb7dd1e` |
+| **One series or two** | Build narrative and runbook have different readers and different half-lives. A build post is a dated story and should age; a runbook has to stay true | Split into `building/` and `operating/`, cross-linked at render time | `7f5ff73f`, `fc274975` |
+| **`relref` or a plain path for cross-post links** | `relref` validates targets at build time, but a missing `/docs/` prefix is not a warning — it is `REF_NOT_FOUND` and a dead `build-pages` job | Prefix every `relref` with the full section path; escape any shortcode you are only quoting as `{{</*` … `*/>}}` | `2840cce7` |

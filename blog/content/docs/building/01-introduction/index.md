@@ -112,12 +112,12 @@ patches/phase02-cilium/cilium-values.yaml
 patches/phase03-longhorn/longhorn-gpu-local-sc.yaml
 patches/phase03-longhorn/longhorn-values.yaml
 patches/phase04-gpu/gpu-operator-values.yaml
-patches/phase13-auth/oidc-apiserver.yaml
+patches/phase13-auth/authn-config.yaml
 ```
 
-Every genuine Omni resource declares a `type:` ending in `.omni.sidero.dev`, so anything in the machine-config tree without that string is either a false positive or a leak. One is a false positive: `oidc-apiserver.yaml` is a raw Talos `cluster:` patch with no Omni envelope, which is Layer 1 doing its job. The other four are Cilium's Helm values, Longhorn's Helm values, a Longhorn StorageClass, and the GPU Operator's Helm values. Four Layer 2 files, tracked, non-empty, sitting in the Layer 1 tree.
+Every genuine Omni resource declares a `type:` ending in `.omni.sidero.dev`, so anything in the machine-config tree without that string is either a false positive or a leak. One is a false positive: `authn-config.yaml` is a bare Kubernetes `AuthenticationConfiguration` that the API server reads by path, with no Omni envelope to carry — Layer 1 doing its job. The other four are Cilium's Helm values, Longhorn's Helm values, a Longhorn StorageClass, and the GPU Operator's Helm values. Four Layer 2 files, tracked, non-empty, sitting in the Layer 1 tree.
 
-They are archaeology. That is how the cluster was installed before ArgoCD existed, `patches/README.md` says as much, and the live versions have lived at `apps/cilium/values.yaml`, `apps/longhorn/values.yaml`, `apps/longhorn/manifests/gpu-local-sc.yaml` and `apps/gpu-operator/values.yaml` for a long time. Nothing applies the old copies. But "nothing applies them" is a fact about the current state of my scripts, not a property of the files, and I would rather write that down than have you find it and wonder what else I rounded off. They are also actively misleading. `patches/phase03-longhorn/longhorn-values.yaml` documents `helm install --version 1.11.0` against a path (`patches/phase3-longhorn/`) that a directory rename retired, and the cluster left 1.11.0 in June over an instance-manager memory leak. Three separate facts in one dead file, all wrong, none of them announcing it.
+They are archaeology. That is how the cluster was installed before ArgoCD existed, `patches/README.md` says as much, and the live versions have lived at `apps/cilium/values.yaml`, `apps/longhorn/values.yaml`, `apps/longhorn/manifests/gpu-local-sc.yaml` and `apps/gpu-operator/values.yaml` for a long time. Nothing applies the old copies — though "nothing applies them" is a fact about the current state of the scripts, not a property of the files. They are also actively misleading. `patches/phase03-longhorn/longhorn-values.yaml` documents `helm install --version 1.11.0` against a path (`patches/phase3-longhorn/`) that a directory rename retired, and the cluster left 1.11.0 in June over an instance-manager memory leak. Three separate facts in one dead file, all wrong, none of them announcing it.
 
 The decision procedure, then. Run all three against your own repo and read them as a set:
 
@@ -139,22 +139,13 @@ Each post in this series builds one layer on top of the last. The roadmap below 
 
 The series assumes you are building alongside. Each post ends with a running cluster state you can verify.
 
-## What Transfers
-
-None of this is specific to my hardware. Four things are worth carrying to whatever you build next:
-
-- **Give every fact one owner, and make ownership greppable.** The value of the two-layer split is not tidiness. It is that "which layer owns this?" is answerable with `grep` at 2am instead of being a matter of opinion.
-- **Check a boundary in both directions, or you have not checked it.** A one-directional grep is the most comfortable check available and the one most likely to pass on a repo that is already leaking, because you naturally reach for the direction you were careful about. Frank's forward check has been clean since day one. The reverse check has never been clean. Whatever separation you are enforcing, write the query that would catch you.
-- **Put management outside the thing it manages, then ask what happens when management dies.** The first half is the well-known rule and it worked exactly as advertised: the Pi died and the cluster did not notice. The second half is the part I skipped. Everything I needed to *fix* the cluster routed through the one board that had failed, so I had a healthy cluster I could not talk to. Independence from the thing you manage buys nothing if you have no independent way in.
-- **Mismatched hardware is a feature while you are learning.** Identical nodes teach you the happy path. A Raspberry Pi and an RTX 5070 Ti in the same scheduler teach you what a node selector is actually for, and they do it on the first day rather than the first outage.
-
 ## Missteps
 
 | What Happened | Why It Was Wrong | How We Fixed It | Evidence |
 |---------------|-----------------|-----------------|----------|
 | **Management was a single un-redundant board** — Omni, the public `*.frank` edge, and the zone's cert minter all on one Raspberry Pi 5 | Putting management outside the cluster was right; putting three roles on one un-HA'd board was a separate decision that nobody made deliberately. When it died there was no second copy of any of the three | `*.frank` names re-fronted onto the in-cluster Traefik; Omni's durable rehoming onto an HA Proxmox host is still open | [`frank-gotchas/omni.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md) |
 | **No break-glass credential existed** — the only kubeconfig and talosconfig routed through Omni's proxy | The real apiserver on `192.168.55.21:6443` and the Talos API on `:50000` both stayed up and reachable on the LAN throughout the outage. They were unusable purely for want of a credential, and Omni, which mints them, was the dead thing | Not fixed. Recorded, so the next person does not discover it the same way | [`frank-gotchas/omni.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md) |
-| **Helm values for Cilium, Longhorn and the GPU Operator were left under `patches/`** — the pre-ArgoCD install method, never deleted when ArgoCD took over | Four Layer 2 files in the Layer 1 tree, still tracked, quietly contradicting the boundary this post is about. One of them documents an install command with a stale chart version and a stale directory path | Named in the verify section above rather than swept up, because the checkable claim is more useful than the tidy one | `patches/phase0{2,3,4}-*/`, `patches/README.md` |
+| **Helm values for Cilium, Longhorn and the GPU Operator were left under `patches/`** — the pre-ArgoCD install method, never deleted when ArgoCD took over | Four Layer 2 files in the Layer 1 tree, still tracked, quietly contradicting the boundary this post is about. One of them documents an install command with a stale chart version and a stale directory path | Named in the verify section above rather than swept up | `patches/phase0{2,3,4}-*/`, `patches/README.md` |
 | **Management was described as running Authentik** — it never did; the Pi fronted `auth.frank.derio.net`, while the identity provider itself has been an in-cluster ArgoCD app since Layer 13 | "Hosts the name" and "runs the service" fail in different ways, so conflating them makes an outage harder to reason about at exactly the wrong moment | Zone A's description corrected above | `apps/authentik/`, commit `8e5da3f3` |
 
 ## References
