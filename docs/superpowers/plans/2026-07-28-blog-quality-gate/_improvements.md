@@ -171,6 +171,50 @@ Status key: **[filed]** already upstream · **[open]** to file · **[local]** fi
     Missteps cells went from terse to 60–100-word paragraphs — a table in name
     only — because each critique point was answered with prose. Fixing a finding
     should not change what kind of document the page is.
+33. **The em-dash lint counts table rows as prose, so table-heavy pages are
+    structurally penalised.** Removing ~350 words from `00-overview` (the
+    `What Transfers` section plus padded cells) moved its density *up*, 15.1 →
+    20.8/1000, without adding a single em-dash: the numerator is ~60 capability
+    rows each using one as a separator, and the denominator shrank. Acting on
+    this WARN means rewriting 60 good rows to satisfy a prose heuristic — the
+    `_ACTIONABLE` false-positive lesson one level down. The validator already
+    has the machinery (`_prose_lines` / `_prose_only`, which strip fences and
+    inline code and are used by the what-transfers check); it simply is not
+    applied to table rows for the density checks. **Upstream: blog-craft.**
+34. **There is no per-post waiver for the what-transfers check, and Diátaxis
+    cannot express the role that needs one.** `diagram_exempt` exists;
+    `transfers_exempt` does not. The only escape is `quality_exempt`, which the
+    Phase 3 discovery already established removes the post from the **lint**
+    layer too — precisely the blind spot Phase 6's tripwire is being built to
+    prevent. This bites because the operator's rule is about a post's *role*,
+    not its mode: `01-introduction` is legitimately `diataxis: explanation`
+    (which the lint gates on) and legitimately must not carry a `What
+    Transfers`, because it is a series entry point. Stripping it therefore
+    trades a permanent, unwaivable WARN. **Upstream: blog-craft** — add
+    `transfers_exempt`, mirroring `diagram_exempt`.
+35. **Fixing a bug in a touched post is not fixing the bug.** The
+    `-l longhornvolume` selector on `backups.longhorn.io` (finding
+    `4eeefd7d47f9`) was corrected in `building/08-backup` during Phase 3, and
+    was still live in `operating/02-storage-backups:133` — a *backup
+    verification runbook* — because that post was outside the plan's set.
+    Discovering a bug **class** should trigger a corpus-wide grep for the
+    class, not only a fix in place. Cost: one `grep`.
+36. **A post that publishes repo-derived command output has a dependency on the
+    repo that nothing tracks.** Merging `origin/main` mid-plan (12 commits)
+    invalidated `01-introduction`'s verify section outright: main deleted
+    `patches/phase13-auth/oidc-apiserver.yaml` in favour of `authn-config.yaml`,
+    so both the published sample output *and* the prose analysing it were stale
+    the moment the merge landed. Nothing in the gate, the lint, CI, or the
+    build notices. The `last_updated_commit` frontmatter is the obvious hook —
+    a check could diff the cited paths since that commit and warn.
+37. **Re-verify a handover's claims before building on them; and re-verify the
+    base.** Every load-bearing claim in `_handover.md` held. What it could not
+    know was that `main` had moved 12 commits, including **blog-craft v0.18.1 →
+    v0.19.0**, which touches `.blog-craft.yaml`, `.blog-craft.sync.yaml` and
+    adds 18 lines to `.github/workflows/blog-ci.yml`. Phase 6 re-renders that
+    workflow through `update.py` **at the `blog_craft_version` tag**, so
+    running it pre-merge would have silently dropped main's new mermaid-layout
+    step. Merge before Phase 6, not after.
 
 ---
 

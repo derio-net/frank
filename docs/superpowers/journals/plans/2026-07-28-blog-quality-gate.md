@@ -87,8 +87,8 @@ Second-order trap, hit twice while filing this very entry: the fr pipeline guard
 
 This matters for Phases 3-5, which need real output for nine more posts. **Live cluster evidence is available — do not settle for repo-only commands on the assumption the cluster is unreachable.**
 
-<!-- fr:journal kind=finding scope=plan id=4eeefd7d47f9 created=2026-07-28T23:35:41 phase=3 state=open -->
-### 4eeefd7d47f9 · finding [open] · A handed-down candidate command was wrong in the most dangerous way: -l longhornvolume returns 'No resources found' on Backup objects (phase 3)
+<!-- fr:journal kind=finding scope=plan id=4eeefd7d47f9 created=2026-07-28T23:35:41 phase=3 state=fixed -->
+### 4eeefd7d47f9 · finding [fixed] · A handed-down candidate command was wrong in the most dangerous way: -l longhornvolume returns 'No resources found' on Backup objects (phase 3)
 
 The `-l longhornvolume=<vol>` selector handed down as a candidate command for 08-backup returns `No resources found in longhorn-system namespace.` — not because the volume has no backups, but because that label does not exist on a `Backup` object. The real label is `backup-volume`. Measured both, same volume, same moment:
 
@@ -103,6 +103,16 @@ Two consequences worth carrying into Phases 4 and 5:
 
 1. Handed-down candidate commands must be RUN, not pasted. This one came in a brief as a verified-looking citation and was wrong. Running it took ten seconds.
 2. A verification command that returns empty on both "healthy but mis-queried" and "genuinely broken" is not a verification command. The published section now shows both invocations side by side and names the ambiguity, because the useful teaching artefact here is the trap, not the working selector.
+
+**Fixed 2026-08-01.** `building/08-backup` queries `-l backup-volume` and keeps the wrong
+selector as a deliberate counter-example. Closing this also turned up the *same* bug live in
+`operating/02-storage-backups:133` — a `backups.longhorn.io` list under
+`-l longhornvolume`, in the operational backup-verification runbook, a post outside this
+plan's set. Corrected there too, with the ambiguity named. The `longhornvolume` uses on
+`replicas.longhorn.io` (:278, :387) and `engines.longhorn.io` (:349) are correct and were
+left alone; the two `snapshots.longhorn.io` uses (:248, :391) are **unverified** — the label
+set on that kind was never measured, and the cluster needs an interactive OIDC login this
+session could not perform. Recorded in `_improvements.md` rather than guessed at.
 
 <!-- fr:journal kind=discovery scope=plan id=f134ca1c2616 created=2026-07-28T23:36:14 phase=3 -->
 ### f134ca1c2616 · discovery · quality_exempt drops the post from the LINT layer too, not just the gate — it is a whole-post opt-out, unlike diagram_exempt (phase 3)

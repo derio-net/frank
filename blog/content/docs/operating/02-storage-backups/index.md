@@ -126,12 +126,19 @@ NAME      URL                              CREDENTIAL        AVAILABLE   LASTSYN
 default   s3://frank-longhorn-backups@auto/   longhorn-r2-secret   true        2026-07-15T02:00:00Z
 ```
 
-List recent backups for a specific volume:
+List recent backups for a specific volume. The label on a `Backup` is `backup-volume`, and `<volume-name>` is the PV name (`pvc-<uuid>`), not the PVC name:
 
 ```bash
 kubectl get backups.longhorn.io -n longhorn-system \
-  -l longhornvolume=<volume-name> \
+  -l backup-volume=<volume-name> \
   --sort-by=.metadata.creationTimestamp
+```
+
+Do not reach for `longhornvolume` here out of habit. It is a real Longhorn label — on `replicas.longhorn.io` and `engines.longhorn.io` — and it is absent on `Backup`, so the wrong selector returns `No resources found`, which is the same output you would get if every backup were genuinely missing. Confirm the spelling before believing an empty result:
+
+```bash
+kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq '.items[0].metadata.labels'
 ```
 
 ### Node and Disk Status
@@ -198,7 +205,7 @@ metadata:
   generateName: manual-backup-
   namespace: longhorn-system
   labels:
-    longhornvolume: <volume-name>
+    backup-volume: <volume-name>
 spec:
   snapshotName: ""
 EOF
