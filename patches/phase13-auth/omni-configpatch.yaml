@@ -4,6 +4,7 @@ metadata:
     id: 150-auth-oidc-apiserver
     labels:
         omni.sidero.dev/cluster: frank
+        omni.sidero.dev/machine-set: frank-control-planes
 spec:
     data: |
         machine:

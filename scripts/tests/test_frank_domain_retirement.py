@@ -70,6 +70,10 @@ def test_omni_patch_delivers_dual_issuer_authentication_config():
     assert AUTHN_CONFIG.exists(), "standalone AuthenticationConfiguration is missing"
 
     wrapper = yaml.safe_load(OMNI_PATCH.read_text())
+    assert wrapper["metadata"]["labels"] == {
+        "omni.sidero.dev/cluster": "frank",
+        "omni.sidero.dev/machine-set": "frank-control-planes",
+    }
     machine_config = yaml.safe_load(wrapper["spec"]["data"])
     api_server = machine_config["cluster"]["apiServer"]
     extra_args = api_server["extraArgs"]
