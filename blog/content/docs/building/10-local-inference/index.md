@@ -9,7 +9,7 @@ summary: "A unified OpenAI-compatible gateway fronting a local RTX 5070 Ti runni
 weight: 11
 reader_goal: "Deploy Ollama on a GPU node and LiteLLM as a unified inference gateway with local and cloud model routing"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-08-01
 ---
 
 The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.
@@ -31,7 +31,7 @@ flowchart TD
   end
   subgraph Local[Local — gpu-1]
     Ollama[Ollama<br/>RTX 5070 Ti, 16GB]
-    Models[mistral-small3.2:24b<br/>gemma4:12b<br/>qwen3.6:35b-a3b<br/>qwen2.5-coder:14b<br/>qwen3:14b<br/>qwen2.5vl:7b]
+    Models[mistral-small3.2:24b<br/>gemma4:12b<br/>qwen3.6:35b-a3b<br/>qwen2.5-coder:14b-instruct-q6_K<br/>qwen3:14b<br/>qwen2.5vl:7b]
   end
 
   Consumers -->|OpenAI-compatible| Router
@@ -55,9 +55,9 @@ The RTX 5070 Ti has 16GB of {{< abbr "GDDR7" >}}. That is the hard constraint. S
 | `qwen-vl-7b` | `qwen2.5vl:7b` | Q4_K_M | ~12 GB | 128K | Multimodal — OCR, tables |
 | `qwen-coder-14b` | `qwen2.5-coder:14b-instruct-q6_K` | Q6_K | ~12 GB | 32K | Code generation |
 | `qwen-think-14b` | `qwen3:14b` | Q4_K_M | ~10 GB | 32K | Reasoning with thinking mode |
-| `qwen36-a3b` | `qwen3.6:35b-a3b` | Q4_K_M | ~24 GB, partial offload | 256K | MoE flagship, general reasoning |
+| `qwen36-a3b` | `qwen3.6:35b-a3b` | Q4_K_M | ~11 GB VRAM + ~15 GB host RAM | 256K | MoE flagship, general reasoning |
 
-Those six tags carry twelve aliases. The extras are not new models: `gemma-12b-nothin` and `qwen36-a3b-nothin` point at the same backend with `think: false` in `extra_body`, and `gemma-12b-64k` / `qwen36-a3b-64k` point at derived Ollama tags whose Modelfile sets `PARAMETER num_ctx 65536` (`apps/ollama/values.yaml`). That last pair exists because LiteLLM cannot pass `num_ctx` per request to `ollama_chat` ([litellm#12930](https://github.com/BerriAI/litellm/issues/12930), closed not-planned), so a per-model tag is the only escape hatch from the server-wide `OLLAMA_CONTEXT_LENGTH`.
+Those six models, plus two derived tags, carry twelve aliases. The extras are not new models: `gemma-12b-nothin` and `qwen36-a3b-nothin` point at the same backend with `think: false` in `extra_body`, and `gemma-12b-64k` / `qwen36-a3b-64k` point at derived Ollama tags whose Modelfile sets `PARAMETER num_ctx 65536` (`apps/ollama/values.yaml`) — each of which also has its own `-nothin` variant. That last pair exists because LiteLLM cannot pass `num_ctx` per request to `ollama_chat` ([litellm#12930](https://github.com/BerriAI/litellm/issues/12930), closed not-planned), so a per-model tag is the only escape hatch from the server-wide `OLLAMA_CONTEXT_LENGTH`.
 
 `qwen36-a3b` is the one model that does not fit. At Q4_K_M it is ~24GB on disk, so Ollama offloads inactive experts to gpu-1's 128GB of host RAM. Measured at `num_ctx=4096`: a 41% CPU / 59% GPU split, ~20 tok/s generation. Mixture-of-experts routing keeps that usable because only ~3B weights are active per token; a dense 35B at the same split would be far slower.
 
@@ -203,7 +203,7 @@ NAME      READY   UP-TO-DATE   AVAILABLE   AGE
 litellm   0/0     0            0           145d
 ```
 
-`kubectl -n litellm get pods` is no kinder: at that same moment it listed 18 pods, only 6 of them Running. The other 12 are phase `Succeeded` — graceful-shutdown tombstones from past node reboots and promotions, which Kubernetes does not garbage-collect. Both readings are correct and the gateway is healthy. The instinct to count Ready pods reports a catastrophe on a working system.
+`kubectl -n litellm get pods` is no kinder: at that same moment it listed 18 pods, only 6 of them Running — and one of those six is `litellm-postgresql-0`, so five are actually serving. The other 12 sit in phase `Succeeded`, which Kubernetes does not garbage-collect. Their `status.reason` and `status.message` are both empty, so the objects do not record why they ended; I can tell you what they are, not what put them there. Both readings are correct and the gateway is healthy. The instinct to count Ready pods reports a catastrophe on a working system.
 
 Ask the resource that actually owns the replicas:
 

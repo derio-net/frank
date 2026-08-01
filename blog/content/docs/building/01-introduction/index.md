@@ -9,7 +9,7 @@ summary: "The motivation behind Frank, the Talos Cluster — learning enterprise
 weight: 2
 reader_goal: "Decide whether this cluster architecture suits your own homelab goals and map its two-layer management model"
 diataxis: explanation
-last_updated: 2026-07-29
+last_updated: 2026-08-01
 ---
 
 I knew Kubernetes from the cloud. {{< abbr "EKS" >}}, {{< abbr "GKE" >}} — they hand you a cluster with networking, storage, and GPU scheduling already wired. You push a manifest, it works, and you have no idea how. The abstraction is the point if your job is shipping features. But if your job is understanding infrastructure, the abstraction is the obstacle.
@@ -79,7 +79,7 @@ The repo layout is asymmetric and it is worth knowing why before you go looking.
 
 ## Verify the boundary on your own cluster
 
-A boundary is easy to describe and easy to violate, so check it rather than believe it. Three checks, each of which answers less than it looks like it answers, which is why there are three. Output below captured 2026-07-29.
+A boundary is easy to describe and easy to violate, so check it rather than believe it. Three checks, each of which answers less than it looks like it answers, which is why there are three. Output below captured 2026-07-29, except the third check, re-run 2026-08-01 — a rename landed in that tree between the two dates, which is the sort of thing that makes a pasted sample rot while the command stays true.
 
 Start with what the cluster reports about itself:
 

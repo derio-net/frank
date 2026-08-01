@@ -5,11 +5,11 @@ layer: auth
 date: 2026-03-11
 draft: false
 tags: ["authentik", "oidc", "sso", "security", "auth", "rbac", "traefik"]
-summary: "One identity provider for every service — Authentik brings OIDC SSO to ArgoCD, Grafana, and Infisical, forward-auth proxy to Longhorn, Hubble, and Sympozium, and OIDC-backed kubectl access."
+summary: "One identity provider for every service — Authentik brings OIDC SSO to ArgoCD, Grafana, and Infisical, forward-auth proxy to Longhorn, Hubble, and the Tekton Dashboard, and OIDC-backed kubectl access."
 weight: 14
 reader_goal: "Deploy Authentik as the cluster-wide IdP with three integration patterns (native OIDC, forward-auth proxy, OIDC kubectl) and work around blueprint syntax gotchas"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-08-01
 ---
 
 Before this layer, every service on the cluster had its own local admin account. ArgoCD had its built-in admin user. Grafana had `admin/admin`. Infisical had a self-created admin. Longhorn, Hubble, and Sympozium had no authentication at all — anyone on the LAN could access them.
@@ -32,7 +32,7 @@ flowchart TD
   subgraph Proxy[Forward Auth — Traefik]
     Longhorn[Longhorn UI]
     Hubble[Hubble UI]
-    Sympozium[Sympozium UI]
+    Tekton[Tekton Dashboard]
   end
   subgraph K8s[OIDC kubectl — kube-apiserver]
     RBAC[ClusterRoleBinding<br/>groups → roles]
@@ -50,7 +50,7 @@ flowchart TD
 
 Three reasons:
 
-1. **Proxy outpost** — services with no {{< abbr "OIDC" >}} support (Longhorn, Hubble, Sympozium) get authentication via a reverse proxy in front of Traefik. No code changes, no sidecars.
+1. **Proxy outpost** — services with no {{< abbr "OIDC" >}} support (Longhorn, Hubble, the Tekton Dashboard) get authentication via a reverse proxy in front of Traefik. No code changes, no sidecars.
 2. **Blueprint system** — providers, applications, and groups can be defined as YAML. In theory, this makes configuration declarative and GitOps-friendly. In practice, blueprint YAML syntax is sensitive — see below.
 3. **Self-hosted and free** — the open-source edition includes everything: OIDC, proxy providers, group management, admin UI.
 
@@ -306,10 +306,11 @@ Read the ROLE column against your intent, not against your memory. `root-agents`
 
 The end-to-end proof, and the only one of the three that tests the request path a user takes. An unauthenticated request to a forward-auth service must not return the application:
 
+Filter for the two headers that decide it, rather than taking the first few — header order is not guaranteed:
+
 ```console
-$ curl -sI https://longhorn.cluster.derio.net/ | head -3
+$ curl -sI https://longhorn.cluster.derio.net/ | grep -iE '^(HTTP|location)'
 HTTP/2 302
-content-type: text/html; charset=utf-8
 location: https://auth.cluster.derio.net/application/o/authorize/?client_id=...
 ```
 
@@ -320,6 +321,15 @@ Three outcomes, three different repairs:
 - **404 carrying `x-powered-by: authentik`** — the request reached the outpost but the `Host` is not registered on any provider. Add it to the blueprint, then to the outpost.
 
 Run the third check whenever you add a service. A forgotten middleware line produces a working, popular, completely open endpoint, and it will not appear in any log as a problem.
+
+I know that because this check found one on me while this layer was being re-verified. Sympozium had an Authentik proxy provider defined, so every blueprint looked right, but its IngressRoute carries only `ip-allowlist` and `security-headers` — the `authentik-forwardauth` line was never added:
+
+```console
+$ curl -sI https://sympozium.cluster.derio.net/ | grep -iE '^(HTTP|location)'
+HTTP/2 200
+```
+
+A 200 and no `location`. It is reachable only from the LAN and the mesh, so the allowlist was doing the real work the whole time, but nothing about the provider, the outpost, or the blueprint would ever have told me the middleware was missing. Having the provider is not the same as using it, and only the request path knows the difference.
 
 ## Missteps
 

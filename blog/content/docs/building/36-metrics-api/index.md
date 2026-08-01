@@ -9,7 +9,7 @@ summary: "kubectl top was dead for months because nothing served metrics.k8s.io.
 weight: 37
 reader_goal: "Serve the aggregated resource Metrics API on a Talos cluster with metrics-server, and know when NOT to route it through your TSDB"
 diataxis: tutorial
-last_updated: 2026-07-25
+last_updated: 2026-08-01
 ---
 
 I have scraped my own kubelets for months. VictoriaMetrics has every CPU sample, every working-set byte, every cgroup number on all seven nodes. And yet the day someone typed `kubectl top nodes` to size a workload, I answered:
@@ -107,7 +107,7 @@ Which leaves the Tekton webhook HPA as the only one I ship, and a better witness
 
 ## Verifying the Metrics API
 
-Day-to-day operations are in the companion post, [Operating on Frank — The Metrics API](/docs/operating/29-metrics-api). Use this section when you have just deployed metrics-server, or when `kubectl top` has gone quiet and you need to find out where. The checks are ordered so each one narrows the fault, and the last is the one most people skip.
+Day-to-day operations are in the companion post, [Operating on Frank — The Metrics API](/docs/operating/29-metrics-api). Use this section when you have just deployed metrics-server, or when `kubectl top` has gone quiet and you need to find out where. The checks are ordered so each one narrows the fault, and the last is the one most people skip. Output below captured 2026-08-01.
 
 **1. Is anything registered to serve the API?**
 
@@ -175,7 +175,7 @@ I now read my own vitals through the interface Kubernetes expects. `kubectl top`
 
 **Ready is not working.** metrics-server on Talos boots happily and serves nothing without one flag. Any component that scrapes something else can fail entirely while every liveness signal stays green, so verify the *capability*, not the pod. On this layer that means `ScalingActive=True`, not `1/1 Running`.
 
-**Silent breakage has no age limit.** Nothing paged for 118 days, because a broken autoscaler on an idle webhook looks exactly like a working autoscaler on an idle webhook. The absence of complaints is not evidence; it is usually just the absence of anyone looking.
+**Silent breakage has no age limit.** Nothing paged across those 118 days, and by mechanism nothing could have, because a broken autoscaler on an idle webhook looks exactly like a working autoscaler on an idle webhook. The absence of complaints is not evidence; it is usually just the absence of anyone looking.
 
 ## References
 

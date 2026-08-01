@@ -7,7 +7,7 @@ summary: "The index to Frank, the Talos Cluster — an AI-hybrid Kubernetes home
 weight: 1
 reader_goal: "Understand Frank's capability layers and how they map to hardware zones"
 diataxis: reference
-last_updated: 2026-07-29
+last_updated: 2026-08-01
 ---
 
 The **Frank, the Talos Cluster** series is a walkthrough of building an AI-hybrid Kubernetes homelab from scratch, one layer per post. This post is not part of that walkthrough. It is the index to it: the roadmap, the capability map, the hardware, and a set of commands for checking whether any of it is still true.
@@ -35,7 +35,7 @@ The **Frank, the Talos Cluster** series is a walkthrough of building an AI-hybri
 | **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`). Local-only since 2026-06-04 — no free-tier cloud aliases |
 | **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy={{< abbr "CRD" >}}, execution=Job (`192.168.55.207`) |
 | **cert-manager** | Automated {{< abbr "TLS" >}} certificate lifecycle for webhooks and internal services |
-| **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
+| **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for 18 routes incl. Longhorn, Hubble, Tekton Dashboard (`192.168.55.211`) |
 | **vCluster** | Virtual K8s clusters inside Frank — disposable sandboxes with own API server, resource quotas, network policies |
 | **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
 | **ComfyUI** | Diffusion model serving — video (LTX-2.3), image (SDXL), audio (Stable Audio), node-based workflow editor (`192.168.55.213`) |

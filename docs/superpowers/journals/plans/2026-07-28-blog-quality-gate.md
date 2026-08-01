@@ -110,9 +110,23 @@ selector as a deliberate counter-example. Closing this also turned up the *same*
 `-l longhornvolume`, in the operational backup-verification runbook, a post outside this
 plan's set. Corrected there too, with the ambiguity named. The `longhornvolume` uses on
 `replicas.longhorn.io` (:278, :387) and `engines.longhorn.io` (:349) are correct and were
-left alone; the two `snapshots.longhorn.io` uses (:248, :391) are **unverified** — the label
-set on that kind was never measured, and the cluster needs an interactive OIDC login this
-session could not perform. Recorded in `_improvements.md` rather than guessed at.
+left alone.
+
+**Amended 2026-08-01, same session.** The two `snapshots.longhorn.io` uses (:248, :391) were
+first left as *unverified*, on the belief that the cluster needed an interactive OIDC login.
+That premise was wrong. `.talos/Frank_Kubeconfig.yaml` is OIDC/authcode-browser and unusable
+non-interactively, but the **Omni service-account kubeconfig** in
+`~/.config/fr/secrets/frank/cluster-admin.env` (`KUBECONFIG_B64`, token auth) works
+headlessly. With it, `longhornvolume` was confirmed live as a real label on
+`snapshots.longhorn.io` — the selector returns rows — so both uses are CORRECT and needed no
+change. `Backup` is the only one of the four kinds that lacks it.
+
+Two corrections to this entry's own earlier text, both caught in the Phase 4 boundary review:
+the prose added at :137 implied the label lived on exactly two kinds, which contradicted the
+same file's surviving snapshot commands (now names all three verified kinds); and the claim
+that the uncertainty was "recorded in `_improvements.md`" was false — it never was. It has
+now been resolved by measurement instead, which is the better outcome and the reason the
+sentence is gone rather than corrected.
 
 <!-- fr:journal kind=discovery scope=plan id=f134ca1c2616 created=2026-07-28T23:36:14 phase=3 -->
 ### f134ca1c2616 · discovery · quality_exempt drops the post from the LINT layer too, not just the gate — it is a whole-post opt-out, unlike diagram_exempt (phase 3)

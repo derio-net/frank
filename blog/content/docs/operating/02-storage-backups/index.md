@@ -9,8 +9,8 @@ summary: "Day-to-day commands for managing Longhorn volumes, checking backup hea
 weight: 3
 reader_goal: "Check Longhorn volume health, manage R2 backups, expand a volume, restore from backup, and debug degraded volumes, failed backups, or stuck attachments — without relying on the Longhorn UI."
 diataxis: [how-to, reference]
-last_updated: 2026-07-27
-last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
+last_updated: 2026-08-01
+last_updated_commit: https://github.com/derio-net/frank/commit/104c5bb3
 ---
 
 {{< last-updated >}}
@@ -134,7 +134,7 @@ kubectl get backups.longhorn.io -n longhorn-system \
   --sort-by=.metadata.creationTimestamp
 ```
 
-Do not reach for `longhornvolume` here out of habit. It is a real Longhorn label — on `replicas.longhorn.io` and `engines.longhorn.io` — and it is absent on `Backup`, so the wrong selector returns `No resources found`, which is the same output you would get if every backup were genuinely missing. Confirm the spelling before believing an empty result:
+Do not reach for `longhornvolume` here out of habit. It is a real Longhorn label on `replicas.longhorn.io`, `engines.longhorn.io` and `snapshots.longhorn.io` — all three verified live — and it is absent on `Backup` alone. So the habit is learned correctly on three kinds and is silently wrong on the fourth, where the bad selector returns `No resources found`: the same output you would get if every backup were genuinely missing. The label set is per-kind, so confirm it against the kind you are querying rather than assuming it carries over:
 
 ```bash
 kubectl get backups.longhorn.io -n longhorn-system -o json \
