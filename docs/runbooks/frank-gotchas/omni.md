@@ -143,6 +143,7 @@ The dual-issuer authentication rollout exposed this on 2026-08-01. It wrote `/et
 
 The corrected pattern separates host and container paths:
 
+- Scope kube-apiserver ConfigPatches to `omni.sidero.dev/machine-set: frank-control-planes`; a cluster-only label sends `machine.files` to workers too.
 - `machine.files` writes `/var/lib/kubernetes/authn-config.yaml` with `op: create` and mode 0644. The file contains issuer and claim mappings, not secrets.
 - `cluster.apiServer.extraVolumes` mounts that host file read-only at `/etc/kubernetes/authn-config.yaml` inside the pod.
 - `--authentication-config` uses the container path.
