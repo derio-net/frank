@@ -108,10 +108,10 @@ configs:
     # Resource tracking via annotation (avoids conflicts with Helm labels)
     application.resourceTrackingMethod: annotation
     # Authentik OIDC SSO (Phase 13)
-    url: https://argocd.frank.derio.net
+    url: https://argocd.cluster.derio.net
     oidc.config: |
       name: Authentik
-      issuer: https://auth.frank.derio.net/application/o/argocd/
+      issuer: https://auth.cluster.derio.net/application/o/argocd/
       clientID: argocd
       clientSecret: $argocd-oidc-secret:oidc.authentik.clientSecret
       requestedScopes:

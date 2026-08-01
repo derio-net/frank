@@ -31,22 +31,35 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T11:56:35+00:00'
+      note: 'Added semantic overlap inventory across Authentik, ArgoCD, Grafana, n8n,
+        Paperclip, OIDC launch URLs, feature probes, Hop landing links, and references/access.md.
+        Focused red run: 1 failed, 4 passed at legacy AUTHENTIK_HOST.'
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T11:56:37+00:00'
+      note: 'Added passing ownership guard: cluster proxy hosts remain exclusively
+        in blueprints-cluster-proxy-providers.yaml; the legacy blueprint is frozen
+        to its four frank.derio.net providers with no duplicate cluster objects.'
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T11:57:23+00:00'
+      note: 'Cut canonical consumers to cluster.derio.net: AUTHENTIK_HOST, ArgoCD
+        URL/issuer, Grafana root/OAuth endpoints, n8n WEBHOOK_URL, Paperclip public
+        URL, OIDC app launch URLs, feature probes, Hop landing links, and references/access.md.
+        Focused domain contract: 5 passed; overlap exceptions retained.'
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T12:04:40+00:00'
+      note: Focused domain contract 5 passed; full scripts/tests suite 368 passed,
+        1 xfailed; exact Traefik and Authentik manifest client dry-runs passed against
+        the Frank API schema; git diff --check clean; no deleted files; all overlap-only
+        routes, callbacks, issuers, and legacy Paperclip hostname retained.
   completion:
-    at: null
-    note: null
+    at: '2026-08-01T12:04:42+00:00'
+    note: PR 2 implementation is complete and verified offline. Acceptance rows net-cluster-domain-canonical
+      and net-oidc-cutover-continuity remain not-implemented until Phase 4 deploys
+      the cutover, proves browser/OIDC paths and a new cluster-issuer token, and completes
+      the eight-hour old-token overlap.
     observed_prs: []

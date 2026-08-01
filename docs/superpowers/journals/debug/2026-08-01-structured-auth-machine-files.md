@@ -39,3 +39,8 @@ All temporary recovery ConfigPatches are absent. All seven Omni machines remaine
 ### talos-safe-authn-config-fixed · finding [fixed] · Talos-safe structured-auth delivery fixed and tested (phase 2)
 
 Updated the ConfigPatch to write /var/lib/kubernetes/authn-config.yaml with mode 0644 and mount it read-only at /etc/kubernetes/authn-config.yaml inside kube-apiserver. Added regression assertions for distinct host/container paths and non-root readability. Focused suite: 3 passed. Full scripts/tests suite: 359 passed, 8 skipped. Agent and plan validators passed.
+
+<!-- fr:journal kind=finding scope=debug id=structured-auth-control-plane-rollout-complete created=2026-08-01T13:53:12 phase=2 state=fixed -->
+### structured-auth-control-plane-rollout-complete · finding [fixed] · Control-plane-only structured-auth rollout completed (phase 2)
+
+After PRs #741 and #742, Omni ConfigPatch version 9 targeted only frank-control-planes. Omni remained RUNNING Ready 7/7; all three kube-apiserver pods were Running/Ready with exactly one --authentication-config=/etc/kubernetes/authn-config.yaml argument, no legacy --oidc-* arguments, and the /var/lib/kubernetes/authn-config.yaml host file mounted read-only. /readyz and etcd readiness passed. The retained old-issuer token normalized from preferred_username=ak-Kubernetes Agent Access-client_credentials to username=authentik:ak-Kubernetes Agent Access-client_credentials with the same empty claim groups plus TokenReview's system:authenticated group. Omni service-account cluster-admin remained yes. All four worker boot IDs were byte-for-byte unchanged.

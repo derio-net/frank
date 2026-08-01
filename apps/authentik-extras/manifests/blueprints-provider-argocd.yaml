@@ -57,4 +57,4 @@ data:
         attrs:
           name: ArgoCD
           provider: !KeyOf provider-argocd
-          meta_launch_url: https://argocd.frank.derio.net
+          meta_launch_url: https://argocd.cluster.derio.net

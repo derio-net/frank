@@ -50,14 +50,25 @@ state:
       note: authentik-extras Synced/Healthy; live ArgoCD, Grafana, and Infisical providers
         each contain strict old and cluster callbacks.
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T11:53:25+00:00'
+      note: Applied control-plane-only ConfigPatch version 9 with rollback source
+        a32a343379b5fa9ed405c52229665332672e000c retained. Observer reached Omni RUNNING
+        Ready 7/7; all three kube-apiserver pods Running/Ready; final /readyz and
+        etcd readiness passed without loss of quorum.
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T11:53:32+00:00'
+      note: All three API servers have exactly one structured-auth argument, no --oidc-*
+        flags, and the read-only authn-config mount. Retained old token authenticates
+        as authentik:ak-Kubernetes Agent Access-client_credentials with unchanged
+        empty claim groups; Omni service-account remains cluster-admin; all four worker
+        boot IDs are unchanged.
   completion:
-    at: null
-    note: null
+    at: '2026-08-01T12:06:34+00:00'
+    note: 'Dual-issuer control-plane rollout proven after corrective PRs #741 and
+      #742: Omni Ready 7/7, API quorum and readiness healthy, old-token continuity
+      preserved, Omni admin preserved, and workers untouched. Acceptance net-oidc-cutover-continuity
+      remains not-implemented until Phase 4 proves a newly minted auth.cluster.derio.net
+      token.'
     observed_prs: []

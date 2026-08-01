@@ -14,6 +14,7 @@ OLD_ISSUER = "https://auth.frank.derio.net/application/o/k8s-agent/"
 NEW_ISSUER = "https://auth.cluster.derio.net/application/o/k8s-agent/"
 AUTHN_PATH = "/etc/kubernetes/authn-config.yaml"
 AUTHN_HOST_PATH = "/var/lib/kubernetes/authn-config.yaml"
+CLUSTER_AUTH_HOST = "https://auth.cluster.derio.net"
 
 BLUEPRINT_CALLBACKS = {
     "blueprints-provider-argocd.yaml": {
@@ -61,6 +62,10 @@ def _oauth_provider(entries):
         for entry in entries
         if entry.get("model") == "authentik_providers_oauth2.oauth2provider"
     )
+
+
+def _env_value(container, name):
+    return next(item["value"] for item in container["env"] if item["name"] == name)
 
 
 def test_omni_patch_delivers_dual_issuer_authentication_config():
@@ -129,3 +134,104 @@ def test_k8s_agent_contract_stays_callback_free_with_eight_hour_tokens():
     attrs = provider["attrs"]
     assert attrs["redirect_uris"] == []
     assert attrs["access_token_validity"] == "hours=8"
+
+
+def test_overlap_consumers_use_cluster_domain():
+    authentik = yaml.safe_load((REPO / "apps/authentik/values.yaml").read_text())
+    authentik_env = authentik["global"]["env"]
+    authentik_host = next(
+        item["value"] for item in authentik_env if item["name"] == "AUTHENTIK_HOST"
+    )
+    assert authentik_host == CLUSTER_AUTH_HOST
+
+    argocd = yaml.safe_load((REPO / "apps/argocd/values.yaml").read_text())
+    argocd_config = argocd["configs"]["cm"]
+    assert argocd_config["url"] == "https://argocd.cluster.derio.net"
+    assert (
+        f"issuer: {CLUSTER_AUTH_HOST}/application/o/argocd/"
+        in argocd_config["oidc.config"]
+    )
+
+    victoria_metrics = yaml.safe_load(
+        (REPO / "apps/victoria-metrics/values.yaml").read_text()
+    )
+    grafana = victoria_metrics["grafana"]["grafana.ini"]
+    assert grafana["server"]["root_url"] == "https://grafana.cluster.derio.net"
+    oauth = grafana["auth.generic_oauth"]
+    assert oauth["auth_url"] == f"{CLUSTER_AUTH_HOST}/application/o/authorize/"
+    assert oauth["token_url"] == f"{CLUSTER_AUTH_HOST}/application/o/token/"
+    assert oauth["api_url"] == f"{CLUSTER_AUTH_HOST}/application/o/userinfo/"
+
+    n8n = yaml.safe_load((REPO / "apps/n8n-01/manifests/deployment.yaml").read_text())
+    n8n_container = n8n["spec"]["template"]["spec"]["containers"][0]
+    assert _env_value(n8n_container, "WEBHOOK_URL") == "https://n8n.cluster.derio.net/"
+
+    paperclip = yaml.safe_load(
+        (REPO / "apps/paperclip/manifests/configmap.yaml").read_text()
+    )
+    assert (
+        paperclip["data"]["PAPERCLIP_PUBLIC_URL"]
+        == "https://paperclip.cluster.derio.net"
+    )
+    allowed_hosts = paperclip["data"]["PAPERCLIP_ALLOWED_HOSTNAMES"].split(",")
+    assert "paperclip.frank.derio.net" in allowed_hosts
+
+    launch_urls = {
+        "blueprints-provider-argocd.yaml": "https://argocd.cluster.derio.net",
+        "blueprints-provider-grafana.yaml": "https://grafana.cluster.derio.net",
+        "blueprints-provider-infisical.yaml": "https://infisical.cluster.derio.net",
+    }
+    for filename, expected_url in launch_urls.items():
+        application = next(
+            entry
+            for entry in _blueprint_entries(filename)
+            if entry.get("model") == "authentik_core.application"
+        )
+        assert application["attrs"]["meta_launch_url"] == expected_url
+
+    probes = list(
+        yaml.safe_load_all(
+            (REPO / "apps/blackbox-exporter/manifests/vmprobe.yaml").read_text()
+        )
+    )
+    feature_targets = probes[0]["spec"]["targets"]["staticConfig"]["targets"]
+    assert "https://paperclip.cluster.derio.net" in feature_targets
+    assert "https://grafana.cluster.derio.net" in feature_targets
+    assert not any(".frank.derio.net" in target for target in feature_targets)
+
+    landing = (
+        REPO / "clusters/hop/apps/landing/manifests/files/index.html"
+    ).read_text()
+    for host in ("argocd", "grafana", "longhorn"):
+        assert f'https://{host}.cluster.derio.net' in landing
+        assert f'https://{host}.frank.derio.net' not in landing
+
+    access_reference = (REPO / "references/access.md").read_text()
+    assert "https://infisical.cluster.derio.net" in access_reference
+    assert "https://infisical.frank.derio.net" not in access_reference
+
+
+def test_cluster_proxy_blueprint_owns_cluster_hosts_during_overlap():
+    cluster_entries = _blueprint_entries("blueprints-cluster-proxy-providers.yaml")
+    legacy_entries = _blueprint_entries("blueprints-proxy-providers.yaml")
+
+    cluster_hosts = {
+        entry["attrs"]["external_host"]
+        for entry in cluster_entries
+        if entry.get("model") == "authentik_providers_proxy.proxyprovider"
+    }
+    legacy_hosts = {
+        entry["attrs"]["external_host"]
+        for entry in legacy_entries
+        if entry.get("model") == "authentik_providers_proxy.proxyprovider"
+    }
+
+    assert cluster_hosts
+    assert all(host.endswith(".cluster.derio.net") for host in cluster_hosts)
+    assert legacy_hosts == {
+        "https://longhorn.frank.derio.net",
+        "https://hubble.frank.derio.net",
+        "https://sympozium.frank.derio.net",
+        "https://n8n-01.frank.derio.net",
+    }
+    assert cluster_hosts.isdisjoint(legacy_hosts)
