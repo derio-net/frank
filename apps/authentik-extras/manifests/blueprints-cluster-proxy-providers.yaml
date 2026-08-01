@@ -17,6 +17,18 @@ data:
       labels:
         blueprints.goauthentik.io/instantiate: "true"
     entries:
+      # The embedded outpost persists its browser redirect host independently
+      # from the Authentik deployment's AUTHENTIK_HOST environment variable.
+      # Omit providers so blueprint reconciliation preserves manual assignments.
+      - model: authentik_outposts.outpost
+        state: present
+        identifiers:
+          name: authentik Embedded Outpost
+        attrs:
+          config:
+            authentik_host: https://auth.cluster.derio.net
+            authentik_host_browser: https://auth.cluster.derio.net
+
       # Grafana (cluster) proxy provider
       - model: authentik_providers_proxy.proxyprovider
         state: present

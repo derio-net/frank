@@ -235,3 +235,20 @@ def test_cluster_proxy_blueprint_owns_cluster_hosts_during_overlap():
         "https://n8n-01.frank.derio.net",
     }
     assert cluster_hosts.isdisjoint(legacy_hosts)
+
+
+def test_embedded_outpost_uses_cluster_host_without_managing_provider_assignments():
+    entries = _blueprint_entries("blueprints-cluster-proxy-providers.yaml")
+    outpost = next(
+        entry
+        for entry in entries
+        if entry.get("model") == "authentik_outposts.outpost"
+    )
+
+    assert outpost["state"] == "present"
+    assert outpost["identifiers"] == {"name": "authentik Embedded Outpost"}
+    assert outpost["attrs"]["config"] == {
+        "authentik_host": CLUSTER_AUTH_HOST,
+        "authentik_host_browser": CLUSTER_AUTH_HOST,
+    }
+    assert "providers" not in outpost["attrs"]
