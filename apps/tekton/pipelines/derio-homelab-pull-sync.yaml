@@ -1,21 +1,9 @@
 # Pulls a ref from GitHub (derio-homelab org) and pushes it into the matching
 # Gitea-replica repo. The derio-homelab twin of `github-pull-sync`.
 #
-# WHY THIS IS A SEPARATE PIPELINE RATHER THAN A PARAM ON github-pull-sync
-#
-# The obvious change is to add a `token-secret` param to github-pull-sync and
-# pass a different Secret name. That edit lands in `.spec.tasks[]` — and
-# apps/root/templates/tekton-extras.yaml carries array-item jqPathExpressions
-# on `.spec.tasks[]?` for Pipelines. With RespectIgnoreDifferences=true those
-# make ArgoCD carry the LIVE array into every apply, so the edit is discarded
-# while syncs report Succeeded. That exact mechanism froze the cnc and
-# gitea-actions EventListener triggers from Jun 13 to Jul 20 with no signal
-# anywhere; the risk is documented as still open for Pipeline/Task rules.
-#
-# A brand-new Pipeline object has no live array to be carried over, so it
-# applies in full. The duplication is the price of an apply that actually
-# happens, and it buys a second thing: per-org credentials stay visibly
-# per-org instead of becoming a param nobody audits.
+# This stays separate from github-pull-sync so each GitHub org's credentials
+# remain visibly scoped instead of becoming a secret-name parameter nobody
+# audits.
 #
 # Idempotent — the push is --force against the destination ref. Gitea is a
 # replica; force-overwrite is the correct semantics.
@@ -52,6 +40,8 @@ spec:
         - name: ssh
           workspace: ssh-creds
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - name: github-repo
             type: string

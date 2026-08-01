@@ -19,7 +19,7 @@ This post covers the full edge observability stack: collectors on Hop, backend o
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Hop[Hop — CX23, 4 GB]
     C[Caddy — blog.derio.net<br/>JSON access logs]
     FB[fluent-bit DaemonSet<br/>/var/log/containers → VL]

@@ -27,7 +27,7 @@ But the project board — a GitHub Projects v2 board with a custom "Lifecycle" f
 A stateless Go HTTP server sits in the monitoring namespace. Grafana's notification policy routes alerts to it via webhook. The bridge parses each alert, extracts the `github_issue` label (e.g., `willikins#11`), maps the alert severity to a lifecycle state, and updates the GitHub Project item via GraphQL.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Grafana[Grafana Alerting]
     AR[Alert Rules]
     NP[Notification Policy]

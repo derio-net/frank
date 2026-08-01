@@ -130,3 +130,21 @@ jobs:
       - name: Hugo build
         working-directory: blog
         run: hugo --minify
+
+      # Mermaid width gate: a diagram measuring wider than 1400px fails
+      # CI (waive one with a `%% blog-craft: wide-ok — …` comment inside the
+      # fence). Needs public/ to exist, so it runs after the Hugo build step
+      # above — but from the REPOSITORY ROOT cwd like every other validator,
+      # with no per-step cwd override: this workflow file only executes there
+      # in the first place (GitHub Actions reads .github/workflows/ from the
+      # repo root only — a copy materialized under site_dir is inert and
+      # gates nothing while looking like it does; blog-craft#61).
+      # Zero npm dependencies, so no actions/setup-node / npm install: the
+      # tool needs only the Node >= 22 that ubuntu-latest already preinstalls.
+      # Disable with `quality.mermaid_max_width: 0` — loud at the script level
+      # (still scans every diagram, reports how many it would have blocked,
+      # never launches a browser) and, at render time, loud in a different
+      # sense: the step is omitted from the workflow entirely, so an opted-out
+      # blog invokes no browser and pays no CI cost for a gate it turned off.
+      - name: Validate mermaid layout
+        run: node blog/scripts/validate_mermaid_layout.mjs --public blog/public --max-width 1400

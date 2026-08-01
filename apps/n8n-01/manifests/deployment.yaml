@@ -72,7 +72,7 @@ spec:
             - name: N8N_PORT
               value: "5678"
             - name: WEBHOOK_URL
-              value: "https://n8n-01.frank.derio.net/"
+              value: "https://n8n.cluster.derio.net/"
             - name: N8N_SECURE_COOKIE
               value: "false"
             # The stoa workflow's httpRequest node posts to

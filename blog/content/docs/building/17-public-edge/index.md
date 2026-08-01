@@ -9,7 +9,7 @@ summary: "Deploying a single-node Talos cluster on Hetzner Cloud as a public edg
 weight: 18
 reader_goal: "Deploy a single-node Talos edge cluster on Hetzner with Headscale mesh, Caddy reverse proxy, and Split-DNS — working around the ten deployment deviations"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-07-30
 ---
 
 The Frank cluster lives behind residential {{< abbr "NAT" >}}. Every service is reachable only from `192.168.55.x`. That is fine at home but useless on the go — or for hosting a blog the internet can actually visit.
@@ -205,10 +205,43 @@ headplane.hop.derio.net {
 
 ### Deviation 8: API Key + IPv4 Binding
 
-API key is created manually:
+API key is created manually, then placed in the Secret that `deployment.yaml` reads. The Secret's key is **`api-key`** — not the env var name, which is an easy thing to get wrong, because the `secretKeyRef` renames it on the way in:
+
 ```bash
-kubectl -n headscale-system exec deploy/headscale -- headscale apikeys create
+kubectl -n headscale-system exec deploy/headscale -- \
+  headscale apikeys create --expiration 1y
+
+kubectl -n headscale-system create secret generic headplane-api-key \
+  --from-literal=api-key=<key>
 ```
+
+**The expiry is the trap.** `headscale apikeys create` defaults to 90 days, and nothing anywhere reports the lapse. On 2026-07-29 both keys turned out to have been dead for six weeks: ArgoCD was Synced, the headplane pod was `1/1 Running`, and its logs showed a clean boot with no authentication error at all. Headplane only touches the key when a request needs it and does not log the rejection, so the sole symptom is that the browser login stops working — a credential with a silent clock and no dead-man's-switch.
+
+Rotation, therefore, is three steps and the third is not optional:
+
+```bash
+NEW=$(kubectl -n headscale-system exec deploy/headscale -- \
+  headscale apikeys create --expiration 1y | tail -n1)
+
+kubectl -n headscale-system patch secret headplane-api-key --type=merge \
+  -p "{\"stringData\":{\"api-key\":\"$NEW\"}}"
+
+kubectl -n headscale-system rollout restart deploy/headplane
+```
+
+The key arrives through `env.valueFrom.secretKeyRef`, which is read once at process start. Patch the Secret without restarting and the running pod keeps serving with the dead key indefinitely — config reaching the pod is not the same as config reaching the process.
+
+Verify by asking the API, not by reading the Secret:
+
+```bash
+kubectl -n headscale-system exec deploy/headplane -- sh -c \
+  'wget -q -O- --header="Authorization: Bearer $HEADPLANE_HEADSCALE_API_KEY" \
+     http://headscale.headscale-system.svc:8080/api/v1/apikey'
+```
+
+Note the probe runs from the *headplane* pod. The Headscale image is distroless and has no `sh`, so `kubectl exec` into it for a shell one-liner fails with `executable file not found in $PATH`.
+
+The follow-up closes the silent-clock gap rather than setting another calendar reminder. An hourly CronJob calls that same API with Headplane's Secret and checks the explicit prefixes for both consumer keys. It emits `headscale-api-key-expiry-check` with the earliest days remaining. Frank's Grafana pages Telegram directly if a key is missing, unreadable, or within 30 days of expiry; a second rule pages if no heartbeat arrives for three hours. Rotation must update `EXPECTED_PREFIXES` in `key-expiry-cronjob.yaml`, otherwise the checker correctly reports that an expected consumer key disappeared.
 
 IPv4 binding: `wget localhost:3000` fails because `localhost` resolves to `::1` in Alpine containers. Use `wget 127.0.0.1:3000`.
 

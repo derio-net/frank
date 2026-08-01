@@ -10,14 +10,14 @@ data:
   PAPERCLIP_HOME: "/paperclip"
   PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
   PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
-  PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
+  PAPERCLIP_PUBLIC_URL: "https://paperclip.cluster.derio.net"
   # private-hostname guard allow-list (enabled for private+authenticated mode):
   # any inbound Host not listed here gets 403'd before the route handler runs.
   # This env var REPLACES (does not extend) the fileConfig server.allowedHostnames,
   # so it must enumerate EVERY host Paperclip is served on:
   #   - paperclip.cluster.derio.net      Traefik IngressRoute (canonical UI domain)
   #   - paperclip.frank.derio.net        legacy domain (still probed by blackbox)
-  #   - 192.168.55.212                   LB IP / PAPERCLIP_PUBLIC_URL host
+  #   - 192.168.55.212                   direct LB IP
   #   - paperclip-lb...svc.cluster.local internal service DNS (live-mirror-sync
   #                                      Tekton Task -> routine-trigger fire, gh #444)
   # envFrom CM change does NOT auto-roll the pod; rollout restart required after sync.

@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Evidence closeout and net-layer post-deploy documentation
+  tag: agentic
+  depends_on:
+  - 6
+  acceptance:
+  - net-cluster-domain-canonical
+  - net-oidc-cutover-continuity
+  - net-legacy-domain-retired
+  - net-omni-domain-preserved
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Encode and record acceptance evidence
+  steps:
+  - id: P7.T1.S1
+    text: |
+      Add automated repository tests from the focused migration guard to the appropriate acceptance levels for `net-cluster-domain-canonical` and `net-legacy-domain-retired`. Record the live old/new TokenReview timestamps, service-login results, DNS results, and Omni checks in matrix notes without credentials. Move rows to `ci` only where per-PR automation proves the full claim; use `skipped` for live manual proof that is not continuously automated.
+  - id: P7.T1.S2
+    text: |
+      Run `fr acceptance report`, `fr acceptance check`, `scripts/validate-plans.sh`, `uv run --frozen pytest scripts/tests/test_frank_domain_retirement.py -q`, and `git diff --check`. Record existing unrelated acceptance debt separately; this plan must add no new failing row.
+- number: 2
+  title: Complete the net-layer closeout
+  steps:
+  - id: P7.T2.S1
+    text: |
+      Retroactively update `blog/content/docs/building/24-in-cluster-ingress/index.md` and `blog/content/docs/operating/17-ingress/index.md` with the domain retirement, structured-authentication mechanism, eight-hour overlap, rollback path, and Omni exception. Update the matching networking/authentik gotchas and mark Phase 2 future work complete in the original in-cluster-ingress spec.
+  - id: P7.T2.S2
+    text: |
+      Run `/update-readme` and `/sync-runbook`, validate agent config and plans, then mark this plan Deployed only after every acceptance row has truthful evidence and the manual-operation records are done. Open the evidence-only closeout PR and include links to all three deployment PRs.
+state:
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

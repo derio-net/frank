@@ -115,9 +115,7 @@ def _main(argv):
     a = ap.parse_args(argv)
 
     cfg = yaml.safe_load(open(a.config)) or {}
-    if (cfg.get("quality") or {}).get("mermaid_syntax", True) is False:
-        print("mermaid syntax check disabled (quality.mermaid_syntax: false)")
-        return 0
+    gate_enabled = (cfg.get("quality") or {}).get("mermaid_syntax", True) is not False
 
     failed: dict[str, list[str]] = {}
     checked = 0
@@ -131,6 +129,22 @@ def _main(argv):
         fails = validate_file(p, md)
         if fails:
             failed[p] = fails
+
+    if not gate_enabled:
+        # A disabled gate must still SCAN and still be LOUD about it. The
+        # principle, from frank 77e68e37: "a gate nobody runs reports nothing,
+        # including how far behind you are" — that is the FAILURE being fixed,
+        # not the goal. Always exits 0: visible, never build-breaking.
+        total = sum(len(fs) for fs in failed.values())
+        plural = "" if total == 1 else "s"
+        print(f"GATE DISABLED (quality.mermaid_syntax: false) — would report "
+              f"{total} finding{plural} across {checked} file(s) checked",
+              file=sys.stderr)
+        if failed:
+            for fs in failed.values():
+                for x in fs:
+                    print(f"  {x}", file=sys.stderr)
+        return 0
 
     if failed:
         print("MERMAID SYNTAX CHECK FAILED", file=sys.stderr)

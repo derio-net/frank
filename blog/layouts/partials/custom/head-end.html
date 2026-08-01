@@ -3,14 +3,24 @@
   Loads the fingerprinted custom.css (always — Hextra does NOT auto-load it),
   optional asciinema-player assets (only on pages using the {{< asciinema >}}
   shortcode), the glossary stylesheet (only when features.glossary materialized
-  it), the mermaid initialiser (only when features.mermaid_csp_init materialized
-  it), the read-tracker script (only when features.read_tracker materialized
-  it), and the analytics partial (only when features.analytics materialized it).
+  it), the mermaid-view stylesheet (only when features.mermaid_view
+  materialized it), the mermaid initialiser (only when
+  features.mermaid_csp_init materialized it), the read-tracker script (only
+  when features.read_tracker materialized it), and the analytics partial
+  (only when features.analytics materialized it).
 */ -}}
 {{- /* glossary.css — present only when features.glossary materialized it.
        Deliberately BEFORE custom.css: a blog overrides feature styling in its
        own custom.css, which only works if this loads first. */}}
 {{- with resources.Get "css/glossary.css" }}
+<link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">
+{{- end }}
+{{- /* mermaid-view.css — present only when features.mermaid_view materialized
+       it (default true; a blog sets the flag false to keep prior rendering).
+       Deliberately BEFORE custom.css, same reason as glossary.css above: a
+       blog overrides the frame in its own custom.css, which only works if the
+       feature sheet loads first. */}}
+{{- with resources.Get "css/mermaid-view.css" }}
 <link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">
 {{- end }}
 {{ $customCSS := resources.Get "css/custom.css" | minify | fingerprint }}

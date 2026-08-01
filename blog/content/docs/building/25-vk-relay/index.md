@@ -19,7 +19,7 @@ VK's architecture solves this with a **relay server** — the local server opens
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Browser[Operator Browser]
     UI[VK Remote UI]
     IDB[IndexedDB<br/>Ed25519 keys]

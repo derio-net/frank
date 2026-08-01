@@ -1,0 +1,52 @@
+schema_version: 2
+phase:
+  number: 5
+  title: PR 3 - remove the legacy issuer, providers, routes, and references
+  tag: agentic
+  depends_on:
+  - 4
+  acceptance:
+  - net-legacy-domain-retired
+  - net-omni-domain-preserved
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Turn the overlap inventory into the final-state guard
+  steps:
+  - id: P5.T1.S1
+    text: |
+      Change the focused domain test to require exactly one JWT issuer (`auth.cluster.derio.net`), no legacy callback URI, no non-Omni `.frank` IngressRoute/certificate request, no legacy Paperclip allowed hostname, and no non-historical `.frank` reference under `apps`, `patches`, `clusters`, `references`, or `secrets` except `omni.frank.derio.net` and the Headscale `frank.derio.net` split-DNS suffix. Run it and retain the expected red failures.
+  - id: P5.T1.S2
+    text: |
+      Add assertions that every legacy Longhorn/Hubble/Sympozium/n8n provider and application identifier remains in `blueprints-proxy-providers.yaml` only as a `state: absent` tombstone with no external or launch URL. This makes deletion declarative and prevents a removed ConfigMap from leaving live Authentik objects behind.
+- number: 2
+  title: Implement final-state cleanup
+  steps:
+  - id: P5.T2.S1
+    text: |
+      Reduce both the standalone and embedded AuthenticationConfiguration to the cluster issuer. Remove legacy OIDC callbacks, remove the legacy Paperclip allowed hostname, delete all nine outage-era compatibility IngressRoutes/certificate requests, and replace legacy proxy-provider/application entries with URL-free `state: absent` tombstones. Preserve every Omni reference and the Headscale split-DNS suffix.
+  - id: P5.T2.S2
+    text: |
+      Run the focused test, all Authentik/Traefik/OIDC tests, `kubectl apply --dry-run=client -f apps/traefik/manifests/ -o yaml >/dev/null`, `kubectl apply --dry-run=client -f apps/authentik-extras/manifests/ -o yaml >/dev/null`, `rg '[a-z0-9-]+\.frank\.derio\.net' apps patches clusters references secrets`, and `git diff --check`. The search may return only `omni.frank.derio.net`; separately confirm the suffix-only Headscale entry remains.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

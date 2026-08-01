@@ -39,6 +39,7 @@ spec:
   tasks:
     - name: forward
       taskRef:
+        kind: Task
         name: github-status
       params:
         - name: repo-full-name

@@ -19,7 +19,7 @@ This layer adds the opposite. **Ruflo** is the rebrand of ruvnet's `claude-flow`
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Pod[ruflo pod — ruflo-system namespace]
     subgraph Server[ruflo-server]
       RUV[ruvocal SSR<br/>node:24-slim<br/>port 3000]
@@ -34,6 +34,7 @@ flowchart LR
     WS[ruflo-workspace PVC<br/>20Gi — shared]
   end
   subgraph Network
+    direction TB
     WEB[ruflo.cluster.derio.net<br/>Traefik + Authentik]
     SSH[192.168.55.222:22<br/>SSH + Mosh UDP]
     LLM[litellm.litellm.svc:4000<br/>LiteLLM gateway]

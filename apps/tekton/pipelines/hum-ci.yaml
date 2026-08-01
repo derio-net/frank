@@ -66,6 +66,8 @@ spec:
         - name: ssh
           workspace: ssh-creds
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - {name: github-repo, type: string}
           - {name: gitea-repo,  type: string}
@@ -133,6 +135,8 @@ spec:
         - name: source
           workspace: shared-workspace
       taskSpec:
+        metadata: {}
+        spec: null
         workspaces:
           - name: source
         # The monorepo `check` gate (typecheck && lint && test) is split into
@@ -148,6 +152,7 @@ spec:
         # 2026-06-11, surfaces that immediately). The gates fan out via
         # `--workspaces --if-present`, the guard against empty script entries.
         stepTemplate:
+          computeResources: {}
           image: node:22-alpine
           workingDir: $(workspaces.source.path)/repo
           securityContext:
@@ -172,11 +177,13 @@ spec:
               set -eu
               npm ci
           - name: typecheck
+            computeResources: {}
             script: |
               #!/bin/sh
               set -eu
               npm run typecheck
           - name: lint
+            computeResources: {}
             script: |
               #!/bin/sh
               set -eu

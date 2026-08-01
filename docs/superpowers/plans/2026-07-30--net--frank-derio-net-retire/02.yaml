@@ -1,0 +1,74 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Manual gate - deploy PR 1 and prove dual-issuer continuity
+  tag: manual
+  depends_on:
+  - 1
+  acceptance:
+  - net-oidc-cutover-continuity
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Establish recovery and old-token baselines
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Resolve or explicitly account for the root ArgoCD drift (`gpu-operator` and `longhorn`). With the Omni service-account kubeconfig, run `kubectl auth can-i '*' '*' --all-namespaces`; require `yes`. Confirm the kubeconfig server is `https://omni.frank.derio.net:8100/` and that it uses an Omni token, not Authentik exec auth.
+  - id: P2.T1.S2
+    text: |
+      Before applying PR 1, mint a direct k8s-agent access token through `auth.frank.derio.net`, store it only in an operator-local 0600 temporary kubeconfig, decode only `iss`, `aud`, `exp`, `preferred_username`, and `groups`, and submit it to TokenReview. Record the preferred username, returned issuer-prefixed username, and groups. Do not commit the token or kubeconfig.
+- number: 2
+  title: Merge, sync, and apply the dual-issuer ConfigPatch
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Merge PR 1, wait for `authentik-extras` to report Synced/Healthy, and query the live ArgoCD, Grafana, and Infisical providers through the Authentik API or read-only Django ORM. Require both old and new strict callbacks before touching kube-apiserver.
+  - id: P2.T2.S2
+    text: |
+      Save the merged legacy ConfigPatch commit SHA as the rollback source, then run `omnictl apply -f patches/phase13-auth/omni-configpatch.yaml`. Watch all three kube-apiserver static pods and `/readyz?verbose`; require continuous quorum and a final `readyz check passed`.
+  - id: P2.T2.S3
+    text: |
+      Inspect each kube-apiserver command. Require one `--authentication-config=/etc/kubernetes/authn-config.yaml`, no `--oidc-*` flags, and the read-only authn-config mount. Re-run TokenReview with the retained old token; require username `authentik:<preferred_username>` and exactly the pre-change groups. Verify the Omni service-account kubeconfig still administers the cluster. On any failure, re-apply the legacy ConfigPatch from the recorded commit and stop.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-31T17:22:51+00:00'
+      note: Root has no OutOfSync resources; Omni token kubeconfig at :8100 has cluster-admin;
+        all 7 nodes Ready.
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-08-01T07:34:06+00:00'
+      note: 'Old issuer token: preferred_username=ak-Kubernetes Agent Access-client_credentials;
+        TokenReview username=https://auth.frank.derio.net/application/o/k8s-agent/#ak-Kubernetes
+        Agent Access-client_credentials; groups=[]; authenticated=true; token retained
+        only in 0600 /tmp file.'
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-08-01T07:35:03+00:00'
+      note: authentik-extras Synced/Healthy; live ArgoCD, Grafana, and Infisical providers
+        each contain strict old and cluster callbacks.
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-08-01T11:53:25+00:00'
+      note: Applied control-plane-only ConfigPatch version 9 with rollback source
+        a32a343379b5fa9ed405c52229665332672e000c retained. Observer reached Omni RUNNING
+        Ready 7/7; all three kube-apiserver pods Running/Ready; final /readyz and
+        etcd readiness passed without loss of quorum.
+    P2.T2.S3:
+      state: x
+      ticked_at: '2026-08-01T11:53:32+00:00'
+      note: All three API servers have exactly one structured-auth argument, no --oidc-*
+        flags, and the read-only authn-config mount. Retained old token authenticates
+        as authentik:ak-Kubernetes Agent Access-client_credentials with unchanged
+        empty claim groups; Omni service-account remains cluster-admin; all four worker
+        boot IDs are unchanged.
+  completion:
+    at: '2026-08-01T12:06:34+00:00'
+    note: 'Dual-issuer control-plane rollout proven after corrective PRs #741 and
+      #742: Omni Ready 7/7, API quorum and readiness healthy, old-token continuity
+      preserved, Omni admin preserved, and workers untouched. Acceptance net-oidc-cutover-continuity
+      remains not-implemented until Phase 4 proves a newly minted auth.cluster.derio.net
+      token.'
+    observed_prs: []

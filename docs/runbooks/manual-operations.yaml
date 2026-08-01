@@ -679,6 +679,21 @@ operations:
   - 'dig +short blog.derio.net  # should return Hetzner IP'
   - 'dig +short www.derio.net  # should return Hetzner IP'
   status: done
+- id: edge-hop-headscale-api-key-rotation
+  layer: edge
+  app: headplane
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: Annually before 2027-07-29, or whenever https://headplane.hop.derio.net stops accepting logins
+  why_manual: Headscale API keys are minted by the headscale binary and shown exactly once at creation — they cannot be generated declaratively, and the Secret is applied out-of-band (Hop uses plain kubectl Secrets, not SOPS/ESO)
+  commands:
+  - "# Diagnose first — expired rows print red. Compare against the live Secret.\nsource .env_hop\nkubectl -n headscale-system exec deploy/headscale -- headscale apikeys list\nkubectl -n headscale-system get secret headplane-api-key \\\n  -o jsonpath='{.data.api-key}' | base64 -d | cut -c1-7\n"
+  - "# 1. Mint + rotate the key Headplane uses. Capture it: the value is shown\n#    ONLY at creation, so an uncaptured key is unrecoverable — delete it\n#    (headscale apikeys delete --prefix <p>) rather than leaving it live.\nNEW=$(kubectl -n headscale-system exec deploy/headscale -- \\\n  headscale apikeys create --expiration 1y | tail -n1 | tr -d '\\r\\n')\nkubectl -n headscale-system patch secret headplane-api-key --type=merge \\\n  -p \"{\\\"stringData\\\":{\\\"api-key\\\":\\\"$NEW\\\"}}\"\n# 2. MANDATORY — the env var is read once at boot, so patching the Secret\n#    alone leaves the running pod serving the dead key indefinitely.\nkubectl -n headscale-system rollout restart deploy/headplane\nkubectl -n headscale-system rollout status deploy/headplane --timeout=90s\n"
+  - "# 3. Refresh the operator's own key in .env_hop. This is a DELIBERATELY\n#    SEPARATE key from Headplane's, so either can be revoked alone.\n#    .env_hop is gitignored: edit it in the base clone (FR_BASE_OK=1),\n#    never in an fr worktree, and keep it 0600.\nkubectl -n headscale-system exec deploy/headscale -- \\\n  headscale apikeys create --expiration 1y\n# paste into export HEADSCALE_API_KEY=... in .env_hop\n"
+  verify:
+  - kubectl -n headscale-system exec deploy/headscale -- headscale apikeys list → the new key's expiration is ~1y out and NOT red
+  - "# Prove the RUNNING pod authenticates. Run the probe from the HEADPLANE pod:\n# the headscale image is distroless and has no `sh`, so exec-ing a shell\n# one-liner into it fails with \"executable file not found in $PATH\".\nkubectl -n headscale-system exec deploy/headplane -- sh -c \\\n  'wget -q -O- --header=\"Authorization: Bearer $HEADPLANE_HEADSCALE_API_KEY\" \\\n     http://headscale.headscale-system.svc:8080/api/v1/apikey'\n"
+  - 'Browser: https://headplane.hop.derio.net/admin/ logs in (mesh-only — Caddy 403s any source outside 100.64.0.0/10)'
+  status: done
 - id: edge-hop-headscale-first-client
   layer: edge
   app: headscale
@@ -2030,6 +2045,56 @@ operations:
   - "edge: for ip in 192.168.55.41 192.168.55.42 192.168.55.71; do talosctl -n $ip get resolvers; done"
   verify:
   - Every node's talosctl get resolvers lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready; gpu-1 Omni REBOOTS count unchanged (applied live, no reboot)
+  status: pending
+- id: net-frank-domain-dual-issuer-rollout
+  layer: net
+  app: kube-apiserver
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 1 merges and additive Authentik callbacks are live.
+  why_manual: Omni ConfigPatch application changes kube-apiserver authentication on all three control-plane nodes and requires a live old-token continuity gate.
+  commands:
+  - Verify the Omni service-account kubeconfig has cluster-admin access without Authentik.
+  - Mint and retain a temporary old-issuer k8s-agent test credential in a local 0600 file.
+  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml.
+  - Inspect every kube-apiserver command and readiness endpoint.
+  verify:
+  - All three kube-apiserver pods are Ready and /readyz?verbose passes.
+  - Only --authentication-config is present; no --oidc-* flag remains.
+  - Old-token TokenReview returns authentik:<preferred_username> and the same groups as before rollout.
+  - Omni service-account administration still succeeds.
+  status: pending
+- id: net-frank-domain-final-retirement
+  layer: net
+  app: omni-traefik-dns
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 3 merges and the old test token is proven expired.
+  why_manual: Final Omni ConfigPatch application, raspi-omni Ansible configuration, and authoritative DNS changes are outside ArgoCD and can remove the remaining recovery hostname.
+  commands:
+  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml.
+  - Apply the Ansible change that leaves raspi-omni Traefik serving only Omni.
+  - Remove every non-Omni frank.derio.net DNS record; retain omni.frank.derio.net.
+  - Retain the Headscale frank.derio.net split resolver.
+  verify:
+  - kube-apiserver trusts only auth.cluster.derio.net and cluster-token authentication succeeds.
+  - Named legacy service hosts return NXDOMAIN or no route from LAN and mesh clients.
+  - Omni UI and discovery return 200; unauthenticated :8100 returns 401.
+  - raspi-omni Traefik and certificate renewal contain only Omni.
+  status: pending
+- id: net-frank-domain-overlap-gate
+  layer: net
+  app: authentik
+  plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
+  when: After PR 2 merges and all consumers use cluster.derio.net.
+  why_manual: Browser OIDC round trips and the eight-hour access-token overlap require live credentials and elapsed wall-clock time.
+  commands:
+  - Verify ArgoCD, Grafana, and Infisical OIDC logins on cluster.derio.net.
+  - Verify cluster-host forward-auth for Longhorn, Hubble, Sympozium, and n8n.
+  - Mint one cluster-issuer token and record T0 for the final old-issuer token.
+  - Wait at least eight hours while auth.frank discovery, JWKS, DNS, and ingress remain healthy.
+  verify:
+  - New-token TokenReview succeeds with the expected username and groups.
+  - Old-token TokenReview succeeds before T0+8h and fails expired afterward.
+  - Omni service-account administration succeeds throughout.
   status: pending
 - id: net-gpu1-clear-dhcp-drift
   layer: net

@@ -1,0 +1,65 @@
+schema_version: 2
+phase:
+  number: 1
+  title: PR 1 - additive OIDC preparation and dual-issuer configuration
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Pin the structured-authentication contract with failing tests
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create `scripts/tests/test_frank_domain_retirement.py`. Assert that the authoritative Omni ConfigPatch embeds an `apiserver.config.k8s.io/v1` `AuthenticationConfiguration` with exactly the `auth.frank.derio.net` and `auth.cluster.derio.net` k8s-agent issuers, identical audiences and claim mappings, `machine.files` delivery, a read-only API-server extra volume, and `authentication-config` instead of every legacy `oidc-*` extraArg. Assert the duplicate `patches/phase13-auth/oidc-apiserver.yaml` is absent. Run `uv run --frozen pytest scripts/tests/test_frank_domain_retirement.py -q`; expect failures against the current legacy patch.
+  - id: P1.T1.S2
+    text: |
+      Add tests that parse the ArgoCD, Grafana, and Infisical Authentik blueprints and require both strict `.frank.derio.net` and `.cluster.derio.net` callback URIs during preparation. Assert the k8s-agent provider remains callback-free with `access_token_validity: hours=8`. Re-run the focused test and retain the red output showing the missing cluster callbacks.
+- number: 2
+  title: Implement the dual-issuer Talos payload
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Replace the payload in `patches/phase13-auth/omni-configpatch.yaml` and target only machine set `frank-control-planes`: write the new authentication config to the Talos-safe host path `/var/lib/kubernetes/authn-config.yaml` via `machine.files` (`op: create`, mode 0644), mount it read-only at `/etc/kubernetes/authn-config.yaml` inside kube-apiserver with `cluster.apiServer.extraVolumes`, set `extraArgs.authentication-config` to the mounted path, and remove all four legacy `oidc-*` keys. Mode 0644 is required because kube-apiserver runs as UID 65534 and the file contains no secrets. Use two JWT entries with audience `k8s-agent`; map `preferred_username` with the same explicit `authentik:` prefix for both issuers and map `groups` with an empty prefix. This deliberately replaces the legacy implicit `<issuer>#` username prefix so identity no longer depends on the retiring hostname; authorization remains group-bound. Delete `patches/phase13-auth/oidc-apiserver.yaml` so only the applied Omni representation remains.
+  - id: P1.T2.S2
+    text: |
+      Keep a standalone, reviewable source at `patches/phase13-auth/authn-config.yaml` and make the embedded `machine.files.content` byte-for-byte equivalent after YAML parsing. Re-run the focused test; the structured-auth assertions must pass while callback assertions remain red.
+- number: 3
+  title: Add cluster callbacks without cutting consumers over
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Add strict cluster callbacks alongside the existing legacy callbacks: ArgoCD `/auth/callback` and `/api/dex/callback`, Grafana `/login/generic_oauth`, and Infisical `/api/v1/sso/oidc/callback`. Do not change application URLs, `AUTHENTIK_HOST`, OAuth endpoints, legacy proxy providers, or compatibility routes in PR 1.
+  - id: P1.T3.S2
+    text: |
+      Run `uv run --frozen pytest scripts/tests/test_frank_domain_retirement.py -q` and the existing Authentik/Traefik tests selected by `uv run --frozen pytest scripts/tests/ -q -k 'authentik or traefik or oidc'`. Expect green. Run `git diff --check` and confirm PR 1 contains only additive callbacks, the dual-issuer payload, its tests, and plan/runbook documentation.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-30T21:09:02+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-30T21:09:04+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-30T21:10:33+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-30T21:10:35+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-07-30T21:11:45+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-07-30T21:12:56+00:00'
+      note: null
+  completion:
+    at: '2026-07-30T21:12:58+00:00'
+    note: null
+    observed_prs: []

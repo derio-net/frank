@@ -15,7 +15,7 @@ last_updated: 2026-07-15
 Layer 4 deployed the NVIDIA GPU Operator. Layer 10 deployed Ollama. Between those two milestones lay four distinct issues that kept every GPU container stuck — first at `Init:0/1`, then `ContainerCreating`, then crashing in a 3-second loop. Each issue was specific to the Talos Linux intersection with the NVIDIA stack, and each had to be solved in sequence before a single model ran.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Talos[Talos Linux — Immutable OS]
     SE[System Extensions<br/>driver + toolkit]
     MP[Machine Config Patches<br/>via Omni]

@@ -9,8 +9,7 @@ summary: "Managing Hop — a standalone single-node Talos cluster on Hetzner Clo
 weight: 12
 reader_goal: "Manage Hop day-to-day: talosctl, Headscale mesh operations, Caddy TLS, CrowdSec, and emergency recovery."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
-last_updated_commit: https://github.com/derio-net/frank/commit/eba80287
+last_updated: 2026-07-30
 ---
 
 {{< last-updated >}}
@@ -39,9 +38,11 @@ graph TB
     end
 
     subgraph hetzner["Hetzner Cloud"]
+        direction TB
         hop["hop-1<br/>CX23 VM<br/>Talos Linux"]
 
         subgraph k8s["Kubernetes"]
+            direction TB
             caddy["Caddy<br/>hostPort 80/443"]
             cs["CrowdSec<br/>LAPI + Bouncer"]
             hs["Headscale<br/>Control Server"]
@@ -56,6 +57,7 @@ graph TB
     end
 
     subgraph mesh["Tailscale Mesh"]
+        direction TB
         laptop["Laptop"]
         raspi["Raspi<br/>Subnet Router"]
         phone["Phone"]
@@ -253,6 +255,26 @@ kubectl apply -f <(helm template root clusters/hop/apps/root/)
 
 The Hetzner Volume survives server deletion. Reattach to the new server and Headscale clients reconnect automatically.
 
+## Headscale API-Key Expiry
+
+Headscale API keys fail silently at expiry: Headplane remains `Running`, ArgoCD remains green, and login stops working. The `headscale-api-key-expiry` CronJob checks both consumer keys hourly and warns 30 days before the earliest expiry.
+
+```bash
+# Inspect the schedule and recent results.
+kubectl -n headscale-system get cronjob headscale-api-key-expiry
+kubectl -n headscale-system get jobs -l app.kubernetes.io/name=headscale-api-key-expiry
+
+# Run it immediately after rotating either API key.
+kubectl -n headscale-system delete job headscale-api-key-expiry-manual --ignore-not-found
+kubectl -n headscale-system create job \
+  --from=cronjob/headscale-api-key-expiry headscale-api-key-expiry-manual
+kubectl -n headscale-system logs -f job/headscale-api-key-expiry-manual
+```
+
+A healthy line contains `verdict=ok alert=false checked=2`. `verdict=warn` means the earliest expected key has 30 days or less remaining. `verdict=error` means an expected prefix disappeared or the API could not be authenticated/read. The Frank Grafana rules `headscale-api-key-expiry-warning` and `headscale-api-key-expiry-heartbeat-stale` page Telegram directly.
+
+When rotating, update `EXPECTED_PREFIXES` in `clusters/hop/apps/headscale/manifests/key-expiry-cronjob.yaml` with both new seven-character prefixes before deleting the old keys. The monitor intentionally tracks Headplane's key and the operator API key separately.
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
@@ -271,6 +293,7 @@ The Hetzner Volume survives server deletion. Reattach to the new server and Head
 | `talosctl -n $HOP_IP upgrade --image=... --stage` | Stage Talos upgrade |
 | `headscale nodes list` (via kubectl exec) | List mesh devices |
 | `headscale preauthkeys create` (via kubectl exec) | Generate registration key |
+| `kubectl -n headscale-system create job --from=cronjob/headscale-api-key-expiry headscale-api-key-expiry-manual` | Run the API-key expiry check now |
 | `kubectl -n caddy-system rollout restart deploy/caddy` | Reload Caddy config |
 | `kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli metrics` | CrowdSec metrics |
 | `hcloud volume list` | Check Hetzner Volume status |

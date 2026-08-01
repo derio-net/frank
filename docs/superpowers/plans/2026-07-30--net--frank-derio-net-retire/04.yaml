@@ -1,0 +1,63 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Manual gate - deploy PR 2 and hold the eight-hour overlap
+  tag: manual
+  depends_on:
+  - 3
+  acceptance:
+  - net-cluster-domain-canonical
+  - net-oidc-cutover-continuity
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Verify the coordinated cutover
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Merge PR 2 and explicitly sync affected applications if ArgoCD cache staleness leaves live artifacts behind. Verify the live Authentik deployment has `AUTHENTIK_HOST=https://auth.cluster.derio.net`; verify ArgoCD and Grafana live configuration, n8n webhook configuration, Paperclip allowed hosts, probes, and landing links from the running resources rather than trusting Synced status.
+  - id: P4.T1.S2
+    text: |
+      Complete browser OIDC round trips at ArgoCD, Grafana, and Infisical on `.cluster.derio.net`, plus forward-auth checks for Longhorn, Hubble, Sympozium, and n8n through their existing cluster proxy providers. Require no redirect to a non-Omni `.frank` hostname.
+  - id: P4.T1.S3
+    text: |
+      Mint a new k8s-agent token through `auth.cluster.derio.net`; require `iss` to equal the cluster issuer and TokenReview to return the same normalized `authentik:<preferred_username>` and groups as the retained old token. Re-run TokenReview for the old token and require it still succeeds under authenticator A.
+- number: 2
+  title: Close the token overlap
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Record the later of the PR 2 cutover completion and the final old-issuer token mint as T0. Keep `auth.frank.derio.net` DNS, JWKS, and compatibility route healthy for at least eight hours after T0. Do not start PR 3 deployment early.
+  - id: P4.T2.S2
+    text: |
+      At T0+8h, require the retained old token to fail because it is expired, while a freshly minted cluster token and the Omni service-account kubeconfig both succeed. Record timestamps and TokenReview outcomes without recording token material.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-08-01T16:32:40+00:00'
+      note: 'PR #743 merged as 19a8cd17. All affected Frank apps Synced/Healthy. Live
+        Authentik, ArgoCD, Grafana, n8n, Paperclip, VMProbe, and Hop landing artifacts
+        contain canonical hosts. Browser verification then exposed the separate persisted
+        embedded-outpost host; corrective fix is tracked in the 2026-08-01 authentik-outpost-canonical-host
+        debug journal.'
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

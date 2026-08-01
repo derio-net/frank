@@ -18,7 +18,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/c4d9305c
 This is the operational companion to [Ruflo]({{< relref "/docs/building/29-ruflo" >}}). That post explains the architecture. This one covers connecting, installing tools, bumping images, and running swarms.
 
 ```mermaid
-graph LR
+graph TD
     subgraph ruflo["ruflo-system namespace"]
         direction LR
         rv["ruflo container<br/>ruvocal chat<br/>port 3000"]

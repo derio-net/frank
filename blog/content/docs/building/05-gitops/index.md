@@ -23,7 +23,7 @@ This post covers the migration from Flux CD to ArgoCD, the Pulumi detour that di
 One piece of ArgoCD notation appears in the diagram below before it is explained, so here it is early. **`$values/`** is a reference to a *second* source declared on the same Application. ArgoCD lets an Application list several sources; one of them can be tagged `ref: values`, and any other source may then address files inside it with the `$values/` prefix. That is how a chart pulled from `helm.cilium.io` reads its values file out of a GitHub repo it knows nothing about.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Git[Git Repo]
     Chart[apps/root/: App-of-Apps chart]
     Apps[apps/cilium/, apps/longhorn/...]

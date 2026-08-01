@@ -31,9 +31,28 @@ Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as a list of o
 
 Saves duplication when an env var needs to be set on both pods.
 
-## Embedded outpost requires `AUTHENTIK_HOST`
+## Embedded outpost host exists in two places
 
-`AUTHENTIK_HOST` env var must be set to the external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`.
+`AUTHENTIK_HOST` must be set on the server and worker deployments, but changing it
+does not rewrite the embedded outpost's database-backed `Outpost.config`. The
+outpost uses its persisted `authentik_host` or `authentik_host_browser` value to
+construct forward-auth browser redirects.
+
+This split surfaced during the 2026-08-01 domain migration: the pods had
+`AUTHENTIK_HOST=https://auth.cluster.derio.net`, while requests to
+`grafana.cluster.derio.net` still redirected to `auth.frank.derio.net`. The
+cluster proxy blueprint now identifies `authentik Embedded Outpost` by name and
+declares only these config fields:
+
+```yaml
+attrs:
+  config:
+    authentik_host: https://auth.cluster.derio.net
+    authentik_host_browser: https://auth.cluster.derio.net
+```
+
+Do not include `providers` in that blueprint entry. Provider assignments are
+managed separately and must survive host changes.
 
 ## Decision (2026-07-12): hermes dashboard drops forward-auth for its own basic-auth
 

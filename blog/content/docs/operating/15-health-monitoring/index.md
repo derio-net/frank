@@ -27,7 +27,7 @@ source .env_devops   # sets OMNICONFIG + service accounts
 ## Data Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph "Probes & Heartbeats"
         A["Blackbox Exporter<br/>HTTP probes"] --> P[(VictoriaMetrics)]
         B["Cron scripts<br/>Pushgateway"] --> P

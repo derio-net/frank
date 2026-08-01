@@ -64,6 +64,11 @@ REQUIRED_GATES = [
     "blog/scripts/validate_glossary.py",
     "blog/scripts/validate_mermaid.py",
     "blog/scripts/validate_images.py",
+    # The width gate (blog-craft v0.19.0) measures the BUILT site, so unlike
+    # every gate above it must run after the Hugo build. That ordering is the
+    # reason it is easy to drop: a step appended below `hugo --minify` reads
+    # like a build artifact rather than a gate.
+    "blog/scripts/validate_mermaid_layout.mjs",
 ]
 
 

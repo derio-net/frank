@@ -1,0 +1,41 @@
+{{- /* features.mermaid_view — Hextra's mermaid codeblock hook, plus tabindex.
+
+       WHY AN OVERRIDE AT ALL: mermaid-view.css turns this <pre> into a
+       horizontal scroller. WCAG 2.1 §2.1.1 requires a scrollable region to be
+       operable from the keyboard, and a <pre> is not focusable by default — so
+       without `tabindex="0"` the feature would trade a shrunken-but-complete
+       diagram for a full-size one that mouse users can pan and keyboard users
+       cannot. blog-craft already overrides layouts/_markup/render-image.html,
+       so a _markup override is an established pattern here.
+
+       WHY IT LOOKS COPIED: it is. This is Hextra v0.12.1's
+       layouts/_markup/render-codeblock-mermaid.html verbatim (identical in
+       v0.12.3) with one attribute added. Everything else is the theme's
+       contract and must survive byte-for-byte in spirit:
+
+         - role="img" + the i18n aria-label with its "Diagram" fallback —
+           the screen-reader treatment of the diagram;
+         - class="mermaid" — what mermaid.js selects on;
+         - hx:mt-6 — the theme's own spacing, so diagrams sit like every
+           other Hextra site's;
+         - `.Inner | htmlEscape | safeHTML` — changing this pipeline either
+           double-escapes the diagram source or opens an injection path;
+         - `.Page.Store.Set "hasMermaid" true` — the theme's scripts partial
+           reads this to decide whether to load mermaid AT ALL. Dropping it
+           stops diagrams rendering site-wide, and nothing in this file's diff
+           would look like the cause.
+
+       THEREFORE: this file PINS the feature to the theme hook's shape and must
+       be re-checked on every Hextra bump. If upstream changes the markup, this
+       override silently freezes the old version.
+
+       Note the one tension accepted deliberately: a focusable element inside
+       role="img" is unusual. The alternative — an unfocusable scroller — fails
+       WCAG outright. NOT yet verified against a real screen reader: matrix row
+       MMD-6 is the post-merge manual check that closes this. */ -}}
+<div role="img" aria-label="{{ (T "mermaidDiagram") | default "Diagram" }}">
+  <pre class="mermaid hx:mt-6" tabindex="0">
+    {{ .Inner | htmlEscape | safeHTML }}
+  </pre>
+</div>
+{{- .Page.Store.Set "hasMermaid" true -}}

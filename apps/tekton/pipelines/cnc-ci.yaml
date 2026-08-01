@@ -28,6 +28,8 @@ spec:
         - {name: source, workspace: source}
         - {name: ssh, workspace: ssh-creds}
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - {name: github-repo, type: string}
           - {name: gitea-repo, type: string}
@@ -76,6 +78,8 @@ spec:
       runAfter: [mirror]
       workspaces: [{name: source, workspace: source}]
       taskSpec:
+        metadata: {}
+        spec: null
         params:
           - {name: test-image, type: string}
           - {name: test-command, type: string}

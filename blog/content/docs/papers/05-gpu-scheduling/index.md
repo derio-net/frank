@@ -310,6 +310,7 @@ should expect to track upstream tightly.
 ```mermaid
 flowchart TD
     subgraph MG["NVIDIA MIG (hardware partition)"]
+        direction TB
         MIG_MGR["mig-manager (Operator subcomponent)"]
         SLICE1[("MIG slice 1/7 — 5 GB")]
         SLICE2[("MIG slice 2/7 — 5 GB")]

@@ -26,7 +26,7 @@ The motherboard is a Gigabyte Z790 Eagle AX. Buried on it is an ITE IT5701 USB R
 That is the whole system in one picture, ending included:
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Hardware[gpu-1 Hardware]
     Fans[6x ARGB Fans]
     Hub[Fan Hub<br/>button does nothing]

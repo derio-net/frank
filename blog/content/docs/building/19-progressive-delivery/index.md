@@ -42,7 +42,7 @@ flowchart LR
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph ArgoRollouts[Argo Rollouts — argo-rollouts namespace]
     Controller[Controller<br/>replica-count canary]
   end

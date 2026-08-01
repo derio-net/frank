@@ -19,7 +19,7 @@ Frank is fully GitOps-managed. If the cluster evaporates tonight, ArgoCD restore
 But three Longhorn 1.11 bugs and limitations turned what should have been a simple BackupTarget + RecurringJob config into a week of workarounds. {{< abbr "SOPS" >}}-encrypted secrets cannot live in ArgoCD manifest paths. RecurringJobs have no `backupTargetName` field, so you cannot route jobs to specific targets. And the {{< abbr "NFS" >}} backup target is broken by a mount-path formatting bug that will not be fixed until Longhorn 1.13.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Sources[Data Sources]
     VM[VictoriaMetrics<br/>20Gi PVC]
     Grafana[Grafana<br/>1Gi PVC]

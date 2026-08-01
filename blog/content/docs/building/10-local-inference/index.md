@@ -17,7 +17,7 @@ The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the m
 Layer 10 wires up a unified {{< abbr "LLM" >}} gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 Ti or a free cloud model via OpenRouter. The consumer never needs to know which.
 
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph Consumers[Consumers]
     AGI[AnythingLLM]
     Agent[Agent frameworks]

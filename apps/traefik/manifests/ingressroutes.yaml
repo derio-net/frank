@@ -95,7 +95,7 @@ spec:
 # auth.frank.derio.net died (hardware; replacement ETA ~5 days). The Authentik
 # pod is alive and already served at auth.cluster.derio.net — but every consumer
 # hard-codes the legacy auth.frank.derio.net name: the kube-apiserver OIDC issuer
-# (patches/phase13-auth/oidc-apiserver.yaml — unchangeable while Omni is down),
+# (patches/phase13-auth/omni-configpatch.yaml — unchangeable while Omni is down),
 # AUTHENTIK_HOST, Grafana/ArgoCD OAuth, and the forward-auth browser redirect.
 # Re-front that name on the surviving in-cluster Traefik so all of them heal with
 # zero consumer edits. Pair with a DNS flip: auth.frank.derio.net A -> 192.168.55.220.

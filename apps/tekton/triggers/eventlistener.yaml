@@ -6,6 +6,7 @@ metadata:
   namespace: tekton-pipelines
 spec:
   serviceAccountName: tekton-triggers-sa
+  namespaceSelector: {}
   triggers:
     - name: gitea-push
       interceptors:
@@ -205,7 +206,10 @@ spec:
     kubernetesResource:
       spec:
         template:
+          metadata:
+            creationTimestamp: null
           spec:
+            containers: null
             nodeSelector:
               kubernetes.io/hostname: pc-1
 # Per-repo agentic-stoa TriggerTemplates (hum-ci-template, content-factory-ci-
