@@ -33,17 +33,22 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-31T17:22:51+00:00'
+      note: Root has no OutOfSync resources; Omni token kubeconfig at :8100 has cluster-admin;
+        all 7 nodes Ready.
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T07:34:06+00:00'
+      note: 'Old issuer token: preferred_username=ak-Kubernetes Agent Access-client_credentials;
+        TokenReview username=https://auth.frank.derio.net/application/o/k8s-agent/#ak-Kubernetes
+        Agent Access-client_credentials; groups=[]; authenticated=true; token retained
+        only in 0600 /tmp file.'
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T07:35:03+00:00'
+      note: authentik-extras Synced/Healthy; live ArgoCD, Grafana, and Infisical providers
+        each contain strict old and cluster callbacks.
     P2.T2.S2:
       state: ' '
       ticked_at: null

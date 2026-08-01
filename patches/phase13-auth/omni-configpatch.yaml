@@ -34,14 +34,14 @@ spec:
                           groups:
                             claim: groups
                             prefix: ""
-                  permissions: 0o600
-                  path: /etc/kubernetes/authn-config.yaml
+                  permissions: 0o644
+                  path: /var/lib/kubernetes/authn-config.yaml
                   op: create
         cluster:
             apiServer:
                 extraArgs:
                     authentication-config: /etc/kubernetes/authn-config.yaml
                 extraVolumes:
-                    - hostPath: /etc/kubernetes/authn-config.yaml
+                    - hostPath: /var/lib/kubernetes/authn-config.yaml
                       mountPath: /etc/kubernetes/authn-config.yaml
                       readonly: true
