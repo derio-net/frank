@@ -52,4 +52,4 @@ data:
         attrs:
           name: Infisical
           provider: !KeyOf provider-infisical
-          meta_launch_url: https://infisical.frank.derio.net
+          meta_launch_url: https://infisical.cluster.derio.net

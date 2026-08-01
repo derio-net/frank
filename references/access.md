@@ -7,7 +7,7 @@ workloads.
 ## Pipeline
 
 ```
-Infisical  (UI: https://infisical.frank.derio.net, project: frank-cluster, env: prod)
+Infisical  (UI: https://infisical.cluster.derio.net, project: frank-cluster, env: prod)
    │
    │ ClusterSecretStore 'infisical'   (ESO auth: Universal Auth token)
    ▼

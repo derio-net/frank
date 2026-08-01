@@ -8,8 +8,8 @@ spec:
     staticConfig:
       targets:
         - http://n8n-01.n8n-01.svc.cluster.local:5678
-        - https://paperclip.frank.derio.net
-        - https://grafana.frank.derio.net
+        - https://paperclip.cluster.derio.net
+        - https://grafana.cluster.derio.net
         - https://blog.derio.net
         # https://www.derio.net is NOT here — it needs a content-asserting module
         # (www-content-probe below), because its edge fallback answers 200 while

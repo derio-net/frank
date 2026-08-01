@@ -52,4 +52,4 @@ data:
         attrs:
           name: Grafana
           provider: !KeyOf provider-grafana
-          meta_launch_url: https://grafana.frank.derio.net
+          meta_launch_url: https://grafana.cluster.derio.net
