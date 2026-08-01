@@ -71,7 +71,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 ### Authentik — `docs/runbooks/frank-gotchas/authentik.md`
 - Blueprints mount in WORKER pod via `blueprints.configMaps` — register new ConfigMaps there.
 - Blueprints don't assign providers to embedded outpost — manual Django ORM step (see `frank-argocd.md`).
-- Embedded outpost needs `AUTHENTIK_HOST` env or forward-auth redirects use `0.0.0.0:9000`.
+- Embedded outpost redirects use its persisted `Outpost.config`, not only pod `AUTHENTIK_HOST`; declare both `authentik_host` fields in the cluster proxy blueprint when changing the public Authentik host.
 - API uses Bearer token (not basic auth); 2026.x requires `invalidation_flow` + object-shaped `redirect_uris` + `signing_key` UUID.
 - `global.env` applies to both server + worker (avoids duplication).
 - Forward-auth (`authentik-forwardauth`) matches the request Host against each provider's `external_host` — an unregistered Host (e.g. a `.frank.derio.net` re-front) **404s with `x-powered-by: authentik`**, not a Traefik/backend 404. Fix = add the Host to the blueprint + outpost-assignment step, or drop the middleware for self-authing apps. Full prose: `authentik.md`.

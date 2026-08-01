@@ -34,9 +34,13 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-01T16:32:40+00:00'
+      note: 'PR #743 merged as 19a8cd17. All affected Frank apps Synced/Healthy. Live
+        Authentik, ArgoCD, Grafana, n8n, Paperclip, VMProbe, and Hop landing artifacts
+        contain canonical hosts. Browser verification then exposed the separate persisted
+        embedded-outpost host; corrective fix is tracked in the 2026-08-01 authentik-outpost-canonical-host
+        debug journal.'
     P4.T1.S2:
       state: ' '
       ticked_at: null
