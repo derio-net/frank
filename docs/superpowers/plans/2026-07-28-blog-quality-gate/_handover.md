@@ -3,11 +3,76 @@
 **Delete this file before the PR leaves draft.** It is session-transient, unlike
 `_improvements.md` which is a deliverable.
 
-Written 2026-07-30 at an agent change-over, mid-plan.
+Written 2026-07-30 at an agent change-over, mid-plan. Refreshed 2026-08-01
+for a second agent change-over.
+
+## 0. 2026-08-01 second takeover — THE REVISION PASS IS DONE
+
+Two sessions ran on 2026-08-01. The first made no implementation changes (it
+opened draft PR #733 for review, then handed over). **This is the second**, and
+it changed real state. Everything below §2 predates it — read this section
+first, because §2's "revision pass deliberately held" is **no longer true**.
+
+### The operator closed the three open questions
+
+- **Review is complete.** The hold on the revision pass is lifted; it has run.
+- **`What Transfers` is teaching-posts-only** — and `01-introduction` must not
+  carry one either, *even though* it is `diataxis: explanation`, which the lint
+  gates on. The rule is the post's **role** (series entry point), not its mode.
+- **The Missteps convention stays; blog-about-blog rows are banned.** The
+  invariant, now explicit: a misstep is a wrong turn in building the *system*,
+  never in writing the post.
+
+### What this session did
+
+1. **Merged `origin/main`** (12 commits, clean, no conflicts). This was not
+   housekeeping — see item 37 in `_improvements.md`. Main carried **blog-craft
+   v0.18.1 → v0.19.0**, which touches `.blog-craft.yaml`, `.blog-craft.sync.yaml`
+   and adds 18 lines to `.github/workflows/blog-ci.yml`. Phase 6 re-renders that
+   workflow via `update.py` **at the `blog_craft_version` tag**, so running it
+   pre-merge would have silently dropped main's new mermaid-layout step.
+2. **Revision pass** (`5670672f`) on the two entry-point posts — `What
+   Transfers` removed from both, the self-correction Missteps row and the
+   drafting narration dropped, terse table register restored, verify sections
+   de-editorialised but every command and decision procedure kept. The other
+   five reviewed posts were scanned: **all their Missteps rows are genuine
+   system missteps**, no changes needed.
+3. **Closed journal finding `4eeefd7d47f9`** (`104c5bb3`) — and found the same
+   bug live in `operating/02-storage-backups:133`, a backup-*verification*
+   runbook outside this plan's set. Fixed there too.
+4. **`_improvements.md` items 33–37** added.
+
+### Verified state at handover
+
+| | |
+|---|---|
+| HEAD | `104c5bb3`, pushed, 0 unpushed |
+| Behind `origin/main` | **0** |
+| PR | #733 OPEN, draft, MERGEABLE |
+| Gate | **6 findings / 5 posts / 0 LINT FAIL** — unchanged; neither revised post appears |
+| `fr journal check` | **exits 0** (was 1) |
+| Suite | **369 passed, 1 xfailed** (was 354; main added tests) |
+| `hugo --gc` | exit 0 |
+| Phases | 1, 2, 3 complete. **4, 5, 6 not started.** |
+
+### Two consequences to carry forward
+
+- **A new, unwaivable LINT WARN exists on `01-introduction`** (`no
+  what-transfers closing section`). It is the accepted cost of the operator's
+  rule: `transfers_exempt` does not exist, and `quality_exempt` would drop the
+  post from the lint layer entirely — the blind spot Phase 6's tripwire is
+  being built to prevent. Item 34. Do not "fix" it by re-adding the section.
+- **Do not chase `00-overview`'s em-dash WARN** (15.1 → 20.8). The density rose
+  because 350 words were *removed*; the numerator is ~60 table rows each using
+  one em-dash as a separator. The lint counts table rows as prose. Item 33.
 
 ---
 
 ## 1. Where things are
+
+> **The counts in this table are pre-merge and stale — §0 has the current ones.**
+> Still accurate here: the worktree path, the plan/spec paths, the prerequisite
+> PRs, and the phase state.
 
 | | |
 |---|---|
@@ -24,9 +89,10 @@ Prerequisite PRs already merged: **#729** (blog-craft v0.18.0), **#730** (uv/pyt
 toolchain), **blog-craft#70 → v0.18.1** (the `_ACTIONABLE` matcher fix), **#731**
 (resync), **#732** (spec + plan).
 
-### ⚠️ `fr journal check` currently EXITS 1
+### ~~⚠️ `fr journal check` currently EXITS 1~~ — CLOSED 2026-08-01 (`104c5bb3`)
 
-One open finding: `4eeefd7d47f9` — the `-l longhornvolume=` selector handed down
+Kept for the recipe, since `fr journal` still has no `edit`. One open finding
+was: `4eeefd7d47f9` — the `-l longhornvolume=` selector handed down
 for `08-backup` was wrong (real label: `backup-volume`), and returns
 `No resources found` rather than erroring. It **is** fixed in the post; the
 journal entry was never flipped to `state=fixed`. fr-goal §8 gates delivery on a
@@ -40,7 +106,9 @@ comment marker by hand in
 
 ## 2. The operator's live feedback — READ FIRST, IT CHANGES THE NEXT PASS
 
-The operator is **mid-review of the seven completed posts** and has flagged a
+> **SUPERSEDED by §0 — the review is complete and this pass has run.**
+
+The operator was **mid-review of the seven completed posts** and has flagged a
 **regression** in `00-overview`, in their words:
 
 > the self-involved style of speaking. Talking to itself, recording a snapshot,
