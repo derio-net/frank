@@ -1,5 +1,5 @@
 # LoadBalancer Service for Authentik server
-# Exposed at auth.frank.derio.net via Traefik on raspi-omni (port 9000)
+# Exposed at auth.cluster.derio.net via the in-cluster Traefik (port 9000)
 apiVersion: v1
 kind: Service
 metadata:

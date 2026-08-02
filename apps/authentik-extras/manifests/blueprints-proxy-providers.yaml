@@ -1,6 +1,8 @@
-# Authentik Blueprint: Proxy Providers for non-OIDC services
-# Uses embedded outpost with forward-auth for services that don't support OIDC.
-# Traefik forwardAuth middleware must be configured on raspi-omni (manual operation).
+# Authentik Blueprint: retired legacy forward-auth proxy providers
+#
+# The LIVE forward-auth estate is blueprints-cluster-proxy-providers.yaml
+# (*.cluster.derio.net, embedded outpost). This file exists only to retire the
+# pre-migration *.frank.derio.net objects, and should carry nothing else.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,90 +19,57 @@ data:
       labels:
         blueprints.goauthentik.io/instantiate: "true"
     entries:
-      # Longhorn UI proxy provider
-      - model: authentik_providers_proxy.proxyprovider
-        state: present
-        identifiers:
-          name: Longhorn UI
-        id: provider-longhorn
-        attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          mode: forward_single
-          external_host: https://longhorn.frank.derio.net
-
+      # Retired 2026-08 with the frank.derio.net domain retirement.
+      #
+      # These stay as URL-free `state: absent` tombstones rather than being
+      # deleted from the file outright. A blueprint only reconciles what it
+      # still lists, so removing the entries would leave the live Authentik
+      # providers and applications orphaned — present in the database, absent
+      # from Git, and invisible to every check in this repo. Deletion has to be
+      # declared to happen.
+      #
+      # Applications are listed FIRST: each holds a foreign key to its provider,
+      # so the dependent object must be removed before its target.
+      #
+      # Once these have reconciled against the live instance, the whole file
+      # (and its blueprints.configMaps entry in apps/authentik/values.yaml) can
+      # be dropped in a follow-up.
       - model: authentik_core.application
-        state: present
+        state: absent
         identifiers:
           slug: longhorn
-        attrs:
-          name: Longhorn UI
-          provider: !KeyOf provider-longhorn
-          meta_launch_url: https://longhorn.frank.derio.net
-
-      # Hubble UI proxy provider
-      - model: authentik_providers_proxy.proxyprovider
-        state: present
-        identifiers:
-          name: Hubble UI
-        id: provider-hubble
-        attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          mode: forward_single
-          external_host: https://hubble.frank.derio.net
 
       - model: authentik_core.application
-        state: present
+        state: absent
         identifiers:
           slug: hubble
-        attrs:
-          name: Hubble UI
-          provider: !KeyOf provider-hubble
-          meta_launch_url: https://hubble.frank.derio.net
-
-      # Sympozium proxy provider
-      - model: authentik_providers_proxy.proxyprovider
-        state: present
-        identifiers:
-          name: Sympozium
-        id: provider-sympozium
-        attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          mode: forward_single
-          external_host: https://sympozium.frank.derio.net
 
       - model: authentik_core.application
-        state: present
+        state: absent
         identifiers:
           slug: sympozium
-        attrs:
-          name: Sympozium
-          provider: !KeyOf provider-sympozium
-          meta_launch_url: https://sympozium.frank.derio.net
-
-      # n8n-01 proxy provider
-      - model: authentik_providers_proxy.proxyprovider
-        state: present
-        identifiers:
-          name: n8n-01
-        id: provider-n8n-01
-        attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          mode: forward_single
-          external_host: https://n8n-01.frank.derio.net
 
       - model: authentik_core.application
-        state: present
+        state: absent
         identifiers:
           slug: n8n-01
-        attrs:
+
+      - model: authentik_providers_proxy.proxyprovider
+        state: absent
+        identifiers:
+          name: Longhorn UI
+
+      - model: authentik_providers_proxy.proxyprovider
+        state: absent
+        identifiers:
+          name: Hubble UI
+
+      - model: authentik_providers_proxy.proxyprovider
+        state: absent
+        identifiers:
+          name: Sympozium
+
+      - model: authentik_providers_proxy.proxyprovider
+        state: absent
+        identifiers:
           name: n8n-01
-          provider: !KeyOf provider-n8n-01
-          meta_launch_url: https://n8n-01.frank.derio.net
