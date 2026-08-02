@@ -133,7 +133,37 @@ spec:
               # -e` would abort a seed that had in fact copied every byte. The
               # repository is plain files and directories, nothing here needs
               # -p, and ownership comes from fsGroup anyway.
-              cp -R /models-src/gpu/. /models/
+              # Copy FILE BY FILE with a sync after each, rather than one
+              # `cp -R` of the whole tree.
+              #
+              # The tree-at-once form OOMKilled this initContainer in ONE
+              # SECOND on first deploy (exit 137, four restarts). It is not
+              # volume of data over time — it is dirty-page pressure: reads
+              # come off the local overlayfs at NVMe speed while writes go to a
+              # Longhorn network volume, so dirty pages accumulate far faster
+              # than writeback drains them. In cgroup v2 page cache is charged
+              # to the cgroup, and while CLEAN pages are reclaimed under
+              # pressure, DIRTY pages cannot be until written back — so the
+              # cgroup hits its limit and the kernel kills the process.
+              #
+              # Syncing per file bounds the dirty set to the largest single
+              # file (~600 MiB here) instead of the whole ~2.4 GiB repository.
+              # The limit below is headroom over that bound, not the total —
+              # which is what keeps this working if a servable is added later.
+              #
+              # Bare `sync`, not `sync FILE`: GNU coreutils accepts a file
+              # operand, busybox's applet does not, and this image is busybox —
+              # `sync /models/x` would fail there and abort a seed that had
+              # copied every byte, the same shape as the `cp -a` trap above.
+              cd /models-src/gpu
+              find . -type d | while IFS= read -r d; do
+                mkdir -p "/models/$d"
+              done
+              find . -type f | while IFS= read -r f; do
+                cp "$f" "/models/$f"
+                sync
+              done
+              cd /
 
               test -f /models/config.json  # the merged servable list OVMS reads
 
@@ -147,10 +177,15 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 256Mi
+            # 2Gi, not 512Mi: 512Mi OOMKilled this container in one second on
+            # the first real deploy. The bound that matters is the largest
+            # SINGLE file (~600 MiB, given the per-file sync above), not the
+            # ~2.4 GiB repository total — roughly 3x headroom over that, and it
+            # does not need to grow when a servable is added.
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 2Gi
           volumeMounts:
             - name: models
               mountPath: /models

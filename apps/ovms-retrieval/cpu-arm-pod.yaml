@@ -74,7 +74,22 @@ spec:
         # every start by construction. The gate in the Deployment exists
         # because a PVC survives; this does not.
         - |
-          cp -R /models-src/cpu/. /models/
+          # Per-file copy with a sync between, mirroring the Deployment's seed.
+          # The Deployment's whole-tree `cp -R` was OOMKilled in one second by
+          # dirty-page pressure at a 512Mi limit. This pod writes to an
+          # emptyDir (local disk, fast writeback) rather than a Longhorn
+          # volume, so it is far less exposed — but it is the same shape, and a
+          # control arm that dies on its own seed measures nothing. Bare
+          # `sync`: busybox's applet takes no file operand.
+          cd /models-src/cpu
+          find . -type d | while IFS= read -r d; do
+            mkdir -p "/models/$d"
+          done
+          find . -type f | while IFS= read -r f; do
+            cp "$f" "/models/$f"
+            sync
+          done
+          cd /
           test -f /models/config.json
           echo "cpu-arm: CPU repository seeded"
       securityContext:
@@ -85,10 +100,12 @@ spec:
       resources:
         requests:
           cpu: 100m
-          memory: 128Mi
+          memory: 256Mi
+        # 2Gi for the same reason as the Deployment's seed — see the OOM note
+        # in apps/ovms-retrieval/manifests/deployment.yaml.
         limits:
           cpu: "1"
-          memory: 512Mi
+          memory: 2Gi
       volumeMounts:
         - name: models
           mountPath: /models

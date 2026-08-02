@@ -334,14 +334,16 @@ def test_seed_is_version_gated_by_a_marker_not_seed_if_absent():
     # invisible end to end: OVMS loads both servables on CPU, both probes
     # pass, ArgoCD is green, and the spike's headline number is measured on
     # the CPU while labelled GPU.
+    # The copy is now a per-file loop rather than one `cp -R` (see the
+    # seed-OOM regression tests at the end of this file), so what is pinned
+    # here is the SOURCE, not the command shape: an executable line must
+    # establish /models-src/gpu as the copy root.
     live = _seed_script_live()
-    assert re.search(
-        rf"^\s*cp\s+-R\s+{re.escape(SEED_SOURCE)}/\.\s+{re.escape(MODELS_MOUNT)}/", live, re.M
-    ), (
-        f"no executable `cp -R {SEED_SOURCE}/. {MODELS_MOUNT}/` line in the seed "
-        "script (comments are stripped before this scan). /models-src also holds "
-        "a CPU control arm whose graph.pbtxt names the wrong device — seeding it "
-        "measures the CPU while reporting the GPU"
+    assert re.search(rf"^\s*cd\s+{re.escape(SEED_SOURCE)}\s*$", live, re.M), (
+        f"no executable line establishing {SEED_SOURCE} as the copy root in the "
+        "seed script (comments are stripped before this scan). /models-src also "
+        "holds a CPU control arm whose graph.pbtxt names the wrong device — "
+        "seeding it measures the CPU while reporting the GPU"
     )
     assert "/models-src/cpu" not in live, (
         "the seed script copies the CPU control arm — that repository's "
@@ -622,11 +624,17 @@ def test_cpu_control_arm_seeds_the_cpu_repository_on_the_same_node():
         for line in "\n".join(init[0].get("command", []) + init[0].get("args", [])).splitlines()
         if not line.lstrip().startswith("#")
     )
-    assert re.search(
-        rf"^\s*cp\s+-R\s+{re.escape(CPU_SEED_SOURCE)}/\.\s+{re.escape(MODELS_MOUNT)}/",
-        script,
-        re.M,
-    ), f"the CPU arm must seed {CPU_SEED_SOURCE}: {script!r}"
+    # Pins the copy ROOT, not the command shape: the seed is a per-file loop
+    # rather than one `cp -R` (see the seed-OOM regression tests at the end of
+    # this file — the whole-tree form OOMKilled the Deployment's seed).
+    assert re.search(rf"^\s*cd\s+{re.escape(CPU_SEED_SOURCE)}\s*$", script, re.M), (
+        f"the CPU arm must establish {CPU_SEED_SOURCE} as its copy root: {script!r}"
+    )
+    assert "sync" in script, (
+        "the CPU arm's seed must sync between files for the same reason the "
+        "Deployment's does — a control arm that dies on its own seed measures "
+        "nothing"
+    )
     assert SEED_SOURCE not in script, (
         "the CPU arm seeds the GPU repository — that measures the GPU and "
         "labels it CPU"
@@ -745,3 +753,67 @@ def test_prune_can_never_reach_the_model_cache():
             "nothing here needs prune, and leaving it on puts a 20Gi model "
             "cache one mis-sync away from deletion"
         )
+
+
+# ---------------------------------------------------------------------------
+# Seed OOM regression (found live 2026-08-02, first deploy)
+# ---------------------------------------------------------------------------
+#
+# The seed initContainer was OOMKilled in ONE SECOND (exit 137, four restarts)
+# copying the model repository onto its Longhorn PVC. Not volume-over-time —
+# dirty-page pressure: reads come off local overlayfs at NVMe speed, writes go
+# to a network volume, and in cgroup v2 dirty pages cannot be reclaimed until
+# written back, so the cgroup blows its limit almost immediately.
+#
+# Two halves to the fix, and BOTH are load-bearing. Raising the limit alone
+# fixes today's two models and breaks again on a bigger one; syncing alone
+# leaves the ceiling below a single file. These guard both.
+
+
+def _seed_memory_limit_bytes() -> int:
+    raw = str(_seed()["resources"]["limits"]["memory"])
+    units = {"Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "K": 10**3, "M": 10**6, "G": 10**9}
+    for suffix, mult in sorted(units.items(), key=lambda kv: -len(kv[0])):
+        if raw.endswith(suffix):
+            return int(float(raw[: -len(suffix)]) * mult)
+    return int(raw)
+
+
+def test_seed_memory_limit_clears_the_largest_single_file() -> None:
+    """>= 1Gi. The int8 servables are ~600 MiB each; 512Mi OOMKilled at once."""
+    limit = _seed_memory_limit_bytes()
+    assert limit >= 1024**3, (
+        f"seed-models memory limit is {_seed()['resources']['limits']['memory']}, "
+        "which is at or below the size of a single servable plus slack. 512Mi "
+        "OOMKilled this container in one second on the first real deploy."
+    )
+
+
+def test_seed_syncs_between_files_to_bound_dirty_pages() -> None:
+    """A per-file sync, so the dirty set is one file, not the whole tree."""
+    script = _seed_script_live()
+    assert "sync" in script, (
+        "the seed copy must sync between files — without it the dirty set is "
+        "the entire repository and the cgroup OOMs regardless of the limit"
+    )
+    assert "cp -R /models-src/gpu/. /models/" not in script, (
+        "the whole-tree `cp -R` is what OOMKilled the seed; copy per file "
+        "with a sync between"
+    )
+
+
+def test_seed_sync_takes_no_file_operand() -> None:
+    """busybox's sync applet has no file operand; the final image is busybox.
+
+    `sync /models/x` would fail there and abort a seed that had copied every
+    byte -- the same class of trap as the earlier `cp -a` finding.
+    """
+    import re
+
+    for line in _seed_script_live().splitlines():
+        stripped = line.strip()
+        if re.match(r"^sync\s+\S", stripped):
+            raise AssertionError(
+                f"seed script calls sync with an operand ({stripped!r}); "
+                "busybox sync takes none — use the bare form"
+            )
