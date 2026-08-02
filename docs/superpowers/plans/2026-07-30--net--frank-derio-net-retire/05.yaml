@@ -31,13 +31,26 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:48:18+00:00'
+      note: 'Focused guard rewritten to the final-state contract: exactly one JWT
+        issuer (cluster), exact-set equality on OIDC callbacks, no legacy Paperclip
+        allowed hostname, a structural IngressRoute/TLS-domain check, and a raw-text
+        repo sweep over apps/patches/clusters/references/secrets that allows only
+        omni.frank.derio.net. The bare Headscale frank.derio.net suffix is excluded
+        by the regex requiring a leading label, and both survivors are asserted POSITIVELY
+        so a blanket sweep cannot eat them. Red retained: 6 failed, 3 passed; the
+        sweep enumerates all 9 offending files.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:48:22+00:00'
+      note: 'Added test_legacy_proxy_entries_are_url_free_absent_tombstones: all four
+        legacy providers (Longhorn UI, Hubble UI, Sympozium, n8n-01) and all four
+        applications (longhorn, hubble, sympozium, n8n-01) must remain in blueprints-proxy-providers.yaml
+        as state: absent with no external_host and no meta_launch_url, so deleting
+        the ConfigMap can never strand live Authentik objects. Also asserts ordering:
+        application tombstones must precede provider tombstones, because applications
+        hold a FK to their provider and must be removed first.'
     P5.T2.S1:
       state: ' '
       ticked_at: null
