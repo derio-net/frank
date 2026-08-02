@@ -2,8 +2,17 @@
 
 **Date:** 2026-08-02
 **Layer:** edge
-**Status:** Draft
+**Status:** Deployed
 **Upstream issue:** `derio-homelab/kid-laptops#72`
+
+> **Deployed and proven live 2026-08-02.** Test Plan steps 1–7 all green after
+> the headscale restart. `litellm-lb.cluster.derio.net` resolves to
+> `192.168.55.206` on a mesh node — against a homelab wildcard that answers
+> `.220` for every other name, which is what makes that reading evidence rather
+> than a coincidence — and an authenticated call to
+> `https://litellm-api.cluster.derio.net/v1/models` with the vaulted
+> `kid-laptops` key returns `200` and a 12-model list. Step 8, the off-LAN
+> foreign-network leg, belongs to `derio-homelab/kid-laptops`.
 
 ## Problem
 
@@ -167,44 +176,15 @@ Consequence: ArgoCD will report `Synced`, the ConfigMap will hold the new
 records, and **headscale will keep serving the old DNS map indefinitely**. A
 restart is a required deployment step, not a nicety.
 
-```yaml
-# manual-operation
-id: edge-headscale-litellm-mesh-dns-restart
-layer: edge
-app: headscale
-plan: docs/superpowers/plans/2026-08-02--edge--litellm-mesh-dns
-when: After the PR merges and ArgoCD syncs the headscale Application.
-why_manual: |
-  headscale-config is a plain (unhashed) ConfigMap and cannot be converted to a
-  Kustomize configMapGenerator, because headplane is a separate ArgoCD
-  Application that mounts the same ConfigMap by name with config_strict: true;
-  hashing would rename it and crashloop headplane. Nothing in the pod spec
-  changes when the ConfigMap content changes, so ArgoCD reports Synced while
-  headscale continues serving the DNS map it parsed at boot.
-commands: |
-  source .env_hop
-  kubectl -n headscale-system rollout status deploy/headscale --timeout=120s
-  kubectl -n headscale-system rollout restart deploy/headscale
-  kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
-verify: |
-  # Homelab DNS serves a WILDCARD *.cluster.derio.net -> 192.168.55.220, so on
-  # the LAN a lookup of litellm-api returns .220 whether or not the record
-  # exists. Only the litellm-lb record discriminates (.206 != the wildcard's
-  # .220), so THAT is the one that proves the restart took effect. Both records
-  # live in the same ConfigMap and are loaded by the same restart, so proving
-  # one proves both.
-  #
-  # macOS (operator's Mac) — no `getent` on macOS:
-  dscacheutil -q host -a name nope-xyz.cluster.derio.net     # -> 192.168.55.220 (NEGATIVE CONTROL: the wildcard)
-  dscacheutil -q host -a name litellm-lb.cluster.derio.net   # -> 192.168.55.206 (PROOF: differs from the wildcard)
-  # Linux mesh node (laptops, argonath): same two, via `getent hosts <name>`.
-  #
-  # Do NOT treat `litellm-api -> 192.168.55.220` as evidence on the LAN; it is
-  # the wildcard answering. Verify that endpoint FUNCTIONALLY instead (Test
-  # Plan step 5), or resolve it from a genuinely off-LAN mesh node where no
-  # homelab resolver is reachable.
-status: pending
-```
+> **Manual operation:** `edge-headscale-litellm-mesh-dns-restart` — the
+> canonical block lives in the plan
+> (`docs/superpowers/plans/2026-08-02--edge--litellm-mesh-dns/03.yaml`, phase 3),
+> which is where `/sync-runbook` scans, and it is registered in
+> `docs/runbooks/manual-operations.yaml`. It was duplicated here during
+> authoring; a second copy the runbook sync never reads is a divergence waiting
+> to happen, so this is a pointer rather than a fork.
+>
+> **Completed 2026-08-02.** See the Test Plan results below.
 
 Existing WireGuard sessions survive a headscale restart; only the control plane
 blips. Clients pick up the new DNS map on their next control-plane poll, so a

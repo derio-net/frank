@@ -661,7 +661,7 @@ operations:
   - '# LOAD-BEARING: an authenticated call. Everything above is satisfied by a LiteLLM that rejects every key in existence.'
   - 'curl -sS -H "Authorization: Bearer $KID_LAPTOPS_KEY" https://litellm-api.cluster.derio.net/v1/models | head -c 300   #
     expect 200 + model list'
-  status: pending
+  status: done
 - id: edge-hop-argocd-bootstrap
   layer: edge
   app: argocd (hop)
