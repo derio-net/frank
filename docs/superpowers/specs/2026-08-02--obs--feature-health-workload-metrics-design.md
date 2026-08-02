@@ -202,6 +202,17 @@ unavailability counter. Getting this backwards yields a rule that fires
 constantly or never — it is the highest-risk mechanical error in the change and
 gets a dedicated tripwire.
 
+**One rule is deliberately exempt, and it is not a mistake.** The scale-to-0 rule
+(below) thresholds at `lt 1`. In PromQL, `metric == 0` is a **filter, not a
+comparison**: it drops non-matching series and returns the *original sample
+value* for those that match — which here is always `0`. So
+`kube_deployment_spec_replicas{...} == 0` paired with `gt 0` produces a rule that
+can **never fire**, while reading as perfectly conventional beside its eleven
+siblings. Measured live in phase 4 before the rule was written. The guard asserts
+the `== 0` / `lt 1` **pairing**, so neither half can be tidied into consistency
+on its own. Any documentation that says "every feature-health rule thresholds at
+`gt 0`" is wrong.
+
 ### StatefulSets have no `_unavailable` metric
 
 kube-state-metrics exports `kube_statefulset_status_replicas` and
