@@ -70,30 +70,33 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T13:48:57+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T13:48:58+00:00'
       note: null
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T13:44:37+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T13:48:59+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T13:46:07+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-08-02T13:46:45+00:00'
+      note: invocations differ by task, model name AND device — collapsing to a loop
+        would swap literal --target_device GPU/CPU strings for variable interpolation,
+        breaking the tests' textual assertions without adding real behaviour; current
+        explicit repetition stays
   completion:
-    at: null
+    at: '2026-08-02T13:49:10+00:00'
     note: null
     observed_prs: []
