@@ -1,0 +1,98 @@
+schema_version: 2
+phase:
+  number: 1
+  title: litellm-lb record — the direct-LB escape hatch
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - litellm-reachable-from-mesh-by-name
+tasks:
+- number: 1
+  title: Guard the Headscale extra_records contract, then add the record
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. Create `scripts/tests/test_headscale_litellm_mesh_dns.py`.
+
+      The file under test is `clusters/hop/apps/headscale/manifests/configmap.yaml`,
+      whose `data["config.yaml"]` is a YAML document embedded as a string —
+      so the test must `yaml.safe_load` the ConfigMap, then `yaml.safe_load`
+      that string again. Assert:
+
+      - `dns.extra_records` contains `{name: litellm-lb.cluster.derio.net, type: A, value: 192.168.55.206}`
+      - the pre-existing `gitea-ssh.cluster.derio.net -> 192.168.55.209` record is STILL present
+        (this file is hand-edited embedded YAML; a clumsy edit that drops a
+        sibling record is the realistic failure, and it would break git-over-ssh
+        for every mesh peer with nothing reporting it)
+      - `dns.magic_dns` is true (extra_records are inert without it)
+
+      Model the style on `scripts/tests/test_comfyui_stoa_route.py`
+      (module-level `REPO = Path(__file__).resolve().parents[2]`, `yaml.safe_load`,
+      assertion messages that name the contract).
+
+      Run `uv run --frozen pytest scripts/tests/test_headscale_litellm_mesh_dns.py -q`
+      and confirm it FAILS on the missing litellm-lb record. Record the failure text.
+  - id: P1.T1.S2
+    text: |
+      GREEN. Add the record to the `extra_records` list in
+      `clusters/hop/apps/headscale/manifests/configmap.yaml`, directly after the
+      `gitea-ssh.cluster.derio.net` entry, preserving the surrounding indentation
+      of the embedded document (6 spaces for the list item under `extra_records:`).
+
+      Carry a comment explaining WHY the name exists, matching the density of the
+      gitea-ssh comment above it — that this points straight at LiteLLM's Cilium
+      LoadBalancer on port 4000, bypassing Traefik and therefore the Authentik
+      forward-auth outpost, and that it requires `--accept-routes` on the client
+      because the LAN IP arrives via the argonath subnet routers.
+
+      ```yaml
+              - name: litellm-lb.cluster.derio.net
+                type: A
+                value: 192.168.55.206
+      ```
+
+      Re-run the test file and confirm it passes.
+- number: 2
+  title: Confirm the embedded document still parses and nothing else moved
+  steps:
+  - id: P1.T2.S1
+    text: |
+      The realistic hazard of editing YAML-inside-a-string is an indentation
+      slip that still parses as *some* valid YAML but changes the shape — for
+      example turning `extra_records` into a string or nesting the new entry
+      under the previous one. Assert the shape explicitly:
+
+      ```bash
+      uv run --frozen python -c "
+      import yaml, pathlib
+      cm = yaml.safe_load(pathlib.Path('clusters/hop/apps/headscale/manifests/configmap.yaml').read_text())
+      cfg = yaml.safe_load(cm['data']['config.yaml'])
+      recs = cfg['dns']['extra_records']
+      assert isinstance(recs, list), type(recs)
+      for r in recs: print(r['name'], '->', r['value'])
+      print('acl parses:', bool(yaml.safe_load(cm['data']['acl.yaml'])))
+      "
+      ```
+
+      Expect exactly four records printed (headplane, entry, gitea-ssh, litellm-lb)
+      and `acl parses: True`. Then run the full suite — `uv run --frozen pytest -q` —
+      and confirm the only delta against the baseline is your new test file.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

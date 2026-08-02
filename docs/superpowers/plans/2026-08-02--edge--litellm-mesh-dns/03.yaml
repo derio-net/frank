@@ -1,0 +1,89 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[manual] Restart headscale and drive the Test Plan'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+  acceptance:
+  - litellm-reachable-from-mesh-by-name
+tasks:
+- number: 1
+  title: Apply the DNS change to the running control plane
+  steps:
+  - id: P3.T1.S1
+    text: |
+      OPERATOR STEP — nothing here is agent-completable; it mutates the live
+      Hop control plane after the PR merges.
+
+      `headscale-config` is a plain, unhashed ConfigMap and cannot be converted
+      to a Kustomize configMapGenerator: headplane is a separate ArgoCD
+      Application that mounts the same ConfigMap by name with
+      `config_strict: true`, and Kustomize cannot rewrite a cross-Application
+      reference. `scripts/tests/test_config_reaches_the_process.py` already
+      records headscale as an explicit exemption for exactly this reason.
+
+      So nothing in the pod spec changes when the ConfigMap content changes:
+      ArgoCD will report `Synced`, the ConfigMap will hold both new records,
+      and headscale will keep serving the DNS map it parsed at boot —
+      indefinitely, with nothing anywhere reporting staleness.
+
+      ```bash
+      source .env_hop
+      kubectl -n argocd get app headscale \
+        -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status
+      kubectl -n headscale-system rollout restart deploy/headscale
+      kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
+      ```
+
+      Existing WireGuard sessions survive this; only the control plane blips.
+      A laptop that is offline during the restart picks the new map up on its
+      next control-plane poll.
+  - id: P3.T1.S2
+    text: |
+      OPERATOR STEP — verification. Run Test Plan steps 3 through 7 from
+      `docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md`.
+
+      From the Mac (note: macOS has no `getent`):
+
+      ```bash
+      dscacheutil -q host -a name litellm-lb.cluster.derio.net    # -> 192.168.55.206
+      dscacheutil -q host -a name litellm-api.cluster.derio.net   # -> 192.168.55.220
+      curl -s -o /dev/null -w '%{http_code}\n' http://litellm-lb.cluster.derio.net:4000/health/liveliness   # 200
+      curl -s -o /dev/null -w '%{http_code}\n' https://litellm-api.cluster.derio.net/v1/models              # 401, NOT 302
+      curl -s -o /dev/null -w '%{http_code}\n' https://litellm.cluster.derio.net/                           # 302 (SSO intact)
+      ```
+
+      The `401` is the load-bearing assertion: it means LiteLLM answered, so the
+      request reached it without the outpost intercepting. A `302` there means
+      forward-auth leaked onto the new route. A TLS error means the wildcard did
+      not attach.
+
+      Confirm the names are NXDOMAIN publicly, so the resolve provably came from
+      MagicDNS and not the homelab resolver — over DoH, because the homelab
+      blocks outbound port 53 and `dig @1.1.1.1` merely times out:
+
+      ```bash
+      curl -s -H 'accept: application/dns-json' \
+        'https://cloudflare-dns.com/dns-query?name=litellm-api.cluster.derio.net&type=A'
+      # expect "Status": 3
+      ```
+
+      Then flip `litellm-reachable-from-mesh-by-name` to `skipped` with the
+      evidence, via `fr acceptance set`.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

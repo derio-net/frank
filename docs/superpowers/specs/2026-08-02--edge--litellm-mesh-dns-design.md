@@ -195,6 +195,12 @@ laptop that is offline during the restart gets it when it next connects.
 - **Laptop-side configuration.** `--accept-routes` and the base URL belong to
   `derio-homelab/kid-laptops`, which carries the acceptance row.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|-----------|
+| 2026-08-02--edge--litellm-mesh-dns | `derio-net/frank` | `2026-08-02--edge--litellm-mesh-dns` | — |
+
 ## Risks
 
 | Risk | Mitigation |
