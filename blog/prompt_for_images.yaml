@@ -1958,3 +1958,17 @@ images:
       mood: skeptical
       clothing: Frank wears sturdy work clothes and a scuffed yellow hard hat.
     scene: 'A cluttered plant room rather than a control centre — bare concrete, exposed pipework overhead, one squat storage tank at Frank''s side. Frank stands half-turned away from a wall panel of four large identical dial gauges, every needle resting well inside a wide green band, each dial stamped with a small brass plate. He is not looking at them. He is looking at the thing in his hands: a long steel dipstick he has just drawn from the tank, held up into the lamplight, its wet mark showing the level barely off the bottom. Behind him each gauge''s feed pipe visibly goes somewhere wrong — the first runs into a valve on the tank''s side that is plainly shut; the second ends in mid-air, cleanly cut, nothing attached to it; the third disappears into the back of a framed PHOTOGRAPH of this same tank hanging on the wall; the fourth loops around and plugs back into its own gauge housing. A fifth tank stands in the far corner with no gauge and no pipe running to it at all, quietly full. He already knows which reading he trusts. The ONLY readable text anywhere in the frame: the four brass plates, each reading "OK", and a chalked mark on the side of the tank reading "94%". Warm work-lamp light raking from one side, cool green spill from the gauge faces, deep shadow in the corners.'
+- key: building-37
+  aspect_ratio: '16:9'
+  output: blog/content/docs/building/37-igpu-retrieval-tier/cover.png
+  description: Retrieval on the Idle iGPUs — Frank compares two identical bench rigs,
+    one holding a claimed graphics tile, against two stopwatches
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-lab-coat-overalls.png
+    modifiers:
+      series: building
+      mood: weighing
+      clothing: building[overalls]
+    scene: |
+      Frank in a workshop test bay, standing between two identical bench rigs running the same job. The left rig has a small glowing graphics tile seated in it and a numbered claim tag on a short cable running from the tile to Frank's hand; the right rig has an empty, open socket where that tile would go. Above each rig hangs a large analogue stopwatch: the left one's needle has barely moved off zero, the right one's has swept most of the way around the dial. On a shelf behind him sit three small dormant mini-PCs, two of them dark, faint heat-shimmer above the one feeding the left rig. Frank looks between the two stopwatches rather than at the viewer, one hand steadying the claim tag. The ONLY readable text: the number "1" on the claim tag; no captions, no watermarks, no numerals on the stopwatch dials. Warm workshop key light, cool blue spill from the glowing tile, measured comparison mood.
