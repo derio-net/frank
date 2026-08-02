@@ -168,13 +168,22 @@ commands: |
   kubectl -n headscale-system rollout restart deploy/headscale
   kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
 verify: |
-  # From any mesh node. NOTE: macOS has no `getent` — use dscacheutil there.
-  # Linux mesh node (laptops, argonath):
-  #   getent hosts litellm-lb.cluster.derio.net    # -> 192.168.55.206
-  #   getent hosts litellm-api.cluster.derio.net   # -> 192.168.55.220
-  # macOS (operator's Mac):
-  dscacheutil -q host -a name litellm-lb.cluster.derio.net   # -> 192.168.55.206
-  dscacheutil -q host -a name litellm-api.cluster.derio.net  # -> 192.168.55.220
+  # Homelab DNS serves a WILDCARD *.cluster.derio.net -> 192.168.55.220, so on
+  # the LAN a lookup of litellm-api returns .220 whether or not the record
+  # exists. Only the litellm-lb record discriminates (.206 != the wildcard's
+  # .220), so THAT is the one that proves the restart took effect. Both records
+  # live in the same ConfigMap and are loaded by the same restart, so proving
+  # one proves both.
+  #
+  # macOS (operator's Mac) — no `getent` on macOS:
+  dscacheutil -q host -a name nope-xyz.cluster.derio.net     # -> 192.168.55.220 (NEGATIVE CONTROL: the wildcard)
+  dscacheutil -q host -a name litellm-lb.cluster.derio.net   # -> 192.168.55.206 (PROOF: differs from the wildcard)
+  # Linux mesh node (laptops, argonath): same two, via `getent hosts <name>`.
+  #
+  # Do NOT treat `litellm-api -> 192.168.55.220` as evidence on the LAN; it is
+  # the wildcard answering. Verify that endpoint FUNCTIONALLY instead (Test
+  # Plan step 5), or resolve it from a genuinely off-LAN mesh node where no
+  # homelab resolver is reachable.
 status: pending
 ```
 
@@ -216,19 +225,37 @@ Post-merge, operator-driven. Each row is an acceptance claim.
 
 1. **ArgoCD syncs headscale.** `kubectl -n argocd get app headscale -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status` → `Synced/Healthy`.
 2. **Run the manual operation above** (`rollout restart deploy/headscale`).
-3. **Names resolve on the mesh.** From the operator's Mac (macOS has no
-   `getent` — use `dscacheutil -q host -a name <name>`):
-   `litellm-lb.cluster.derio.net` → `192.168.55.206`;
-   `litellm-api.cluster.derio.net` → `192.168.55.220`.
-   Do **not** accept a resolve as proof on its own — confirm the same names are
-   `NXDOMAIN` publicly, so the answer provably came from MagicDNS rather than
-   the homelab resolver. Use **DoH**, not `dig @1.1.1.1`: the homelab blocks
-   outbound port 53, so `dig @1.1.1.1` times out on the LAN and proves nothing.
+3. **Names resolve on the mesh — via the one check that can actually fail.**
+   Homelab DNS serves a **wildcard** `*.cluster.derio.net → 192.168.55.220`,
+   measured 2026-08-02 (`nope-xyz.cluster.derio.net` resolves to `.220`). So on
+   the LAN, `litellm-api → 192.168.55.220` passes *identically whether or not
+   the record exists* — it is the wildcard answering, and asserting it proves
+   nothing.
+
+   `litellm-lb → 192.168.55.206` **does** discriminate, because `.206` differs
+   from the wildcard's `.220` and can only come from MagicDNS. That MagicDNS
+   outranks the wildcard on a mesh node is already demonstrated by the existing
+   `gitea-ssh.cluster.derio.net → 192.168.55.209`, which resolves correctly
+   today against the same wildcard.
+
+   Both records live in one ConfigMap and are loaded by one restart, so proving
+   `litellm-lb` proves the restart landed and therefore both records are live.
+   Run the negative control alongside it, so the wildcard is visible rather than
+   assumed (macOS has no `getent`; use `dscacheutil -q host -a name <name>`):
+
    ```
-   curl -s -H 'accept: application/dns-json' \
-     'https://cloudflare-dns.com/dns-query?name=litellm-api.cluster.derio.net&type=A'
-   # expect "Status": 3   (NXDOMAIN)
+   nope-xyz.cluster.derio.net    -> 192.168.55.220   # control: the wildcard
+   litellm-lb.cluster.derio.net  -> 192.168.55.206   # proof: differs from it
    ```
+
+   Public `NXDOMAIN` still holds (confirm over **DoH**, not `dig @1.1.1.1` —
+   the homelab blocks outbound port 53, so that merely times out), but note it
+   only shows the zone is private; it does not distinguish MagicDNS from the
+   homelab wildcard. The `.206`/`.220` split is what does.
+
+   For `litellm-api` specifically, either resolve it from a genuinely off-LAN
+   mesh node (no homelab resolver in reach) or rely on step 5, which verifies
+   that endpoint functionally.
 4. **Direct LB path serves.** `curl -s -o /dev/null -w '%{http_code}' http://litellm-lb.cluster.derio.net:4000/health/liveliness` → `200`.
 5. **TLS path serves with a valid cert and no SSO.**
    `curl -s -o /dev/null -w '%{http_code}' https://litellm-api.cluster.derio.net/v1/models` → **`401`**, not `302`.
