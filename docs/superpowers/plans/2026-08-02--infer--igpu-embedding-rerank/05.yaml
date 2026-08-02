@@ -105,8 +105,15 @@ tasks:
   steps:
   - id: P5.T3.S1
     text: |
-      Update the five acceptance rows with the measured evidence
-      (`fr acceptance set-status`), and record the numbers in the plan.
+      Update the five acceptance rows with the measured evidence and record the
+      numbers in the plan. NOTE: there is no `fr acceptance set-status`
+      subcommand (the verbs are add/init/backfill/check/report/status/summary/
+      digest) — edit `docs/acceptance/matrix.yaml` by hand, then regenerate with
+      `fr acceptance report --deterministic`. Use `status: ci` for a row a test
+      in `scripts/tests/` guards (repo-tripwires.yml runs that suite), and
+      `skipped` only for rows whose evidence is a live manual proof; say which
+      in the notes, because `test_acceptance_status_matches_notes.py` now fails
+      a `ci` row whose notes deny CI.
 
       State the SCOPE of the number every time it is reported. It comes from
       ONE pod, hostname-pinned to a control-plane node (`nodeSelector:
