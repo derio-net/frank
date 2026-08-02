@@ -8,7 +8,16 @@
 1. Fixes mini node labels (`accelerator: intel-igpu`, `igpu: intel-arc`)
 2. Adds Intel Arc iGPU Talos extensions (`i915` + `intel-ucode`) to mini-{1..3} image schematics via Omni (triggers rolling reboot, one node at a time)
 3. Enables CDI device discovery in containerd (cluster-wide config patch, no reboot)
-4. Deploys the Intel GPU Device Plugin via ArgoCD to expose `gpu.intel.com/i915` as a schedulable resource
+4. Deploys Intel's **DRA resource driver** (`resource.k8s.io/v1`, GA on this
+   cluster) via ArgoCD, at `apps/intel-gpu-driver/`. It publishes a
+   `ResourceSlice` per node under DeviceClass `gpu.intel.com` — **not** an
+   extended resource. `gpu.intel.com/i915` does not exist; querying
+   `node.status.allocatable` for it returns nothing. Workloads claim the iGPU
+   with a `ResourceClaim`/`ResourceClaimTemplate` instead — see "Claiming the
+   iGPU" below. (This corrects an earlier version of this doc, which described
+   the retired per-node device-exposure model at a since-removed app path —
+   the extended-resource idiom that DRA replaced. Full history:
+   `docs/runbooks/frank-gotchas/igpu-dra.md`.)
 
 ## Prerequisites
 
@@ -24,7 +33,7 @@
 | `502-mini3-i915-extensions.yaml` | omnictl | Adds i915+intel-ucode to mini-3 (triggers reboot) |
 | `05-mini-cdi-containerd.yaml` | omnictl | Enables CDI in containerd cluster-wide (no reboot) |
 
-ArgoCD Application + values: `apps/intel-gpu-plugin/`
+ArgoCD Application + values: `apps/intel-gpu-driver/`
 
 ## Apply Order
 
@@ -74,6 +83,55 @@ kubectl get pods -n intel-gpu-resource-driver -o wide
 kubectl get resourceslice -o wide
 kubectl get deviceclass
 ```
+
+## Claiming the iGPU
+
+A workload asks for the device with a `ResourceClaimTemplate` (per-pod
+lifecycle — no shared claim to dangle) selecting DeviceClass `gpu.intel.com`,
+then references it from a container's `resources.claims`. This is the real
+shape in use on the cluster (`apps/ovms-retrieval/manifests/`):
+
+```yaml
+# resourceclaimtemplate.yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: ovms-igpu
+  namespace: retrieval
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: gpu.intel.com
+            allocationMode: ExactCount
+            count: 1
+```
+
+```yaml
+# deployment.yaml (excerpt)
+spec:
+  template:
+    spec:
+      resourceClaims:
+        - name: igpu
+          resourceClaimTemplateName: ovms-igpu
+      containers:
+        - name: ovms
+          resources:
+            claims:
+              - name: igpu
+```
+
+**No `capacity` selector.** The ResourceSlice advertises `capacity.memory:
+"0"` — the iGPU has no dedicated VRAM, it borrows the node's 64 GB via i915 —
+so a claim that requests GPU memory can never be satisfied; select the device
+and nothing else, and use the container's `resources.limits.memory` as the
+real backstop. `/dev/dri` arrives `crw-rw-rw- root:root`, so no
+`supplementalGroups` render-GID hunting is needed. Full detail (including the
+CDI-does-not-auto-inject negative control):
+`docs/runbooks/frank-gotchas/igpu-dra.md`.
 
 ## Rollback
 

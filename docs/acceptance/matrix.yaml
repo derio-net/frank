@@ -773,6 +773,12 @@ rows:
       resource).
     origin:
     - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
-    levels: {}
-    status: not-implemented
-    notes: Test Plan row 8; phase05 README drifted a full API generation.
+    levels:
+      unit:
+      - frank:scripts/tests/test_igpu_dra_docs.py
+    status: skipped
+    notes: 'Test Plan row 8; phase05 README drifted a full API generation. Fixed
+      2026-08-02 (phase 4): patches/phase05-mini-config/README.md corrected to
+      the DRA resource driver + a worked ResourceClaim example, plus a new
+      docs/runbooks/frank-gotchas/igpu-dra.md. Unit guard
+      scripts/tests/test_igpu_dra_docs.py passing (local guard, not CI-run).'

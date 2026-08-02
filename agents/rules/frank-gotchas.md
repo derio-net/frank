@@ -130,6 +130,15 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - Ollama "system memory" errors mean container cgroup RAM (not VRAM) — `OLLAMA_KEEP_ALIVE` page cache pins the cgroup near `resources.limits.memory`.
 - ComfyUI custom nodes on the `comfyui-custom-nodes` PVC seed **if-absent** — a Dockerfile node patch never reaches an already-seeded PVC, so pods stay Ready while a node `IMPORT FAILED`s. Probe `/object_info`, not pod existence. Fixed by version-gating the seed. Full prose: `gpu-1.md`.
 
+### Intel iGPU / DRA — `docs/runbooks/frank-gotchas/igpu-dra.md`
+- `resource.k8s.io/v1` (GA, K8s v1.35.3) replaced the device plugin — the real deployment is the DRA resource driver at `apps/intel-gpu-driver/`, not an extended resource `gpu.intel.com/i915` (doesn't exist); claim it via `ResourceClaim`/`ResourceClaimTemplate` against DeviceClass `gpu.intel.com`. `patches/phase05-mini-config/README.md` drifted a full API generation describing the retired model — fixed 2026-08-02.
+- ResourceSlice advertises `capacity.memory: "0"` (iGPU borrows host RAM via i915) — a claim that requests GPU memory can never be satisfied; select the device only, use the container's `resources.limits.memory` as the real backstop.
+- `/dev/dri` is `crw-rw-rw-` root:root on the minis — skip the usual render-GID `supplementalGroups` hunt.
+- CDI does not auto-inject the device even with cluster-wide CDI discovery on (phase05) — proven by negative control (identical pod without a claim has no `/dev/dri`); the claim is what triggers injection.
+- `ovms --pull` without `--weight-format` downloads unservable raw HF safetensors (`openvino_tokenizer.xml was not provided`); adding `--weight-format int8` then fails with `missing optimum-intel` — no published OVMS image (`2026.2.1`/`2026.2.1-gpu`) carries it, so conversion must happen out-of-band (CI-built model image via `export_model.py`).
+- The `OpenVINO/` HF org only publishes English bge variants (`bge-base-en-v1.5`, `bge-reranker-base`) — the pre-converted escape hatch doesn't cover multilingual pairs.
+- `GET /v2/health/ready` is SERVER-level and returns 200 while a servable is `LOADING_PRECONDITION_FAILED` — readiness must probe `GET /v2/models/<name>/ready`; `GET /v1/config` is the per-servable diagnostic. Same silent-green family as the config-reaches-the-process traps.
+
 ### Agent shells — `docs/runbooks/frank-gotchas/agent-shells.md`
 - `agent-shell-base` parameterizes user via `AGENT_USER`/`AGENT_HOME` (defaults `agent`/`/home/agent`); kali overrides to `claude`/`/home/claude` to preserve PV state. Don't hardcode `/home/claude` in new init scripts.
 - s6-overlay v3 in non-root mode needs `S6_KEEP_ENV=1`, `S6_VERBOSITY=2`, `with-contenv` shebangs (`#!/command/with-contenv bash` — `/command/`, NOT `/usr/bin/`), and `/run` chown'd to AGENT_UID at image build time.
