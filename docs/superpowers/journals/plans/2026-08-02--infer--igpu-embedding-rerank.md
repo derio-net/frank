@@ -247,3 +247,18 @@ Reworked so the exemption is scoped by FILE PATH rather than by the string being
 ### f-dockerfile-requirements-subset · finding [fixed] · CI build FAILED: the Dockerfile's 'same pins as upstream' comment was false (phase 1)
 
 The pull_request build job caught this on its first run — which is the entire reason it was added, since every other build workflow in this repo is push:main-only and would have shipped it unbuilt. The export stage hand-copied upstream's demos/common/export_models/requirements.txt inline with a comment claiming parity; it was a SUBSET, dropping requests (plus accelerate/datasets/diffusers/einops/numpy/pillow/torchvision). Build died at 5s: ModuleNotFoundError: No module named 'requests', raised inside optimum's own openvino export command. Likely proximate cause: recent huggingface_hub moved to httpx, so requests is no longer installed transitively while optimum still imports it. Fixed by FETCHING requirements.txt from the same pinned MODEL_SERVER_REF that export_model.py was already fetched from one line below — the script and its dependency list can no longer disagree, and it is exactly as reproducible as the fetch it sits next to. Added a grep tripwire so the build fails loudly at fetch time if upstream ever drops requests, rather than 5s into a model export. Also removed three now-orphaned ARG pins that would have read as authoritative while controlling nothing.
+
+<!-- fr:journal kind=finding scope=plan id=f-hugo-future-date created=2026-08-03T01:47:50 phase=5 state=fixed -->
+### f-hugo-future-date · finding [fixed] · A post dated TODAY was silently excluded from the Hugo build (phase 5)
+
+Post 37 was written at 01:44 CEST with date: 2026-08-03. Hugo parses that as midnight UTC (= 02:00 CEST), which was ~15 minutes in the future, and buildFuture defaults to false — so the page was simply not rendered. No warning, no error. My own earlier 'blog builds clean' check passed because nothing referenced the post yet; it only surfaced when the operating post's relref produced REF_NOT_FOUND and test_series_index_adoption.py failed. Fixed by dating the post 2026-08-02, the day the work landed. One-liner added to agents/rules/frank-gotchas.md.
+
+<!-- fr:journal kind=finding scope=plan id=f-acceptance-ci-overstated created=2026-08-03T01:47:51 phase=5 state=fixed -->
+### f-acceptance-ci-overstated · finding [fixed] · Marked two acceptance rows 'ci' when CI only guards their shape (phase 5)
+
+Set infer-igpu-rerank-endpoint and infer-igpu-embeddings-endpoint to status ci because tests exist. test_acceptance_status_matches_notes (added during this plan's own review pass) failed them for naming no levels entry, which surfaced the deeper error: those rows assert SERVING BEHAVIOUR, and CI only guards the manifest shape. Corrected to skipped with the live evidence in notes. Symmetric to the earlier correction in the opposite direction on gpu-igpu-claim-documented — the vocabulary only means something if each row's status matches what actually enforces it.
+
+<!-- fr:journal kind=decision scope=plan id=d-new-post-deviation created=2026-08-03T01:47:53 -->
+### d-new-post-deviation · decision · Shipped a new building post instead of extending Layer 11
+
+The plan said 'an extension, so no new posts', following the fix/extension workflow. Operator judged the material substantial enough for its own narrative and approved a new post. Building layers routinely carry several posts (agents has 6, obs 5), so a second infer post is consistent. P5.T3.S2 was rewritten to record the deviation rather than left contradicting what shipped.

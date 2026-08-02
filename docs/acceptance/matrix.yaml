@@ -710,19 +710,19 @@ rows:
   - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
   levels: {}
   status: skipped
-  notes: 'PROVEN LIVE 2026-08-02, after manual-op edge-headscale-litellm-mesh-dns-restart. DNS, read
-    on a mesh node with all three controls so the homelab wildcard could not fake it: gitea-ssh.cluster.derio.net
+  notes: 'PROVEN LIVE 2026-08-02, after manual-op edge-headscale-litellm-mesh-dns-restart. DNS, read on
+    a mesh node with all three controls so the homelab wildcard could not fake it: gitea-ssh.cluster.derio.net
     -> 192.168.55.209 (positive control: MagicDNS answering and outranking the wildcard), nope-xyz.cluster.derio.net
     -> 192.168.55.220 (negative control: the wildcard itself), litellm-lb.cluster.derio.net -> 192.168.55.206
     (proof: differs from the wildcard, so it can only be the new map). Reachability: http://litellm-lb.cluster.derio.net:4000/health/liveliness
-    -> 200. Route: https://litellm-api.cluster.derio.net/v1/models -> 401 from LiteLLM with a valid
-    wildcard cert (ssl_verify=0), NOT a 302 to Authentik. Authenticated: the same URL with the vaulted
-    kid-laptops virtual key -> 200 and a 12-model list (mistral-small-24b, gemma-12b, ...), which is
-    the load-bearing check - every other result above is satisfied by a LiteLLM that rejects all keys.
-    SSO regression: https://litellm.cluster.derio.net/ still 302s to Authentik. Status is skipped rather
-    than ci because the proof needs a live mesh node and a real credential; the offline half (route
-    shape, no forward-auth) IS ci-guarded under litellm-public-host-keeps-sso. The off-LAN foreign-network
-    leg is derio-homelab/kid-laptops'' row laptop-reaches-frank-from-anywhere.'
+    -> 200. Route: https://litellm-api.cluster.derio.net/v1/models -> 401 from LiteLLM with a valid wildcard
+    cert (ssl_verify=0), NOT a 302 to Authentik. Authenticated: the same URL with the vaulted kid-laptops
+    virtual key -> 200 and a 12-model list (mistral-small-24b, gemma-12b, ...), which is the load-bearing
+    check - every other result above is satisfied by a LiteLLM that rejects all keys. SSO regression:
+    https://litellm.cluster.derio.net/ still 302s to Authentik. Status is skipped rather than ci because
+    the proof needs a live mesh node and a real credential; the offline half (route shape, no forward-auth)
+    IS ci-guarded under litellm-public-host-keeps-sso. The off-LAN foreign-network leg is derio-homelab/kid-laptops''
+    row laptop-reaches-frank-from-anywhere.'
 - id: litellm-public-host-keeps-sso
   capability: Edge & mesh access
   acceptance: Adding mesh-only API endpoints for LiteLLM does not remove SSO from its public hostname,
@@ -752,8 +752,11 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: not-implemented
-  notes: Spike deliverable; verified post-merge by Test Plan rows 1-3 (live POST /v3/rerank, 20 passages).
+  status: skipped
+  notes: 'MET 2026-08-03 live: POST /v3/rerank returns {results:[{index,relevance_score}]}; scores well
+    separated (0.0395 relevant vs 1.6e-5 irrelevant, ~2400x), not the degenerate 1e-9..1e-12 pattern.
+    Both servables AVAILABLE via GET /v1/config. CI guards the manifest SHAPE (scripts/tests/test_ovms_retrieval_manifests.py),
+    not the serving behaviour, so this row is live-proof rather than ci.'
 - id: infer-igpu-rerank-latency-measured
   capability: Retrieval models
   acceptance: Operators have a measured rerank latency figure for a 20-passage batch on the mini iGPU,
@@ -761,8 +764,11 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: not-implemented
-  notes: The number the spike exists to produce. Test Plan rows 4-5.
+  status: skipped
+  notes: 'MET 2026-08-03 by live measurement (manual, not automatable in CI). iGPU rerank of 20 candidates:
+    p50 77.3ms, p95 87.1ms, max 91.1ms, N=30 after warm-up. CPU control arm on the same node, same weights:
+    p50 1612.9ms, p95 1702.6ms -> iGPU 20.9x faster. Caveat recorded: single-item embedding is only 1.1x
+    (28.4 vs 32.2ms), request-overhead bound; and the ratio is at short sequence length.'
 - id: infer-igpu-embeddings-endpoint
   capability: Retrieval models
   acceptance: In-cluster clients can obtain multilingual embeddings from Frank with a recorded vector
@@ -770,8 +776,10 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: not-implemented
-  notes: Test Plan row 6.
+  status: skipped
+  notes: 'MET 2026-08-03 live: POST /v3/embeddings returns 1024-dimensional vectors, dimension read from
+    the response. Single p50 28.4ms, batch-32 p50 93.2ms, throughput 35.2/343.5 items per s. CI guards
+    the manifest shape only; the serving behaviour is live proof.'
 - id: infer-igpu-workload-preserves-quorum
   capability: Control-plane safety
   acceptance: A warm inference workload pinned to a control-plane mini leaves etcd quorum and API-server
@@ -779,8 +787,12 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: not-implemented
-  notes: Test Plan row 7; leader changes must not increase.
+  status: skipped
+  notes: 'PARTIALLY MET 2026-08-03. 7500 rerank requests over 240s (~31/s) from mini-1: apiserver p99
+    (WATCH/CONNECT excluded) 23.4ms before vs 22.1ms under load; all three minis Ready, no Memory/DiskPressure;
+    ovms working set 2254Mi of 6Gi. NOT VERIFIABLE: etcd leader changes and WAL fsync -- Frank does not
+    scrape etcd (no etcd scrape job; the etcd_* series present are the apiserver''s etcd CLIENT metrics).
+    Tracked as a follow-up; the row is deliberately NOT marked fully met.'
 - id: gpu-igpu-claim-documented
   capability: GPU documentation
   acceptance: Operators have accurate documentation of how to claim a mini iGPU that matches what is actually

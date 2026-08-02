@@ -2,7 +2,7 @@
 title: "Retrieval on the Idle iGPUs"
 series: ["building"]
 layer: infer
-date: 2026-08-03
+date: 2026-08-02
 draft: false
 tags: ["dra", "resourceclaim", "intel-arc", "igpu", "openvino", "embeddings", "rerank", "talos", "infer"]
 summary: "Embeddings and reranking on my control plane's idle Arc iGPUs via Kubernetes DRA, plus the CPU control arm that decided whether the accelerator earned it"
