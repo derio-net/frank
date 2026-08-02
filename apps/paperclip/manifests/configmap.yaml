@@ -16,12 +16,11 @@ data:
   # This env var REPLACES (does not extend) the fileConfig server.allowedHostnames,
   # so it must enumerate EVERY host Paperclip is served on:
   #   - paperclip.cluster.derio.net      Traefik IngressRoute (canonical UI domain)
-  #   - paperclip.frank.derio.net        legacy domain (still probed by blackbox)
   #   - 192.168.55.212                   direct LB IP
   #   - paperclip-lb...svc.cluster.local internal service DNS (live-mirror-sync
   #                                      Tekton Task -> routine-trigger fire, gh #444)
   # envFrom CM change does NOT auto-roll the pod; rollout restart required after sync.
-  PAPERCLIP_ALLOWED_HOSTNAMES: "192.168.55.212,paperclip.cluster.derio.net,paperclip.frank.derio.net,paperclip-lb.paperclip-system.svc.cluster.local"
+  PAPERCLIP_ALLOWED_HOSTNAMES: "192.168.55.212,paperclip.cluster.derio.net,paperclip-lb.paperclip-system.svc.cluster.local"
   # Opt out of upstream telemetry added in v2026.403.0.
   DO_NOT_TRACK: "1"
   PAPERCLIP_TELEMETRY_DISABLED: "1"
