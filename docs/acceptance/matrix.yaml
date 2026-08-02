@@ -729,3 +729,50 @@ rows:
     status: not-implemented
     notes: Requires UI, discovery, API-authentication, certificate, and mesh-resolution
       checks after DNS cleanup.
+  - id: infer-igpu-rerank-endpoint
+    capability: Retrieval models
+    acceptance: An in-cluster client can rerank a candidate passage set against a multilingual
+      cross-encoder and receive scored, well-separated result indices.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+    levels: {}
+    status: not-implemented
+    notes: Spike deliverable; verified post-merge by Test Plan rows 1-3 (live POST /v3/rerank,
+      20 passages).
+  - id: infer-igpu-rerank-latency-measured
+    capability: Retrieval models
+    acceptance: Operators have a measured rerank latency figure for a 20-passage batch
+      on the mini iGPU, plus a same-node CPU control arm, instead of an arithmetic estimate.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+    levels: {}
+    status: not-implemented
+    notes: The number the spike exists to produce. Test Plan rows 4-5.
+  - id: infer-igpu-embeddings-endpoint
+    capability: Retrieval models
+    acceptance: In-cluster clients can obtain multilingual embeddings from Frank with
+      a recorded vector dimensionality.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+    levels: {}
+    status: not-implemented
+    notes: Test Plan row 6.
+  - id: infer-igpu-workload-preserves-quorum
+    capability: Control-plane safety
+    acceptance: A warm inference workload pinned to a control-plane mini leaves etcd
+      quorum and API-server latency unchanged relative to the two untouched peers.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+    levels: {}
+    status: not-implemented
+    notes: Test Plan row 7; leader changes must not increase.
+  - id: gpu-igpu-claim-documented
+    capability: GPU documentation
+    acceptance: Operators have accurate documentation of how to claim a mini iGPU that
+      matches what is actually deployed (DRA ResourceClaim, not a device-plugin extended
+      resource).
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+    levels: {}
+    status: not-implemented
+    notes: Test Plan row 8; phase05 README drifted a full API generation.
