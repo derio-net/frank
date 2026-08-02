@@ -74,3 +74,56 @@ P5.T2.S2 said 'run the CPU control arm' but the Deployment seeds only /models-sr
 ### f-bench-invocation · finding [fixed] · Phase 5 measurement step would have failed on bare python3 (phase 5)
 
 Phase 3 found that bare python3 in the isolation container lacks the stdlib 'http' package, so urllib.request fails to import and even --help dies. It was journaled but not carried into P5.T2.S1's step text, where the live run actually happens. Added the 'uv run python3' invocation to the step.
+
+<!-- fr:journal kind=finding scope=plan id=f-c1-arm-label created=2026-08-02T17:07:33 phase=3 state=fixed -->
+### f-c1-arm-label · finding [fixed] · `--arm` was an unfalsifiable label — the record carried nothing that could contradict it (phase 3)
+
+`--arm gpu|cpu` was free text copied into the JSON, and the payload recorded no `base_url`, no timestamp and no server state. The docstring claimed a recorded measurement "can never be ambiguous about which device produced it"; that was false. The designed phase-5 workflow runs one arm against the default URL and the other against a separately stood-up pod, so forgetting either flag yields a well-formed, authoritative-looking record attributing one device's latency to the other, with nothing downstream able to detect it.
+
+Fixed in `scripts/ovms-retrieval-bench.py`: the payload now records `base_url`, a UTC ISO-8601 `timestamp` and a `server_config` snapshot of `GET {base_url}/v1/config` (per-servable name/version/state via `summarize_servables`, plus the raw response verbatim), all as keyword-only parameters with no defaults so a record cannot be assembled without them. `extract_reported_device` searches the config for a device field; `device_cross_check` compares it to `--arm` and `main()` aborts with exit 4 and a stderr message BEFORE any timing runs if they disagree — so a contradicted arm produces no file at all.
+
+Honesty caveat, now stated in the docstring instead of a guarantee: **OVMS's `/v1/config` reports servable state, not target device**, so on this server the cross-check records `not-reported` and the device claim still rests on which model repository was seeded (`target_device` is baked into each servable's `graph.pbtxt` at export). An unreachable config endpoint records `available: false` + `arm_cross_check: unavailable` and warns on stderr rather than silently producing a clean-looking record. A device string the harness cannot read (`AUTO`) is `not-reported`, never `confirmed`.
+
+<!-- fr:journal kind=finding scope=plan id=f-i6-batch-warmup created=2026-08-02T17:07:59 phase=3 state=fixed -->
+### f-i6-batch-warmup · finding [fixed] · Batch-32 was never warmed, so a shape recompile landed in the quoted worst case (phase 3)
+
+`_run_embeddings_benchmark` warmed only the single-input shape, then timed N single calls and immediately N batch-32 calls. Changing the batch dimension makes the OpenVINO GPU plugin recompile for the new shape — seconds on a cold iGPU — and that cold call went straight into `embeddings.batch_latency_ms.max`, the exact figure a reader quotes as worst case. The rerank path already warmed correctly.
+
+Fixed: each embedding SHAPE is warmed at its own shape before its timed loop, governed by a new `--embedding-warmup` (default 3, matching the rerank warm-up). Test `test_batch_shape_is_warmed_before_the_timed_batch_loop` monkeypatches `_post_json` with a recorder and asserts the batch-shaped call count is iterations + warm-up while the summary still reports n == iterations, and that the warm-up calls precede the timed window rather than being interleaved.
+
+<!-- fr:journal kind=finding scope=plan id=f-i7-embedding-iterations created=2026-08-02T17:08:09 phase=3 state=fixed -->
+### f-i7-embedding-iterations · finding [fixed] · Embedding sample size was silently driven by `--rerank-iterations` (phase 3)
+
+There was no `--embedding-iterations`: both embedding loops used `args.rerank_iterations`, so `--rerank-iterations 5` shrank the embedding samples too while the payload reported `rerank.iterations` as the only top-level count. A reader had no way to know how many embedding samples backed the distribution.
+
+Fixed: added `--embedding-iterations` (default `RERANK_ITERATIONS` = 30, so existing invocations are unchanged) and recorded `embeddings.iterations` in the payload alongside the per-summary `n`.
+
+<!-- fr:journal kind=finding scope=plan id=f-i8-degeneracy-gate created=2026-08-02T17:08:26 phase=3 state=fixed -->
+### f-i8-degeneracy-gate · finding [fixed] · Degeneracy heuristic missed the range it named; fixed, but the prescribed formula was arithmetically self-defeating (phase 3)
+
+The check ANDed a magnitude gate (`max < 1e-6`) with an ABSOLUTE separation gate (`max - min < 1e-9`), so only score sets whose entire spread was under 1e-9 tripped it. Scores squarely inside the ~1e-9..1e-12 range the docstring named as the measured failure signature were NOT flagged. This is the check that detects a reranker served as the wrong model class — the precise failure the whole spike exists to avoid repeating — so a silent miss is the worst available outcome.
+
+**Partial refutation of the prescribed fix.** The review asked for `(hi - lo) / hi < 0.01` ANDed with `hi < 1e-6`, AND for the two named cases to become regression tests. Those two requirements are mutually exclusive: for `[5e-9 … 1e-12]` the relative spread is `(5e-9 - 1e-12)/5e-9` = 0.9998, and for `[3e-7 … 2e-8]` it is 0.933 — both far above 0.01, so under the prescribed AND neither named case would be flagged, exactly as before. Any rule that flags them must treat the magnitude gate as sufficient on its own.
+
+Implemented instead as an OR of two independent, individually defensible signatures:
+  (a) `max < 1e-6` — the whole score set collapsed into the near-zero floor;
+  (b) `(hi - lo) / hi < 0.01` at ANY magnitude — the model returns effectively the same score for every candidate, so it is not ranking. This is the relative, scale-free separation gate the review asked for, kept as its own signature where it is meaningful.
+
+(a) is only safe because of a second change: the rotating query now NAMES a topic that is present in the candidate set, so a healthy cross-encoder must score that candidate highly. Without that, a magnitude-only rule would false-positive whenever the (generic, unrelated) filler happened to be genuinely irrelevant to the query — a real risk with the previous fixed 'tips for a new hobby' query. Kept: `[1e-3, 5e-5, 1e-7]` is not flagged, and a positive-max guard still scopes the check away from all-zero/all-negative output. Boundary tests at 1e-7, 1e-8 and at the exclusive 1e-6 ceiling.
+
+<!-- fr:journal kind=finding scope=plan id=f-m6-throughput created=2026-08-02T17:08:37 phase=3 state=fixed -->
+### f-m6-throughput · finding [fixed] · Spec promised embedding throughput; harness reported only latency (phase 3)
+
+The spec's deliverable list says 'Embedding throughput — single and batch-32', but the payload carried only latency distributions. Fixed by emitting `embeddings.throughput_items_per_s` with `single`, `batch` and an explicit `basis: derived from p50 latency` — a derived figure, labelled as derived, so nobody re-derives it wrongly from a p95. Pure helper `throughput_items_per_s(latency_ms, items)` rejects a non-positive latency rather than dividing by zero.
+
+<!-- fr:journal kind=finding scope=plan id=f-m8-timing-scope created=2026-08-02T17:08:49 phase=3 state=fixed -->
+### f-m8-timing-scope · finding [fixed] · The measured time was never stated to include client-side work (phase 3)
+
+`_time_call` wraps `_post_json`, which opens a fresh TCP connection per call and does client-side `json.loads`. For batch-32 by 1024-dim vectors that is several hundred KB parsed in-process and attributed to the server. The methodology was deliberately NOT reshaped (no keep-alive, no response-size trimming) — it is a legitimate end-to-end in-cluster client measurement — but it is now stated: a `TIMING_INCLUDES_NOTE` constant is written into every payload as `timing_includes` and repeated in the module docstring, so a quoted figure carries its own methodology.
+
+<!-- fr:journal kind=finding scope=plan id=f-d1-rotate-request-body created=2026-08-02T17:09:01 phase=3 state=fixed -->
+### f-d1-rotate-request-body · finding [fixed] · The harness sent one identical body 33 times — a best case, not a measurement (phase 3)
+
+Every iteration reused the same query and candidate set, so the numbers reflected fully warm caches and zero tokenizer variance. Adopted the review's design opinion: `generate_filler_query(index)` and `generate_filler_passages(n, offset=...)` rotate content across iterations, for both the rerank body and both embedding shapes.
+
+Two constraints kept the rotation honest rather than merely noisy: text length is held roughly constant (asserted to within 30 characters across offsets) so rotation varies content without varying the work per call — a wildly different token count per iteration would make the latency distribution meaningless — and every rotated query names a topic that IS in the candidate set, which is what makes the degeneracy magnitude gate (see f-i8) evidence of failure rather than evidence of an irrelevant candidate set. All text remains generic invented filler.
