@@ -64,8 +64,77 @@ tasks:
       copy of the query and confirm it DOES return comfyui and litellm. A rule
       that returns nothing because it matches nothing is indistinguishable from a
       correct one until the day it matters.
+- number: 2
+  title: Restore the monitoring-DaemonSet coverage phase 3 dropped
+  steps:
+  - id: P4.T2.S1
+    text: |
+      RED. Phase 3 left an OPEN finding (journal `86ffb32eb446`) that must be
+      CLOSED here, not shipped.
+
+      Migrating `layer-8-observability-down` to Deployments+StatefulSets dropped
+      the two `monitoring` DaemonSets — `fluent-bit` and
+      `victoria-metrics-prometheus-node-exporter`. The spec justified that by
+      claiming "their real coverage is the Layer 1/2 node alerts". **That claim
+      was false**, verified directly: both `layer-1-hardware-down` and
+      `layer-2-os-down` query
+      `kube_node_status_condition{condition="Ready",status="false"}`, so they
+      fire only when a NODE goes NotReady and are blind to a collector dying on
+      a healthy node.
+
+      The pre-migration per-pod layer-8 query DID cover those pods, so this is a
+      coverage regression this work introduced — fix it rather than document it.
+
+      Add assertions for a new rule uid `layer-8-observability-collectors-down`:
+
+      - `folder: feature-health`, `severity: warning`,
+        `github_issue: "frank-ops#8"`
+      - expr references `kube_daemonset_status_number_unavailable` scoped to
+        `namespace="monitoring"`
+      - `for: 15m` — it queries a DaemonSet metric, so the phase-3 policy guard
+        is satisfied with no exemption needed
+      - threshold `{type: gt, params: [0]}`
+      - series carry `workload` and lowercase `kind` labels
+
+      Confirm RED.
+  - id: P4.T2.S2
+    text: |
+      GREEN. Add the rule per the spec's "Correction (phase 3)" block.
+
+      `severity: warning`, not critical: losing `fluent-bit` stops log shipping
+      and losing `node-exporter` stops node metrics — both real degradations —
+      but `vmagent` / `vmsingle` / `grafana` are Deployments still covered at
+      critical/5m by layer-8 proper, so the alerting stack itself is not blind.
+
+      Comment the rule with why it is SEPARATE from layer-8 rather than folded
+      in: folding the DaemonSets back would force that whole rule to 15m,
+      slowing detection of the alerting stack's own failure.
+
+      Verify live: the expr must return 2 series (the two monitoring
+      DaemonSets), both valued 0.
+  - id: P4.T2.S3
+    text: |
+      Close phase 3's open finding:
+      `fr journal add --scope plan --kind finding --state fixed --phase 4 ...`
+      referencing `86ffb32eb446`, stating what was restored and how.
+
+      Re-check the in-file comment and test docstring phase 3 corrected — they
+      should now point at this new rule as where the DaemonSet coverage lives,
+      rather than merely noting the gap.
 state:
   steps:
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
     P4.T1.S1:
       state: ' '
       ticked_at: null

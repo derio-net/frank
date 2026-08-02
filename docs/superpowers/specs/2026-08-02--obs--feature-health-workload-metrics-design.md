@@ -275,6 +275,42 @@ it is `severity: critical`, and blunting it to 15m would slow detection of the
 alerting stack's own failure for no benefit, since excluding DaemonSets already
 removes the reboot noise that motivated the 15m window elsewhere.
 
+**Correction (phase 3): the compensating control claimed above did not exist.**
+This spec originally justified dropping the two DaemonSets by asserting "their
+real coverage is the Layer 1/2 node alerts". That is false. Both
+`layer-1-hardware-down` and `layer-2-os-down` key on
+`kube_node_status_condition{condition="Ready",status="false"}` — they fire when a
+**node** goes NotReady and are completely blind to a collector dying on a healthy
+node. The old per-pod layer-8 query *did* cover `fluent-bit` and
+`victoria-metrics-prometheus-node-exporter` pods, so excluding them was a genuine
+coverage regression introduced by this migration, not a neutral scoping choice.
+
+Rather than ship the gap, a **separate rule** restores the coverage without
+blunting layer-8:
+
+```yaml
+- uid: layer-8-observability-collectors-down
+  title: Layer 8 Observability Collectors Degraded
+  folder: feature-health
+  expr: |
+    label_replace(
+      label_replace(
+        kube_daemonset_status_number_unavailable{namespace="monitoring"},
+        "workload", "$1", "daemonset", "(.*)"),
+      "kind", "daemonset", "", "")
+  for: 15m
+  labels:
+    severity: warning
+    github_issue: "frank-ops#8"
+```
+
+`for: 15m` because these ARE DaemonSets — the node-drain tolerance is exactly
+what they need, and it satisfies the folder-wide policy guard without an
+exemption. `severity: warning` rather than `critical`: losing `fluent-bit` stops
+log shipping and losing `node-exporter` stops node metrics, both real
+degradations, but `vmagent`/`vmsingle`/`grafana` are Deployments still covered at
+`critical`/5m by layer-8 proper, so the alerting stack itself is not blind.
+
 Its `probe_success` clause for `health-bridge/healthz` is preserved **verbatim**
 — that is an end-to-end probe, the sharpest signal in the folder, and entirely
 unaffected by this migration. Its `component` label convention
@@ -327,6 +363,14 @@ Exclusions, each traceable to a declarative source:
 replicas — several Frank apps use `Recreate` for RWO PVC reasons
 (`storage-secrets-ssa.md`), so a short window would false-positive on ordinary
 deploys.
+
+**This collides with phase 3's policy guard**, which asserts the 15m window is
+reserved for rules querying a DaemonSet metric. The guard is right to exist —
+without it, 15m becomes the place tuning goes to hide. Resolve by widening it to
+"15m requires **either** a DaemonSet metric **or** membership in an explicit
+allowlist carrying a written reason", and add this rule with the `Recreate`
+rationale above. Do not delete the guard, and do not silently exempt the rule:
+the allowlist entry is the written decision.
 
 Scoped to Deployments only. StatefulSets and DaemonSets are not scaled to 0 as
 an operational pattern on Frank, and including them would mean chasing every
