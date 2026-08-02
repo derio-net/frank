@@ -358,8 +358,13 @@ selector from pod-shaped to workload-shaped, assert the RETURNED WORKLOAD NAMES
 against `kubectl get deploy,ds,sts`, not just that the result is non-empty.
 Non-empty was true for the broken layer-3.
 
-<!-- fr:journal kind=finding scope=plan id=86ffb32eb446 created=2026-08-03T00:07:58 phase=3 state=open -->
-### 86ffb32eb446 · finding [open] · Excluding the monitoring DaemonSets is a real coverage loss, and the spec's stated compensating control does not exist (phase 3)
+<!-- fr:journal kind=finding scope=plan id=86ffb32eb446 created=2026-08-03T00:07:58 phase=3 state=fixed -->
+### 86ffb32eb446 · finding [fixed] · Excluding the monitoring DaemonSets is a real coverage loss, and the spec's stated compensating control does not exist (phase 3)
+
+> **Closed in phase 4** by `layer-8-observability-collectors-down` — see entry
+> `a88e5d462f7b`. Body below is phase 3's original analysis, unedited. State
+> flipped by hand: `fr journal add --id <existing>` is a no-op rather than an
+> update (probed), so there is no CLI path to close a finding in place.
 
 Flagged, not fixed — per the phase-2 precedent of surfacing pre-existing/created
 gaps rather than folding them into a query rewrite.
@@ -808,3 +813,41 @@ NOT FIXED HERE: the comment in `apps/sympozium-extras/manifests/rollout.yaml` is
 still wrong. It is outside this plan's scope (a different app's manifest, and
 the file is otherwise correct), and it is now contradicted in writing at the
 place where believing it would do damage. Worth a one-line follow-up.
+
+<!-- fr:journal kind=discovery scope=plan id=7d088477925d created=2026-08-03T00:44:05 phase=4 -->
+### 7d088477925d · discovery · `fr journal add --id <existing>` is a NO-OP, not an update — a finding cannot be closed in place by the CLI, and one from phase 1 is still stale (phase 4)
+
+Mechanical, but it silently strands exactly the state that matters most in a
+journal: whether a finding is still open.
+
+`fr journal add --help` documents `--id` as "Stable id; re-adding the same id is
+idempotent." Idempotent here means the second add DOES NOTHING — it does not
+update the entry's state, title or body. Probed directly (with a deliberately
+obvious PROBE title/body, against a backup) and the journal file came back
+byte-identical to the backup. So there is no CLI path to flip a finding from
+`open` to `fixed`.
+
+The prescribed workaround, which the phase-4 plan step spells out, is to add a
+NEW `--state fixed` entry referencing the old id. That records the fix, but the
+ORIGINAL entry still renders as `finding [open]` forever, and
+`fr journal render` is what a reviewer reads. A plan whose findings are all
+resolved can therefore look like it is shipping with open findings.
+
+DONE HERE for `86ffb32eb446`: the `state=` token in its HTML marker was flipped
+to `fixed` by hand and a short "Closed in phase 4, see a88e5d462f7b" note
+prepended. Phase 3's analysis body is left verbatim — the state field is the
+part that is supposed to change when a finding is resolved; the prose is not.
+
+STILL STALE, and deliberately NOT touched here: `5cfd15c9efbd` (phase 1, "The
+migration set is TWELVE rules, not eleven") still reads `[open]`. It was in fact
+resolved in phase 3, which chose the entry's own recommended option (a) and
+migrated `layer-8-observability-down` — that is precisely why the strict xfail
+flipped to `FAILED [XPASS(strict)]` and had to be retired, as phase 3's own
+discovery `7cdf97b484a2` records. Left for phase 5/6 rather than rewritten here:
+closing the finding my brief named is in scope, quietly editing another phase's
+ledger beyond that is not. It is a one-token flip on line ~17 of the journal
+file when someone wants it.
+
+GENERAL: after any phase that fixes a previously-recorded finding, check
+`fr journal render ... | grep 'finding \[open\]'` before declaring the phase
+done. The count is the check; the CLI will not maintain it for you.
