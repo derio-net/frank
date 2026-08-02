@@ -69,6 +69,8 @@ RERANK_MODEL_NAME = "bge-reranker-v2-m3"
 
 MODELS_MOUNT = "/models"
 SEED_SOURCE = "/models-src/gpu"
+CPU_SEED_SOURCE = "/models-src/cpu"
+CPU_ARM = APP_DIR / "cpu-arm-pod.yaml"
 SEED_MARKER = ".seed-rev"
 REST_PORT = 8000
 PVC_NAME = "ovms-retrieval-models"
@@ -116,6 +118,22 @@ def _seed() -> dict:
 def _seed_script() -> str:
     c = _seed()
     return "\n".join(c.get("command", []) + c.get("args", []))
+
+
+def _seed_script_live() -> str:
+    """The seed script with `#` comment lines removed.
+
+    Load-bearing, not cosmetic. The seed script is a YAML block scalar, so its
+    own explanatory comments are part of the string this file scans — and one
+    of them names `/models-src/gpu` while explaining why the CPU repository
+    must not be seeded. A substring check against the raw script therefore
+    passes even when the executable `cp` copies `/models-src/cpu`: the
+    detector fires on its own documentation. Proven by mutation 2026-08-02.
+    Same comment-stripping the LoadBalancer scan below already does.
+    """
+    return "\n".join(
+        line for line in _seed_script().splitlines() if not line.lstrip().startswith("#")
+    )
 
 
 def _application() -> dict:
@@ -184,15 +202,35 @@ def test_claim_requests_no_capacity():
     GPU memory can NEVER be satisfied: the scheduler finds no matching device
     and the pod sits Pending with no error that names the cause. The claim must
     select the device and nothing else.
+
+    Scanned two ways on purpose. A `capacity:` KEY is the structured form, but
+    the idiomatic way to filter on a device attribute under `resource.k8s.io/v1`
+    is a CEL selector, where `capacity` appears only inside a string VALUE:
+
+        selectors:
+          - cel:
+              expression: device.capacity["gpu.intel.com"].memory... >= 0
+
+    A key-only walk (the first version of this test) reports zero violations
+    for that — proven by mutation 2026-08-02 — and the pod that can never be
+    scheduled looks exactly like a pod that has not been scheduled yet.
     """
     rct = _one("resourceclaimtemplate.yaml", "ResourceClaimTemplate")
-    for dotted, _value in _walk(rct["spec"]["spec"]["devices"]):
+    for dotted, value in _walk(rct["spec"]["spec"]["devices"]):
         leaf = dotted.rsplit(".", 1)[-1]
         assert leaf != "capacity", (
             f"the claim requests capacity at {dotted} — the live ResourceSlice "
             'advertises capacity.memory: "0" (shared host RAM), so this can '
             "never be allocated and the pod will stay Pending"
         )
+        if isinstance(value, str):
+            assert "capacity" not in value, (
+                f"the claim filters on device capacity at {dotted} "
+                f"({value!r}) — most likely a CEL selector. The live "
+                'ResourceSlice advertises capacity.memory: "0" (the iGPU '
+                "borrows host RAM), so no device can ever match and the pod "
+                "sits Pending with no event naming the cause"
+            )
 
 
 # ── 2. the Deployment ──────────────────────────────────────────────────────
@@ -289,10 +327,26 @@ def test_seed_is_version_gated_by_a_marker_not_seed_if_absent():
         "the seed script never WRITES the marker — it would re-seed on every "
         "single pod start"
     )
-    assert SEED_SOURCE in script, (
-        f"the seed must copy {SEED_SOURCE} (the GPU-targeted repository); "
-        "/models-src also holds a CPU control arm whose graph.pbtxt names the "
-        "wrong device"
+    # The EXECUTABLE copy, not a comment that happens to name the path. The
+    # first version of this assertion was `SEED_SOURCE in script`, which the
+    # block scalar's own comments satisfied on their own — mutating the real
+    # `cp` to /models-src/cpu left it green, and the resulting failure is
+    # invisible end to end: OVMS loads both servables on CPU, both probes
+    # pass, ArgoCD is green, and the spike's headline number is measured on
+    # the CPU while labelled GPU.
+    live = _seed_script_live()
+    assert re.search(
+        rf"^\s*cp\s+-R\s+{re.escape(SEED_SOURCE)}/\.\s+{re.escape(MODELS_MOUNT)}/", live, re.M
+    ), (
+        f"no executable `cp -R {SEED_SOURCE}/. {MODELS_MOUNT}/` line in the seed "
+        "script (comments are stripped before this scan). /models-src also holds "
+        "a CPU control arm whose graph.pbtxt names the wrong device — seeding it "
+        "measures the CPU while reporting the GPU"
+    )
+    assert "/models-src/cpu" not in live, (
+        "the seed script copies the CPU control arm — that repository's "
+        "graph.pbtxt bakes target_device CPU, so the pod would serve on the "
+        "CPU with every probe green"
     )
 
 
@@ -448,7 +502,9 @@ def test_service_is_clusterip_on_8000():
 
 
 def test_no_loadbalancer_ip_is_claimed_anywhere_in_the_app():
-    for path in sorted(MANIFESTS.rglob("*.yaml")):
+    # Whole app dir, not just manifests/ — the hand-applied CPU control arm
+    # lives one level up and is just as capable of claiming a LAN IP.
+    for path in sorted(APP_DIR.rglob("*.yaml")):
         text = path.read_text()
         # Comments are stripped before the scan — this file's own manifests
         # explain WHY there is no LoadBalancer, and a naive substring match
@@ -511,6 +567,107 @@ def test_no_ingressroute_targets_the_retrieval_namespace():
                     f"IngressRoute {doc['metadata']['name']} routes to the "
                     f"{NAMESPACE} namespace"
                 )
+
+
+# ── 3b. the CPU control arm ────────────────────────────────────────────────
+
+
+def _cpu_arm() -> dict:
+    assert CPU_ARM.is_file(), (
+        f"missing {CPU_ARM.relative_to(REPO_ROOT)} — the CPU control arm is the "
+        "comparison that decides whether the DRA plumbing was worth building. "
+        "Left as prose in a manual step it is improvised at measurement time, "
+        "which is the moment its three easy-to-get-wrong properties (no claim, "
+        "CPU repository, same node) are least likely to be checked"
+    )
+    docs = [d for d in yaml.safe_load_all(CPU_ARM.read_text()) if d]
+    assert len(docs) == 1 and docs[0]["kind"] == "Pod", docs
+    return docs[0]
+
+
+def test_cpu_control_arm_exists_and_claims_no_igpu():
+    """The arm must not hold the device it is the control for.
+
+    A ResourceClaim here would (a) attribute GPU-accelerated numbers to the
+    CPU arm and (b) with `count: 1` on a single-device node, block the GPU pod
+    from rescheduling for the duration of the measurement.
+    """
+    pod = _cpu_arm()
+    spec = pod["spec"]
+    assert not spec.get("resourceClaims"), (
+        f"the CPU arm declares resourceClaims {spec.get('resourceClaims')} — it "
+        "is the control; it must not hold the iGPU"
+    )
+    for c in spec.get("containers", []) + spec.get("initContainers", []):
+        assert not (c.get("resources") or {}).get("claims"), (
+            f"{c['name']} claims a device: {c['resources']['claims']}"
+        )
+    text = CPU_ARM.read_text()
+    assert "resourceClaimTemplateName" not in text, text
+
+
+def test_cpu_control_arm_seeds_the_cpu_repository_on_the_same_node():
+    """`target_device` is baked into graph.pbtxt at export time.
+
+    So the device under test is decided by which repository is seeded, not by
+    a runtime flag: seeding /models-src/gpu here would produce a "CPU" number
+    measured on the GPU, with nothing in the output to contradict it.
+    """
+    pod = _cpu_arm()
+    spec = pod["spec"]
+    init = [c for c in spec.get("initContainers", []) if c["name"] == "seed-models"]
+    assert init, "the CPU arm needs a seed-models initContainer"
+    script = "\n".join(
+        line
+        for line in "\n".join(init[0].get("command", []) + init[0].get("args", [])).splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert re.search(
+        rf"^\s*cp\s+-R\s+{re.escape(CPU_SEED_SOURCE)}/\.\s+{re.escape(MODELS_MOUNT)}/",
+        script,
+        re.M,
+    ), f"the CPU arm must seed {CPU_SEED_SOURCE}: {script!r}"
+    assert SEED_SOURCE not in script, (
+        "the CPU arm seeds the GPU repository — that measures the GPU and "
+        "labels it CPU"
+    )
+
+    assert (
+        spec["nodeSelector"]["kubernetes.io/hostname"]
+        == _pod_spec()["nodeSelector"]["kubernetes.io/hostname"]
+    ), "the arms must run on the SAME node, or the comparison measures two machines"
+
+    ovms = [c for c in spec["containers"] if c["name"] == "ovms"][0]
+    assert ovms["image"] == _ovms()["image"], (
+        "same stock runtime image as the GPU arm — only the seeded repository "
+        "may differ, or the comparison isolates the image rather than the device"
+    )
+    assert ovms["resources"]["limits"] == _ovms()["resources"]["limits"], (
+        "same CPU/memory envelope as the GPU arm"
+    )
+
+
+def test_cpu_control_arm_is_not_gitops_managed():
+    """It must never be synced: it is a throwaway that holds a node's memory.
+
+    Outside manifests/ (the Application's source path) AND absent from the
+    kustomization. Either alone would be enough today; both together mean a
+    later `resources:` tidy-up cannot quietly adopt it.
+    """
+    assert CPU_ARM.parent == APP_DIR and CPU_ARM.parent != MANIFESTS, (
+        f"{CPU_ARM} must live outside manifests/, which ArgoCD syncs wholesale"
+    )
+    kustomization = yaml.safe_load((MANIFESTS / "kustomization.yaml").read_text())
+    listed = kustomization.get("resources") or []
+    assert not any(CPU_ARM.name in str(entry) for entry in listed), (
+        f"{CPU_ARM.name} is listed in the kustomization — it would then be "
+        "deployed permanently, which contradicts the 1-replica control-plane "
+        "footprint decision AND parks a second model copy on the node"
+    )
+    assert _application()["spec"]["source"]["path"] == "apps/ovms-retrieval/manifests", (
+        "the Application source path must stay manifests/, or the hand-applied "
+        "CPU arm becomes a synced resource"
+    )
 
 
 # ── 4. the supporting objects ──────────────────────────────────────────────

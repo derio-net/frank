@@ -16,6 +16,15 @@ name: Build OVMS Retrieval Models
 # only shapes the emitted graph.pbtxt) without touching the registry; only
 # push:main publishes. Same push-gate shape as deploy-blog.yml's
 # build-container job.
+#
+# The two `paths:` lists MUST stay identical (guarded by
+# test_pull_request_and_push_path_filters_are_identical). An earlier version
+# filtered the PR on this workflow file as well but not the push: a PR that
+# only edited this file — bumping MODELS_REV, changing `tags:` — would build
+# on the PR and then publish NOTHING on merge, leaving the Deployment pinned
+# to a tag that was never pushed. The asymmetry is invisible on the PR page,
+# because the half that runs is the half that works. (Spelled out twice rather
+# than shared via a YAML anchor — GitHub Actions rejects anchors outright.)
 on:
   pull_request:
     paths:
@@ -25,6 +34,7 @@ on:
     branches: [main]
     paths:
       - "apps/ovms-retrieval/docker/**"
+      - ".github/workflows/build-ovms-retrieval-models.yml"
   workflow_dispatch:
 
 env:
@@ -32,8 +42,14 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/ovms-retrieval-models
   # Bump whenever the Dockerfile's model contents change (model refs, weight
   # format, exporter pin) so the published tag — and the Deployment pin that
-  # consumes it — moves too. The tag is never `latest`-only (see the
-  # immutable-tag assertion in scripts/tests/test_ovms_retrieval_model_image.py).
+  # consumes it — moves too. This is ENFORCED, not merely asked for:
+  # test_models_rev_moves_when_the_dockerfile_changes fails a PR that edits
+  # apps/ovms-retrieval/docker/Dockerfile without moving this value. Without
+  # that gate the drift is invisible end to end — CI republishes the same tag
+  # with different bytes, the manifest is byte-identical so ArgoCD sees
+  # nothing, `imagePullPolicy: IfNotPresent` reuses the node-cached image, and
+  # the seed marker (which compares MODELS_REV only) skips re-seeding even if
+  # the new bytes did land.
   MODELS_REV: "1"
 
 concurrency:
@@ -68,10 +84,22 @@ jobs:
         with:
           context: apps/ovms-retrieval/docker
           push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.MODELS_REV }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # ONE tag, the immutable rev. No `:latest` — nothing consumes it (the
+          # Deployment pins the rev, and the manifests suite forbids it from
+          # doing anything else), and on an image whose entire premise is "new
+          # contents get a new rev" a floating tag is an attractive nuisance:
+          # it makes republishing under an unchanged rev look survivable when
+          # it is exactly the drift this design refuses.
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.MODELS_REV }}
           build-args: |
             MODELS_REV=${{ env.MODELS_REV }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # NO type=gha cache, deliberately. GitHub's Actions cache is a
+          # REPO-WIDE 10 GB budget with LRU eviction, and this image is
+          # multi-GB of model weights: caching it would evict most of what
+          # build-comfyui.yml and build-openrgb.yml (the repo's only other
+          # type=gha consumers) rely on — a cross-workflow slowdown with no
+          # owner. `mode=min` would not help: the final stage IS the weights,
+          # while the expensive part (pip install + four export_model.py
+          # conversions) lives in a stage mode=min does not export. This
+          # workflow runs only when the Dockerfile changes, which is exactly
+          # when the cache would miss anyway.

@@ -1,0 +1,142 @@
+# The CPU CONTROL ARM — the comparison that decides whether claiming the iGPU
+# through DRA was worth building at all.
+#
+# NOT GITOPS. This file lives one directory ABOVE manifests/ and is absent
+# from kustomization.yaml on purpose: the ArgoCD Application syncs
+# apps/ovms-retrieval/manifests only, so nothing here is ever applied by the
+# cluster. It is applied BY HAND during phase 5 (P5.T2.S2), measured, and
+# deleted:
+#
+#   kubectl apply -f apps/ovms-retrieval/cpu-arm-pod.yaml
+#   kubectl -n retrieval port-forward pod/ovms-retrieval-cpu-arm 8001:8000 &
+#   uv run python3 scripts/ovms-retrieval-bench.py --arm cpu \
+#       --base-url http://127.0.0.1:8001
+#   kubectl delete -f apps/ovms-retrieval/cpu-arm-pod.yaml
+#   kubectl get resourceclaims -A     # residue check: nothing left behind
+#
+# It is committed rather than improvised at measurement time because the arm
+# has three properties that are easy to get wrong in a hand-typed pod, and
+# each one silently invalidates the comparison:
+#
+#   1. NO ResourceClaim. The CPU arm must not hold the iGPU while it is being
+#      measured — with `count: 1` on a single-device node it would also block
+#      the GPU pod from rescheduling.
+#   2. Seeded from /models-src/cpu. `target_device` is baked into each
+#      servable's graph.pbtxt at export time, so the device under test is
+#      decided by WHICH REPOSITORY IS SEEDED, not by a runtime flag. Seeding
+#      /models-src/gpu here would produce a "CPU" number measured on the GPU.
+#   3. Same node, same stock image, same resource envelope as the GPU pod.
+#      A different node or a different CPU limit measures the node, not the
+#      device.
+#
+# emptyDir, not a PVC: the arm is throwaway, and a second RWO Longhorn volume
+# on the same node is pure friction. The model repository is a few GB of int8
+# IR — sizeLimit is generous enough for both servables.
+#
+# Guarded by scripts/tests/test_ovms_retrieval_manifests.py
+# (test_cpu_control_arm_exists_and_claims_no_igpu).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ovms-retrieval-cpu-arm
+  namespace: retrieval
+  labels:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: cpu-control-arm
+  annotations:
+    # Not a workload. If this is ever found running outside a measurement
+    # window, delete it.
+    frank.derio.net/lifecycle: "throwaway — applied by hand in phase 5, deleted after measurement"
+spec:
+  restartPolicy: Never
+  # Same node as the GPU arm, or the comparison measures two different
+  # machines. Same control-plane toleration for the same reason.
+  nodeSelector:
+    kubernetes.io/hostname: mini-1
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 5000
+    runAsGroup: 5000
+    fsGroup: 5000
+    seccompProfile:
+      type: RuntimeDefault
+  initContainers:
+    - name: seed-models
+      image: ghcr.io/derio-net/ovms-retrieval-models:1
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-eu", "-c"]
+      args:
+        # No version gate here: the volume is an emptyDir, so it is empty on
+        # every start by construction. The gate in the Deployment exists
+        # because a PVC survives; this does not.
+        - |
+          cp -R /models-src/cpu/. /models/
+          test -f /models/config.json
+          echo "cpu-arm: CPU repository seeded"
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+      volumeMounts:
+        - name: models
+          mountPath: /models
+  containers:
+    - name: ovms
+      # Identical stock runtime to the GPU arm. The `-gpu` tag is kept
+      # deliberately: same bytes, same server build, only the seeded
+      # repository differs — so the comparison isolates the device rather
+      # than the image.
+      image: openvino/model_server:2026.2.1-gpu
+      imagePullPolicy: IfNotPresent
+      args:
+        - --config_path
+        - /models/config.json
+        - --port
+        - "9000"
+        - --rest_port
+        - "8000"
+      ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+      # NO `resources.claims` — see note 1 above. This is the single most
+      # important line in the file, and it is a line that is not here.
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 6Gi
+      readinessProbe:
+        httpGet:
+          path: /v2/models/bge-reranker-v2-m3/ready
+          port: http
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 60
+      volumeMounts:
+        - name: models
+          mountPath: /models
+          readOnly: true
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+  volumes:
+    - name: models
+      emptyDir:
+        sizeLimit: 20Gi

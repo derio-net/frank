@@ -51,9 +51,70 @@ def test_phase05_readme_does_not_present_extended_resource_as_schedulable():
         "phase05 README still presents gpu.intel.com/i915 as a schedulable "
         "extended resource — that resource does not exist under DRA"
     )
-    assert "Device Plugin" not in text, (
-        "phase05 README still names the Intel GPU Device Plugin as what gets "
-        "deployed — the actual deployment is the DRA resource driver"
+
+
+# Words that mark a mention of the device plugin as historical rather than
+# operative. Deliberately a small, boring list: the point is that SOME
+# explicit disclaimer sits next to the name, not that a particular sentence
+# was written.
+_RETIRED_MARKERS = (
+    "not deployed",
+    "not what",
+    "no longer",
+    "retired",
+    "replaced",
+    "superseded",
+    "was corrected",
+    "until this document",
+    "pre-dra",
+)
+
+
+def test_phase05_readme_may_name_the_device_plugin_only_as_retired():
+    """The README is ALLOWED to say "Intel GPU Device Plugin" — it must not
+    present it as what is deployed.
+
+    The first version of this guard was `"Device Plugin" not in text`, which
+    forbade the document from ever naming the thing it used to describe. The
+    predictable result was vagueness: the correction talked about "the retired
+    per-node device-exposure model at a since-removed app path", which is
+    accurate, unsearchable, and useless to the reader who arrived here holding
+    a device-plugin tutorial. A doc that cannot name the wrong answer cannot
+    tell you that you are holding it.
+
+    So the rule is contextual: every PARAGRAPH mentioning the device plugin
+    must also mark it as not-what-runs-here.
+    """
+    text = _phase05_text()
+    offenders = []
+    for para in re.split(r"\n\s*\n", text):
+        if not re.search(r"device plugin", para, re.IGNORECASE):
+            continue
+        lowered = para.lower()
+        if not any(marker in lowered for marker in _RETIRED_MARKERS):
+            offenders.append(" ".join(para.split())[:120])
+    assert not offenders, (
+        "phase05 README mentions the Intel GPU Device Plugin without marking "
+        "it as retired/not-deployed in the same paragraph — a reader lands on "
+        "the device-plugin model believing it is what runs on Frank. Offending "
+        f"paragraph(s): {offenders}"
+    )
+
+
+def test_phase05_readme_names_the_device_plugin_it_replaced():
+    """The correction must be findable by someone searching for the wrong thing.
+
+    Whoever arrives here arrives with device-plugin material in hand — that is
+    exactly how the drift got into this file in the first place. Naming the
+    superseded model (with the disclaimer the previous test enforces) is what
+    turns this README into the answer rather than a document that quietly
+    disagrees with the tutorial they are following.
+    """
+    text = _phase05_text()
+    assert re.search(r"device plugin", text, re.IGNORECASE), (
+        "phase05 README no longer names the Intel GPU Device Plugin at all — "
+        "the pre-DRA model it was corrected FROM. Say what is not deployed, "
+        "not just what is"
     )
 
 

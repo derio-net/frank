@@ -14,10 +14,20 @@
    extended resource. `gpu.intel.com/i915` does not exist; querying
    `node.status.allocatable` for it returns nothing. Workloads claim the iGPU
    with a `ResourceClaim`/`ResourceClaimTemplate` instead — see "Claiming the
-   iGPU" below. (This corrects an earlier version of this doc, which described
-   the retired per-node device-exposure model at a since-removed app path —
-   the extended-resource idiom that DRA replaced. Full history:
-   `docs/runbooks/frank-gotchas/igpu-dra.md`.)
+   iGPU" below.
+
+   **What this is NOT: the Intel GPU Device Plugin.** Until this document was
+   corrected it described the Intel GPU Device Plugin — the pre-DRA model, in
+   which a per-node plugin advertises the iGPU as an *extended resource* that
+   pods then request through `resources.limits` — and pointed at a plugin app
+   path that has since been removed from this repo. **That model is not
+   deployed on Frank.** It is worth naming rather than hiding, because most
+   Intel iGPU material online still describes it: if you find yourself
+   expecting an `i915` entry under `node.status.allocatable`, or writing an
+   extended-resource request into a pod's `resources.limits`, you are
+   following the retired model and the pod will simply never schedule — with
+   no event saying why. DRA replaced it; the claim idiom below is the
+   replacement. Full history: `docs/runbooks/frank-gotchas/igpu-dra.md`.
 
 ## Prerequisites
 
@@ -78,7 +88,8 @@ source .env
 talosctl -n 192.168.55.21 get extensions  # i915, intel-ucode, iscsi-tools
 talosctl -n 192.168.55.21 ls /dev/dri     # card0, renderD128
 
-# DRA: driver pods and ResourceSlices (not node.status.allocatable — that's device plugin)
+# DRA: driver pods and ResourceSlices. Do NOT look in node.status.allocatable —
+# that is the retired Intel GPU Device Plugin model, not deployed here.
 kubectl get pods -n intel-gpu-resource-driver -o wide
 kubectl get resourceslice -o wide
 kubectl get deviceclass

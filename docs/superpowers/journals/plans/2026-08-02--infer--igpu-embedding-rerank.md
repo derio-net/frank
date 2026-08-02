@@ -131,4 +131,114 @@ Two constraints kept the rotation honest rather than merely noisy: text length i
 <!-- fr:journal kind=finding scope=plan id=f-c2-discretion created=2026-08-02T17:12:39 state=fixed -->
 ### f-c2-discretion · finding [fixed] · Four discretion breaches — the spec violated its own Scope discipline rule
 
-Review found four items exceeding the permitted generic detail. (1) 'multilingual across three European languages' — the count and region are a corpus statistic; reduced to 'multilingual'. (2) The Test Plan reproduced the requester's benchmark SIZE and BASELINE SCORE, which the spec's own Scope discipline section forbids three hundred lines earlier — the document broke its own rule; replaced with a pointer to the private issue. (3) 'mis-ranked non-English notes' characterises the consumer's document type; changed to 'documents'. (4) The issue NUMBER is a correlatable identifier — anyone with access to a candidate repo confirms or eliminates it in one lookup; dropped. Repo-wide rescan clean. Nothing ever named the consumer repo or product, and commit messages were clean throughout.
+Review found four items exceeding the permitted generic detail. (1) a phrase that quantified the corpus's language coverage and named its region — both corpus statistics; reduced to 'multilingual'. (2) The Test Plan reproduced the requester's benchmark SIZE and BASELINE SCORE, which the spec's own Scope discipline section forbids three hundred lines earlier — the document broke its own rule; replaced with a pointer to the private issue. (3) 'mis-ranked non-English notes' characterises the consumer's document type; changed to 'documents'. (4) The issue NUMBER is a correlatable identifier — anyone with access to a candidate repo confirms or eliminates it in one lookup; dropped. Repo-wide rescan clean. Nothing ever named the consumer repo or product, and commit messages were clean throughout.
+
+<!-- fr:journal kind=finding scope=plan id=f-i1-seed-source-vacuous created=2026-08-02T17:47:05 state=fixed -->
+### f-i1-seed-source-vacuous · finding [fixed] · The seed-source assertion matched its own explanatory comment (PROVEN vacuous)
+
+`test_seed_is_version_gated_by_a_marker_not_seed_if_absent` asserted `SEED_SOURCE in script`, where `script` is the initContainer's `command + args` joined — and the YAML block scalar carries its own `#` comments into that string. deployment.yaml:129 is a comment naming `/models-src/gpu` while explaining why the CPU repository must not be seeded, so the detector fired on its own documentation. Re-proven here before fixing: mutating the executable line to `cp -R /models-src/cpu/. /models/` left the test green.
+
+The failure it fails to catch is fully silent: the CPU-targeted graph.pbtxt is seeded, OVMS loads both servables on the CPU, both probes pass, ArgoCD is green, and the spike's headline number is measured on the CPU while labelled GPU — the one number the whole phase exists to produce.
+
+Fixed with a `_seed_script_live()` helper that strips comment lines (the same treatment the LoadBalancer scan in the same file already used) plus a regex on the EXECUTABLE line, `^\s*cp -R /models-src/gpu/\. /models/`, and a second assertion that `/models-src/cpu` appears nowhere in the live script. Mutation re-run: the cpu mutation now fails, revert restores green.
+
+<!-- fr:journal kind=finding scope=plan id=f-i2-push-polarity created=2026-08-02T17:47:07 state=fixed -->
+### f-i2-push-polarity · finding [fixed] · The 'PR must not push' assertion checked for a substring, not a polarity (PROVEN vacuous)
+
+`assert "pull_request" in push_val` is satisfied by `!=`, by `==`, by `... || true` and by `true # pull_request` alike. Re-proven: inverting the workflow to `${{ github.event_name == 'pull_request' }}` left the test passing.
+
+The damaging half is the inversion, and it is silent in the direction that matters: on push:main the expression evaluates false, nothing is published, the Deployment's pinned tag ImagePullBackOffs on first sync, and the PR that caused it merged with a green build job.
+
+Fixed with an exact match after whitespace normalisation: `push_val.replace(' ', '') == "\${{github.event_name!='pull_request'}}"`. Mutation-verified both ways.
+
+<!-- fr:journal kind=finding scope=plan id=f-i3-capacity-cel-selector created=2026-08-02T17:47:38 state=fixed -->
+### f-i3-capacity-cel-selector · finding [fixed] · The capacity tripwire walked YAML keys only, missing the idiomatic CEL selector (PROVEN)
+
+`test_claim_requests_no_capacity` asserted `leaf != 'capacity'` over `_walk`, which yields dict KEYS. Under `resource.k8s.io/v1` the common way to filter on a device attribute is a CEL selector, where `capacity` occurs only inside a STRING VALUE: `expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("2Gi")) >= 0`. Re-proven: feeding exactly that selector to the walker produced zero violations and the test passed.
+
+Since the live ResourceSlice reports `capacity.memory: "0"` (the iGPU borrows host RAM through i915), such a selector can never match — the pod sits Pending with no event naming the cause, which is indistinguishable from a pod that has not been scheduled yet, with the suite green.
+
+Fixed by also scanning string values under `spec.spec.devices`. Documented in docs/runbooks/frank-gotchas/igpu-dra.md (new subsection under the capacity gotcha) and one-lined into agents/rules/frank-gotchas.md, because the key-only-walker mistake generalises to any DRA guard.
+
+<!-- fr:journal kind=finding scope=plan id=f-i4-models-rev-drift created=2026-08-02T17:47:39 state=fixed -->
+### f-i4-models-rev-drift · finding [fixed] · Nothing forced MODELS_REV to move when the Dockerfile's model contents changed
+
+Three mechanisms assumed rev immutability and none enforced it: `imagePullPolicy: IfNotPresent`, the seed marker (compares MODELS_REV only), and the tag-vs-workflow-env test (ties the two rev DECLARATIONS to each other, neither to the Dockerfile). Change `--weight-format int8` to `int4`, leave `MODELS_REV: "1"`: CI republishes `:1` with different bytes, the manifest is byte-identical so ArgoCD syncs nothing, a pod delete reuses the node-cached `:1`, and even if the new image landed the marker still reads `1` so the seed skips. Old weights served indefinitely, everything green — the comfyui seed-if-absent bug one layer up.
+
+Fixed in two halves. (1) Always-on, no git: `test_models_rev_and_the_dockerfile_arg_default_agree` — the Dockerfile's `ARG MODELS_REV` default must equal the workflow env, so a build without the build-arg cannot bake a LABEL claiming a rev it is not. (2) `test_models_rev_moves_when_the_dockerfile_changes` diffs the WORKING TREE Dockerfile against origin/main (falling back to main) and fails when significant lines changed while the rev did not. Blank lines, whole-line comments and the `ARG MODELS_REV=` line are normalised out, so a comment rewording does not demand a bump — training people to bump reflexively would defeat the point. It SKIPS (never errors) when git is unavailable or neither ref resolves, because a shallow CI checkout of a PR merge commit has no origin/main.
+
+The rule is factored into a pure `rev_drift_violation()` so it can be falsified offline: on the branch that INTRODUCES the image there is no baseline to diff, so a purely git-driven gate would have been exercised only by its own happy path. Mutation-proven twice: synthetically (int8 -> int4 with an unchanged rev flags, with a bumped rev does not) and live, by pointing the baseline at HEAD via OVMS_MODELS_REV_BASE_REF and editing the Dockerfile.
+
+<!-- fr:journal kind=finding scope=plan id=f-i5-ghcr-first-publish-private created=2026-08-02T17:47:41 state=fixed -->
+### f-i5-ghcr-first-publish-private · finding [fixed] · First GHCR publish creates the package PRIVATE and the pod has no pull secret
+
+`ghcr.io/derio-net/ovms-retrieval-models` does not exist yet, and a first push from Actions creates the package private by default. The Deployment carries no imagePullSecret — deliberately, matching this repo's convention of public packages (the comment in apps/cnc-base/manifests/statefulset-node.yaml; `cnc-ghcr-pull` in apps/cnc-staging/manifests/ is the private-image alternative) — so on first sync `seed-models` ImagePullBackOffs and NO change to this repo fixes it. It presents as a broken build or a broken sync, which is where the time goes.
+
+Fixed as a new FIRST step in phase 5 task 1 (P5.T1.S1), before any sync check: set the package visibility public, or add a pull secret and say so, then verify with an unauthenticated pull. Existing steps renumbered to S2/S3 with their state rows. Guarded by scripts/tests/test_ovms_retrieval_phase5_plan.py, which asserts the step exists, names the pull-secret alternative, and comes BEFORE the sync-verification step. Also one-lined into agents/rules/frank-gotchas.md and written up in docs/runbooks/frank-gotchas/igpu-dra.md — it is not iGPU-specific and will recur on the next new package.
+
+<!-- fr:journal kind=finding scope=plan id=f-m1-path-filter-asymmetry created=2026-08-02T17:48:08 state=fixed -->
+### f-m1-path-filter-asymmetry · finding [fixed] · PR and push path filters differed, so a workflow-only edit published nothing on merge
+
+The pull_request filter included the workflow file; the push filter did not. A PR that edits only .github/workflows/build-ovms-retrieval-models.yml — exactly what a MODELS_REV bump or a `tags:` change is — would build on the PR and match no push path on merge, so no image is published and the Deployment's pinned tag ImagePullBackOffs. The half that fails is the half that does not run, so the PR page shows nothing to notice. Mirrored the lists (spelled out twice: GitHub Actions rejects YAML anchors) and added `test_pull_request_and_push_path_filters_are_identical`.
+
+<!-- fr:journal kind=finding scope=plan id=f-m3-gha-cache-eviction created=2026-08-02T17:48:09 state=fixed -->
+### f-m3-gha-cache-eviction · finding [fixed] · cache-to: type=gha,mode=max on a multi-GB model image would evict the repo-wide Actions cache
+
+GitHub's Actions cache is a REPO-WIDE 10 GB budget with LRU eviction. Caching a multi-GB weights image would evict most of what build-comfyui.yml and build-openrgb.yml — the repo's only other type=gha consumers — depend on: a cross-workflow slowdown with no owner. `mode=min` is not a fix here, and the reasoning is worth keeping: the FINAL stage IS the weights, while the expensive part (pip install plus four export_model.py conversions) lives in a stage mode=min does not export, so mode=min would still be large and still useless. Dropped both cache-from and cache-to with the reasoning in a comment; the workflow only runs when the Dockerfile changes, which is exactly when the cache would miss. Guarded by `test_the_model_image_does_not_consume_the_repo_wide_actions_cache`.
+
+<!-- fr:journal kind=finding scope=plan id=f-m4-acceptance-note-contradiction created=2026-08-02T17:48:11 state=fixed -->
+### f-m4-acceptance-note-contradiction · finding [fixed] · Acceptance row was status: ci while its notes still said '(local guard, not CI-run)'
+
+`gpu-igpu-claim-documented` was correctly moved to status: ci — repo-tripwires.yml runs `pytest scripts/tests/ -q` on every PR — but the notes kept the sentence written back when nothing ran the suite. The summary counts it one way and the sentence a human reads says the other, with nothing to reconcile them. Notes rewritten to name the workflow that makes it CI, and the report set regenerated with `fr acceptance report --deterministic`.
+
+Added a general guard, scripts/tests/test_acceptance_status_matches_notes.py: a row claiming status: ci must not simultaneously deny CI enforcement in its notes, and must name at least one `levels` entry (status: ci with no evidence pointer is unfalsifiable). Deliberately scoped to ci rows only — several OTHER rows carry legitimately stale 'local guard' prose from before repo-tripwires.yml existed (matrix.yaml:105 references scripts/tests and is now wrong; the apps/*/tests ones are still accurate since the tripwire job runs scripts/tests only). Rewriting those is separate work with a different blast radius, and is left flagged rather than done here.
+
+<!-- fr:journal kind=finding scope=plan id=f-m7-final-stage-copy created=2026-08-02T17:48:12 state=fixed -->
+### f-m7-final-stage-copy · finding [fixed] · The final-stage guard listed toolchain NAMES, so a COPY --from could smuggle it in
+
+`test_final_stage_carries_no_export_toolchain` forbade the strings optimum/nncf/torch/pip install in the final stage. `COPY --from=export /usr/local/lib/python3.12 /opt/py` contains none of them and drags the whole export toolchain into the shipped image. The Dockerfile today is correct (busybox + ARG/LABEL + one `COPY --from=export /out /models-src`), so this was guard weakness only. Fixed structurally: the final stage must contain EXACTLY ONE `COPY --from=`, the /out one — closing the class rather than lengthening the name list. Mutation-verified by appending the python3.12 copy.
+
+<!-- fr:journal kind=finding scope=plan id=f-m10-discretion-tripwire created=2026-08-02T17:48:55 state=fixed -->
+### f-m10-discretion-tripwire · finding [fixed] · Nothing enforced the discretion rule the spec calls a blocking finding — and the journal still held a residual leak
+
+The spec's Scope discipline section asks reviewers to treat a breach as blocking, and the spec then breached it itself in its own Test Plan. Prose is not a control. Added scripts/tests/test_third_party_discretion.py, a forbidden-SHAPE scan over this branch's public artefacts (spec, plan folder, both journals, apps/ovms-retrieval, the bench harness, the ovms/igpu tests, the igpu-dra gotchas file, and itself).
+
+Design constraint that shaped everything: the guard must not embed what it forbids, or it publishes the private strings permanently in the one file whose purpose is that they never appear — and a literal denylist is useless against the next leak's wording anyway. So the checks are patterns for the SHAPE of a disclosure: a retrieval-quality metric followed by a comparator and a number; a COUNT of languages ('multilingual' is permitted and load-bearing, 'N languages' is a corpus statistic); a corpus/benchmark SIZE within 120 characters of requester-words; an issue NUMBER near requester-words (a correlatable identifier — one lookup confirms or eliminates a candidate repo); and a github.com org outside a small public allowlist. The only literal list is four generic English synonyms for a counterparty, forbidden because the agreed vocabulary is exactly one phrase, 'an external client'. 'tenant' and 'vendor' were tried and REMOVED: multi-tenancy is real here and 'the repo already vendors X' is a verb — a guard that cries wolf gets deleted.
+
+The file scans itself, so its own pattern definitions carry a `discretion-selftest` line marker; a further test asserts that marker appears in NO other file, so the per-line exemption cannot grow into a general opt-out.
+
+It immediately found a residual leak the earlier discretion pass had left: journal entry f-c2-discretion, which DOCUMENTED the fix, quoted the removed phrase verbatim — reproducing the same corpus statistic (language count and region) it was recording the removal of. Redacted to a description of the shape. Every pattern was mutation-proven by planting one instance of each in a scanned file: five of five fired, then reverted clean.
+
+<!-- fr:journal kind=finding scope=plan id=f-m11-device-plugin-ban created=2026-08-02T17:48:57 state=fixed -->
+### f-m11-device-plugin-ban · finding [fixed] · A guard forbidding the words 'Device Plugin' pushed the corrected README into vagueness
+
+`assert "Device Plugin" not in text` stopped patches/phase05-mini-config/README.md from ever NAMING the model it used to describe, so the correction read 'the retired per-node device-exposure model at a since-removed app path' — accurate, unsearchable, and useless to the reader who arrived holding a device-plugin tutorial. A doc that cannot name the wrong answer cannot tell you that you are holding it.
+
+Relaxed to a contextual rule: every PARAGRAPH mentioning the device plugin must also mark it as retired/not-deployed (a small list of markers). Added the converse test — the README MUST name it — so the correction stays findable by whoever searches for the wrong thing. Restored clear prose: a 'What this is NOT' block naming the Intel GPU Device Plugin, explaining the extended-resource mechanism it used, and giving the two concrete symptoms of following it (an `i915` entry expected under node.status.allocatable; an extended-resource request in resources.limits) with the outcome — the pod never schedules, no event says why. The Verify block's parenthetical was rewritten for the same reason. Mutation-verified by planting a paragraph that presents the plugin as deployed.
+
+<!-- fr:journal kind=decision scope=plan id=d-cpu-arm-committed created=2026-08-02T17:48:58 -->
+### d-cpu-arm-committed · decision · The CPU control arm is a committed manifest applied by hand, not prose in a step
+
+The GPU-vs-CPU comparison is what decides whether the DRA plumbing was worth building, and it existed only as instructions in P5.T2.S2. Three properties make it valid and all three are easy to lose in a pod typed at measurement time — no ResourceClaim (the control must not hold the device it is a control for, and with count: 1 on a single-device node it would also block the GPU pod from rescheduling), seeded from /models-src/cpu (target_device is baked into graph.pbtxt at export, so the device under test is decided by WHICH REPOSITORY IS SEEDED, not by a flag), and the same node/image/resource envelope. Each failure produces a plausible-looking number.
+
+Committed as apps/ovms-retrieval/cpu-arm-pod.yaml — one directory ABOVE manifests/ and absent from kustomization.yaml, so the ArgoCD Application (source path apps/ovms-retrieval/manifests) can never sync it. emptyDir rather than a PVC, since it is throwaway and a second RWO Longhorn volume on the node is pure friction; no version-gated seed either, because an emptyDir is empty by construction. Three tests: no claim anywhere, CPU repository + same node + same image + same limits, and not-GitOps-managed (outside manifests/, not in the kustomization, Application source path unchanged). All four mutations fired.
+
+Also adopted: `:latest` dropped from the workflow tags. Nothing consumed it, and on an image whose entire premise is 'new contents get a new rev' a floating tag is an attractive nuisance that makes republishing under an unchanged rev feel survivable — the exact drift f-i4 now refuses.
+
+<!-- fr:journal kind=discovery scope=plan id=d-phase5-carry-notes created=2026-08-02T17:49:00 phase=5 -->
+### d-phase5-carry-notes · discovery · Phase 5 carries three notes it cannot recover from later: MediaPipe Ready, two-servable probe coverage, measurement scope (phase 5)
+
+(1) UNVERIFIED ASSUMPTION carried forward. The runtime gate proved /v2/health/ready is server-level, but it did so against a single CLASSIC model; /v2/models/<name>/ready has never been exercised against a MEDIAPIPE-GRAPH servable, which is what embeddings_ov and rerank_ov emit. A 404 fails the startup probe and the pod restart-loops — loud, fine. A hardcoded 200 puts the silent-green failure the probe design exists to prevent straight back, and only GET /v1/config would show it. P5.T1.S2 now says to check /v1/config BEFORE trusting Ready and to record which behaviour was observed.
+
+(2) The startup/readiness split gates EXACTLY TWO servables, BY NAME. A third would be ungated and the pod would go Ready with it dead — the same failure one model down. Written into P5.T1.S3.
+
+(3) The number comes from ONE pod, hostname-pinned to a control-plane node, holding one iGPU with no other GPU tenant. It is not what a rescheduled or scaled deployment would see: the pin is what makes it repeatable, so dropping it invalidates the figure rather than generalising it. P5.T3.S1 now requires that scope to be stated wherever the number is reported, including to the external client.
+
+All three are guarded by scripts/tests/test_ovms_retrieval_phase5_plan.py, which also checks that every step id has a state row — a manual phase's step text is the only place these live, so a quiet rewording would erase them with nothing failing.
+
+<!-- fr:journal kind=finding scope=plan id=f-m10-marker-scope created=2026-08-02T17:53:06 state=fixed -->
+### f-m10-marker-scope · finding [fixed] · The discretion guard's own exemption marker was a repo-wide taboo, and the journal tripped it
+
+First cut asserted the per-line exemption marker appeared in NO file but the guard itself. The journal entry DESCRIBING the mechanism then named it, and the full-suite run failed — a guard firing on documentation of itself, the same shape as the seed-source comment (f-i1) and the lbipam comment before it.
+
+Reworked so the exemption is scoped by FILE PATH rather than by the string being forbidden: `_scannable(text, path)` blanks marker lines only for this file, and elsewhere the marker is inert text. Other artefacts can now name it freely and gain nothing. The replacement test asserts the mechanism directly — the same marked line is exempt for this file, unchanged for another scanned file, and genuinely matches a pattern — rather than planting a marker in a real artefact. Full suite re-run green afterwards.

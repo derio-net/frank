@@ -46,6 +46,26 @@ The real memory backstop is the *container's* `resources.limits.memory` —
 iGPU allocations come out of host RAM via i915, so that limit is not a
 formality, it is the only ceiling that exists.
 
+### The tripwire for this has to scan VALUES, not just keys
+
+The obvious guard walks the claim's YAML and fails on a `capacity:` key. That
+misses the form people actually write, because under `resource.k8s.io/v1` the
+idiomatic way to filter on a device attribute is a CEL selector — where
+`capacity` appears only inside a string:
+
+```yaml
+selectors:
+  - cel:
+      expression: device.capacity["gpu.intel.com"].memory.compareTo(quantity("2Gi")) >= 0
+```
+
+Fed to a key-only walker this produces zero violations. The claim then never
+matches (`capacity.memory` is `"0"`), and the symptom is a pod stuck
+`Pending` — which is indistinguishable from a pod that has simply not been
+scheduled yet. `scripts/tests/test_ovms_retrieval_manifests.py` scans both
+keys and string values; the value half was added after the key-only version
+was shown, by mutation, to pass on exactly the selector above.
+
 ## `/dev/dri` is `crw-rw-rw-` root:root — skip the render-GID hunt
 
 Proven with a live claim on mini-1:
@@ -131,3 +151,42 @@ green ArgoCD Application, and every inference request failing.
 This is the same silent-green failure family as the ConfigMap-doesn't-reach-
 the-process traps already in this repo — the process answers, but the answer
 isn't about the thing you actually need to know.
+
+### Measured against a CLASSIC model only — MediaPipe-graph servables unverified
+
+The 200-while-broken observation, and the per-model endpoint that replaces it,
+were both taken against a **classic** OVMS model. `embeddings_ov` and
+`rerank_ov` export **MediaPipe graph** servables, and
+`/v2/models/<name>/ready` has never been exercised against one. Two outcomes,
+one benign and one not: a 404 fails the startup probe and the pod
+restart-loops, which is loud; a hardcoded 200 puts the silent-green failure
+straight back, with `/v1/config` the only thing that would show it. Check
+`/v1/config` before trusting `Ready` on a graph-backed servable.
+
+## A first push to GHCR creates the package PRIVATE
+
+Not iGPU-specific, but it is how an otherwise-correct first deploy fails. A
+brand-new `ghcr.io/derio-net/<name>` package is created **private** by the
+first push from Actions. Frank's convention is public packages pulled with no
+`imagePullSecret` (see the comment in
+`apps/cnc-base/manifests/statefulset-node.yaml`; `cnc-ghcr-pull` in
+`apps/cnc-staging/manifests/` is the private-image alternative), so the first
+sync of an app pinning that image is an `ImagePullBackOff` that **no change to
+this repo can fix** — and it presents as a broken build or a broken sync.
+Either set the package visibility to public at first publish, or ship a pull
+secret with the app. Decide it before the sync, not during it.
+
+## An immutable model-rev tag needs a gate, not a convention
+
+`apps/ovms-retrieval` pins its model image to a rev tag and relies on that tag
+being immutable in three separate places: `imagePullPolicy: IfNotPresent`, a
+seed marker that compares `MODELS_REV` only, and a test tying the Deployment
+tag to the workflow env. None of them notices a rev that fails to move. Change
+the Dockerfile's quantization and leave `MODELS_REV` alone: CI republishes the
+same tag with different bytes, the manifest is byte-identical so ArgoCD syncs
+nothing, the node cache serves the old image, and even if the new image landed
+the marker still matches so the seed skips. Old weights, indefinitely, with
+everything green — the comfyui seed-if-absent bug one layer up.
+`scripts/tests/test_ovms_retrieval_model_image.py::test_models_rev_moves_when_the_dockerfile_changes`
+diffs the Dockerfile against `origin/main` and fails when the rev stayed put
+(skipping, not erroring, where no baseline ref resolves).
