@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ovms-retrieval
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/ovms-retrieval/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: retrieval
+  syncPolicy:
+    automated:
+      selfHeal: true
+      # prune stays FALSE (the repo default). This app owns a 20Gi Longhorn
+      # PVC holding the OpenVINO model repository — recreating it means a CI
+      # image rebuild, not a resync — and nothing here needs pruning: the
+      # manifests use no Kustomize generator, so no object ever orphans a
+      # hash-suffixed predecessor. If a generator is added later, prune must
+      # be flipped AND the PVC must carry a per-resource `Prune=false`;
+      # scripts/tests/test_ovms_retrieval_manifests.py enforces exactly that
+      # pairing so the two cannot drift apart.
+      prune: false
+    syncOptions:
+      # The Namespace ships as a manifest (it carries the PodSecurity labels),
+      # but CreateNamespace=true is kept so the very first sync cannot deadlock
+      # on namespaced resources being applied before their namespace exists.
+      - CreateNamespace=true
+      - ServerSideApply=true
