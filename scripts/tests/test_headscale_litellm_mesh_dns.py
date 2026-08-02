@@ -215,12 +215,54 @@ def test_litellm_api_route_is_in_traefik_system():
     )
 
 
-def test_ingressroute_names_are_unique():
-    names = [d["metadata"]["name"] for d in _ingressroutes()]
+def test_litellm_api_route_serves_on_websecure():
+    """The tls block is inert unless the router listens on the TLS entrypoint.
+
+    Without this, setting `entryPoints: [web]` — a plausible copy-paste from a
+    non-TLS route — passes every other test in this module: the tls block still
+    reads as correct, the middlewares are right, the backend is right. Live,
+    Traefik has no :443 router for the host, so an https:// request falls
+    through to the default certificate and 404s. Green CI, dead endpoint.
+    """
+    doc, route = _route_for_host(API_HOST)
+    entrypoints = doc["spec"].get("entryPoints", [])
+    assert entrypoints == ["websecure"], (
+        f"the {API_HOST} route must serve on the websecure (:443) entrypoint, "
+        "like every sibling in this file. A tls block on a non-TLS entrypoint "
+        f"is silently inert. Got entryPoints={entrypoints!r}"
+    )
+    assert route.get("kind") == "Rule", (
+        f"route kind must be 'Rule'; got {route.get('kind')!r}"
+    )
+
+
+def test_extra_record_names_are_unique():
+    """Two records for one name is a coin-flip, not a configuration.
+
+    `extra_records` is a list, so nothing stops a rebase or a careless edit from
+    landing the same name twice with different values. Headscale would serve one
+    of them; which one is not a property anybody should be relying on.
+    """
+    names = [r["name"] for r in _extra_records()]
     dupes = sorted({n for n in names if names.count(n) > 1})
     assert not dupes, (
-        f"duplicate IngressRoute metadata.name in {INGRESSROUTES.name}: {dupes}. "
-        "This directory has no kustomization.yaml, so ArgoCD applies every "
-        "document as-is — a duplicate name is a live resource collision (the "
+        f"duplicate name(s) in dns.extra_records: {dupes}. Each name must map "
+        "to exactly one address."
+    )
+
+
+def test_ingressroute_names_are_unique():
+    # Keyed on (namespace, name): that is the actual uniqueness scope of a
+    # namespaced Kubernetes object, so a same-named route legitimately added in
+    # another namespace does not read as a collision.
+    keys = [
+        (d["metadata"].get("namespace"), d["metadata"]["name"])
+        for d in _ingressroutes()
+    ]
+    dupes = sorted({k for k in keys if keys.count(k) > 1})
+    assert not dupes, (
+        f"duplicate IngressRoute (namespace, name) in {INGRESSROUTES.name}: "
+        f"{dupes}. This directory has no kustomization.yaml, so ArgoCD applies "
+        "every document as-is — a duplicate is a live resource collision (the "
         "second apply overwrites the first), not a build-time error."
     )

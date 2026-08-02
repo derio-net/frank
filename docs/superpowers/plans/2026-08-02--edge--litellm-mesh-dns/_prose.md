@@ -59,11 +59,23 @@ migrate to `https` — without the flip.
 
 ## The security question, answered plainly
 
-This change grants no new network access. None.
+This change grants no new network access *to mesh nodes* — and that
+qualification is load-bearing, so it is worth keeping rather than rounding off
+to the cleaner-sounding absolute.
 
 Any mesh node could already reach both `192.168.55.206:4000` and
 `192.168.55.220:443` before any of this — that was measured before a single file
-was touched. What the records add is *names*. The reachability was always there.
+was touched. What the records add, for them, is *names*. The reachability was
+always there.
+
+The absolute form does not survive contact with the LAN, though. Before this
+change nothing matched `Host(litellm-api.cluster.derio.net)`, so the name 404'd;
+now any source inside `ip-allowlist`'s RFC1918 ranges that can reach Traefik
+gets an SSO-free path to the LiteLLM API, held only by the Bearer key. For
+anything that could already reach the LB on `:4000` that is no new authority at
+all — but which hosts those are is decided by Omada inter-VLAN policy, outside
+this repo, and cannot be checked from here. Saying "none" would have been
+claiming knowledge this repo does not have.
 
 Nor is anything punched through the Authentik outpost. The outpost sits on one
 hostname's route; `litellm-api` is a different route that simply never carries

@@ -71,6 +71,13 @@ Straight to LiteLLM's Cilium L2 LoadBalancer, `http`, port 4000. This is the
 path already measured working from hop-1. It depends on nothing but the subnet
 route and Cilium.
 
+One honest cost, since this record is permanent rather than temporary: the hop
+from the client to the subnet router is WireGuard-encrypted, but the leg from
+`argonath` to `192.168.55.206:4000` crosses VLAN55 as **cleartext HTTP carrying
+the Bearer key**. That is the same exposure the LB has always had for in-cluster
+callers, and it is why `litellm-api` — not `litellm-lb` — is the endpoint the
+laptops are meant to settle on. `litellm-lb` is the break-glass path.
+
 ```
 OPENAI_BASE_URL=http://litellm-lb.cluster.derio.net:4000/v1
 ```
@@ -112,9 +119,21 @@ so mesh peers get a name straight to the LB. Verified live: it resolves to
 
 ## Security posture — what this does and does not change
 
-**It grants no new network access.** Any mesh node can already reach both
-`192.168.55.206:4000` and `192.168.55.220:443`; that was measured before any
-change. These records add *names*, not reachability.
+**It grants no new network access to mesh nodes.** Any mesh node can already
+reach both `192.168.55.206:4000` and `192.168.55.220:443`; that was measured
+before any change. For them, these records add *names*, not reachability.
+
+Stated absolutely, though, the claim is too strong, and the precise version
+matters: before this change no Traefik router matched
+`Host(litellm-api.cluster.derio.net)`, so that name 404'd. After it, **any**
+source inside `ip-allowlist`'s ranges (`10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`) that can reach `192.168.55.220:443` gets an SSO-free L7 path
+to the LiteLLM API, gated solely by the Bearer key. For anything that could
+already reach `192.168.55.206:4000` the delta is nil — but that set is defined
+by Omada inter-VLAN policy, which lives outside this repo and cannot be verified
+from here. So: no new access for mesh nodes (measured); a new *route* for
+already-permitted LAN sources (unquantified, and equivalent in authority to the
+LB they could already reach).
 
 | Endpoint | Auth | Change |
 |---|---|---|
