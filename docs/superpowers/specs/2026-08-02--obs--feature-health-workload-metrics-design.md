@@ -8,8 +8,10 @@ false-positive class. This fixes the *source*.
 
 ## Problem
 
-Eleven feature-health rules in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
-alert on `kube_pod_status_ready{condition="true"} < 1`. That metric carries one
+Twelve feature-health rules in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
+alert on `kube_pod_status_ready{condition="true"} < 1`. (Eleven at the time this
+spec was written; phase 1's folder-wide tripwire found a twelfth,
+`layer-8-observability-down`, treated separately below.) That metric carries one
 series per **pod**, and a terminal pod's series never goes away:
 
 - Kubernetes has two terminal phases, `Succeeded` and `Failed`. A pod in either
@@ -218,6 +220,56 @@ contributes, else 5m.
 | `layer-15-workflows-down` | n8n-01, agents, paperclip-system | Deploy + STS | 5m |
 | `layer-19-rollouts-down` | argo-rollouts | Deploy | 5m |
 | `layer-24-ingress-down` | traefik-system | Deploy | 5m |
+| `layer-8-observability-down` | monitoring | Deploy + STS (**DS excluded**) | 5m |
+
+### The twelfth rule — `layer-8-observability-down`
+
+Found during phase 1, not during the brainstorm: a **twelfth** rule also queries
+`kube_pod_status_ready`. It is the least-broken of the set and needs different
+treatment, so it is called out separately rather than folded into the table
+above without comment.
+
+It already mitigates the tombstone problem *inside the query*:
+
+```promql
+kube_pod_status_ready{namespace="monitoring",condition="true"}
+  unless on(namespace,pod)
+kube_pod_status_phase{namespace="monitoring",phase=~"Succeeded|Failed"} == 1
+```
+
+That is exactly the approach this spec lists under **Rejected alternatives**, and
+it works — which is why layer-8 was *not* among the 72 alerts firing on
+2026-08-02. It is nonetheless migrated, for three reasons:
+
+1. It is a second pattern for the same question in the same folder — the way the
+   next person gets confused.
+2. The `unless` join doubles the series joined on every evaluation.
+3. Leaving it means the `strict=True` xfail can never xpass, so phase 3 would
+   have to weaken the guard to finish — the precise anti-pattern that marker
+   exists to prevent.
+
+**It does not follow the DaemonSet rule.** `monitoring` contains two DaemonSets,
+`fluent-bit` and `victoria-metrics-prometheus-node-exporter` — node-level
+collectors whose unavailability during a node drain is exactly the noise this
+work removes, and whose real coverage is the Layer 1/2 node alerts. The
+observability control plane proper is Deployments (`victoria-metrics-grafana`,
+`vmagent-*`, `vmsingle-*`, `victoria-metrics-kube-state-metrics`,
+`health-bridge`, `blackbox-exporter`, `pushgateway`) plus one StatefulSet
+(`victoria-logs-*`).
+
+So layer-8 queries **Deployments and StatefulSets only, and keeps `for: 5m`** —
+it is `severity: critical`, and blunting it to 15m would slow detection of the
+alerting stack's own failure for no benefit, since excluding DaemonSets already
+removes the reboot noise that motivated the 15m window elsewhere.
+
+Its `probe_success` clause for `health-bridge/healthz` is preserved **verbatim**
+— that is an end-to-end probe, the sharpest signal in the folder, and entirely
+unaffected by this migration. Its `component` label convention
+(`pod/<name>` → now `<kind>/<name>`) carries over so the summary still reads
+naturally.
+
+The `unless ... kube_pod_status_phase` join is **deleted**, not ported: workload
+availability metrics have no tombstones to filter.
 
 The existing pod-name regexes (`cilium-.*`, `longhorn-manager-.*`,
 `authentik-(server|worker).*`, …) carry over as workload-name regexes. They get

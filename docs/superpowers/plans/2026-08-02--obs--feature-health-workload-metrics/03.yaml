@@ -1,7 +1,7 @@
 schema_version: 2
 phase:
   number: 3
-  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m) and retire the xfail'
+  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m), plus layer-8, and retire the xfail'
   tag: agentic
   depends_on:
   - 2
@@ -41,16 +41,23 @@ tasks:
       control-plane roll took roughly 7 minutes.
   - id: P3.T1.S3
     text: |
-      Remove the `@pytest.mark.xfail` from the no-`kube_pod_status_ready` test —
-      all 11 rules are migrated, so it must now pass strictly.
+      DEFERRED to P3.T3.S3 — do not do it here.
 
-      Because it was marked `strict=True`, leaving it in place would FAIL the suite
-      on xpass. That is the intended forcing function; do not "fix" it by relaxing
-      the marker.
+      The xfail cannot xpass until layer-8 is migrated too (task 3, added after
+      phase 1 discovered the twelfth rule). Removing the marker at this point
+      would turn the suite RED, not green.
 
-      Run the full suite. Expected: the tripwire file fully green, and the same 10
-      pre-existing `test_cnc_staging_*` failures as the phase-1 baseline — no more,
-      no fewer. Compare against a clean baseline if the counts differ:
+      Leave the marker in place, and note in the journal that it is retired in
+      P3.T3.S3 once 12 of 12 rules are done.
+
+      BASELINE CORRECTION from phase 1: the "10 pre-existing `test_cnc_staging_*`
+      failures" briefed earlier does NOT reproduce. On a clean worktree the suite
+      is `535 passed, 1 xfailed, 0 failed` (the pre-existing xfail is
+      `test_series_index_adoption.py::test_papers_uses_same_layer_name_tag`, not
+      ours). Those cnc-staging tests appear to read live cluster state — a 24s
+      runtime for 13 tests — so their result moves with the cluster. Treat **0
+      failures** as the bar, and if you see any, verify against a clean baseline
+      before assuming you caused it:
       `git archive origin/main | tar -x -C /tmp/baseline && cd /tmp/baseline && uv run --frozen pytest scripts/tests/ -q`
 - number: 2
   title: Verify the 3 expressions against live data
@@ -64,6 +71,75 @@ tasks:
       of its `or` returns nothing that is correct, but the daemonset branch MUST
       return series. Assert both branches separately rather than only the union,
       or a broken half hides behind a working half.
+- number: 3
+  title: Migrate layer-8-observability-down (the twelfth rule, found in phase 1)
+  steps:
+  - id: P3.T3.S1
+    text: |
+      RED. Phase 1's folder-wide tripwire found a TWELFTH rule using
+      `kube_pod_status_ready` that the brainstorm missed:
+      `layer-8-observability-down`. Read phase 1's open journal finding
+      (`fr journal render --scope plan`) and the spec's new
+      "The twelfth rule" section before touching it.
+
+      It is the least-broken of the twelve — it already filters tombstones inside
+      the query with `unless on(namespace,pod) kube_pod_status_phase{phase=~"Succeeded|Failed"}`,
+      which is why it did NOT fire during the 2026-08-02 flood. It is migrated
+      anyway: a second pattern for the same question in one folder is how the next
+      person gets confused, the join doubles series per evaluation, and leaving it
+      means the strict xfail can never xpass.
+
+      Add assertions for uid `layer-8-observability-down`:
+
+      - `expr` references no `kube_pod_status_ready` and no `kube_pod_status_phase`
+      - `expr` references `kube_deployment_status_replicas_unavailable` and the
+        two `kube_statefulset_*` metrics, and does NOT reference
+        `kube_daemonset_status_number_unavailable`
+      - the `probe_success` clause for
+        `http://health-bridge.monitoring.svc.cluster.local:8080/healthz` survives
+        VERBATIM
+      - `for` is `5m` (NOT 15m — see below), `severity` stays `critical`
+      - threshold is `{type: gt, params: [0]}`
+
+      This rule breaks the phase-3 for:-policy guard you wrote in P3.T1.S1, which
+      asserts "DaemonSet metric implies 15m". That guard stays correct as written
+      — layer-8 does not reference the DaemonSet metric — but re-read it and make
+      sure it does not also assert the converse ("monitoring namespace implies
+      15m"). If it does, narrow it to key off the METRIC, not the namespace.
+  - id: P3.T3.S2
+    text: |
+      GREEN. Rewrite layer-8 to query Deployments and StatefulSets in `monitoring`
+      ONLY — deliberately excluding the two DaemonSets (`fluent-bit`,
+      `victoria-metrics-prometheus-node-exporter`).
+
+      Those are node-level collectors: their unavailability during a node drain is
+      exactly the noise this whole change removes, and their real coverage is the
+      Layer 1/2 node alerts. Excluding them is what lets this rule keep `for: 5m`
+      — it is `severity: critical` and covers the alerting stack's own health, so
+      blunting detection to 15m would be a real loss for no gain.
+
+      Keep the `component` label convention so the summary still reads naturally:
+      the old rule produced `pod/<name>`; produce `<kind>/<name>` (e.g.
+      `deployment/vmagent-victoria-metrics-victoria-metrics-k8s-stack`) via
+      `label_replace`, and keep the `probe/health-bridge-healthz` branch exactly
+      as it is.
+
+      DELETE the `unless ... kube_pod_status_phase` join rather than porting it —
+      workload availability metrics have no tombstones to filter, so carrying it
+      forward would be cargo cult.
+
+      Update the rule's comment block: it currently explains the `unless` join.
+      Replace with why the rule is workload-level, why DaemonSets are excluded,
+      and why it stays at 5m while its siblings moved to 15m.
+  - id: P3.T3.S3
+    text: |
+      Verify live (same curl as P2.T2.S1) and confirm BOTH branches return series
+      independently — the workload branch and the `probe_success` branch. A
+      `probe_success` clause that silently stopped matching would remove the
+      sharpest signal in the folder while the rule still looked healthy.
+
+      Then retire the xfail (this is the real completion of P3.T1.S3 — with 12 of
+      12 rules migrated it can finally xpass) and run the full suite.
 state:
   steps:
     P3.T1.S1:
@@ -79,6 +155,18 @@ state:
       ticked_at: null
       note: null
     P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
       state: ' '
       ticked_at: null
       note: null
