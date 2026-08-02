@@ -516,3 +516,9 @@ mini-1; see the gate findings. The plan starts from a proven premise.
    control-plane health, and the post-deploy checklist. Retroactive edits to the
    existing Layer 11 posts land here too, because they must report *measured*
    numbers — and they describe the consumer only as an external client.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-08-02--infer--igpu-embedding-rerank | `derio-net/frank` | `2026-08-02--infer--igpu-embedding-rerank` | — |

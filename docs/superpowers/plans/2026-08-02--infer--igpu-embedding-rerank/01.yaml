@@ -1,0 +1,99 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Model image — OpenVINO IR for both models, built in CI
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - infer-igpu-rerank-endpoint
+  - infer-igpu-embeddings-endpoint
+tasks:
+- number: 1
+  title: Pin the model-image contract with failing tests
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create `scripts/tests/test_ovms_retrieval_model_image.py`. Assert against
+      `apps/ovms-retrieval/docker/Dockerfile`: it is multi-stage; the FINAL stage
+      contains no `optimum`, `nncf`, `torch` or `pip install` line (the export
+      toolchain must not reach the cluster); every `FROM` is version-pinned (no
+      bare `:latest`); `export_model.py` is fetched at a pinned ref, not from a
+      moving branch. Run `uv run --frozen pytest scripts/tests/test_ovms_retrieval_model_image.py -q`
+      and keep the red output — the file does not exist yet.
+  - id: P1.T1.S2
+    text: |
+      In the same test file, assert the Dockerfile exports BOTH models
+      (`BAAI/bge-m3` via `embeddings_ov`, `BAAI/bge-reranker-v2-m3` via
+      `rerank_ov`) with `--weight-format int8`, and that it produces TWO
+      repositories — one targeting GPU and one targeting CPU — because
+      `target_device` is baked into each servable's `graph.pbtxt` at export time
+      and the benchmark needs a CPU control arm (spec gap 3b). Assert a
+      `MODELS_REV` build arg exists so the image tag moves when the contents do.
+      Re-run; still red.
+  - id: P1.T1.S3
+    text: |
+      Add assertions for `.github/workflows/build-ovms-retrieval-models.yml`:
+      it must trigger on `pull_request` (build only, no registry push) AND on
+      `push` to `main` (build and publish), both filtered to
+      `apps/ovms-retrieval/docker/**`. The `pull_request` job is the point —
+      every other build workflow in this repo is `push: main` only, so a
+      Dockerfile change currently reaches `main` completely unbuilt. Assert the
+      published tag is immutable (contains `MODELS_REV`), not only `latest`.
+      Re-run; still red.
+- number: 2
+  title: Implement the model image
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Write `apps/ovms-retrieval/docker/Dockerfile`. Export stage: a pinned
+      `python:3.12-slim`, `pip install` optimum-intel[openvino], nncf and
+      openvino-tokenizers at pinned versions, fetch OVMS's `export_model.py` at a
+      pinned tag, then run it four times — `embeddings_ov` and `rerank_ov`, each
+      for `--target_device GPU` into `/out/gpu` and `--target_device CPU` into
+      `/out/cpu`, each with `--weight-format int8` and a merged
+      `--config_file_path <repo>/config.json`. Final stage: a pinned `busybox`,
+      `COPY --from=export /out /models-src`, nothing else.
+  - id: P1.T2.S2
+    text: |
+      Write `.github/workflows/build-ovms-retrieval-models.yml` following
+      `build-comfyui.yml` (same `REGISTRY`/`IMAGE_NAME` shape, pinned action
+      SHAs), with the two triggers from P1.T1.S3. Tag
+      `ghcr.io/<owner>/ovms-retrieval-models:${MODELS_REV}` plus `latest`. Run
+      `uv run --frozen pytest scripts/tests/test_ovms_retrieval_model_image.py -q`;
+      expect green.
+  - id: P1.T2.S3
+    text: |
+      OPTIONAL refactor — if the four export invocations differ only by task and
+      device, collapse them to a single loop or build-arg matrix so a model
+      addition is one line. Stay green; add no behaviour. Skip if already clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,101 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Manifests — DRA claim, Deployment, Service, Application CR
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - infer-igpu-rerank-endpoint
+  - infer-igpu-embeddings-endpoint
+  - infer-igpu-workload-preserves-quorum
+tasks:
+- number: 1
+  title: Pin the manifest contract with failing tests
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Create `scripts/tests/test_ovms_retrieval_manifests.py`. Assert the
+      ResourceClaimTemplate uses `resource.k8s.io/v1`, `deviceClassName:
+      gpu.intel.com`, `count: 1`, and — critically — requests NO capacity/memory:
+      the live ResourceSlice advertises `capacity.memory: "0"` (shared host RAM),
+      so a memory request can never be satisfied. Run
+      `uv run --frozen pytest scripts/tests/test_ovms_retrieval_manifests.py -q`; red.
+  - id: P2.T1.S2
+    text: |
+      Assert the Deployment: readiness probe path is model-level
+      (`/v2/models/.../ready`) and is NOT `/v2/health/ready` — verified live to
+      return 200 while the servable sat in `LOADING_PRECONDITION_FAILED`; the seed
+      initContainer is VERSION-GATED by a marker file rather than seed-if-absent
+      (the documented comfyui custom-nodes bug); `fsGroup: 5000` and `runAsUser:
+      5000` are set (Longhorn mounts root-owned, OVMS runs as 5000); both
+      `requests` AND `limits` are present for cpu and memory; `strategy: Recreate`
+      (RWO PVC); `nodeSelector` pins a single mini and a control-plane toleration
+      is present; both images are tag-pinned with no `:latest`. Red.
+  - id: P2.T1.S3
+    text: |
+      Assert the Service is `ClusterIP` on port 8000, and that NO LoadBalancer
+      `lbipam.cilium.io/ips` annotation and no Traefik IngressRoute reference this
+      app anywhere in the repo — the routing decision was in-cluster only, and
+      this test is what keeps a later drive-by from quietly exposing an
+      unauthenticated inference endpoint on the LAN. Red.
+- number: 2
+  title: Implement the manifests
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Write `apps/ovms-retrieval/manifests/`: `namespace.yaml` (`retrieval`, with
+      pod-security enforce=baseline and warn/audit=restricted), `pvc.yaml`
+      (Longhorn RWO 20Gi), `resourceclaimtemplate.yaml`, `service.yaml`
+      (ClusterIP 8000), `kustomization.yaml`.
+  - id: P2.T2.S2
+    text: |
+      Write `deployment.yaml`: 1 replica, `Recreate`, nodeSelector
+      `kubernetes.io/hostname: mini-1`, control-plane toleration; seed
+      initContainer from the model image copying `/models-src/gpu` to the PVC and
+      writing a `.seed-rev` marker, skipping only when the marker already matches
+      `MODELS_REV`; main container stock `openvino/model_server:2026.2.1-gpu`
+      with `--config_path` at the seeded repo; restricted-compliant security
+      context; requests 500m/2Gi, limits 2/6Gi; the `igpu` resource claim.
+  - id: P2.T2.S3
+    text: |
+      Write `apps/root/templates/ovms-retrieval.yaml` (project `infrastructure`,
+      `path: apps/ovms-retrieval/manifests`, `CreateNamespace=true`,
+      `ServerSideApply=true`, `selfHeal: true`). Because the manifests use a
+      Kustomize `configMapGenerator` for any generated config, set `prune: true`
+      and carry a per-resource `Prune=false` on the PVC so a mis-sync can never
+      destroy the model cache. Run
+      `uv run --frozen pytest scripts/tests/test_ovms_retrieval_manifests.py -q`;
+      expect green. Then run the FULL suite `uv run --frozen pytest scripts/tests/ -q`
+      to confirm nothing else regressed.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

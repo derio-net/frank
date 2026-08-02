@@ -1,0 +1,109 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Post-merge deploy, measurement, and close-out'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+  acceptance:
+  - infer-igpu-rerank-endpoint
+  - infer-igpu-rerank-latency-measured
+  - infer-igpu-embeddings-endpoint
+  - infer-igpu-workload-preserves-quorum
+  - gpu-igpu-claim-documented
+tasks:
+- number: 1
+  title: Deploy verification
+  steps:
+  - id: P5.T1.S1
+    text: |
+      After merge, confirm the model image published, then confirm ArgoCD synced
+      `ovms-retrieval`. Assert on the ARTIFACT, not the sync status: `GET
+      /v1/config` must show BOTH servables `AVAILABLE`. Do not accept
+      `/v2/health/ready` as evidence — it returns 200 on a broken model.
+  - id: P5.T1.S2
+    text: |
+      Confirm the GPU is genuinely in use: OVMS logs `Available devices for Open
+      VINO: CPU, GPU` and the servables loaded from the GPU repository.
+- number: 2
+  title: Run the measurements
+  steps:
+  - id: P5.T2.S1
+    text: |
+      Run `scripts/ovms-retrieval-bench.py --arm gpu` from inside the cluster.
+      Record rerank p50/p95/max for 20 passages, embedding dimension, and
+      embedding throughput. Confirm rerank scores are well separated, not the
+      degenerate 1e-9..1e-12 pattern.
+  - id: P5.T2.S2
+    text: |
+      Run the CPU control arm and state the GPU-vs-CPU verdict plainly. A CPU win
+      is a legitimate result and means the DRA plumbing was unnecessary — say so
+      if that is what the numbers show.
+  - id: P5.T2.S3
+    text: |
+      Capture control-plane health across a warm-load window: etcd leader changes
+      must not increase; compare etcd WAL fsync p99 and apiserver request latency
+      on mini-1 against untouched mini-2/mini-3; confirm mini-1 stays Ready with
+      no MemoryPressure.
+- number: 3
+  title: Close-out
+  steps:
+  - id: P5.T3.S1
+    text: |
+      Update the five acceptance rows with the measured evidence
+      (`fr acceptance set-status`), and record the numbers in the plan.
+  - id: P5.T3.S2
+    text: |
+      Retroactively extend the existing Layer 11 posts
+      (`blog/content/docs/building/10-local-inference`,
+      `blog/content/docs/operating/07-inference`) with the measured results — an
+      extension, so no new posts. Describe the consumer ONLY as an external
+      client: no repo name, no corpus details, no benchmark queries. Run
+      `/update-readme`. Set the plan Status to Deployed.
+  - id: P5.T3.S3
+    text: |
+      Report the measured rerank latency and embedding dimension back to the
+      requesting repo's issue so it can run its own recall benchmark (Test Plan
+      row 9), which cannot be verified here.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

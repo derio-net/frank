@@ -1,0 +1,76 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Benchmark harness with a CPU control arm
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - infer-igpu-rerank-latency-measured
+tasks:
+- number: 1
+  title: Pin the harness contract with failing tests
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Create `scripts/tests/test_ovms_retrieval_bench.py` covering the pure logic
+      of `scripts/ovms-retrieval-bench.py` with no network: percentile maths
+      (p50/p95/max over a known list), rerank request-body construction
+      (`{model, query, documents}`), response parsing of
+      `{results:[{index, relevance_score}]}`, embedding-dimension extraction, and
+      a score-degeneracy check that FAILS when scores span the 1e-9..1e-12 range
+      with poor separation — the exact signature of the requester's earlier
+      failed reranker, which is worth detecting automatically rather than by eye.
+      Run the focused test; red.
+  - id: P3.T1.S2
+    text: |
+      Assert the harness requires an explicit arm (`--arm gpu|cpu`) with no
+      default, so a recorded measurement can never be ambiguous about which
+      device produced it, and that it emits machine-readable JSON including arm,
+      model, batch size, iteration count and the percentile block. Red.
+- number: 2
+  title: Implement the harness
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Write `scripts/ovms-retrieval-bench.py`: warm-up then N=30 timed
+      `/v3/rerank` calls with 20 candidate passages, plus `/v3/embeddings` single
+      and batch-32, reporting p50/p95/max and the embedding dimension. Use only
+      the standard library plus what the repo already vendors. Passages must be
+      GENERIC filler generated in-script — never the requester's corpus or
+      queries, which must not enter this repo.
+  - id: P3.T2.S2
+    text: |
+      Run `uv run --frozen pytest scripts/tests/test_ovms_retrieval_bench.py -q`;
+      expect green. Confirm `python scripts/ovms-retrieval-bench.py --help` exits 0.
+  - id: P3.T2.S3
+    text: |
+      OPTIONAL refactor — extract shared request/timing helpers if the rerank and
+      embeddings paths duplicate them. Stay green.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
