@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Unexpected scale-to-0 rule, with its exclusion set derived in CI
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - feature-health-scale-to-zero-guarded
+tasks:
+- number: 1
+  title: Derive the by-design scale-to-0 set from its two declarative sources
+  steps:
+  - id: P4.T1.S1
+    text: |
+      RED. Add the guard that keeps the exclusion set honest. It must DERIVE the
+      expected set, never restate it:
+
+      1. Parse `apps/gpu-switcher/manifests/deployment.yaml`, find the container
+         env var `WORKLOADS`, and split its `name:namespace:deployment` triples.
+         Current value: `ollama:ollama:ollama,comfyui:comfyui:comfyui` — two
+         workloads. (`apps/gpu-switcher/manifests/clusterrole.yaml` is NOT a source
+         of truth: a ClusterRole has no namespace scoping at all, despite its
+         leading comment.)
+      2. Glob `apps/**/rollout.yaml`, parse each Argo Rollout, and collect every
+         `spec.workloadRef` whose `scaleDown` is `onsuccess` — those Deployments
+         sit at 0 replicas by design while the Rollout serves traffic. Currently
+         exactly one: `litellm/litellm`.
+      3. Assert the scale-to-0 rule's exclusion regexes cover exactly that union —
+         no more, no less. An over-broad exclusion silently drops coverage; an
+         under-broad one pages for a healthy service.
+
+      Confirm RED (the rule does not exist yet).
+  - id: P4.T1.S2
+    text: |
+      GREEN. Add the `workload-unexpectedly-scaled-to-zero` rule to the
+      `feature-health` folder, exactly as specified:
+
+      - `expr`: `kube_deployment_spec_replicas{namespace!~"ollama|comfyui", deployment!~"litellm"} == 0`
+      - `for: 15m` — a `Recreate`-strategy rollout passes through 0 replicas, and
+        several Frank apps use `Recreate` for RWO PVC reasons, so a short window
+        would false-positive on ordinary deploys
+      - `severity: warning`, `github_issue: "frank-ops#8"` (layer 8 is `obs`)
+      - annotations naming the namespace/deployment and pointing the runbook at
+        `kubectl -n <ns> get rollouts.argoproj.io` — because "owned by a Rollout"
+        is the most likely benign explanation
+
+      Exclude `litellm` by DEPLOYMENT name rather than namespace, so an unrelated
+      Deployment appearing in the litellm namespace is still covered.
+
+      Comment the rule with the reason each exclusion exists, and point at the
+      guard that keeps them in sync.
+  - id: P4.T1.S3
+    text: |
+      Verify against live state — this rule's whole risk is false-positives, and
+      the cluster currently has two Deployments at 0 replicas, both healthy.
+
+      Run the expr live (same curl as P2.T2.S1) and confirm it returns
+      **zero series**: `comfyui` is excluded by namespace, `litellm` by deployment
+      name, and nothing else on the cluster is at 0.
+
+      Then confirm the rule is not vacuous — drop the exclusions from a scratch
+      copy of the query and confirm it DOES return comfyui and litellm. A rule
+      that returns nothing because it matches nothing is indistinguishable from a
+      correct one until the day it matters.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

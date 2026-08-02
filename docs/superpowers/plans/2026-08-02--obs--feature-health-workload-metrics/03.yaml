@@ -1,0 +1,88 @@
+schema_version: 2
+phase:
+  number: 3
+  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m) and retire the xfail'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - feature-health-survives-node-reboot
+tasks:
+- number: 1
+  title: Encode the DaemonSet for:-policy, then migrate
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED. Extend the tripwire for the remaining 3 uids — `layer-3-networking-down`,
+      `layer-4-storage-down`, `layer-5-gpu-down` — with the same expr/threshold/
+      annotation assertions as phase 2, EXCEPT:
+
+      - allowed metrics also include `kube_daemonset_status_number_unavailable`
+      - `for` must be `15m`, not `5m`
+
+      Then add the policy guard that makes this durable rather than incidental:
+      derive which rules *may* match a DaemonSet by reading each rule's namespace
+      selector, and assert that any rule whose expr references
+      `kube_daemonset_status_number_unavailable` has `for: 15m` while every other
+      feature-health rule has `for: 5m`. This encodes the decision so a later
+      edit cannot quietly reintroduce reboot noise.
+
+      Confirm RED.
+  - id: P3.T1.S2
+    text: |
+      GREEN. Rewrite the 3 rules, same pattern as phase 2, `for: 15m`, adding the
+      `kind="daemonset"` branch via `label_replace`.
+
+      The rationale comment on these three must state the reason for 15m
+      explicitly: a DaemonSet reports replicas unavailable during ANY node drain,
+      so a 5m window would make every planned Talos rolling reboot produce an
+      alert burst — trading one noise source for another. The 2026-08-02
+      control-plane roll took roughly 7 minutes.
+  - id: P3.T1.S3
+    text: |
+      Remove the `@pytest.mark.xfail` from the no-`kube_pod_status_ready` test —
+      all 11 rules are migrated, so it must now pass strictly.
+
+      Because it was marked `strict=True`, leaving it in place would FAIL the suite
+      on xpass. That is the intended forcing function; do not "fix" it by relaxing
+      the marker.
+
+      Run the full suite. Expected: the tripwire file fully green, and the same 10
+      pre-existing `test_cnc_staging_*` failures as the phase-1 baseline — no more,
+      no fewer. Compare against a clean baseline if the counts differ:
+      `git archive origin/main | tar -x -C /tmp/baseline && cd /tmp/baseline && uv run --frozen pytest scripts/tests/ -q`
+- number: 2
+  title: Verify the 3 expressions against live data
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Same live-query check as P2.T2.S1 for the 3 DaemonSet-bearing expressions.
+
+      `layer-4-storage-down` is the one to watch: it targets
+      `longhorn-manager-.*`, which is a DaemonSet only — if the deployment branch
+      of its `or` returns nothing that is correct, but the daemonset branch MUST
+      return series. Assert both branches separately rather than only the union,
+      or a broken half hides behind a working half.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

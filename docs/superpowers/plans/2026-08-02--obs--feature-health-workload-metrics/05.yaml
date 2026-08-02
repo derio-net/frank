@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Documentation — gotcha, runbook prose, spec status
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Record the pattern where the next person will look
+  steps:
+  - id: P5.T1.S1
+    text: |
+      Update `agents/rules/frank-gotchas.md` (Grafana section): extend the
+      existing 2026-08-02 tombstone one-liner to record that the feature-health
+      rules no longer use `kube_pod_status_ready` at all, that DaemonSet-bearing
+      rules carry `for: 15m` deliberately, and that the scale-to-0 exclusion set is
+      CI-derived from gpu-switcher's `WORKLOADS` env var plus Rollout
+      `workloadRef.scaleDown: onsuccess` targets.
+
+      One-liner only here; full prose goes in the runbook.
+  - id: P5.T1.S2
+    text: |
+      Append a section to `docs/runbooks/frank-gotchas/grafana.md` covering:
+
+      - the per-pod -> workload-availability migration and why (terminal pods hold
+        stale readiness series; k8s does not GC them below 12500)
+      - the `lt 1` -> `gt 0` threshold inversion, called out as the error to look
+        for when a rule seems stuck firing or stuck silent
+      - StatefulSets having no `_unavailable` metric and the subtraction used instead
+      - the two by-design scale-to-0 mechanisms, with the LiteLLM Rollout case
+        spelled out — a Deployment at 0 replicas serving 5/5 through a Rollout is
+        the single most confusing thing in this area
+      - that Grafana reads provisioning files AT BOOT, so a rule change needs a
+        pod restart and ArgoCD showing Synced proves nothing about what Grafana
+        is evaluating
+
+      Set the spec's `**Status:**` to `Deployed` only after phase 6; leave it
+      `Draft` here.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
