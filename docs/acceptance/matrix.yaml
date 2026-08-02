@@ -870,4 +870,14 @@ rows:
   status: not-implemented
   notes: 'Exclusion set derived in CI from gpu-switcher''s WORKLOADS env var and every Rollout workloadRef
     with scaleDown: onsuccess. Live-checked against comfyui (timeshare) and litellm (Rollout scale-down)
-    both sitting at 0 while healthy.'
+    both sitting at 0 while healthy. Phase 4 (2026-08-03) shipped the rule and the derivation: the guard
+    parses both declarative sources and set-compares them against the rule''s exclusion regexes (refusing
+    any non-literal alternative, so "exactly, no more and no less" stays a checkable claim), and a
+    companion assertion fails if a Rollout''s whole namespace is excluded rather than the Deployment by
+    name. Live-verified in BOTH directions: the shipped expr returns 0 series, the same expr with the
+    exclusions stripped returns comfyui and litellm, and the selector without the == 0 filter returns 73
+    Deployments - so the quiet state is quiet because nothing is wrong, not because the selector matches
+    nothing. Still not-implemented: the second half of the claim ("raises an alert") needs an actual
+    scale-to-0 observed after Grafana reloads the provisioning file, which it reads at boot rather than
+    watching. That is the phase 6 post-merge step. Deliberately not flipped on the exclusion half alone,
+    matching the discipline on the two sibling rows.'

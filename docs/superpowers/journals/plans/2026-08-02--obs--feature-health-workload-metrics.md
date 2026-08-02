@@ -556,3 +556,255 @@ FOR PHASES 4-5:
     widen that guard with a written rationale. Do not delete the guard.
   * `PHASE_2_EXPECTED_FOR` and the phase-3 uid frozensets are per-batch scaffolding.
     The two policy guards and the tripwire are the parts meant to last.
+
+<!-- fr:journal kind=finding scope=plan id=1c4e89951ebc created=2026-08-03T00:32:30 phase=4 state=fixed -->
+### 1c4e89951ebc · finding [fixed] · Applying the folder's `gt 0` convention to the spec'd `== 0` expr yields a rule that can NEVER fire — PromQL `== 0` is a filter, not a comparison (phase 4)
+
+The third time the design spec has been wrong in the same direction, and the
+same shape as phase 3's `probe_success` polarity finding: an obedient,
+convention-following diff produces a rule that is structurally incapable of
+firing, and nothing in the YAML looks wrong.
+
+The spec gives the new rule's expr as:
+
+    kube_deployment_spec_replicas{namespace!~"ollama|comfyui",deployment!~"litellm"} == 0
+
+and states no threshold. The folder convention established in phases 2-3, and
+restated in the phase-4 brief, is `evaluator: {type: gt, params: [0]}`. Pairing
+the two ships a dead rule.
+
+In PromQL `metric == 0` (without `bool`) is a **filter**, not a comparison. It
+returns the matching series carrying their ORIGINAL value — which for this
+filter is, necessarily, always 0. So the reduce node hands the threshold a 0 on
+exactly the series that should alert, and `gt 0` never fires on any of them.
+
+Measured live before writing the rule, so this is not an argument from the
+docs:
+
+    kube_deployment_spec_replicas == 0
+      -> 2 series: comfyui/comfyui = 0, litellm/litellm = 0
+
+The values are `0`, not `1`. That reading IS the evidence.
+
+The convention is correct where it came from and does not transfer here.
+`kube_deployment_status_replicas_unavailable` and the StatefulSet difference
+COUNT something, so `> 0` is the natural condition. `spec_replicas == 0` is
+already the whole condition; the presence of a series is the alert, and the
+value is a constant.
+
+SHIPPED: `== 0` filter + `evaluator: {type: lt, params: [1]}`, with
+`noDataState: OK` keeping the healthy case (no series at all) quiet. This is
+the one rule in the folder whose threshold is `lt`, which reads exactly like
+the pre-migration readiness threshold the whole change removed — a future
+reader "tidying" it to `gt 0` would silently delete the rule. So the guard
+`test_the_scale_to_zero_rule_fires_on_the_series_its_filter_returns` asserts
+the `== 0` / `lt 1` PAIRING, not either half: moving to `== bool 0` requires
+inverting to `gt 0` in the same edit, and vice versa. The reasoning is in the
+docstring and in the in-file comment.
+
+`== bool 0` + `gt 0` was the considered alternative and is equally correct. It
+was rejected on cost, not on principle: `bool` drops the filter, so every
+non-excluded Deployment in the cluster (measured: 73) goes through the reduce
+node on every 1m evaluation for a signal that is normally empty.
+
+FOR PHASE 5: if the acceptance criteria or any doc restates "every rule in this
+folder thresholds at gt 0", that is now false, deliberately, for exactly one
+rule.
+
+<!-- fr:journal kind=finding scope=plan id=a88e5d462f7b created=2026-08-03T00:32:56 phase=4 state=fixed -->
+### a88e5d462f7b · finding [fixed] · CLOSES 86ffb32eb446 — the monitoring-DaemonSet coverage phase 3 dropped is restored by layer-8-observability-collectors-down (phase 4)
+
+Closing phase 3's open finding `86ffb32eb446` rather than shipping it.
+
+RESTATEMENT OF THE GAP (re-verified, not taken on trust): the pre-migration
+layer-8 query matched every pod in `monitoring`, which included the pods of both
+DaemonSets there — `fluent-bit` and
+`victoria-metrics-prometheus-node-exporter`. Migrating layer-8 to Deployments +
+StatefulSets dropped them, and the spec justified that with "their real coverage
+is the Layer 1/2 node alerts". Both `layer-1-hardware-down` and `layer-2-os-down`
+query `kube_node_status_condition{condition="Ready",status="false"}`: they fire
+when a NODE goes NotReady and are blind to a collector crashlooping on a healthy
+one. So this was a regression THIS work introduced, not a pre-existing gap.
+
+FIXED by a new rule, `layer-8-observability-collectors-down`:
+
+    label_replace(
+      label_replace(
+        kube_daemonset_status_number_unavailable{namespace="monitoring"},
+        "workload", "$1", "daemonset", "(.*)"),
+      "kind", "daemonset", "", "")
+
+  for: 15m | severity: warning | github_issue: frank-ops#8 | gt 0
+
+LIVE VERIFICATION (expr read out of the ConfigMap by double YAML load and POSTed
+through the Grafana datasource proxy, never retyped):
+
+    series: 2
+      monitoring/fluent-bit                                kind=daemonset  value=0
+      monitoring/victoria-metrics-prometheus-node-exporter kind=daemonset  value=0
+
+Exactly the two DaemonSets that went unwatched, both carrying `workload` and a
+lowercase `kind`, both at 0 — the correct quiet state under `gt 0`.
+
+FOUR DESIGN CHOICES, each with a reason rather than a default:
+
+1. SEPARATE rule, not folded back into layer-8. The folder policy is that any
+   rule querying a DaemonSet metric waits 15m for a node drain. Folding these
+   two in would therefore drag layer-8 from 5m to 15m — slowing detection of the
+   ALERTING STACK's own failure, at severity critical, to fix a warning-level
+   gap. That is a worse trade than the gap.
+
+2. `for: 15m` needs NO exemption. It queries a DaemonSet metric, so it satisfies
+   `test_the_fifteen_minute_window_is_reserved_for_daemonset_rules` on its
+   merits. A guard asserts it is absent from `FIFTEEN_MINUTE_EXEMPTIONS`, so
+   nobody "helpfully" adds a redundant allowlist entry — an allowlist that
+   accumulates unnecessary entries is how it becomes a rubber stamp.
+
+3. `severity: warning`, not critical. Losing fluent-bit stops log shipping and
+   losing node-exporter stops node metrics, both real degradations — but
+   vmagent / vmsingle / grafana are Deployments still covered at critical/5m by
+   layer-8 proper, so the alerting stack itself is not blind.
+
+4. Scoped to `namespace="monitoring"` with NO name selector, deliberately
+   unlike the layer trackers (which name specific control-plane workloads).
+   Every DaemonSet in `monitoring` is a collector, so a third one added later is
+   covered without anyone remembering to extend a regex.
+
+DOCS BROUGHT INTO LINE, as the plan step required: the layer-8 in-file comment
+and the docstring of
+`test_layer_8_watches_deployments_and_statefulsets_but_not_daemonsets` both
+previously stated the gap honestly and pointed at an open finding. They now
+point at this rule, and reframe layer-8's DaemonSet exclusion as a ROUTING
+decision between two rules rather than a hole.
+
+<!-- fr:journal kind=discovery scope=plan id=469490d31aab created=2026-08-03T00:33:32 phase=4 -->
+### 469490d31aab · discovery · How the 15m guard collision was resolved (widened, not gutted), the derived exclusion set, and live verification in both directions (phase 4)
+
+THE GUARD COLLISION, resolved deliberately.
+
+Phase 3 shipped `test_the_fifteen_minute_window_is_reserved_for_daemonset_rules`
+("15m => the expr queries a DaemonSet metric"). The new scale-to-0 rule is
+spec'd at `for: 15m` while querying `kube_deployment_spec_replicas`, so it fails
+that guard by construction — phase 3 flagged this in advance.
+
+RESOLUTION: widened to "15m requires EITHER a DaemonSet metric OR an entry in
+`FIFTEEN_MINUTE_EXEMPTIONS` carrying a written reason". The exemption's VALUE is
+the justification string, not a bare uid, so an entry cannot be added without
+writing down why. The guard's actual purpose survives intact: it was never
+"forbid 15m", it was "15m is never adopted silently", and an allowlist of prose
+converts "quietly set 15m" into "write down why", which is the behaviour being
+protected.
+
+The rationale recorded for the one entry: a Recreate-strategy Deployment passes
+through 0 replicas on EVERY ordinary rollout (k8s tears the old pod down before
+creating the new one), and several Frank apps are on Recreate precisely because
+their PVC is RWO — so a short window would page on routine deploys of exactly
+the apps most likely to be deployed by hand. Noted in-file: this is a settle-time
+allowance, not a sensitivity dial. The condition is BINARY (replicas are 0 or
+they are not), so 15m buys tolerance for a transition rather than blunting a
+threshold — which is why it is a different kind of request from the one the
+guard exists to refuse.
+
+A second guard, `test_the_fifteen_minute_exemptions_are_live_and_reasoned`,
+stops the allowlist rotting: an entry whose rule has moved off 15m or been
+deleted FAILS (a stale exemption silently pre-approves whatever next claims the
+uid), and a reason under 80 characters FAILS. That test was RED at first run for
+the right reason — the exempted rule did not exist yet — which also proves the
+stale-entry half bites rather than being decorative.
+
+THE DERIVED EXCLUSION SET. Both parsers were sanity-read against their sources
+before being trusted:
+
+  gpu-switcher WORKLOADS env var    -> {(ollama, ollama), (comfyui, comfyui)}
+  apps/**/rollout.yaml, scaleDown   -> {(litellm, litellm)}
+  rollout files seen                -> apps/litellm/manifests/rollout.yaml
+                                       apps/sympozium-extras/manifests/rollout.yaml
+
+The sympozium file IS parsed and correctly excluded (its workloadRef leaves
+`scaleDown` at the default `never`), so the derivation is discriminating rather
+than accidentally right.
+
+The test asserts three separate things, not one: (a) the negative matchers are
+exactly {namespace, deployment} — any other exclusion label is coverage removed
+without a declarative source; (b) the namespace literals set-equal the WORKLOADS
+namespaces; (c) the deployment literals set-equal the onsuccess-Rollout names.
+`_alternation_literals` refuses a non-literal alternative (e.g. `litellm.*`)
+with an explicit message, because "covers exactly the derived set, no more and
+no less" is only a checkable claim while the alternatives are literal names.
+
+A fourth test asserts the SPLIT is not arbitrary:
+`test_the_scale_to_zero_rule_still_watches_the_litellm_namespace` fails if any
+namespace holding an onsuccess Rollout is excluded wholesale. The two mechanisms
+are not interchangeable — the GPU namespaces exist to be timeshared so excluding
+them wholesale is honest, whereas `litellm` is a normal namespace that happens to
+contain one Rollout-managed Deployment.
+
+LIVE VERIFICATION, both directions (exprs read out of the ConfigMap, never
+retyped):
+
+  shipped expr                                        -> 0 series   (correct: quiet)
+  same expr with the exclusions stripped              -> 2 series   comfyui/comfyui=0
+                                                                    litellm/litellm=0
+  shipped selector WITHOUT the `== 0` filter          -> 73 series  (the population it watches)
+  kube_deployment_spec_replicas{namespace="litellm"}  -> 1 series   litellm=0
+  kube_deployment_spec_replicas{namespace="ollama"}   -> 1 series   ollama=1
+
+Reading of those five:
+
+* Zero series is the correct quiet state, and the 73-series count is what proves
+  it is quiet because nothing is wrong rather than because the selector matches
+  nothing. "A rule returning nothing because it matches nothing is
+  indistinguishable from a correct one until it matters" — the exclusion-stripped
+  query proves the FILTER works; the unfiltered selector proves the SELECTOR
+  does.
+* litellm's Deployment really is at 0 while its Rollout serves 5/5. A naive rule
+  would have paged on a completely healthy LLM gateway on day one.
+* `ollama` is currently at 1 (it holds gpu-1 right now), so its exclusion is
+  INERT today and load-bearing the moment the timeshare switches. Anyone
+  re-measuring at a different moment will see comfyui and ollama swap places;
+  neither reading contradicts the other.
+* The litellm namespace holds exactly one Deployment today, so excluding by
+  deployment name rather than namespace currently costs nothing — the property
+  it protects is about what lands there later.
+
+FULL SUITE: 573 passed, 1 xfailed, 0 failed (host, not the devcontainer).
+Baseline at phase start re-measured at 563 passed / 1 xfailed / 0 failed, so the
+delta is exactly +10 = this phase's tests. RED was 10 failed / 28 passed, each
+for its intended reason.
+
+<!-- fr:journal kind=discovery scope=plan id=d16e09b1d11f created=2026-08-03T00:33:53 phase=4 -->
+### d16e09b1d11f · discovery · The sympozium-apiserver rollout comment claims its Deployment is scaled to 0; it is not, and believing it would over-broaden the exclusion set (phase 4)
+
+Small, but it is exactly the kind of thing the derivation exists to defeat.
+
+`apps/sympozium-extras/manifests/rollout.yaml` opens with:
+
+    # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
+    # The Deployment is scaled to 0 — this is expected and correct.
+
+That is false. The Rollout's `workloadRef` sets no `scaleDown`, so it takes the
+Argo Rollouts default of `never` and the Deployment keeps running. Measured
+live:
+
+    kube_deployment_spec_replicas{namespace="sympozium-system"}
+      nats=1  sympozium-apiserver=1  sympozium-controller-manager=1
+      sympozium-otel-collector=1  sympozium-webhook=2
+
+    kube_deployment_spec_replicas == 0   (cluster-wide, no exclusions)
+      -> comfyui/comfyui, litellm/litellm    (sympozium-apiserver absent)
+
+Anyone deriving the exclusion set by READING the rollout files' prose — rather
+than by parsing `workloadRef.scaleDown` — adds `sympozium-apiserver` to the
+exclusions and silently stops watching a Deployment that is supposed to be up.
+Same failure mode as the design spec's first draft reading the GPU set out of a
+ClusterRole: the comment is the trap, the field is the fact.
+
+The guard is immune by construction (it keys on `scaleDown == "onsuccess"`), and
+it does parse that file — verified, so its correctness is discriminating rather
+than incidental. The scale-to-0 rule's in-file comment now records the
+discrepancy so the next reader is not misled by it either.
+
+NOT FIXED HERE: the comment in `apps/sympozium-extras/manifests/rollout.yaml` is
+still wrong. It is outside this plan's scope (a different app's manifest, and
+the file is otherwise correct), and it is now contradicted in writing at the
+place where believing it would do damage. Worth a one-line follow-up.

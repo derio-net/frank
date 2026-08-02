@@ -497,12 +497,19 @@ data:
       # not accurate. layer-1-hardware-down and layer-2-os-down both key on
       # kube_node_status_condition{condition="Ready",status="false"}, so they
       # see a dead NODE and are blind to a collector failing on a healthy one.
-      # What actually covers these two is indirect: node-exporter feeds
-      # layer-1-node-memory-headroom and layer-1-nic-link-flap, and fluent-bit
-      # carries the crowdsec-canary and alert-agent cred-expiry heartbeats into
-      # VictoriaLogs where dead-man rules watch them. Partial, not equivalent.
-      # Tracked as an open finding on the plan journal rather than widened here
-      # — adding coverage is a different change from rewriting a query.
+      # What indirectly touches them is partial, not equivalent: node-exporter
+      # feeds layer-1-node-memory-headroom and layer-1-nic-link-flap, and
+      # fluent-bit carries the crowdsec-canary and alert-agent cred-expiry
+      # heartbeats into VictoriaLogs where dead-man rules watch them — both
+      # fleet-wide-only and late.
+      #
+      # That gap is CLOSED by layer-8-observability-collectors-down, defined
+      # immediately below, which watches
+      # kube_daemonset_status_number_unavailable{namespace="monitoring"} at
+      # warning/15m. The exclusion here is therefore a routing decision between
+      # two rules, not a hole: the collectors get the drain-tolerant window they
+      # need without dragging THIS rule — the alerting stack's own critical
+      # signal — from 5m to 15m.
       #
       # The observability control plane proper is Deployments
       # (grafana, vmagent, vmsingle, kube-state-metrics, health-bridge,
@@ -594,6 +601,193 @@ data:
               # component; the runbook stays valid for all three branches.
               summary: "L8 Observability: {{ $labels.component }} failing"
               runbook: "kubectl -n monitoring get deploy,statefulset; kubectl -n monitoring logs deploy/health-bridge --tail=50; kubectl -n monitoring get probe feature-health-probes -o yaml"
+
+      # --- Layer 8 — Observability collectors (frank-ops#8) ---
+      # Restores coverage that the 2026-08-02 workload-metrics migration
+      # removed. The pre-migration layer-8 query matched EVERY pod in
+      # `monitoring`, which included the pods of both DaemonSets there:
+      # fluent-bit and victoria-metrics-prometheus-node-exporter. Migrating
+      # layer-8 to Deployments + StatefulSets dropped them.
+      #
+      # The design spec justified that drop by claiming their "real coverage is
+      # the Layer 1/2 node alerts". It is not: layer-1-hardware-down and
+      # layer-2-os-down both key on
+      # kube_node_status_condition{condition="Ready",status="false"}, so they
+      # fire on a dead NODE and are blind to a collector crashlooping on a
+      # healthy one. Grepping this whole file for `fluent-bit` and
+      # `node-exporter` turns up only comments and `job=` selectors — before
+      # this rule, nothing anywhere watched either DaemonSet's health.
+      #
+      # SEPARATE rule rather than folded back into layer-8, deliberately. The
+      # folder policy (guarded in scripts/tests/test_feature_health_workload_
+      # metrics.py) is that any rule querying a DaemonSet metric waits 15m for
+      # a node drain. Folding these two back into layer-8 would therefore drag
+      # that rule from 5m to 15m and slow detection of the ALERTING STACK's own
+      # failure — trading a critical-path regression for the fix to a
+      # warning-level one.
+      #
+      # severity: warning, not critical. Losing fluent-bit stops log shipping
+      # and losing node-exporter stops node metrics, both real degradations,
+      # but vmagent / vmsingle / grafana are Deployments still covered at
+      # critical/5m by layer-8 proper, so the alerting stack is not blind.
+      #
+      # Scoped to the namespace with no name selector, unlike the layer
+      # trackers: every DaemonSet in `monitoring` is a collector, so a third one
+      # added later is covered without anyone remembering to extend a regex.
+      - orgId: 1
+        name: layer-8-observability-collectors-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-8-observability-collectors-down
+            title: Layer 8 Observability Collectors Degraded
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_daemonset_status_number_unavailable{namespace="monitoring"},
+                        "workload", "$1", "daemonset", "(.*)"),
+                      "kind", "daemonset", "", "")
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#8"
+            annotations:
+              summary: "L8 Observability collector: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
+              runbook: "kubectl -n monitoring get daemonset; kubectl -n monitoring rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n monitoring describe {{ $labels.kind }}/{{ $labels.workload }}"
+
+      # --- Unexpected scale-to-0 (frank-ops#8) ---
+      # The inverse question to every other rule in this folder. They all count
+      # UNAVAILABLE replicas, and a Deployment scaled to 0 has none by
+      # definition — so a service someone scaled down by accident, or that a
+      # controller parked and never restored, reads as perfectly healthy
+      # everywhere else. This is the only rule that watches what a Deployment
+      # ASKS for rather than what it has.
+      #
+      # One rule, not twelve: the condition is workload-shaped, not
+      # layer-shaped. github_issue frank-ops#8 because it is observability's
+      # own rule (layer 8 is `obs` per docs/layers.yaml).
+      #
+      # EXCLUSIONS. Two Deployments sit at 0 replicas on Frank BY DESIGN and
+      # both are healthy, so a naive `spec_replicas == 0` pages on day one.
+      # Each exclusion traces to a declarative source in this repo, and
+      # scripts/tests/test_feature_health_workload_metrics.py DERIVES the
+      # expected set from those sources rather than restating it — so adding a
+      # third timeshared workload, or flipping a second Rollout to
+      # `scaleDown: onsuccess`, fails CI instead of paging at 03:00:
+      #
+      #   namespace!~"ollama|comfyui"
+      #     gpu-switcher's WORKLOADS env var
+      #     (apps/gpu-switcher/manifests/deployment.yaml), which parks whichever
+      #     GPU workload is not currently holding gpu-1. NOT clusterrole.yaml —
+      #     a ClusterRole carries no namespace information at all, despite its
+      #     leading comment; an earlier draft of the design spec read the set
+      #     from there and got it wrong.
+      #
+      #   deployment!~"litellm"
+      #     apps/litellm/manifests/rollout.yaml has
+      #     `workloadRef.scaleDown: onsuccess`, so Argo Rollouts scales the
+      #     Deployment to 0 the moment the Rollout goes Healthy and serves
+      #     traffic from its own ReplicaSet. Measured live: Deployment 0
+      #     replicas, Rollout 5/5 ready. Excluded by DEPLOYMENT NAME rather than
+      #     namespace on purpose, so an unrelated Deployment scaled to 0 in the
+      #     litellm namespace is still caught.
+      #     (sympozium-apiserver's Rollout leaves scaleDown at the default
+      #     `never`, so its Deployment stays up and needs no exclusion — the
+      #     comment at the top of that file claiming otherwise is stale.)
+      #
+      # Coverage is not lost for the excluded three: ollama/comfyui are probed
+      # end-to-end by the L11 litellm_chat and L16 comfyui_object_info blackbox
+      # probes with gpu-node-both-down as the real pager, and litellm's actual
+      # health is the Rollout's, which layer-11-inference-down probes.
+      #
+      # THRESHOLD IS `lt 1`, NOT `gt 0`, and that is not an oversight. In PromQL
+      # `metric == 0` is a FILTER, not a comparison — it returns the matching
+      # series carrying their ORIGINAL value, which here is always 0. The `gt 0`
+      # convention the rest of this folder uses (correct there: those metrics
+      # COUNT unavailable replicas) would make this rule structurally incapable
+      # of firing while looking entirely conventional. The presence of a series
+      # IS the alert condition; noDataState: OK keeps the healthy case (no
+      # series at all) quiet. Guarded, with the `== 0`/`lt 1` pairing asserted
+      # together so neither half can be "tidied" alone.
+      #
+      # for: 15m — a Recreate-strategy Deployment passes through 0 replicas on
+      # every ordinary rollout (kubernetes tears the old pod down before
+      # creating the new one), and several Frank apps are on Recreate precisely
+      # because their PVC is RWO. A short window would page on routine deploys
+      # of exactly the apps most likely to be deployed by hand. This is the one
+      # rule in the folder at 15m WITHOUT querying a DaemonSet metric; it holds
+      # a written exemption in FIFTEEN_MINUTE_EXEMPTIONS rather than a silent
+      # pass.
+      #
+      # Deployments only. StatefulSets and DaemonSets are not scaled to 0 as an
+      # operational pattern on Frank, and including them would mean chasing
+      # every vCluster's lifecycle.
+      - orgId: 1
+        name: workload-unexpectedly-scaled-to-zero
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: workload-unexpectedly-scaled-to-zero
+            title: Workload Unexpectedly Scaled To Zero
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    kube_deployment_spec_replicas{namespace!~"ollama|comfyui",deployment!~"litellm"} == 0
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#8"
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is scaled to 0 replicas and is not a known scale-to-0 workload"
+              runbook: "kubectl -n {{ $labels.namespace }} get deploy {{ $labels.deployment }} -o yaml; check for an Argo Rollout owning it: kubectl -n {{ $labels.namespace }} get rollouts.argoproj.io"
 
       # --- Layer 18 — Persistent Agent (frank-ops#18) ---
       # Per-job heartbeat check — fires ONE alert instance per stale cron, all

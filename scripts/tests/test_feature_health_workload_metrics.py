@@ -751,6 +751,28 @@ def test_rules_that_watch_daemonsets_tolerate_a_node_drain():
     )
 
 
+# Rules allowed to sit at `for: 15m` WITHOUT querying a DaemonSet metric.
+#
+# The point of the converse guard below is that 15m must never become the place
+# tuning quietly hides. An allowlist weakens that only if entries can be added
+# without saying why — so the value here IS the justification, it is asserted
+# non-empty, and a stale entry fails its own test. Adding a key is a written
+# decision; deleting the guard is not available.
+FIFTEEN_MINUTE_EXEMPTIONS: dict[str, str] = {
+    "workload-unexpectedly-scaled-to-zero": (
+        "A Recreate-strategy Deployment passes through 0 replicas on every "
+        "ordinary rollout — kubernetes tears the old pod down before creating "
+        "the new one — and several Frank apps are on Recreate precisely because "
+        "their PVC is RWO (see storage-secrets-ssa.md: RWO + RollingUpdate "
+        "deadlocks). A short window would therefore page on routine deploys of "
+        "exactly the apps most likely to be deployed by hand. This is a "
+        "settle-time allowance, not a sensitivity dial: the condition it "
+        "watches is binary (replicas are 0 or they are not), so 15m buys "
+        "tolerance for a transition rather than blunting a threshold."
+    ),
+}
+
+
 def test_the_fifteen_minute_window_is_reserved_for_daemonset_rules():
     """The honest converse: 15m exists in this folder for exactly one reason.
 
@@ -759,17 +781,61 @@ def test_the_fifteen_minute_window_is_reserved_for_daemonset_rules():
     without querying a DaemonSet, that is a sensitivity decision wearing this
     one's clothes and deserves its own justification — so it fails here and has
     to be written down.
+
+    Phase 4 widened "requires a DaemonSet metric" to "requires a DaemonSet
+    metric OR an entry in `FIFTEEN_MINUTE_EXEMPTIONS` carrying a written
+    reason", because `workload-unexpectedly-scaled-to-zero` legitimately needs
+    the window for an unrelated cause (Recreate rollouts pass through 0
+    replicas). Widening rather than deleting is deliberate: the guard's value is
+    that 15m is never adopted silently, and an allowlist whose entries are
+    prose preserves that — it converts "quietly set 15m" into "write down why",
+    which is the whole behaviour being protected.
     """
     offenders = sorted(
         uid
         for uid, (rule, expr) in _feature_health_rules_by_uid_with_expr().items()
-        if rule.get("for") == DAEMONSET_FOR and DAEMONSET_METRIC not in expr
+        if rule.get("for") == DAEMONSET_FOR
+        and DAEMONSET_METRIC not in expr
+        and uid not in FIFTEEN_MINUTE_EXEMPTIONS
     )
     assert not offenders, (
         f"feature-health rule(s) sit at `for: {DAEMONSET_FOR}` without querying "
         f"{DAEMONSET_METRIC}. That window exists to absorb node drains; using "
-        "it for anything else needs its own rationale, not this one's: "
-        f"{offenders}"
+        "it for anything else needs its own rationale, not this one's. Either "
+        "pick a window this rule can justify on its own, or add it to "
+        f"FIFTEEN_MINUTE_EXEMPTIONS with a written reason: {offenders}"
+    )
+
+
+def test_the_fifteen_minute_exemptions_are_live_and_reasoned():
+    """An allowlist rots into a rubber stamp unless its entries are checked.
+
+    Two ways that happens, both guarded here. An entry whose rule has since
+    moved off 15m (or been deleted) sits there granting a permission nobody
+    needs — and silently pre-approves any future rule that reuses the uid. An
+    entry with a placeholder reason is an exemption granted without the
+    justification that is supposed to be its whole price.
+    """
+    by_uid = _feature_health_rules_by_uid_with_expr()
+
+    stale = sorted(
+        uid
+        for uid in FIFTEEN_MINUTE_EXEMPTIONS
+        if uid not in by_uid or by_uid[uid][0].get("for") != DAEMONSET_FOR
+    )
+    assert not stale, (
+        "FIFTEEN_MINUTE_EXEMPTIONS grants a 15m exemption to rule(s) that are "
+        "no longer at 15m (or no longer exist). Drop the entry — a stale "
+        f"exemption silently pre-approves whatever next claims the uid: {stale}"
+    )
+
+    unreasoned = sorted(
+        uid for uid, reason in FIFTEEN_MINUTE_EXEMPTIONS.items() if len(reason.strip()) < 80
+    )
+    assert not unreasoned, (
+        "FIFTEEN_MINUTE_EXEMPTIONS entries must carry the justification that "
+        "the DaemonSet rules get from the node-drain argument. A one-liner is "
+        f"not one: {unreasoned}"
     )
 
 
@@ -840,13 +906,17 @@ def test_layer_8_watches_deployments_and_statefulsets_but_not_daemonsets():
     health-bridge, blackbox-exporter, pushgateway) plus one StatefulSet
     (victoria-logs).
 
-    The exclusion is a real, if small, loss of coverage: nothing in the folder
-    now alerts directly on either DaemonSet, and the design spec's claim that
-    "their real coverage is the Layer 1/2 node alerts" does not survive
-    checking — those rules key on node Ready conditions and are blind to a
-    collector dying on a healthy node. Left as an open finding rather than
-    widened here, because adding coverage under cover of a query rewrite is
-    how scope creeps.
+    Excluding them from THIS rule was a real loss of coverage, and the design
+    spec's claim that "their real coverage is the Layer 1/2 node alerts" did
+    not survive checking — those rules key on node Ready conditions and are
+    blind to a collector dying on a healthy node. Phase 3 raised that as an
+    open finding rather than widening the query mid-rewrite; phase 4 closed it
+    with `layer-8-observability-collectors-down`, which watches
+    `kube_daemonset_status_number_unavailable{namespace="monitoring"}` at
+    warning/15m (see `test_the_collectors_rule_watches_the_monitoring_
+    daemonsets`). So what this test asserts is now a ROUTING decision between
+    two rules rather than a gap: the collectors are covered, on the
+    drain-tolerant window they need, without dragging this critical rule off 5m.
     """
     used = set(_KUBE_METRIC_RE.findall(_query_expr(_layer_8())))
 
@@ -968,4 +1038,504 @@ def test_layer_8_normalises_every_branch_onto_a_component_label():
     assert "$labels.pod" not in rendered, (
         f"{LAYER_8} annotations still interpolate $labels.pod, which no longer "
         "exists on any branch of the query"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 4, task 1 — `workload-unexpectedly-scaled-to-zero`.
+#
+# The inverse question to everything above. The twelve migrated rules ask "are
+# the replicas this workload wants actually available?", which is silent about a
+# workload that wants zero. A Deployment scaled to 0 has no unavailable replicas
+# by definition, so every rule in this folder reads it as perfectly healthy.
+#
+# The whole risk of the new rule is false positives, because two Deployments on
+# Frank sit at 0 replicas by design and both are healthy. Neither exclusion may
+# be written from memory: they are DERIVED here from the two declarative sources
+# that cause the behaviour, so adding a third GPU-timeshared workload or a
+# second `scaleDown: onsuccess` Rollout fails CI instead of paging at 03:00.
+#
+# An earlier draft of the design spec got this wrong in both directions at once
+# — it read the exclusion set out of `gpu-switcher`'s ClusterRole (which carries
+# no namespaces at all) and listed `litellm` as GPU-timeshared (it is not; it is
+# a Rollout scale-down). Neither error is visible in a YAML review. That is what
+# this derivation is for.
+# ---------------------------------------------------------------------------
+
+SCALE_TO_ZERO = "workload-unexpectedly-scaled-to-zero"
+
+GPU_SWITCHER_DEPLOYMENT = REPO / "apps" / "gpu-switcher" / "manifests" / "deployment.yaml"
+
+# The metric the new rule watches: what the Deployment ASKS for, not what it
+# has. `kube_deployment_status_replicas_unavailable` is 0 for a 0-replica
+# Deployment, which is the blind spot being closed.
+SPEC_REPLICAS_METRIC = "kube_deployment_spec_replicas"
+
+
+def _gpu_timeshared_workloads() -> set[tuple[str, str]]:
+    """`(namespace, deployment)` pairs that gpu-switcher scales to 0.
+
+    Source of truth is the `WORKLOADS` env var on gpu-switcher's own Deployment,
+    whose value is a comma-separated list of `name:namespace:deployment`
+    triples. Explicitly NOT `apps/gpu-switcher/manifests/clusterrole.yaml`: a
+    ClusterRole is cluster-scoped and carries no namespace information whatever,
+    despite a leading comment there saying "in GPU workload namespaces". A
+    reader who trusts that comment derives a set that cannot be right.
+    """
+    document = yaml.safe_load(GPU_SWITCHER_DEPLOYMENT.read_text(encoding="utf-8"))
+    assert document.get("kind") == "Deployment", (
+        f"{GPU_SWITCHER_DEPLOYMENT} is expected to be gpu-switcher's Deployment"
+    )
+    containers = document["spec"]["template"]["spec"]["containers"]
+    values = [
+        env["value"]
+        for container in containers
+        for env in container.get("env") or []
+        if env.get("name") == "WORKLOADS"
+    ]
+    assert len(values) == 1, (
+        f"expected exactly one WORKLOADS env var in {GPU_SWITCHER_DEPLOYMENT}, "
+        f"found {len(values)} — the timeshare contract moved and this "
+        "derivation is now reading nothing"
+    )
+
+    workloads: set[tuple[str, str]] = set()
+    for triple in values[0].split(","):
+        parts = [part.strip() for part in triple.strip().split(":")]
+        assert len(parts) == 3, (
+            f"WORKLOADS entry {triple!r} is not a name:namespace:deployment "
+            "triple; gpu-switcher's parser and this one have diverged"
+        )
+        _name, namespace, deployment = parts
+        workloads.add((namespace, deployment))
+    assert workloads, f"{GPU_SWITCHER_DEPLOYMENT} declares an empty WORKLOADS list"
+    return workloads
+
+
+def _rollout_scaled_down_deployments() -> set[tuple[str, str]]:
+    """`(namespace, deployment)` pairs an Argo Rollout parks at 0 replicas.
+
+    `workloadRef.scaleDown: onsuccess` makes the controller scale the referenced
+    Deployment to 0 the instant the Rollout goes Healthy, and serve traffic from
+    the Rollout's own ReplicaSet — so the Deployment reads 0/0 while the service
+    is at full strength. The default is `never`, which leaves the Deployment
+    running, so the field's ABSENCE is meaningful and is what distinguishes the
+    two Rollouts in this repo.
+    """
+    paths = sorted(REPO.glob("apps/**/rollout.yaml"))
+    assert paths, (
+        "no apps/**/rollout.yaml matched — the glob broke, and this derivation "
+        "would silently conclude that nothing is scaled down by a Rollout"
+    )
+
+    scaled_down: set[tuple[str, str]] = set()
+    seen_rollouts = 0
+    for path in paths:
+        for document in yaml.safe_load_all(path.read_text(encoding="utf-8")):
+            if not isinstance(document, dict) or document.get("kind") != "Rollout":
+                continue
+            seen_rollouts += 1
+            workload_ref = (document.get("spec") or {}).get("workloadRef") or {}
+            if workload_ref.get("scaleDown") != "onsuccess":
+                continue
+            assert workload_ref.get("kind") == "Deployment", (
+                f"{path}: workloadRef targets {workload_ref.get('kind')!r}, not "
+                "a Deployment — the scale-to-0 rule only watches Deployments, "
+                "so this needs a decision rather than a silent skip"
+            )
+            namespace = (document.get("metadata") or {}).get("namespace")
+            assert namespace, f"{path}: Rollout declares no metadata.namespace"
+            scaled_down.add((namespace, workload_ref["name"]))
+    assert seen_rollouts, f"parsed {len(paths)} rollout file(s) but found no Rollout objects"
+    return scaled_down
+
+
+def _scale_to_zero_rule() -> dict[str, Any]:
+    by_uid = {rule["uid"]: rule for rule in _all_rules()}
+    assert SCALE_TO_ZERO in by_uid, (
+        f"no rule with uid {SCALE_TO_ZERO!r} in the provisioning document. "
+        "Nothing in this folder can see a workload that has been scaled to 0: "
+        "an unavailable-replica count is 0 for a 0-replica Deployment, so a "
+        "service scaled down by accident reads as perfectly healthy."
+    )
+    return by_uid[SCALE_TO_ZERO]
+
+
+def _negative_matchers(expr: str) -> dict[str, str]:
+    """Every `label!~"regex"` matcher in a PromQL expression, by label."""
+    return {
+        match.group(1): match.group(2)
+        for match in re.finditer(r'(\w+)\s*!~\s*"([^"]*)"', expr)
+    }
+
+
+_BARE_LITERAL_RE = re.compile(r"[A-Za-z0-9_.-]+")
+
+
+def _alternation_literals(pattern: str) -> list[str]:
+    """The alternatives of a flat `a|b|c` regex, asserting each is a literal.
+
+    "The exclusions cover exactly the derived set, no more and no less" is only
+    a checkable claim while the alternatives are literal workload names. A
+    wildcard (`litellm.*`) would make the exclusion set unbounded and this
+    comparison meaningless, so it fails loudly rather than being approximated.
+    """
+    body = pattern.strip()
+    if body.startswith("(") and body.endswith(")"):
+        body = body[1:-1]
+        if body.startswith("?:"):
+            body = body[2:]
+    literals = [part.strip() for part in body.split("|")]
+    strays = [part for part in literals if not _BARE_LITERAL_RE.fullmatch(part)]
+    assert not strays, (
+        f"exclusion pattern {pattern!r} contains non-literal alternative(s) "
+        f"{strays}. The exclusion set must be exactly the workloads derived "
+        "from gpu-switcher's WORKLOADS env var and the scaleDown: onsuccess "
+        "Rollouts; a wildcard silently drops coverage for whatever else it "
+        "happens to match."
+    )
+    return literals
+
+
+def test_the_scale_to_zero_rule_watches_desired_replicas_not_availability():
+    """It must ask a different question from every other rule in the folder.
+
+    `kube_deployment_status_replicas_unavailable` is 0 for a Deployment scaled
+    to 0 — it has no replicas to be missing — so the twelve migrated rules are
+    structurally blind to this failure. Only `spec_replicas` sees it. A rewrite
+    that "harmonised" this rule onto the folder's usual metric would look
+    tidier and would delete the rule's entire reason to exist.
+    """
+    expr = _query_expr(_scale_to_zero_rule())
+    assert SPEC_REPLICAS_METRIC in expr, (
+        f"{SCALE_TO_ZERO} does not query {SPEC_REPLICAS_METRIC}; got: {expr!r}"
+    )
+
+
+def test_the_scale_to_zero_exclusions_are_derived_from_both_declarative_sources():
+    """The guard that earns its keep — no restating, only deriving.
+
+    Two independent mechanisms park a Deployment at 0 replicas on Frank, and
+    both are declared in this repo:
+
+      (a) gpu-switcher's `WORKLOADS` env var (GPU timeshare on gpu-1), and
+      (b) any Argo Rollout whose `workloadRef.scaleDown` is `onsuccess`.
+
+    Both are parsed here and the rule's exclusion regexes must cover exactly
+    their union. `litellm` is the reason this matters: its Deployment sits at 0
+    while its Rollout serves 5/5, so a naive `spec_replicas == 0` rule pages on
+    a completely healthy LLM gateway the day it ships.
+
+    The split between the two exclusion labels is itself asserted, not
+    incidental: the GPU workloads are excluded by NAMESPACE (the whole namespace
+    exists to be timeshared) while the Rollout target is excluded by DEPLOYMENT
+    NAME, so an unrelated Deployment appearing in the `litellm` namespace is
+    still watched.
+    """
+    gpu_timeshared = _gpu_timeshared_workloads()
+    rollout_scaled_down = _rollout_scaled_down_deployments()
+
+    matchers = _negative_matchers(_query_expr(_scale_to_zero_rule()))
+    assert set(matchers) == {"namespace", "deployment"}, (
+        f"{SCALE_TO_ZERO} carries negative matchers on {sorted(matchers)}; "
+        "expected exactly `namespace` (GPU timeshare) and `deployment` "
+        "(Rollout scale-down). Any other exclusion label is coverage removed "
+        "without a declarative source to justify it."
+    )
+
+    excluded_namespaces = set(_alternation_literals(matchers["namespace"]))
+    expected_namespaces = {namespace for namespace, _ in gpu_timeshared}
+    assert excluded_namespaces == expected_namespaces, (
+        "the namespace exclusions do not match gpu-switcher's WORKLOADS env "
+        f"var in {GPU_SWITCHER_DEPLOYMENT}. Rule excludes "
+        f"{sorted(excluded_namespaces)}; WORKLOADS declares "
+        f"{sorted(expected_namespaces)}. A missing namespace pages during the "
+        "next GPU timeshare switch; a surplus one silently stops watching "
+        "everything in it."
+    )
+
+    excluded_deployments = set(_alternation_literals(matchers["deployment"]))
+    expected_deployments = {deployment for _, deployment in rollout_scaled_down}
+    assert excluded_deployments == expected_deployments, (
+        "the deployment exclusions do not match the set of Argo Rollouts with "
+        "`workloadRef.scaleDown: onsuccess` under apps/**/rollout.yaml. Rule "
+        f"excludes {sorted(excluded_deployments)}; the repo declares "
+        f"{sorted(expected_deployments)}. Flipping a second Rollout to "
+        "onsuccess must fail here rather than page."
+    )
+
+
+def test_the_scale_to_zero_rule_still_watches_the_litellm_namespace():
+    """Excluding `litellm` by deployment name rather than by namespace.
+
+    The two exclusion mechanisms are not interchangeable. The GPU namespaces
+    exist to be timeshared, so excluding them wholesale is honest. `litellm` is
+    a normal namespace that happens to contain one Rollout-managed Deployment —
+    excluding the namespace would blind the rule to every other Deployment that
+    ever lands there, which is coverage loss disguised as an exclusion.
+    """
+    matchers = _negative_matchers(_query_expr(_scale_to_zero_rule()))
+    namespace_pattern = matchers.get("namespace", "")
+    rollout_namespaces = {namespace for namespace, _ in _rollout_scaled_down_deployments()}
+    overreach = sorted(
+        namespace
+        for namespace in rollout_namespaces
+        if re.fullmatch(namespace_pattern, namespace)
+    )
+    assert not overreach, (
+        f"{SCALE_TO_ZERO} excludes the whole namespace(s) {overreach}, which "
+        "hold a Rollout-managed Deployment. Exclude the Deployment by name "
+        "instead, so an unrelated Deployment scaled to 0 in that namespace is "
+        "still caught."
+    )
+
+
+def test_the_scale_to_zero_rule_fires_on_the_series_its_filter_returns():
+    """The trap in this rule, and the reason its threshold is NOT `gt 0`.
+
+    Every other rule migrated here counts unavailable replicas and thresholds at
+    `gt 0`. Copying that convention onto this rule produces one that can never
+    fire, and nothing about the YAML looks wrong.
+
+    `metric == 0` in PromQL is a FILTER, not a comparison: it returns the
+    matching series carrying their ORIGINAL value, which for this filter is
+    always 0. Verified live 2026-08-03 — `kube_deployment_spec_replicas == 0`
+    returns `comfyui` and `litellm`, both with value `0`. So the reduce node
+    hands the threshold a 0 on exactly the series that should alert, and
+    `gt 0` never fires on any of them.
+
+    The presence of a series IS the alert condition here; the value is a
+    constant. `lt 1` fires on it, and `noDataState: OK` makes the healthy case
+    (no series at all) quiet. `== bool 0` plus `gt 0` would also work, at the
+    cost of pushing every Deployment in the cluster through the reduce node on
+    every evaluation for a signal that is normally empty.
+    """
+    rule = _scale_to_zero_rule()
+    expr = _query_expr(rule)
+
+    assert re.search(r"==\s*0", expr) and "bool" not in expr, (
+        f"{SCALE_TO_ZERO} no longer uses a bare `== 0` filter. If it moved to "
+        "`== bool 0` the threshold must invert to `gt 0` at the same time — "
+        "the two are a pair, and changing one alone yields a rule that either "
+        f"never fires or fires on every healthy Deployment. Got: {expr!r}"
+    )
+
+    evaluator = _threshold_evaluator(rule)
+    actual = {"type": evaluator.get("type"), "params": evaluator.get("params")}
+    assert actual == {"type": "lt", "params": [1]}, (
+        f"{SCALE_TO_ZERO} threshold is {actual}. Its query is a `== 0` FILTER, "
+        "so every series it returns carries the value 0 — `gt 0` (the "
+        "convention for the unavailability counters elsewhere in this folder) "
+        "makes the rule structurally incapable of firing while looking "
+        "entirely conventional."
+    )
+
+
+def test_the_scale_to_zero_rule_routes_and_annotates_like_a_tracker_rule():
+    """Folder, severity, tracker and the annotations the on-call actually reads.
+
+    `github_issue: frank-ops#8` because this is observability's own rule rather
+    than any one feature layer's — the condition is workload-shaped, not
+    layer-shaped, which is why it is one rule and not twelve.
+
+    The runbook must point at `rollouts.argoproj.io`: "a Rollout owns this
+    Deployment" is by far the most likely benign explanation for a hit, and an
+    on-call who does not know that spends the incident looking at a Deployment
+    that is supposed to be empty.
+    """
+    rule = _scale_to_zero_rule()
+    assert rule["_folder"] == FEATURE_HEALTH, (
+        f"{SCALE_TO_ZERO} is in folder {rule['_folder']!r}; notification "
+        "routing keys on grafana_folder=feature-health"
+    )
+    labels = rule.get("labels") or {}
+    assert labels.get("severity") == "warning", (
+        f"{SCALE_TO_ZERO} severity is {labels.get('severity')!r}, expected "
+        "warning: a scaled-to-0 workload is a real outage of that capability, "
+        "but the rule is new and its exclusion set is derived from repo state, "
+        "so a mistake should not page as critical"
+    )
+    assert labels.get("github_issue") == "frank-ops#8", (
+        f"{SCALE_TO_ZERO} github_issue is {labels.get('github_issue')!r}, "
+        "expected frank-ops#8 (layer 8 is obs per docs/layers.yaml)"
+    )
+
+    annotations = rule.get("annotations") or {}
+    summary = str(annotations.get("summary") or "")
+    for token in ("$labels.namespace", "$labels.deployment"):
+        assert token in summary, (
+            f"{SCALE_TO_ZERO} summary does not interpolate {token}, so the "
+            f"alert cannot name the workload it is about: {summary!r}"
+        )
+    runbook = str(annotations.get("runbook") or "")
+    assert "rollouts.argoproj.io" in runbook, (
+        f"{SCALE_TO_ZERO} runbook does not tell the on-call to check for an "
+        "Argo Rollout owning the Deployment, which is the most likely benign "
+        f"explanation for a hit: {runbook!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 4, task 2 — `layer-8-observability-collectors-down`.
+#
+# Closing a coverage regression this migration itself introduced. The
+# pre-migration layer-8 query matched EVERY pod in `monitoring`, which included
+# the pods of both DaemonSets there: `fluent-bit` and
+# `victoria-metrics-prometheus-node-exporter`. Migrating layer-8 to Deployments
+# and StatefulSets dropped them, and the design spec justified that by asserting
+# their "real coverage is the Layer 1/2 node alerts".
+#
+# That claim was checked and is false. `layer-1-hardware-down` and
+# `layer-2-os-down` both key on
+# `kube_node_status_condition{condition="Ready",status="false"}` — they see a
+# dead NODE and are completely blind to a collector crashlooping on a healthy
+# one. Grepping the whole ConfigMap for `fluent-bit` and `node-exporter` finds
+# only comments and `job=` label selectors: no rule anywhere watched either
+# DaemonSet's health.
+#
+# So the coverage is restored, in a SEPARATE rule rather than folded back into
+# layer-8. Folding it in would force that rule to 15m (the node-drain policy
+# applies the moment a DaemonSet metric appears in an expr), which would blunt
+# detection of the alerting stack's own failure from 5m to 15m — trading a real
+# critical-path regression for the fix to a warning-level one.
+# ---------------------------------------------------------------------------
+
+COLLECTORS_DOWN = "layer-8-observability-collectors-down"
+
+
+def _collectors_rule() -> dict[str, Any]:
+    by_uid = {rule["uid"]: rule for rule in _all_rules()}
+    assert COLLECTORS_DOWN in by_uid, (
+        f"no rule with uid {COLLECTORS_DOWN!r}. Migrating layer-8 to workload "
+        "metrics dropped the two `monitoring` DaemonSets (fluent-bit, "
+        "victoria-metrics-prometheus-node-exporter) and nothing else in the "
+        "ConfigMap watches them — the Layer 1/2 node alerts fire on a NotReady "
+        "NODE, not on a collector dying on a healthy one."
+    )
+    return by_uid[COLLECTORS_DOWN]
+
+
+def test_the_collectors_rule_watches_the_monitoring_daemonsets():
+    """The restored coverage, asserted at the metric AND the namespace.
+
+    Scoped to `namespace="monitoring"` with no name selector: the point is to
+    watch whatever collectors run there, so a third DaemonSet added later is
+    covered without anyone remembering to extend a regex. That is the opposite
+    of the choice made for the layer trackers, and deliberately so — those name
+    specific control-plane workloads, this one names a namespace whose entire
+    DaemonSet population is collectors.
+    """
+    expr = _query_expr(_collectors_rule())
+    assert DAEMONSET_METRIC in expr, (
+        f"{COLLECTORS_DOWN} does not query {DAEMONSET_METRIC}, so it does not "
+        f"restore anything: {expr!r}"
+    )
+    assert 'namespace="monitoring"' in expr, (
+        f"{COLLECTORS_DOWN} is not scoped to namespace=\"monitoring\"; it would "
+        "duplicate the layer-3/4/5 DaemonSet rules or watch the whole cluster: "
+        f"{expr!r}"
+    )
+    used = set(_KUBE_METRIC_RE.findall(expr))
+    stray = sorted(used - WORKLOAD_METRICS_WITH_DAEMONSETS)
+    assert not stray, (
+        f"{COLLECTORS_DOWN} queries non-workload metric(s) {stray}; the "
+        "regression tripwire at the top of this file exists because per-pod "
+        "metrics are how this folder got 48 false alerts"
+    )
+
+
+def test_the_collectors_rule_fires_on_unavailability_after_a_drain_window():
+    """`gt 0` on an unavailability counter, and 15m because these ARE DaemonSets.
+
+    No exemption needed and none taken: the rule satisfies
+    `test_the_fifteen_minute_window_is_reserved_for_daemonset_rules` on its
+    merits, which is a large part of why restoring the coverage as a separate
+    rule is cheaper than folding it back into layer-8.
+    """
+    rule = _collectors_rule()
+    evaluator = _threshold_evaluator(rule)
+    actual = {"type": evaluator.get("type"), "params": evaluator.get("params")}
+    assert actual == {"type": "gt", "params": [0]}, (
+        f"{COLLECTORS_DOWN} threshold is {actual}, expected `gt 0` — the "
+        "metric counts UNAVAILABLE replicas, so `lt 1` fires forever against a "
+        "healthy cluster"
+    )
+    assert rule.get("for") == DAEMONSET_FOR, (
+        f"{COLLECTORS_DOWN} is at `for: {rule.get('for')}`, expected "
+        f"{DAEMONSET_FOR}: a DaemonSet reports replicas unavailable throughout "
+        "any node drain, so a shorter window pages on every planned Talos "
+        "rolling reboot"
+    )
+    assert COLLECTORS_DOWN not in FIFTEEN_MINUTE_EXEMPTIONS, (
+        f"{COLLECTORS_DOWN} does not need a 15m exemption — it queries "
+        f"{DAEMONSET_METRIC} and earns the window outright. An unnecessary "
+        "allowlist entry is how an allowlist becomes a rubber stamp."
+    )
+
+
+def test_the_collectors_rule_routes_as_a_warning_layer_8_tracker():
+    """`warning`, not `critical`, and the distinction is the whole design.
+
+    Losing `fluent-bit` stops log shipping and losing node-exporter stops node
+    metrics — both real degradations. But `vmagent`, `vmsingle` and `grafana`
+    are Deployments still covered at critical/5m by `layer-8-observability-down`
+    proper, so the alerting stack itself is not blind and this does not need to
+    page at the same level.
+    """
+    rule = _collectors_rule()
+    assert rule["_folder"] == FEATURE_HEALTH, (
+        f"{COLLECTORS_DOWN} is in folder {rule['_folder']!r}, not {FEATURE_HEALTH}"
+    )
+    labels = rule.get("labels") or {}
+    assert labels.get("severity") == "warning", (
+        f"{COLLECTORS_DOWN} severity is {labels.get('severity')!r}, expected "
+        "warning — layer-8 proper still covers the alerting control plane at "
+        "critical"
+    )
+    assert labels.get("github_issue") == "frank-ops#8", (
+        f"{COLLECTORS_DOWN} github_issue is {labels.get('github_issue')!r}, "
+        "expected frank-ops#8"
+    )
+
+
+def test_the_collectors_rule_names_the_workload_with_a_lowercase_kind():
+    """The folder's label convention, so the runbook interpolates into a real
+    `kubectl` resource path.
+
+    `kind` is written lowercase in the expr rather than lowered at render time:
+    Grafana's alert templating is Go `text/template` with a restricted function
+    set, and betting on a `lower` filter to make `daemonset/fluent-bit` out of
+    `DaemonSet/fluent-bit` is an avoidable bet on the one path nobody exercises
+    until an incident.
+    """
+    rule = _collectors_rule()
+    expr = _query_expr(rule)
+    assert '"workload", "$1", "daemonset", "(.*)"' in expr, (
+        f"{COLLECTORS_DOWN} does not label_replace the `daemonset` label into "
+        f"`workload`, so the summary would render an empty name: {expr!r}"
+    )
+    assert '"kind", "daemonset"' in expr, (
+        f"{COLLECTORS_DOWN} does not inject a lowercase `kind` label: {expr!r}"
+    )
+    assert '"kind", "DaemonSet"' not in expr, (
+        f"{COLLECTORS_DOWN} injects a capitalised `kind`, which does not "
+        "interpolate into a kubectl resource path"
+    )
+
+    annotations = rule.get("annotations") or {}
+    summary = str(annotations.get("summary") or "")
+    for token in ("$labels.kind", "$labels.workload"):
+        assert token in summary, (
+            f"{COLLECTORS_DOWN} summary does not interpolate {token}: {summary!r}"
+        )
+    rendered = " ".join(str(value) for value in annotations.values())
+    assert "$labels.pod" not in rendered, (
+        f"{COLLECTORS_DOWN} annotations interpolate $labels.pod, which does "
+        "not exist on a DaemonSet availability series"
+    )
+    assert "$value" not in rendered or "$values.B.Value" in rendered, (
+        f"{COLLECTORS_DOWN} annotations use the bare `$value`, which Grafana "
+        "renders as `[ var='B' labels={...} value=1 ]`. Use "
+        '`{{ $values.B.Value | printf "%.0f" }}` — the convention every other '
+        "migrated rule in this folder follows."
     )
