@@ -59,3 +59,18 @@ Corrected patches/phase05-mini-config/README.md step 4 (was: Intel GPU Device Pl
 ### 653a71d281e1 · finding [fixed] · Acceptance row gpu-igpu-claim-documented flipped skipped (unit-guarded, no fr acceptance set-status subcommand exists) (phase 4)
 
 fr plan edit --complete-phase 4 first warned that acceptance row gpu-igpu-claim-documented was still not-implemented. There is no 'fr acceptance set-status' command (only add/init/backfill/check/report/status/summary/digest), so the matrix.yaml row was hand-edited to status: skipped with levels.unit pointing at the new scripts/tests/test_igpu_dra_docs.py and notes citing the concrete fix — matching the repo's existing convention for local-guard-only (not CI-run) evidence, since no row anywhere in this matrix currently uses status: ci. Regenerated the report set via fr acceptance report --deterministic. fr acceptance check still exits 1, but the 13 ERROR staleness lines and their count are identical before/after this change (confirmed via git stash + diff) — pre-existing and unrelated to this phase. complete-phase 4 then produced no warning.
+
+<!-- fr:journal kind=finding scope=plan id=f-acceptance-status-ci created=2026-08-02T16:33:46 phase=4 state=fixed -->
+### f-acceptance-status-ci · finding [fixed] · gpu-igpu-claim-documented was labelled 'skipped' but is CI-enforced (phase 4)
+
+Phase 4 set the row to status 'skipped' reasoning that no row in the matrix uses 'ci'. That convention is an artifact of no row previously having had automated coverage, not a deliberate choice: every other 'skipped' row carries a 'Live manual proof <date>' note, i.e. the value means 'verified by hand'. This row is guarded by scripts/tests/test_igpu_dra_docs.py, and .github/workflows/repo-tripwires.yml runs 'pytest scripts/tests/ -q' on CI — so the guarantee is automated and 'skipped' understates it. Corrected to status: ci and regenerated the report set. First row in this matrix to use it.
+
+<!-- fr:journal kind=finding scope=plan id=f-cpu-arm-endpoint created=2026-08-02T16:33:47 phase=5 state=fixed -->
+### f-cpu-arm-endpoint · finding [fixed] · Phase 5's CPU control arm had no endpoint to measure (phase 5)
+
+P5.T2.S2 said 'run the CPU control arm' but the Deployment seeds only /models-src/gpu, so --arm cpu had nothing to hit — the control arm that justifies the whole iGPU claim would have been silently unrunnable at measurement time. Surfaced by phase 3. Fixed in the step text: a THROWAWAY pod on the same node from the same stock image, seeded from /models-src/cpu, with NO ResourceClaim (so the CPU arm cannot hold the iGPU while being measured), deleted afterwards with a residue check. Deliberately not a second permanent Deployment — that would contradict the operator's 1-replica control-plane footprint decision.
+
+<!-- fr:journal kind=finding scope=plan id=f-bench-invocation created=2026-08-02T16:33:49 phase=5 state=fixed -->
+### f-bench-invocation · finding [fixed] · Phase 5 measurement step would have failed on bare python3 (phase 5)
+
+Phase 3 found that bare python3 in the isolation container lacks the stdlib 'http' package, so urllib.request fails to import and even --help dies. It was journaled but not carried into P5.T2.S1's step text, where the live run actually happens. Added the 'uv run python3' invocation to the step.

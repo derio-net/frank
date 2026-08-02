@@ -34,15 +34,28 @@ tasks:
   steps:
   - id: P5.T2.S1
     text: |
-      Run `scripts/ovms-retrieval-bench.py --arm gpu` from inside the cluster.
+      Run the harness with `--arm gpu` from inside the cluster. Invoke it as
+      `uv run python3 scripts/ovms-retrieval-bench.py --arm gpu` — bare `python3`
+      in the isolation container is missing the stdlib `http` package, so
+      `urllib.request` fails to import and even `--help` dies (found in phase 3;
+      an environment quirk, not a script defect).
       Record rerank p50/p95/max for 20 passages, embedding dimension, and
       embedding throughput. Confirm rerank scores are well separated, not the
       degenerate 1e-9..1e-12 pattern.
   - id: P5.T2.S2
     text: |
-      Run the CPU control arm and state the GPU-vs-CPU verdict plainly. A CPU win
-      is a legitimate result and means the DRA plumbing was unnecessary — say so
-      if that is what the numbers show.
+      Stand up the CPU arm, then measure it. The model image bakes BOTH the GPU
+      and CPU exports, but the Deployment seeds only `/models-src/gpu`, so no CPU
+      endpoint exists yet and `--arm cpu` has nothing to hit. Do NOT add a second
+      permanent Deployment — that would contradict the 1-replica control-plane
+      footprint decision. Run a THROWAWAY pod on the same node from the same
+      stock OVMS image, seeded from `/models-src/cpu`, with NO ResourceClaim (the
+      CPU arm must not hold the iGPU while it is measured), point the harness at
+      it with `--base-url`, run `--arm cpu`, then delete it and confirm no
+      residue (`kubectl get resourceclaims -A`, no orphaned PVC).
+      State the GPU-vs-CPU verdict plainly. A CPU win is a legitimate result and
+      means the DRA plumbing was unnecessary complexity — say so if that is what
+      the numbers show, rather than burying it.
   - id: P5.T2.S3
     text: |
       Capture control-plane health across a warm-load window: etcd leader changes

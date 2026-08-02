@@ -776,7 +776,7 @@ rows:
     levels:
       unit:
       - frank:scripts/tests/test_igpu_dra_docs.py
-    status: skipped
+    status: ci
     notes: 'Test Plan row 8; phase05 README drifted a full API generation. Fixed
       2026-08-02 (phase 4): patches/phase05-mini-config/README.md corrected to
       the DRA resource driver + a worked ResourceClaim example, plus a new
