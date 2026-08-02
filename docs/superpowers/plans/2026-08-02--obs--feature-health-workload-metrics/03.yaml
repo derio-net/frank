@@ -1,7 +1,8 @@
 schema_version: 2
 phase:
   number: 3
-  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m), plus layer-8, and retire the xfail'
+  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m), plus layer-8, and retire
+    the xfail'
   tag: agentic
   depends_on:
   - 2
@@ -143,34 +144,49 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T21:54:50+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T21:54:52+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-08-02T21:54:54+00:00'
+      note: deferred to P3.T3.S3 by design — the strict xfail cannot xpass until layer-8
+        is migrated, so removing the marker here would turn the suite RED
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T21:54:55+00:00'
       note: null
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T22:09:15+00:00'
       note: null
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T22:09:16+00:00'
       note: null
     P3.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T22:09:18+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-08-02T22:09:20+00:00'
+    note: >-
+      Acceptance row `feature-health-survives-node-reboot` stays
+      `not-implemented`, deliberately. It reads "a control-plane rolling reboot
+      completes without any feature-health alert firing for a terminated pod" —
+      a live-behaviour claim no static test can earn. These rules are not on the
+      cluster yet (ArgoCD syncs from main; this is a PR branch), and settling it
+      needs an actual node reboot observed against the reloaded Grafana. Phase 6
+      is the manual phase that owns flipping the acceptance rows, and this is
+      its work. Phase 3 did what it can toward it: all 12 rules now count
+      replicas instead of pod readiness, so no tombstone can reach them, and the
+      three DaemonSet-bearing rules wait 15m to absorb the drain itself (the
+      2026-08-02 roll took ~7 minutes). Every rewritten expr was queried live and
+      returns series valued 0 on a healthy cluster — the correct quiet state
+      under `gt 0`, where the old `lt 1` readings would have fired all four
+      permanently.
     observed_prs: []

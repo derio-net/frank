@@ -1,7 +1,7 @@
 """Tripwires for the feature-health alert folder in
 `apps/grafana-alerting/manifests/alert-rules-cm.yaml`.
 
-Eleven layer-tracker rules ask `kube_pod_status_ready{condition="true"} < 1`,
+Twelve layer-tracker rules asked `kube_pod_status_ready{condition="true"} < 1`,
 which is a question about *pods* when the alert means to ask about
 *capabilities*. Those two questions diverge exactly when pods are cattle: a
 terminal pod (`Succeeded` or `Failed`) can never become Ready, Kubernetes does
@@ -16,16 +16,21 @@ completely healthy cluster.
 reason (Tekton task pods accumulating in Completed state) — this file guards
 finishing that job for the rest.
 
-Two kinds of guard live here:
+Three kinds of guard live here:
 
 * the **regression tripwire** (`test_no_feature_health_rule_uses_pod_readiness`),
-  which asserts the defect is gone. It is `xfail(strict=True)` until the
-  migration lands in phases 2-3 — strict so that the suite fails on *xpass*,
-  forcing whoever completes the migration to delete the marker instead of
-  leaving a permanently-disabled guard behind.
-* the **invariants** below it, which the file already satisfies today. Their
-  job is to fail if the rewrite breaks routing, identity or severity while
-  changing the queries.
+  which asserts the defect is gone. It carried `xfail(strict=True)` through
+  phases 1-2 and went live in phase 3 when the twelfth and last rule was
+  migrated. Strict was the point: the suite fails on *xpass*, so finishing the
+  migration meant deleting the marker rather than leaving a
+  permanently-disabled guard that still looked like coverage.
+* the **invariants**, which the file already satisfied before any rule was
+  edited. Their job is to fail if the rewrite breaks routing, identity or
+  severity while changing the queries.
+* the **policy guards** at the end, which are folder-wide and outlive this
+  migration: a rule that counts unavailable DaemonSet replicas has to wait out
+  a node drain, and the 15m window that exists for that reason is not
+  available to rules that just want to be less sensitive.
 """
 from __future__ import annotations
 
@@ -33,7 +38,6 @@ import pathlib
 import re
 from typing import Any
 
-import pytest
 import yaml
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -105,7 +109,6 @@ def test_feature_health_folder_is_populated():
     )
 
 
-@pytest.mark.xfail(strict=True, reason="rules migrated in phases 2-3")
 def test_no_feature_health_rule_uses_pod_readiness():
     """The regression tripwire: `kube_pod_status_ready` is the defect class.
 
@@ -116,20 +119,19 @@ def test_no_feature_health_rule_uses_pod_readiness():
     `kube_statefulset_status_replicas` minus `..._ready` difference) counts
     replicas, and a tombstone is not a replica.
 
-    XFAIL, STRICTLY, until the migration lands. `strict=True` is the whole
-    point of the marker: a non-strict xfail tolerates an xpass silently, so the
-    day the last rule is migrated this guard would quietly become a no-op that
-    still *looks* like coverage. Strict makes the suite go red on xpass, and
-    the only way to make it green again is to delete the marker — which is
-    exactly the action phase 3 owes.
-
-    Note the offender list is TWELVE uids, not the eleven the plan enumerates:
-    `layer-8-observability-down` also queries `kube_pod_status_ready`, behind an
+    This carried `@pytest.mark.xfail(strict=True)` from phase 1 until phase 3
+    finished the migration on 2026-08-02, and the marker earned its keep. The
+    offender list was TWELVE uids, not the eleven the plan enumerated:
+    `layer-8-observability-down` also queried `kube_pod_status_ready`, behind an
     `unless on(namespace,pod) kube_pod_status_phase{phase=~"Succeeded|Failed"}`
-    join. That join is the tombstone-filtering workaround the design spec
-    rejects; it keeps the wrong question. This assertion is deliberately
-    folder-wide with no per-uid exclusions, so the marker cannot be removed
-    until layer-8 is migrated too.
+    join — the tombstone-filtering workaround the design spec rejects. Because
+    the assertion is folder-wide with no per-uid exclusions, and because
+    `strict=True` turns an xpass into a FAILURE rather than a shrug, there was
+    no way to finish the phase without migrating that twelfth rule too:
+    eleven-of-twelve reported `FAILED [XPASS(strict)]`, not green.
+
+    It is a live guard now. Leave it folder-wide — the moment it grows an
+    exclusion list it stops guarding the class and starts guarding a list.
     """
     offenders = [
         rule["uid"]
@@ -531,4 +533,439 @@ def test_phase_2_rules_normalise_kind_in_lowercase():
     assert not offenders, (
         "phase-2 rule(s) do not normalise workload/kind labels as required: "
         f"{offenders}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The rewrite contract for the rules migrated in phase 3.
+#
+# Three of them live in namespaces that run DaemonSets, which is the whole
+# reason they were split out of phase 2: a DaemonSet reports replicas
+# unavailable during ANY node drain, so the 5m window that suits a Deployment
+# would turn every planned Talos rolling reboot into an alert burst — trading
+# one noise source for another. The 2026-08-02 control-plane roll took roughly
+# seven minutes.
+#
+# `layer-8-observability-down` is migrated in the same phase but is NOT one of
+# these: it deliberately excludes the two `monitoring` DaemonSets and keeps its
+# 5m window. Its contract lives in its own section further down.
+# ---------------------------------------------------------------------------
+
+PHASE_3_DAEMONSET_UIDS: frozenset[str] = frozenset(
+    {
+        "layer-3-networking-down",
+        "layer-4-storage-down",
+        "layer-5-gpu-down",
+    }
+)
+
+# kube-state-metrics DOES export an unavailability counter for DaemonSets, so
+# no difference-of-two-metrics trick is needed on that side.
+DAEMONSET_METRIC = "kube_daemonset_status_number_unavailable"
+
+WORKLOAD_METRICS_WITH_DAEMONSETS: frozenset[str] = WORKLOAD_METRICS | {DAEMONSET_METRIC}
+
+# The window a DaemonSet-bearing rule must wait before firing. Not a general
+# policy for the folder — see `test_the_fifteen_minute_window_is_reserved_for_
+# daemonset_rules` for why the converse is asserted narrowly.
+DAEMONSET_FOR = "15m"
+
+
+def _phase_3_daemonset_rules() -> dict[str, dict[str, Any]]:
+    by_uid = {rule["uid"]: rule for rule in _all_rules()}
+    missing = sorted(PHASE_3_DAEMONSET_UIDS - set(by_uid))
+    assert not missing, f"phase-3 rule uid(s) not found in the document: {missing}"
+    return {uid: by_uid[uid] for uid in sorted(PHASE_3_DAEMONSET_UIDS)}
+
+
+def test_phase_3_daemonset_rules_query_only_workload_availability_metrics():
+    """Same allowlist as phase 2, plus the DaemonSet unavailability counter.
+
+    These three namespaces (`kube-system`, `longhorn-system`, `gpu-operator` /
+    `intel-gpu-resource-driver`) are where the 2026-08-02 tombstone flood was
+    loudest, because a node reboot leaves one terminal pod per DaemonSet per
+    node behind. Counting unavailable replicas cannot see them.
+    """
+    offenders: dict[str, list[str]] = {}
+    for uid, rule in _phase_3_daemonset_rules().items():
+        used = set(_KUBE_METRIC_RE.findall(_query_expr(rule)))
+        stray = sorted(used - WORKLOAD_METRICS_WITH_DAEMONSETS)
+        if stray or not used:
+            offenders[uid] = stray or ["<no kube_* metric at all>"]
+    assert not offenders, (
+        "phase-3 rule(s) query something other than workload availability. "
+        f"Allowed metrics: {sorted(WORKLOAD_METRICS_WITH_DAEMONSETS)}. "
+        f"Offenders: {offenders}"
+    )
+
+
+def test_phase_3_daemonset_rules_actually_query_daemonsets():
+    """The reason these three are in a separate phase at all.
+
+    Each targets a namespace whose signal is carried mostly or entirely by
+    DaemonSets — `cilium` and `cilium-envoy`, `longhorn-manager`, the nvidia
+    and intel device plugins. A rewrite that migrated only the Deployment half
+    would look correct in a diff, pass every other assertion here, and silently
+    stop watching the workloads that matter most.
+    """
+    offenders = sorted(
+        uid
+        for uid, rule in _phase_3_daemonset_rules().items()
+        if DAEMONSET_METRIC not in _query_expr(rule)
+    )
+    assert not offenders, (
+        f"phase-3 rule(s) never query {DAEMONSET_METRIC}, so the DaemonSets in "
+        f"their namespace are unwatched: {offenders}"
+    )
+
+
+def test_phase_3_daemonset_rules_fire_when_replicas_are_unavailable_not_when_they_are_ready():
+    """The threshold inverts here exactly as it did in phase 2: `lt 1` on a
+    readiness gauge becomes `gt 0` on an unavailability counter."""
+    drift: dict[str, dict[str, Any]] = {}
+    want = {"type": "gt", "params": [0]}
+    for uid, rule in _phase_3_daemonset_rules().items():
+        evaluator = _threshold_evaluator(rule)
+        actual = {"type": evaluator.get("type"), "params": evaluator.get("params")}
+        if actual != want:
+            drift[uid] = actual
+    assert not drift, (
+        "phase-3 rule(s) threshold is not `gt 0`. The metric counts UNAVAILABLE "
+        f"replicas, so the alert condition is `> 0`. Got: {drift}"
+    )
+
+
+def test_phase_3_daemonset_rules_wait_out_a_node_drain():
+    """15m, and this one IS a deliberate sensitivity change — unlike phase 2's.
+
+    Phase 2 preserved each rule's pre-migration `for:` because swapping the
+    metric is not licence to re-tune. These three are the documented exception,
+    and the justification is specific rather than tidy: a DaemonSet's
+    `..._number_unavailable` goes positive the moment a node is cordoned and
+    drained, so on a rolling Talos reboot it is positive for as long as the
+    roll takes. The 2026-08-02 control-plane roll took ~7 minutes, which a 5m
+    (layer-3, layer-5) or 10m (layer-4) window would have turned into a page
+    for a healthy, deliberately-reconfiguring cluster.
+    """
+    drift = {
+        uid: rule.get("for")
+        for uid, rule in _phase_3_daemonset_rules().items()
+        if rule.get("for") != DAEMONSET_FOR
+    }
+    assert not drift, (
+        f"phase-3 DaemonSet-bearing rule(s) not at `for: {DAEMONSET_FOR}` "
+        f"(uid -> got): {drift}"
+    )
+
+
+def test_phase_3_summaries_name_the_workload_not_the_pod():
+    """Workload availability series carry no `pod` label, so an annotation left
+    interpolating one renders an empty resource name to the on-call."""
+    offenders: dict[str, str] = {}
+    for uid, rule in _phase_3_daemonset_rules().items():
+        annotations = rule.get("annotations") or {}
+        summary = str(annotations.get("summary") or "")
+        if "$labels.workload" not in summary:
+            offenders[uid] = f"summary does not interpolate $labels.workload: {summary!r}"
+        elif "$labels.pod" in " ".join(str(v) for v in annotations.values()):
+            offenders[uid] = "annotation still interpolates $labels.pod"
+    assert not offenders, (
+        "phase-3 rule annotation(s) still describe pods: " f"{offenders}"
+    )
+
+
+def test_phase_3_rules_normalise_kind_in_lowercase():
+    """`kind` goes straight into a kubectl resource path, so `daemonset` — not
+    `DaemonSet`. Grafana's templating has no `lower` filter to fall back on."""
+    offenders: dict[str, str] = {}
+    for uid, rule in _phase_3_daemonset_rules().items():
+        expr = _query_expr(rule)
+        kinds = set(re.findall(r'"kind",\s*"([A-Za-z]+)"', expr))
+        if not kinds:
+            offenders[uid] = "expr never label_replaces a `kind` label"
+        elif not kinds <= {"deployment", "daemonset", "statefulset"}:
+            offenders[uid] = f"non-lowercase or unknown kind value(s): {sorted(kinds)}"
+        elif not re.search(r'"workload",\s*"\$1"', expr):
+            offenders[uid] = "expr never label_replaces a `workload` label"
+    assert not offenders, (
+        "phase-3 rule(s) do not normalise workload/kind labels as required: "
+        f"{offenders}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The durable policy guard: DaemonSet metric <-> 15m, folder-wide.
+#
+# The two tests below are the point of writing any of this down. Everything
+# above is scoped to a uid list and therefore expires the moment this migration
+# is finished; these two keep applying to rules nobody has written yet.
+#
+# They key off the METRIC, not the namespace. A namespace-based derivation
+# would have to encode which namespaces run a DaemonSet today, which is live
+# cluster state that drifts silently — and it would misfire on layer-8, which
+# lives in a DaemonSet-bearing namespace but deliberately does not query them.
+# ---------------------------------------------------------------------------
+
+
+def _feature_health_rules_by_uid_with_expr() -> dict[str, tuple[dict[str, Any], str]]:
+    """Every feature-health rule that has a datasource query, with its PromQL.
+
+    A handful of folder members (heartbeat/dead-man rules) are structured
+    differently; `_query_expr` raises on those, so they are skipped rather than
+    asserted about.
+    """
+    out: dict[str, tuple[dict[str, Any], str]] = {}
+    for rule in _feature_health_rules():
+        try:
+            out[rule["uid"]] = (rule, _query_expr(rule))
+        except AssertionError:
+            continue
+    return out
+
+
+def test_rules_that_watch_daemonsets_tolerate_a_node_drain():
+    """Any rule counting unavailable DaemonSet replicas must wait 15m.
+
+    This is the reboot-noise policy, encoded so a later edit cannot quietly
+    reintroduce it. A DaemonSet is unavailable on every drained node by
+    definition, so a short window on such a rule alerts on planned maintenance.
+
+    Deliberately one-directional. The plan's first draft also asserted the
+    converse as "every other feature-health rule has for: 5m", which is simply
+    false: the folder holds rules at 0m, 1m, 2m, 10m, 30m, 1h, 2h and 3h, and
+    six of them sit at 10m on purpose (`layer-25-cicd-down`, the in-repo
+    precedent for this whole migration, among them). Asserting it would have
+    forced a mass re-tune under cover of a query rewrite — the exact mistake
+    phase 2 caught and reverted.
+    """
+    offenders = {
+        uid: rule.get("for")
+        for uid, (rule, expr) in _feature_health_rules_by_uid_with_expr().items()
+        if DAEMONSET_METRIC in expr and rule.get("for") != DAEMONSET_FOR
+    }
+    assert not offenders, (
+        f"feature-health rule(s) query {DAEMONSET_METRIC} but do not wait "
+        f"{DAEMONSET_FOR} before firing (uid -> for). A DaemonSet reports "
+        "replicas unavailable throughout any node drain, so a shorter window "
+        f"pages on every planned Talos rolling reboot: {offenders}"
+    )
+
+
+def test_the_fifteen_minute_window_is_reserved_for_daemonset_rules():
+    """The honest converse: 15m exists in this folder for exactly one reason.
+
+    Nothing in the folder was at 15m before this migration, and the window was
+    introduced solely to absorb node drains. If a future rule adopts 15m
+    without querying a DaemonSet, that is a sensitivity decision wearing this
+    one's clothes and deserves its own justification — so it fails here and has
+    to be written down.
+    """
+    offenders = sorted(
+        uid
+        for uid, (rule, expr) in _feature_health_rules_by_uid_with_expr().items()
+        if rule.get("for") == DAEMONSET_FOR and DAEMONSET_METRIC not in expr
+    )
+    assert not offenders, (
+        f"feature-health rule(s) sit at `for: {DAEMONSET_FOR}` without querying "
+        f"{DAEMONSET_METRIC}. That window exists to absorb node drains; using "
+        "it for anything else needs its own rationale, not this one's: "
+        f"{offenders}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# `layer-8-observability-down` — the twelfth rule, found by phase 1's
+# folder-wide tripwire rather than by the brainstorm.
+#
+# It is the least-broken of the twelve: it already filtered tombstones inside
+# the query with `unless on(namespace,pod) kube_pod_status_phase{phase=~
+# "Succeeded|Failed"}`, which is why it did NOT fire during the 2026-08-02
+# flood. It is migrated anyway — a second pattern for the same question in one
+# folder is how the next person gets confused, the join doubles the series
+# joined per evaluation, and while it stands the strict xfail above can never
+# xpass, so finishing the migration would require weakening the guard.
+#
+# Three things make it structurally different from the other eleven, and each
+# gets its own assertion below:
+#
+#   * it ORs in a `probe_success` clause for the health-bridge /healthz probe,
+#     which is an end-to-end signal, not a workload count;
+#   * it therefore normalises onto a `component` label rather than
+#     `workload`/`kind` — the probe series has no workload to name;
+#   * it deliberately EXCLUDES the two `monitoring` DaemonSets and keeps
+#     `for: 5m`, where its DaemonSet-bearing siblings moved to 15m.
+# ---------------------------------------------------------------------------
+
+LAYER_8 = "layer-8-observability-down"
+
+HEALTH_BRIDGE_PROBE = "http://health-bridge.monitoring.svc.cluster.local:8080/healthz"
+
+
+def _layer_8() -> dict[str, Any]:
+    by_uid = {rule["uid"]: rule for rule in _all_rules()}
+    assert LAYER_8 in by_uid, f"{LAYER_8} not found in the provisioning document"
+    return by_uid[LAYER_8]
+
+
+def test_layer_8_stops_asking_about_pods_at_all():
+    """Both halves of the old question go, not just the readiness gauge.
+
+    `kube_pod_status_phase` was only ever there to subtract the tombstones
+    `kube_pod_status_ready` produced. Porting the `unless` join onto workload
+    metrics would be cargo cult: an unavailable-replica count has no terminal
+    pods in it to filter.
+    """
+    expr = _query_expr(_layer_8())
+    offenders = sorted(
+        metric
+        for metric in ("kube_pod_status_ready", "kube_pod_status_phase")
+        if metric in expr
+    )
+    assert not offenders, (
+        f"{LAYER_8} still queries per-pod state: {offenders}. The readiness "
+        "gauge is the defect class; the phase join is the workaround for it, "
+        "and workload availability metrics need neither."
+    )
+
+
+def test_layer_8_watches_deployments_and_statefulsets_but_not_daemonsets():
+    """The exclusion is the point, not an oversight.
+
+    `monitoring` runs two DaemonSets — `fluent-bit` and
+    `victoria-metrics-prometheus-node-exporter` — which are node-level
+    collectors. Their unavailability during a node drain is exactly the noise
+    this whole change removes, and excluding them is what lets this rule keep a
+    5m window while its siblings moved to 15m. The observability control plane
+    proper is Deployments (grafana, vmagent, vmsingle, kube-state-metrics,
+    health-bridge, blackbox-exporter, pushgateway) plus one StatefulSet
+    (victoria-logs).
+
+    The exclusion is a real, if small, loss of coverage: nothing in the folder
+    now alerts directly on either DaemonSet, and the design spec's claim that
+    "their real coverage is the Layer 1/2 node alerts" does not survive
+    checking — those rules key on node Ready conditions and are blind to a
+    collector dying on a healthy node. Left as an open finding rather than
+    widened here, because adding coverage under cover of a query rewrite is
+    how scope creeps.
+    """
+    used = set(_KUBE_METRIC_RE.findall(_query_expr(_layer_8())))
+
+    missing = sorted(WORKLOAD_METRICS - used)
+    assert not missing, (
+        f"{LAYER_8} does not query {missing} — `monitoring` holds both "
+        "Deployments and a StatefulSet, and kube-state-metrics exports no "
+        "unavailability counter for StatefulSets, hence the two-metric "
+        "difference."
+    )
+
+    stray = sorted(used - WORKLOAD_METRICS)
+    assert not stray, (
+        f"{LAYER_8} queries {stray}. If that includes {DAEMONSET_METRIC}, the "
+        "monitoring DaemonSets have been pulled back in — they are excluded on "
+        "purpose, and including them would force this critical rule onto the "
+        "15m drain-tolerant window for no benefit."
+    )
+
+
+def test_layer_8_keeps_the_health_bridge_self_probe():
+    """The sharpest signal in the folder, and entirely unaffected by the
+    migration: an end-to-end HTTP probe of health-bridge's own /healthz. A
+    rewrite that dropped it while restructuring the surrounding PromQL would
+    leave the rule looking healthy and answer a strictly weaker question."""
+    expr = _query_expr(_layer_8())
+    assert "probe_success" in expr, f"{LAYER_8} no longer queries probe_success"
+    assert HEALTH_BRIDGE_PROBE in expr, (
+        f"{LAYER_8} no longer probes {HEALTH_BRIDGE_PROBE} — the instance "
+        "selector must survive the rewrite verbatim"
+    )
+
+
+def test_layer_8_inverts_the_self_probe_to_match_the_new_threshold():
+    """The trap this rule sets, and the one thing the design spec got wrong.
+
+    The spec says the `probe_success` clause is "preserved verbatim ... and
+    entirely unaffected by this migration". Its *selector* is; its *polarity*
+    cannot be. `probe_success` is 1 when the probe SUCCEEDS, and the old rule
+    read it under `lt 1`, so 0 meant fire. The migration inverts the threshold
+    to `gt 0` because the workload branches now count UNAVAILABLE replicas — at
+    which point a verbatim `probe_success` fires continuously while
+    health-bridge is healthy and goes silent the moment it dies. Exactly
+    backwards, on the sharpest signal in the folder, with a diff that looks
+    like the careful thing to do.
+
+    `== bool 0` maps success->0 and failure->1, which is the same polarity as
+    an unavailable-replica count and therefore the same threshold. Verified
+    live 2026-08-02: raw probe_success = 1, inverted = 0, on a healthy probe.
+    """
+    expr = _query_expr(_layer_8())
+    inverted = re.search(r"probe_success\{[^}]*\}\s*==\s*bool\s+0", expr)
+    assert inverted, (
+        f"{LAYER_8}'s probe_success clause is not inverted. Under the `gt 0` "
+        "threshold a raw probe_success fires while the probe is HEALTHY (1) "
+        "and stays quiet when it fails (0). Write "
+        "`probe_success{...} == bool 0` so success maps to 0, matching the "
+        "unavailable-replica counts it is OR'd with."
+    )
+
+
+def test_layer_8_fires_on_unavailability():
+    """Same inversion as every other migrated rule: `lt 1` on a readiness
+    gauge becomes `gt 0` on an unavailability count."""
+    evaluator = _threshold_evaluator(_layer_8())
+    actual = {"type": evaluator.get("type"), "params": evaluator.get("params")}
+    assert actual == {"type": "gt", "params": [0]}, (
+        f"{LAYER_8} threshold is {actual}, expected `gt 0`"
+    )
+
+
+def test_layer_8_keeps_its_five_minute_window_and_critical_severity():
+    """It does NOT follow the DaemonSet rule, and that is deliberate.
+
+    This rule covers the alerting stack's own health at `severity: critical` —
+    when it is right, everything else in this folder is unreliable. Blunting
+    detection to 15m would be a real loss, and it buys nothing here because the
+    DaemonSets that motivated the 15m window are excluded from the query.
+    """
+    rule = _layer_8()
+    assert rule.get("for") == "5m", (
+        f"{LAYER_8} moved to `for: {rule.get('for')}`. It excludes DaemonSets "
+        "precisely so it can stay at 5m; if it now queries them, the exclusion "
+        "regressed rather than the window."
+    )
+    assert (rule.get("labels") or {}).get("severity") == "critical", (
+        f"{LAYER_8} must stay severity: critical — it watches the alerting "
+        "stack that every other rule in this folder depends on"
+    )
+
+
+def test_layer_8_normalises_every_branch_onto_a_component_label():
+    """`component` is what makes three unlike branches one readable alert.
+
+    The old rule produced `pod/<name>`; the migrated one produces
+    `deployment/<name>`, `statefulset/<name>` and the unchanged
+    `probe/health-bridge-healthz`. `workload`/`kind` — the convention the other
+    eleven rules use — is deliberately NOT used here: the probe series has no
+    workload, so a summary interpolating `$labels.workload` would render empty
+    for the one branch that matters most.
+    """
+    rule = _layer_8()
+    expr = _query_expr(rule)
+
+    components = set(re.findall(r'"component",\s*"([^"]+)"', expr))
+    expected = {"deployment/$1", "statefulset/$1", "probe/health-bridge-healthz"}
+    missing = sorted(expected - components)
+    assert not missing, (
+        f"{LAYER_8} does not label every branch with a `component`; missing "
+        f"{missing}, found {sorted(components)}"
+    )
+
+    annotations = rule.get("annotations") or {}
+    summary = str(annotations.get("summary") or "")
+    assert "$labels.component" in summary, (
+        f"{LAYER_8} summary does not interpolate $labels.component: {summary!r}"
+    )
+    rendered = " ".join(str(v) for v in annotations.values())
+    assert "$labels.pod" not in rendered, (
+        f"{LAYER_8} annotations still interpolate $labels.pod, which no longer "
+        "exists on any branch of the query"
     )

@@ -264,3 +264,295 @@ Spec decision 2 amended with the correction.
 `layer-4-storage-down` is currently at **10m** and moves to 15m only because it
 queries a DaemonSet metric. `layer-8-observability-down` is at 5m and must STAY
 at 5m.
+
+<!-- fr:journal kind=finding scope=plan id=970bfaa0947a created=2026-08-03T00:05:37 phase=3 state=fixed -->
+### 970bfaa0947a · finding [fixed] · The probe_success clause could NOT be preserved verbatim — the threshold inversion silently inverts it too (phase 3)
+
+THE find of phase 3, and the second time the design spec has been wrong in the
+same direction (after phase 2's `for:` normalisation and the `\$value` vs
+`\$values.B.Value` correction).
+
+The spec, the plan step and the phase brief all say the same thing about
+layer-8-observability-down: keep its `probe_success` clause for
+`http://health-bridge.monitoring.svc.cluster.local:8080/healthz` VERBATIM,
+because "that is an end-to-end probe ... and entirely unaffected by this
+migration".
+
+Its SELECTOR is unaffected. Its POLARITY cannot be.
+
+  probe_success == 1  means the probe SUCCEEDED.
+
+The old rule read it under `lt 1`, so 0 (failure) fired. The migration inverts
+the threshold to `gt 0` because the workload branches now count UNAVAILABLE
+replicas. A verbatim `probe_success` OR'd into that expression therefore:
+
+  * fires CONTINUOUSLY while health-bridge is healthy (value 1 > 0), and
+  * goes SILENT the moment health-bridge dies (value 0, not > 0).
+
+Exactly backwards, at severity: critical, on what the spec itself calls the
+sharpest signal in the folder — and the diff that produces it is the careful,
+obedient one. This is the same class of error as the threshold inversion the
+plan already guards ("backwards fires constantly or never and both look
+plausible"), except it hides in a clause everyone was told not to touch.
+
+FIX: `probe_success{instance="..."} == bool 0`, which maps success->0 and
+failure->1, matching the polarity of the unavailable-replica counts it is
+unioned with. Measured live before shipping:
+
+  probe_success{instance="...healthz"}              -> 1 series, value 1
+  probe_success{instance="...healthz"} == bool 0    -> 1 series, value 0
+  label_replace(... == bool 0, "component", ...)    -> 1 series, value 0,
+                                                       component=probe/health-bridge-healthz
+
+`== bool` retains all labels except __name__, so the label_replace and the
+`or` union are unaffected.
+
+GUARD: test_layer_8_inverts_the_self_probe_to_match_the_new_threshold asserts
+`probe_success{...} == bool 0` by regex, with the whole reasoning in the
+docstring. RED before the fix, green after.
+
+The spec text was NOT amended (phase 3 does not own it) — phases 4-5 should
+treat the spec's "preserved verbatim" line as corrected by this entry.
+
+<!-- fr:journal kind=finding scope=plan id=680ae632958d created=2026-08-03T00:06:15 phase=3 state=fixed -->
+### 680ae632958d · finding [fixed] · Two pod-name regexes were UNSAFE to carry over — cilium-.* drops the cilium DaemonSet, longhorn-manager-.* matches nothing at all (phase 3)
+
+The spec says the existing pod-name regexes "carry over as workload-name
+regexes" and that they get *simpler*. True in spirit, but two of the three
+phase-3 rules break outright if you carry the regex over LITERALLY, and both
+failures are silent.
+
+A pod regex has to tolerate the name suffix kubernetes appends
+(`cilium-8x4kt`, `longhorn-manager-p2wjq`); a workload regex matches the
+workload NAME. Measured live against VictoriaMetrics before writing anything:
+
+  daemonset=~"cilium-.*"           -> 1 series  [cilium-envoy]        <- TRAP
+  daemonset=~"cilium.*"            -> 2 series  [cilium, cilium-envoy]
+  deployment=~"cilium.*"           -> 1 series  [cilium-operator]
+
+  daemonset=~"longhorn-manager-.*" -> 0 series                        <- TRAP
+  daemonset="longhorn-manager"     -> 1 series  [longhorn-manager]
+
+layer-3: `cilium-.*` silently drops the `cilium` DaemonSet — the cilium AGENT,
+the single most important workload in the rule — while still matching
+cilium-envoy and cilium-operator. The rule would return series, pass every
+structural assertion in the test file, verify "non-empty" against live data,
+and simply never watch the agent again. `cilium.*` restores exactly the set the
+pod query covered (all three workloads); this is coverage PRESERVATION, not
+widening.
+
+layer-4: `longhorn-manager-.*` matches NO workload, so the rule returns zero
+series and can never fire. Under noDataState: OK that is perfectly quiet — a
+rule that has been deleted in all but name. This is the same shape as the
+vector-match hazard the brief warned about (a rule that can never fire looks
+identical to a healthy one).
+
+Neither is catchable by a diff review or by any assertion about rule structure;
+the only thing that catches them is querying the live series set and reading
+the workload names back. Both selectors are documented in-file with the
+measured before/after series counts, so the next person does not "tidy" them
+back.
+
+GENERALISATION for phases 4-5 and for any future rule: after rewriting a
+selector from pod-shaped to workload-shaped, assert the RETURNED WORKLOAD NAMES
+against `kubectl get deploy,ds,sts`, not just that the result is non-empty.
+Non-empty was true for the broken layer-3.
+
+<!-- fr:journal kind=finding scope=plan id=86ffb32eb446 created=2026-08-03T00:07:58 phase=3 state=open -->
+### 86ffb32eb446 · finding [open] · Excluding the monitoring DaemonSets is a real coverage loss, and the spec's stated compensating control does not exist (phase 3)
+
+Flagged, not fixed — per the phase-2 precedent of surfacing pre-existing/created
+gaps rather than folding them into a query rewrite.
+
+layer-8-observability-down previously matched EVERY pod in `monitoring`, which
+included the pods of both DaemonSets: `fluent-bit` and
+`victoria-metrics-prometheus-node-exporter`. The migrated rule queries
+Deployments and StatefulSets only, so those two are now unwatched. That
+exclusion is deliberate and well-argued (it is what lets this critical rule keep
+`for: 5m` instead of moving to the 15m drain-tolerant window), but the spec
+justifies it with a claim that does not hold:
+
+  "node-level collectors whose unavailability during a node drain is exactly
+   the noise this work removes, and whose real coverage is the Layer 1/2 node
+   alerts"
+
+Checked, because it is the kind of reassuring sentence that never gets checked:
+
+  layer-1-hardware-down : kube_node_status_condition{condition="Ready",status="false"}
+  layer-2-os-down       : the same, joined to kube_node_role{role="control-plane"}
+
+Both key on a NODE going NotReady. Neither can see fluent-bit crashlooping on a
+perfectly Ready node. Grepping the whole ConfigMap for `fluent-bit` and
+`node-exporter` finds four hits each and every one is a comment or a
+`job="node-exporter"` label selector — there is no rule anywhere that alerts on
+either DaemonSet's health.
+
+What DOES partially cover them, indirectly:
+  * node-exporter feeds layer-1-node-memory-headroom and layer-1-nic-link-flap,
+    so a fleet-wide node-exporter failure eventually shows up as those rules
+    losing data;
+  * fluent-bit is the transport for the crowdsec-canary and alert-agent
+    cred-expiry heartbeats into VictoriaLogs, and both have dead-man rules — so
+    a fleet-wide fluent-bit failure pages via those.
+
+Both are fleet-wide-only and arrive late. A single-node collector failure is
+invisible either way, before or after this change; the difference is that
+before, a fluent-bit pod stuck NotReady on one node did fire layer-8 (along
+with, admittedly, every tombstone on that node — which is the defect being
+removed).
+
+RECOMMENDATION (its own change, not this one): a small DaemonSet-availability
+rule over `kube_daemonset_status_number_unavailable{namespace="monitoring"}` at
+`for: 15m`, severity warning, which is drain-tolerant by construction and would
+be automatically consistent with the folder-wide policy guard shipped in this
+phase. Deliberately NOT added here: widening coverage under cover of a rewrite
+is exactly what phase 2 refused to do with layer-13's authentik-postgresql
+StatefulSet and layer-14's cnc-staging-vcluster namespace.
+
+The in-file comment on layer-8 and the docstring of
+test_layer_8_watches_deployments_and_statefulsets_but_not_daemonsets were both
+written to state this honestly rather than repeat the spec's claim.
+
+<!-- fr:journal kind=discovery scope=plan id=7cdf97b484a2 created=2026-08-03T00:08:30 phase=3 -->
+### 7cdf97b484a2 · discovery · RED/GREEN + live series counts for all four rules, the xfail retirement, and the two durable policy guards (phase 3)
+
+RED (task 1, the three DaemonSet-bearing rules), verbatim headlines:
+  6 failed, 14 passed, 1 xfailed in 6.83s
+  1. query_only_workload_availability_metrics -> all 3 offend with ['kube_pod_status_ready']
+  2. actually_query_daemonsets                -> all 3 never query kube_daemonset_status_number_unavailable
+  3. fire_when_replicas_are_unavailable       -> all 3 at {'type':'lt','params':[1]}
+  4. wait_out_a_node_drain                    -> layer-3 5m, layer-4 10m, layer-5 5m
+  5. summaries_name_the_workload_not_the_pod  -> all 3 interpolate \$labels.pod
+  6. normalise_kind_in_lowercase              -> all 3 'expr never label_replaces a `kind` label'
+GREEN: 20 passed, 1 xfailed.
+
+RED (task 3, layer-8): 5 failed, 22 passed, 1 xfailed.
+  Two of the seven layer-8 assertions PASSED red — keeps_the_health_bridge_self_probe
+  and keeps_its_five_minute_window_and_critical_severity. That is correct and
+  deliberate: they are preservation assertions, so passing before the edit is
+  what makes them a genuine before/after contract rather than a description of
+  the edit's output.
+GREEN: the strict xfail flipped to `FAILED [XPASS(strict)]` — 1 failed, 27 passed.
+  That is the marker working exactly as phase 1 designed it: 12 of 12 rules
+  migrated, so the only way back to green was deleting it. Marker removed,
+  docstring rewritten to record what it caught, `import pytest` (now unused)
+  dropped. Final: 28 passed, 0 xfailed in that file.
+
+FULL SUITE: 563 passed, 1 xfailed, 0 failed.
+  Baseline at phase start was 547 passed / 2 xfailed / 0 failed, identical to
+  phase 2's. Delta = +16 passed / -1 xfailed = 15 new tests plus the retired
+  xfail becoming a pass. The one remaining xfail is the pre-existing
+  test_series_index_adoption.py::test_papers_uses_same_layer_name_tag.
+
+LIVE VERIFICATION (exprs read out of the ConfigMap by double YAML load and
+POSTed through the Grafana datasource proxy, never retyped; each top-level `or`
+branch queried SEPARATELY):
+
+  uid                       whole  branches                          kinds                   values
+  layer-3-networking-down       3  1 deployment + 2 daemonset        deployment, daemonset   [0]
+  layer-4-storage-down          1  1 daemonset (single branch)       daemonset               [0]
+  layer-5-gpu-down             12  3 deployment + 9 daemonset        deployment, daemonset   [0]
+  layer-8-observability-down   10  8 deployment + 1 statefulset + 1 probe                    [0]
+
+  Every series carries workload+kind (layer-3/4/5) or component (layer-8) —
+  checked explicitly, so no annotation can render an empty resource path. Every
+  value is 0, the correct quiet state under `gt 0`; the same readings under the
+  old `lt 1` would have fired all four rules permanently. layer-8's components
+  render as deployment/<name>, statefulset/victoria-logs-victoria-logs-single-server
+  and probe/health-bridge-healthz, and fluent-bit / node-exporter are absent —
+  confirming the DaemonSet exclusion took effect.
+
+  StatefulSet subtraction join, re-measured as the brief required:
+    count(kube_statefulset_status_replicas - ..._ready) = 13 = count(..._replicas) = 13
+    scoped to monitoring: 1 in, 1 out. Nothing dropped.
+  DaemonSet metric coverage: count(kube_daemonset_status_number_unavailable) = 17
+    = count(kube_daemonset_status_current_number_scheduled) = 17, i.e. the
+    counter exists for every DaemonSet in the cluster, so the 0s are real
+    readings and not a missing metric.
+
+TWO DURABLE POLICY GUARDS (folder-wide, they outlive this migration):
+  test_rules_that_watch_daemonsets_tolerate_a_node_drain
+      DaemonSet metric in expr => for: 15m
+  test_the_fifteen_minute_window_is_reserved_for_daemonset_rules
+      for: 15m => DaemonSet metric in expr
+
+They key off the METRIC, never the namespace. The plan's P3.T1.S1 asked for the
+namespace-selector derivation plus the converse "every other feature-health rule
+has for: 5m", and P3.T3.S1 already warned to re-check that converse. It is
+decisively FALSE: the folder holds for: values of 0m, 0s, 1m, 2m, 5m, 10m, 30m,
+1h, 2h and 3h, with SIX rules at 10m on purpose — including layer-25-cicd-down,
+the in-repo precedent this whole spec cites. Asserting it would have forced a
+mass re-tune under cover of a query rewrite, i.e. re-committed the exact mistake
+phase 2 caught and reverted. A namespace-derived guard was also rejected: it
+encodes live cluster state that drifts silently, and it would misfire on layer-8,
+which sits in a DaemonSet-bearing namespace and deliberately does not query them.
+Both guards were vacuous at RED time and are non-vacuous now (3 rules matched).
+
+<!-- fr:journal kind=discovery scope=plan id=6e02f009b033 created=2026-08-03T00:09:01 phase=3 -->
+### 6e02f009b033 · discovery · Three judgement calls, and a baseline warning: the DEVCONTAINER lacks kustomize and hugo, so the suite must be run on the host (phase 3)
+
+1. BASELINE — run the suite on the HOST, not via `fr isolation exec`.
+   Phase 1 recorded that "the 10 pre-existing test_cnc_staging_* failures do NOT
+   reproduce". It depends entirely on where you run it, and this cost real time:
+
+     fr isolation exec -- uv run --frozen pytest scripts/tests/ -q
+       -> 10 failed, 530 passed, 8 skipped, 1 xfailed
+     cd <worktree> && uv run --frozen pytest scripts/tests/ -q
+       -> 547 passed, 2 xfailed, 0 failed
+
+   Same 549 tests collected both ways, so it is not a collection difference. All
+   10 failures are `FileNotFoundError: [Errno 2] No such file or directory:
+   'kustomize'` (confirmed: 10 of 10) and all 8 skips are "hugo not installed" —
+   the devcontainer has neither binary, the host has both at /usr/local/bin. The
+   missing hugo also eats the pre-existing xfail (it lives in
+   test_series_index_adoption.py), which is why the container reports 1 xfail
+   where the host reports 2 — a discrepancy that reads like our own marker
+   misbehaving and is nothing of the kind.
+
+   So the earlier briefs and phase 1 were each right about their own
+   environment. Use the host for the suite; use `fr isolation exec` for cluster
+   reads (kubectl/curl), which is what it is needed for.
+
+2. layer-4-storage-down ships as a SINGLE-branch expr, not an `or`.
+   The plan step and the phase brief both anticipate a Deployment branch ("if
+   the deployment branch of its `or` returns nothing that is correct"). There is
+   no such branch, deliberately. `longhorn-manager` exists only as a DaemonSet;
+   the Deployment selector returns 0 series and structurally always will
+   (verified live). Phase 2 set the precedent by stripping layer-14's
+   `pod=~".*-[0-9]+\$"` and layer-15's `pod!~".*-init-.*"` as inert clauses that
+   imply a shape that cannot occur, and phase 2 shipped single-kind exprs for
+   five rules (layer-12/13/19/24 deployment-only, layer-14 statefulset-only). An
+   always-empty Deployment clause here would be the same cargo cult. The
+   "verify both branches separately" instruction is satisfied by verifying the
+   one branch that exists AND separately confirming no longhorn-system
+   Deployment matches the name.
+
+3. layer-8 normalises onto `component`, NOT `workload`/`kind`.
+   Every other migrated rule uses workload+kind, and the phase-3 kind test is
+   scoped to the three DaemonSet rules for that reason. layer-8 cannot follow:
+   its third branch is a `probe_success` series that has no workload to name, so
+   a summary interpolating \$labels.workload would render EMPTY for the single
+   sharpest signal in the folder. `component` is the pre-existing convention on
+   this rule (it produced `pod/<name>`) and it carries over as `<kind>/<name>`
+   plus the unchanged `probe/health-bridge-healthz` — one readable summary
+   across three unlike branches. Guarded by
+   test_layer_8_normalises_every_branch_onto_a_component_label, which asserts
+   all three component values are present.
+
+   Related: layer-8's RUNBOOK deliberately interpolates nothing. `rollout status
+   {{ \$labels.component }}` would render `rollout status
+   probe/health-bridge-healthz` on the probe branch — a paste-able command that
+   is garbage, at 03:00, on a critical alert. The summary names the failing
+   component; the runbook stays valid for all three branches.
+
+FOR PHASES 4-5:
+  * The folder is now 12-of-12 migrated and the regression tripwire is LIVE
+    (no marker). Any new feature-health rule using kube_pod_status_ready fails
+    the suite immediately — including the new `workload-unexpectedly-scaled-to-
+    zero` rule phase 4 adds, which must also satisfy the two policy guards: it
+    is spec'd at `for: 15m` while querying `kube_deployment_spec_replicas`, and
+    that combination will FAIL test_the_fifteen_minute_window_is_reserved_for_
+    daemonset_rules. Decide deliberately: either give it a different window, or
+    widen that guard with a written rationale. Do not delete the guard.
+  * `PHASE_2_EXPECTED_FOR` and the phase-3 uid frozensets are per-batch scaffolding.
+    The two policy guards and the tripwire are the parts meant to last.
