@@ -1,0 +1,18 @@
+# Namespace for the retrieval models (embeddings + cross-encoder rerank)
+# served on a mini's Intel iGPU via Dynamic Resource Allocation.
+#
+# PodSecurity: the cluster enforces `baseline` and only WARNS on `restricted`
+# (measured 2026-08-02 — a hostPath probe was rejected outright, a
+# runAsNonRoot violation merely warned). These manifests are
+# restricted-compliant anyway, so audit/warn are set to restricted to make any
+# future regression visible in the API server's response rather than only in a
+# review. Enforcement stays at baseline to match the rest of the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: retrieval
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

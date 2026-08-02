@@ -1,0 +1,28 @@
+# The OpenVINO model repository — IR weights, tokenizer XMLs, per-model
+# graph.pbtxt and the merged config.json, seeded from the CI-built model image
+# by the Deployment's `seed-models` initContainer.
+#
+# Why a PVC at all when the bytes live in an image: OVMS memory-maps the IR
+# from a directory tree and the export layout is ~2-3 GB of int8 weights;
+# keeping it on a volume means a pod restart (or an OVMS tag bump) does not
+# re-extract the model image, and the seed is a marker check rather than a
+# copy. 20Gi leaves room for both models plus a future third.
+#
+# ReadWriteOnce is what forces `strategy: Recreate` on the Deployment — a
+# RollingUpdate would deadlock with the new pod unable to attach the volume
+# the old one still holds.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ovms-retrieval-models
+  namespace: retrieval
+  labels:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: models
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
