@@ -41,10 +41,45 @@ def test_gpu_timeshare_is_by_design():
 
 
 def test_readiness_with_terminal_pod_is_false_positive():
-    # A Succeeded/Completed/absent pod behind a readiness rule = stale KSM series.
-    for state in ("Succeeded", "Completed", None):
+    # A Succeeded/Completed/Failed/absent pod behind a readiness rule = stale KSM
+    # series. Kubernetes has TWO terminal phases (Succeeded and Failed) — a pod in
+    # either can never become Ready again, so the readiness series is stale in both.
+    for state in ("Succeeded", "Completed", "Failed", None):
         v = classify(_READINESS, pod_state=state)
         assert v.kind == "false-positive", f"pod_state={state!r}"
+
+
+def test_node_shutdown_tombstone_is_false_positive_not_escalated():
+    # Regression: the 2026-08-02 alert flood. A control-plane rolling restart makes
+    # the draining kubelet REJECT newly-scheduled pods — phase Failed, reason
+    # NodeShutdown. 48 such tombstones escalated as `unexplained` because Failed
+    # was missing from the terminal set, while the cluster was entirely healthy.
+    v = classify(_READINESS, pod_state="Failed", pod_reason="NodeShutdown")
+    assert v.kind == "false-positive"
+    assert v.tracker == "frank-ops#3"
+
+
+def test_shutdown_tombstone_recommends_deletion():
+    # A node-shutdown artifact holds no evidence — deleting it is the safe cleanup.
+    for reason in ("NodeShutdown", "Terminated"):
+        v = classify(_READINESS, pod_state="Failed", pod_reason=reason)
+        assert "delete" in v.reason.lower(), f"reason={reason!r}"
+
+
+def test_non_shutdown_failure_does_not_recommend_deletion():
+    # A pod that Failed on its own merits (a timed-out CI job, an app crash) is
+    # still terminal — so the readiness alert is still stale — but its object is
+    # the failure evidence. Recommending `kubectl delete pod` would destroy it.
+    v = classify(_READINESS, pod_state="Failed", pod_reason="DeadlineExceeded")
+    assert v.kind == "false-positive"
+    assert "delete" not in v.reason.lower()
+    assert "DeadlineExceeded" in v.reason  # the operator is told WHY it failed
+
+
+def test_pod_reason_is_optional_and_backward_compatible():
+    # Callers predating the pod_reason kwarg must keep working unchanged.
+    v = classify(_READINESS, pod_state="Succeeded")
+    assert v.kind == "false-positive"
 
 
 def test_readiness_with_live_pod_is_not_false_positive():
