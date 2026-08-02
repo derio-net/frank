@@ -1,0 +1,36 @@
+# IN-CLUSTER ONLY, on purpose.
+#
+# A ClusterIP at ovms-retrieval.retrieval.svc.cluster.local:8000 and nothing
+# else: no `lbipam.cilium.io/ips` LoadBalancer, no Traefik IngressRoute, no
+# LiteLLM alias. OVMS serves these models with NO AUTHENTICATION of its own,
+# so every one of those would put an open inference endpoint on the LAN.
+#
+# It is also the smallest thing that satisfies "reachable in-cluster", and it
+# keeps the blast radius off the chat gateway: LiteLLM's rerank providers each
+# assume their own URL path, so fronting /v3/rerank would mean writing a shim,
+# and aliasing only the embeddings half would be more confusing than aliasing
+# neither. Laptop-side access is `kubectl port-forward`.
+#
+# Guarded by scripts/tests/test_ovms_retrieval_manifests.py, which fails if
+# ANY file outside this app so much as names it — revisit deliberately when a
+# second consumer exists, not by drive-by edit.
+#
+# Only the REST port is exposed; OVMS's gRPC listener is left off the Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ovms-retrieval
+  namespace: retrieval
+  labels:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

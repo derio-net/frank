@@ -1,0 +1,180 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Post-merge deploy, measurement, and close-out'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+  acceptance:
+  - infer-igpu-rerank-endpoint
+  - infer-igpu-rerank-latency-measured
+  - infer-igpu-embeddings-endpoint
+  - infer-igpu-workload-preserves-quorum
+  - gpu-igpu-claim-documented
+tasks:
+- number: 1
+  title: Deploy verification
+  steps:
+  - id: P5.T1.S1
+    text: |
+      FIRST, before any sync check: make the published package PULLABLE.
+      `ghcr.io/derio-net/ovms-retrieval-models` does not exist yet, and GHCR
+      creates a package PRIVATE on first push from Actions. The pod carries NO
+      imagePullSecret (deliberately — this repo's convention is public packages
+      with no secret; see the comment in
+      `apps/cnc-base/manifests/statefulset-node.yaml`, and `cnc-ghcr-pull` in
+      `apps/cnc-staging/manifests/` for the private-image alternative). So on
+      first sync `seed-models` ImagePullBackOffs and NO manifest change fixes
+      it. Set the package visibility to public
+      (github.com/orgs/derio-net/packages → ovms-retrieval-models → Package
+      settings → Change visibility → Public), or, if it must stay private, add
+      an imagePullSecret to the Deployment and a Secret to the namespace and
+      say so in the plan. Verify with an unauthenticated pull of the tag before
+      moving on.
+  - id: P5.T1.S2
+    text: |
+      Then confirm the model image published at the pinned rev, and that ArgoCD
+      synced `ovms-retrieval`. Assert on the ARTIFACT, not the sync status:
+      `GET /v1/config` must show BOTH servables `AVAILABLE`. Do not accept
+      `/v2/health/ready` as evidence — it returns 200 on a broken model.
+
+      CHECK `/v1/config` BEFORE TRUSTING Ready — the probe design rests on an
+      UNVERIFIED assumption. The runtime gate proved `/v2/health/ready` is
+      server-level, but it did so against a single CLASSIC model. The
+      per-model endpoint `/v2/models/<name>/ready` was never exercised against
+      a MEDIAPIPE-GRAPH servable, which is what `embeddings_ov` and `rerank_ov`
+      emit. Two outcomes: a 404 fails the startup probe and the pod
+      restart-loops (loud, and therefore fine), OR it returns 200
+      unconditionally — in which case the silent-green failure the whole probe
+      design exists to prevent is back, and `/v1/config` is the only thing that
+      would show it. Record which one it is; if it is the second, the probes
+      need rethinking before this is called Deployed.
+  - id: P5.T1.S3
+    text: |
+      Confirm the GPU is genuinely in use: OVMS logs `Available devices for Open
+      VINO: CPU, GPU` and the servables loaded from the GPU repository.
+
+      Note on probe coverage while you are here: the startup/readiness split
+      gates EXACTLY TWO servables, BY NAME (`bge-m3` on startup,
+      `bge-reranker-v2-m3` on readiness). A third servable added later would be
+      ungated — the pod would go Ready with it dead, which is the same
+      silent-green failure one model down. Adding a servable means adding a
+      probe (or an exec probe covering all of them), not just a config entry.
+- number: 2
+  title: Run the measurements
+  steps:
+  - id: P5.T2.S1
+    text: |
+      Run the harness with `--arm gpu` from inside the cluster. Invoke it as
+      `uv run python3 scripts/ovms-retrieval-bench.py --arm gpu` — bare `python3`
+      in the isolation container is missing the stdlib `http` package, so
+      `urllib.request` fails to import and even `--help` dies (found in phase 3;
+      an environment quirk, not a script defect).
+      Record rerank p50/p95/max for 20 passages, embedding dimension, and
+      embedding throughput. Confirm rerank scores are well separated, not the
+      degenerate 1e-9..1e-12 pattern.
+  - id: P5.T2.S2
+    text: |
+      Stand up the CPU arm, then measure it. The manifest is committed at
+      `apps/ovms-retrieval/cpu-arm-pod.yaml` — deliberately NOT in
+      `manifests/` and NOT in the kustomization, so ArgoCD never sees it:
+      `kubectl apply -f` it by hand, measure, `kubectl delete -f` it. The model
+      image bakes BOTH exports but the Deployment seeds only `/models-src/gpu`,
+      so without this pod `--arm cpu` has nothing to hit. Do NOT turn it into a
+      second permanent Deployment — that would contradict the 1-replica
+      control-plane footprint decision. It runs on the same node, from the same
+      stock OVMS image, seeded from `/models-src/cpu`, with NO ResourceClaim
+      (the CPU arm must not hold the iGPU while it is measured). Point the
+      harness at it with `--base-url`, run `--arm cpu`, then delete it and
+      confirm no residue (`kubectl get resourceclaims -A`, no orphaned PVC).
+      State the GPU-vs-CPU verdict plainly. A CPU win is a legitimate result and
+      means the DRA plumbing was unnecessary complexity — say so if that is what
+      the numbers show, rather than burying it.
+  - id: P5.T2.S3
+    text: |
+      Capture control-plane health across a warm-load window: etcd leader changes
+      must not increase; compare etcd WAL fsync p99 and apiserver request latency
+      on mini-1 against untouched mini-2/mini-3; confirm mini-1 stays Ready with
+      no MemoryPressure.
+- number: 3
+  title: Close-out
+  steps:
+  - id: P5.T3.S1
+    text: |
+      Update the five acceptance rows with the measured evidence and record the
+      numbers in the plan. NOTE: there is no `fr acceptance set-status`
+      subcommand (the verbs are add/init/backfill/check/report/status/summary/
+      digest) — edit `docs/acceptance/matrix.yaml` by hand, then regenerate with
+      `fr acceptance report --deterministic`. Use `status: ci` for a row a test
+      in `scripts/tests/` guards (repo-tripwires.yml runs that suite), and
+      `skipped` only for rows whose evidence is a live manual proof; say which
+      in the notes, because `test_acceptance_status_matches_notes.py` now fails
+      a `ci` row whose notes deny CI.
+
+      State the SCOPE of the number every time it is reported. It comes from
+      ONE pod, hostname-pinned to a control-plane node (`nodeSelector:
+      kubernetes.io/hostname: mini-1`), holding ONE iGPU through a single
+      ResourceClaim, with no other GPU tenant. It is NOT what a rescheduled
+      pod, a second replica, or a pod on mini-2/mini-3 would see: the pin is
+      what makes the measurement repeatable, and dropping it (or scaling up)
+      invalidates the figure rather than extending it. Say so in the plan, in
+      the acceptance notes, and in whatever is reported to the external client.
+  - id: P5.T3.S2
+    text: |
+      Retroactively extend the existing Layer 11 posts
+      (`blog/content/docs/building/10-local-inference`,
+      `blog/content/docs/operating/07-inference`) with the measured results — an
+      extension, so no new posts. Describe the consumer ONLY as an external
+      client: no repo name, no corpus details, no benchmark queries. Run
+      `/update-readme`. Set the plan Status to Deployed.
+  - id: P5.T3.S3
+    text: |
+      Report the measured rerank latency and embedding dimension back to the
+      requesting repo's issue so it can run its own recall benchmark (Test Plan
+      row 9), which cannot be verified here.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
