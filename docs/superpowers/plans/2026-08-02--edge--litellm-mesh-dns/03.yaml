@@ -1,0 +1,229 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[manual] Restart headscale and drive the Test Plan'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+  acceptance:
+  - litellm-reachable-from-mesh-by-name
+tasks:
+- number: 1
+  title: Apply the DNS change to the running control plane
+  steps:
+  - id: P3.T1.S1
+    text: |
+      OPERATOR STEP — nothing here is agent-completable; it mutates the live
+      Hop control plane after the PR merges.
+
+      `headscale-config` is a plain, unhashed ConfigMap and cannot be converted
+      to a Kustomize configMapGenerator: headplane is a separate ArgoCD
+      Application that mounts the same ConfigMap by name with
+      `config_strict: true`, and Kustomize cannot rewrite a cross-Application
+      reference. `scripts/tests/test_config_reaches_the_process.py` already
+      records headscale as an explicit exemption for exactly this reason.
+
+      So nothing in the pod spec changes when the ConfigMap content changes:
+      ArgoCD will report `Synced`, the ConfigMap will hold both new records,
+      and headscale will keep serving the DNS map it parsed at boot —
+      indefinitely, with nothing anywhere reporting staleness.
+
+      GATE THE RESTART ON THE CONFIGMAP ACTUALLY BEING FRESH. Restarting before
+      ArgoCD has reconciled just re-reads the OLD ConfigMap, and the symptom is
+      indistinguishable from "the restart didn't work" — so you restart again,
+      still stale, and loop. Assert the content, not the sync status:
+
+      ```bash
+      source .env_hop
+
+      # 1. The records must be in the LIVE ConfigMap before restarting.
+      #    If this prints nothing, ArgoCD has not synced yet — WAIT, do not restart.
+      kubectl -n headscale-system get cm headscale-config \
+        -o jsonpath='{.data.config\.yaml}' | grep -E 'litellm-(lb|api)\.cluster\.derio\.net'
+      # expect BOTH lines. Force a sync if it is lagging:
+      #   kubectl -n argocd patch application headscale --type=merge \
+      #     -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+
+      # 2. Only now restart.
+      kubectl -n headscale-system rollout restart deploy/headscale
+      kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
+      ```
+
+      Note the ArgoCD Application status is deliberately NOT the gate here.
+      `Synced` can mean "synced to a stale revision" on this cluster (see the
+      argocd gotchas), and this whole phase exists because Synced does not imply
+      serving. The `grep` against live ConfigMap content is the evidence.
+
+      Existing WireGuard sessions survive this; only the control plane blips.
+      A laptop that is offline during the restart picks the new map up on its
+      next control-plane poll.
+
+      ```yaml
+      # manual-operation
+      id: edge-headscale-litellm-mesh-dns-restart
+      layer: edge
+      app: headscale
+      plan: docs/superpowers/plans/2026-08-02--edge--litellm-mesh-dns
+      when: After the PR merges and ArgoCD syncs the headscale Application.
+      why_manual: headscale-config is a plain (unhashed) ConfigMap that cannot be
+        converted to a Kustomize configMapGenerator, because headplane is a separate
+        ArgoCD Application mounting the same ConfigMap by name with config_strict.
+        Hashing would rename it and crashloop headplane, so nothing in the pod spec
+        changes on a content change and ArgoCD reports Synced while headscale keeps
+        serving the DNS map it parsed at boot.
+      commands:
+      - source .env_hop
+      - '# Gate on live ConfigMap CONTENT, not ArgoCD sync status: restarting before
+        the sync lands re-reads the OLD map and looks identical to a failed restart.'
+      - "kubectl -n headscale-system get cm headscale-config -o jsonpath='{.data.config\\.yaml}' | grep -E 'litellm-(lb|api)\\.cluster\\.derio\\.net'"
+      - kubectl -n headscale-system rollout restart deploy/headscale
+      - kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
+      verify:
+      - '# Homelab DNS serves a WILDCARD *.cluster.derio.net -> 192.168.55.220, so
+        "litellm-api resolves to .220" proves NOTHING on the LAN. Only litellm-lb
+        discriminates (.206 differs from the wildcard). One ConfigMap, one restart,
+        so proving one record proves both. macOS has no getent; on Linux mesh nodes
+        use `getent hosts <name>`.'
+      - sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+      - dscacheutil -q host -a name gitea-ssh.cluster.derio.net    # -> 192.168.55.209  POSITIVE CONTROL
+      - dscacheutil -q host -a name nope-xyz.cluster.derio.net     # -> 192.168.55.220  NEGATIVE CONTROL
+      - dscacheutil -q host -a name litellm-lb.cluster.derio.net   # -> 192.168.55.206  PROOF
+      - curl -sS -o /dev/null -w '%{http_code}\n' https://litellm-api.cluster.derio.net/v1/models  # 401 not 302
+      - '# LOAD-BEARING: an authenticated call. Everything above is satisfied by a
+        LiteLLM that rejects every key in existence.'
+      - 'curl -sS -H "Authorization: Bearer $KID_LAPTOPS_KEY" https://litellm-api.cluster.derio.net/v1/models | head -c 300   # expect 200 + model list'
+      status: pending
+      ```
+  - id: P3.T1.S2
+    text: |
+      OPERATOR STEP — verification. Run Test Plan steps 3 through 7 from
+      `docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md`.
+
+      From the Mac (note: macOS has no `getent`):
+
+      READ THIS BEFORE RUNNING THE DNS CHECKS. Homelab DNS serves a WILDCARD
+      `*.cluster.derio.net -> 192.168.55.220` (measured 2026-08-02: the
+      impossible name `nope-xyz.cluster.derio.net` resolves to `.220`). So on
+      the LAN, `litellm-api -> 192.168.55.220` passes WHETHER OR NOT the record
+      exists — it is the wildcard answering, and asserting it proves nothing.
+      Only `litellm-lb -> 192.168.55.206` discriminates, because `.206` differs
+      from the wildcard and can only have come from MagicDNS.
+
+      Both records sit in one ConfigMap and are loaded by one restart, so
+      `litellm-lb` resolving to `.206` proves the restart landed and therefore
+      that BOTH records are live. Run the negative control beside it so the
+      wildcard is visible rather than assumed:
+
+      ```bash
+      # Flush the macOS resolver cache first — you already looked these names up
+      # pre-deployment and got the wildcard's .220, and mDNSResponder caches it.
+      sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+      tailscale status >/dev/null || echo "NOT ON THE TAILNET — MagicDNS will not answer"
+
+      dscacheutil -q host -a name gitea-ssh.cluster.derio.net     # -> 192.168.55.209  POSITIVE CONTROL (MagicDNS beats the wildcard)
+      dscacheutil -q host -a name nope-xyz.cluster.derio.net      # -> 192.168.55.220  NEGATIVE CONTROL (the wildcard itself)
+      dscacheutil -q host -a name litellm-lb.cluster.derio.net    # -> 192.168.55.206  PROOF (differs from the wildcard)
+
+      curl -sS -o /dev/null -w '%{http_code}\n' http://litellm-lb.cluster.derio.net:4000/health/liveliness  # 200
+      curl -sS -o /dev/null -w '%{http_code}\n' https://litellm-api.cluster.derio.net/v1/models             # 401, NOT 302
+      curl -sS -o /dev/null -w '%{http_code}\n' https://litellm.cluster.derio.net/                          # 302 (SSO intact)
+
+      # THE LOAD-BEARING CHECK — an authenticated call. Everything above is
+      # satisfied by a LiteLLM that rejects every key in existence; only this
+      # distinguishes "reachable" from "returns 401 to everybody". Use the
+      # vaulted kid-laptops key (alias `kid-laptops`, minted 2026-07-30,
+      # spend=0.0 — it has never completed a request, so this is its first
+      # real exercise, not a regression check).
+      curl -sS -H "Authorization: Bearer $KID_LAPTOPS_KEY" \
+        https://litellm-api.cluster.derio.net/v1/models | head -c 300
+      # expect HTTP 200 and a JSON model list, NOT an auth error
+      ```
+
+      The three controls together separate failure modes that otherwise look
+      identical. `gitea-ssh` -> .209 proves MagicDNS is answering you at all;
+      `nope-xyz` -> .220 shows what the wildcard says; `litellm-lb` -> .206
+      proves the new map is live. If gitea-ssh also returns .220, the problem
+      is your tailnet connection or DNS toggle, NOT the restart.
+
+      So: `gitea-ssh` = .209 but `litellm-lb` = .220 means the restart did not
+      take effect (headscale still serving its boot-time map) — go back to
+      P3.T1.S1, and re-check the ConfigMap grep there before restarting again.
+      Pre-deployment baseline for comparison, measured 2026-08-02: `litellm-lb`,
+      `litellm-api` and `nope-xyz` all returned `.220`, while `gitea-ssh`
+      already returned `.209`.
+
+      The `401` is a necessary-not-sufficient assertion on the route: it means LiteLLM
+      answered, so the request reached it without the outpost intercepting. A
+      `302` there means forward-auth leaked onto the new route. A TLS error
+      means the wildcard cert did not attach.
+
+      USEFUL DECOUPLING: because the LAN wildcard already points
+      `litellm-api.cluster.derio.net` at Traefik, the two `curl` route checks
+      above work from the LAN as soon as ArgoCD syncs — BEFORE the headscale
+      restart. So the Traefik route and the DNS records can be verified
+      independently, and a failure tells you which half is at fault.
+
+      Public `NXDOMAIN` still holds and is worth recording, over DoH rather than
+      `dig @1.1.1.1` (the homelab blocks outbound port 53, so that merely times
+      out). But note it only shows the zone is private — it does NOT distinguish
+      MagicDNS from the homelab wildcard:
+
+      ```bash
+      curl -s -H 'accept: application/dns-json' \
+        'https://cloudflare-dns.com/dns-query?name=litellm-api.cluster.derio.net&type=A'
+      # expect "Status": 3
+      ```
+
+      Then flip `litellm-reachable-from-mesh-by-name` to `skipped` with the
+      evidence.
+
+      NOTE — there is no CLI verb for this in fr 3.15. `fr acceptance set` does
+      not exist (verified: the subcommands are check / report / status /
+      summary / add / init / backfill / digest), and `fr acceptance add` is
+      append-only — re-adding an existing id errors with
+      `duplicate row id: litellm-reachable-from-mesh-by-name` rather than
+      upserting. So this one edit is made by hand in
+      `docs/acceptance/matrix.yaml`, which is the documented exception to
+      "agents never hand-edit YAML shapes":
+
+      - set `status: not-implemented` -> `skipped`
+      - replace `notes:` with the evidence actually observed — the three control
+        resolutions, the `200` from litellm-lb, the `401` (not `302`) from
+        litellm-api, the **authenticated `200` + model list**, and the date
+
+      Do NOT flip the row without the authenticated result. The row's claim is
+      that an authenticated call returns a model list; every other check in this
+      phase is satisfied by a LiteLLM that rejects all keys.
+
+      Then regenerate the reports and run the gate — IN THAT ORDER, because a
+      hand-edit to `matrix.yaml` puts the rendered reports out of sync and the
+      gate counts that as three fresh errors:
+
+      ```bash
+      fr acceptance report --deterministic
+      fr acceptance check
+      ```
+
+      EXPECT `fr acceptance check` TO EXIT 1. Measured on this branch before any
+      of this work: **13 pre-existing `ERROR: staleness:` lines**, all about
+      unrelated archived specs (alert-agent-telegram-ux and several under
+      `implemented/`), none concerning this spec. That is the baseline — exit 1
+      with 13 staleness errors and zero drift errors means your edit is clean.
+      Chasing those 13 is somebody else's backlog item, not a blocker for this
+      phase, and it is not worth the last hour before travel.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

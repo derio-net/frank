@@ -754,3 +754,48 @@ rows:
       no re-front route, not a functional reference. Still unproven until Phase 6:
       live Omni UI and discovery returning 200, unauthenticated :8100 returning 401,
       certificate validity, and mesh resolution after DNS cleanup.'
+  - id: litellm-reachable-from-mesh-by-name
+    capability: Edge & mesh access
+    acceptance: Frank publishes mesh-resolvable names for LiteLLM, and an authenticated
+      API call to them returns a model list rather than being intercepted by the public
+      SSO ingress.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Post-merge manual proof: requires the headscale rollout restart (manual-op
+      edge-headscale-litellm-mesh-dns-restart), then Test Plan steps 3-6 — INCLUDING
+      the authenticated call at step 6, which is what separates "reachable" from "returns
+      401 to everybody". SCOPE CORRECTION 2026-08-02 (code review): this row originally
+      claimed a device "on any foreign network", which frank cannot verify — that needs
+      a laptop off-LAN, and it is precisely the claim already carried by the derio-homelab/kid-laptops
+      row laptop-reaches-frank-from-anywhere. Two repos asserting one end-to-end left
+      this row unflippable by frank''s own operator while duplicating theirs. Narrowed
+      to what frank actually delivers (the names, and the authenticated route that
+      is not SSO-intercepted); the foreign-network leg stays with the consumer repo.'
+  - id: litellm-public-host-keeps-sso
+    capability: Edge & mesh access
+    acceptance: Adding mesh-only API endpoints for LiteLLM does not remove SSO from
+      its public hostname, and the mesh endpoints never acquire the forward-auth middleware
+      that would break API-key clients.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
+    levels:
+      unit:
+      - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L143
+      - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L156
+      - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L167
+    status: ci
+    notes: 'Implemented phase 2. Both directions asserted, because each failure mode
+      is silent in opposite ways: L143 test_litellm_api_route_has_no_forward_auth
+      (the API route never acquires forward-auth — if it did, every Bearer-key client
+      would get a 302 to Authentik, the exact bug this plan routes around) and L167
+      test_litellm_public_route_still_has_forward_auth (litellm.cluster.derio.net keeps
+      SSO on the admin UI, which someone tidying two near-identical routes could strip).
+      L156 additionally holds ip-allowlist + security-headers on the API route, so
+      "drop forward-auth" cannot quietly become "drop the network guards too". Runs on
+      every PR via .github/workflows/repo-tripwires.yml (pytest scripts/tests/, no paths
+      filter). Both guards were mutation-tested rather than trusted: L167 passes on
+      unmodified HEAD (it guards a property already true), so it was proven to bite by
+      stripping forward-auth from the public route — each mutation failed exactly one
+      test and no others.'

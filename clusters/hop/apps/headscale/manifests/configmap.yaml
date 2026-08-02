@@ -66,11 +66,38 @@ data:
         # HTTPS web access; Traefik does not speak SSH. Mesh peers reaching
         # Gitea over git+ssh need a name that points at 192.168.55.209
         # (the Gitea LB IP, port 2222). Requires --accept-routes on the
-        # client; the LAN IP is reachable via the raspi-vlan10 subnet
-        # routers (192.168.55.0/24).
+        # client; the LAN IP is reachable via the argonath-{e,w} subnet
+        # routers (192.168.55.0/24). (Was written as "raspi-vlan10" — the
+        # Pi routers those records were built against have since been
+        # replaced by the argonath VLAN10 nodes; same routes, new hosts.)
         - name: gitea-ssh.cluster.derio.net
           type: A
           value: 192.168.55.209
+        # Frank LiteLLM gateway, direct to its Cilium L2 LoadBalancer
+        # (192.168.55.206, http on port 4000). The public name
+        # litellm.cluster.derio.net goes through Traefik and carries the
+        # authentik-forwardauth middleware, which answers a mesh client with a
+        # 302 to auth.cluster.derio.net instead of serving the API; this name
+        # bypasses Traefik entirely, so LiteLLM's own Bearer-key auth is the
+        # gate. Requires --accept-routes on the client; the LAN IP is reachable
+        # via the argonath subnet routers (192.168.55.0/24).
+        - name: litellm-lb.cluster.derio.net
+          type: A
+          value: 192.168.55.206
+        # Frank LiteLLM gateway, canonical HTTPS path via Traefik
+        # (192.168.55.220, port 443, under the existing *.cluster.derio.net
+        # wildcard cert). Its IngressRoute (apps/traefik/manifests/
+        # ingressroutes.yaml, name litellm-api) carries ip-allowlist and
+        # security-headers but deliberately NOT authentik-forwardauth, so
+        # LiteLLM's own Bearer-key auth is the gate — unlike the public name
+        # litellm.cluster.derio.net, which keeps SSO for the admin UI. This is
+        # the endpoint mesh clients should settle on; litellm-lb above is the
+        # plain-http fallback that depends on neither Traefik nor the cert
+        # resolver. Requires --accept-routes on the client; the LAN IP is
+        # reachable via the argonath subnet routers (192.168.55.0/24).
+        - name: litellm-api.cluster.derio.net
+          type: A
+          value: 192.168.55.220
 
     log:
       level: info

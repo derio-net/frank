@@ -211,6 +211,49 @@ spec:
     domains:
       - main: "*.cluster.derio.net"
 ---
+# LiteLLM API endpoint for mesh/LAN clients (the kid laptops).
+#
+# Same backend as the `litellm` route above, deliberately WITHOUT the
+# authentik-forwardauth middleware. LiteLLM authenticates API traffic with its
+# own Bearer virtual keys; the Authentik outpost intercepts the request before
+# LiteLLM ever sees the Authorization header, so an API client on this route
+# would receive a 302 to auth.cluster.derio.net instead of a completion. The
+# omission is the whole point of this hostname — see
+# docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md.
+#
+# The public `litellm.cluster.derio.net` route above keeps forward-auth: it
+# fronts the admin UI, where SSO is the only gate. Both directions of that
+# invariant are pinned by scripts/tests/test_headscale_litellm_mesh_dns.py.
+#
+# ip-allowlist and security-headers are retained: this name resolves only on
+# the mesh (Headscale extra_record → 192.168.55.220) and on the LAN, and the
+# subnet routers SNAT to RFC1918, so the existing allowlist accepts them.
+# tls.domains reuses the already-issued *.cluster.derio.net wildcard — no new
+# ACME order is placed.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: litellm-api
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`litellm-api.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        # NO authentik-forwardauth here — deliberate, see comment above.
+      services:
+        - name: litellm
+          namespace: litellm
+          port: 4000
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

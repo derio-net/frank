@@ -1,0 +1,96 @@
+schema_version: 2
+phase:
+  number: 2
+  title: litellm-api record + a Traefik route that carries no forward-auth
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - litellm-public-host-keeps-sso
+  - litellm-reachable-from-mesh-by-name
+tasks:
+- number: 1
+  title: Pin the SSO invariant in both directions, then add the route
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED. Extend `scripts/tests/test_headscale_litellm_mesh_dns.py` with the
+      security invariant. Two assertions, deliberately in opposite directions,
+      because each failure mode is silent and they are not the same bug:
+
+      - `litellm-api.cluster.derio.net` has an IngressRoute in
+        `apps/traefik/manifests/ingressroutes.yaml` carrying `ip-allowlist` and
+        `security-headers` but NOT `authentik-forwardauth`. If forward-auth ever
+        gets copy-pasted onto this route, every API-key client starts getting
+        302s to Authentik — which is precisely the bug this whole plan exists to
+        route around, silently reintroduced.
+      - `litellm.cluster.derio.net` (the public host) STILL carries
+        `authentik-forwardauth`. Someone "simplifying" the two near-identical
+        routes could strip SSO off the admin UI and the tests would otherwise
+        applaud.
+
+      Also assert the API route targets service `litellm` in namespace `litellm`
+      on port 4000, declares `certResolver: cloudflare` with
+      `domains[0].main == "*.cluster.derio.net"` (reusing the issued wildcard
+      rather than ordering a per-host cert), and that the Headscale
+      `extra_records` gained `litellm-api.cluster.derio.net -> 192.168.55.220`.
+
+      Run the file and confirm the new assertions FAIL.
+  - id: P2.T1.S2
+    text: |
+      GREEN. Two edits.
+
+      1. `apps/traefik/manifests/ingressroutes.yaml` — add an IngressRoute named
+         `litellm-api` in namespace `traefik-system`, modelled on the existing
+         `litellm` route immediately above it, with `authentik-forwardauth`
+         omitted. Comment the omission as deliberate, naming the reason
+         (LiteLLM authenticates by Bearer virtual key; the outpost would
+         intercept before LiteLLM ever sees the header) so it reads as a
+         decision rather than an oversight.
+
+      2. `clusters/hop/apps/headscale/manifests/configmap.yaml` — add
+         `litellm-api.cluster.derio.net -> 192.168.55.220` to `extra_records`.
+
+      Re-run the test file; expect green.
+- number: 2
+  title: Validate the manifests the way ArgoCD will consume them
+  steps:
+  - id: P2.T2.S1
+    text: |
+      `apps/traefik/manifests/` has no kustomization.yaml, so ArgoCD applies it
+      in directory mode — every document in the file is applied as-is. A
+      duplicate `metadata.name` within the namespace is therefore a live
+      collision, not a build error, so check it explicitly:
+
+      ```bash
+      uv run --frozen python -c "
+      import yaml, pathlib, collections
+      docs = [d for d in yaml.safe_load_all(pathlib.Path('apps/traefik/manifests/ingressroutes.yaml').read_text()) if d]
+      names = [d['metadata']['name'] for d in docs if d.get('kind') == 'IngressRoute']
+      dupes = [n for n, c in collections.Counter(names).items() if c > 1]
+      assert not dupes, f'duplicate IngressRoute names: {dupes}'
+      print(len(names), 'IngressRoutes, all uniquely named')
+      "
+      ```
+
+      Then run the full suite (`uv run --frozen pytest -q`) and confirm it is
+      green with no delta beyond this plan's own test file.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T15:28:49+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-08-02T15:29:39+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T15:31:52+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T15:34:10+00:00'
+    note: null
+    observed_prs: []
