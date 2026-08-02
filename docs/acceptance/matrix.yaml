@@ -676,10 +676,20 @@ rows:
       route.
     origin:
     - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
-    levels: {}
-    status: not-implemented
-    notes: End-to-end service and login verification is defined by migration Phases
-      3 and 4.
+    levels:
+      unit:
+      - frank:scripts/tests/test_frank_domain_retirement.py
+    status: skipped
+    notes: 'Live manual proof across Phases 3-4 on 2026-08-01/2026-08-02: ArgoCD and
+      Grafana completed browser OIDC round trips on their cluster.derio.net hosts,
+      and Longhorn, Hubble and n8n passed forward-auth, with no redirect to a non-Omni
+      frank.derio.net host once PR #744 declared the embedded outpost browser host.
+      Two services are honestly out of scope rather than verified: Infisical OIDC is
+      Pro-only and was never configured, and Sympozium is deployed with auth none by
+      design. The unit ref automates only the repository-reference half (in CI via
+      repo-tripwires.yml); live reachability and login stay manual, so this remains
+      skipped rather than ci. Phase 5 removes the legacy routes this claim asserts
+      independence from.'
   - id: net-oidc-cutover-continuity
     capability: Canonical cluster service access
     acceptance: Existing Kubernetes OIDC credentials continue to authenticate during
@@ -687,8 +697,18 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
     levels: {}
-    status: not-implemented
-    notes: Requires live old-token and new-token proof during the dual-issuer overlap.
+    status: skipped
+    notes: 'Live manual proof of the dual-issuer overlap. 2026-08-01: an old-issuer
+      k8s-agent token retained from before the cutover kept authenticating under authenticator
+      A while newly minted tokens carried iss=auth.cluster.derio.net, both normalizing
+      to authentik:ak-Kubernetes Agent Access-client_credentials. 2026-08-02T08:51Z
+      (T0+14h55m): re-proved by minting through both hosts — legacy iss=auth.frank.derio.net
+      and cluster iss=auth.cluster.derio.net, both TokenReview authenticated=true with
+      identical normalized identity and groups [system:authenticated], while the Omni
+      service-account kubeconfig retained cluster-admin. Provider access_token_validity
+      measured at hours=8, so every token issued at or before T0=2026-08-01T17:56:02Z
+      expired by 2026-08-02T01:56:02Z. Not automatable in CI: needs a live cluster,
+      the Authentik client secret and TokenReview.'
   - id: net-legacy-domain-retired
     capability: Canonical cluster service access
     acceptance: Every non-Omni frank.derio.net service name is removed from application
