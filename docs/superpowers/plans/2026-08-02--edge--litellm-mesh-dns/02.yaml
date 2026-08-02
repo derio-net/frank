@@ -79,16 +79,16 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T15:28:49+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T15:29:39+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T15:31:52+00:00'
       note: null
   completion:
     at: null
