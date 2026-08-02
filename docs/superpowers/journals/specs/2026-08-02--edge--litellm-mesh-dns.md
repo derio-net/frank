@@ -39,3 +39,8 @@ Operator chose 'Both - LB now, TLS after' with hostname litellm-api. Literal rea
 ### spec-review-cert-reuse · review · Spec review: clarified no new ACME order
 
 Reviewed the new IngressRoute against apps/traefik/manifests/ingressroutes.yaml. The existing litellm route declares tls.domains[0].main = '*.cluster.derio.net' with certResolver cloudflare; declaring the same wildcard on the new route makes Traefik reuse the issued certificate rather than order a per-host cert. Called out explicitly in the spec because 'new hostname' otherwise reads as ACME rate-limit exposure, which was a real concern on this repo's public edge. Also confirmed cross-namespace service refs work (traefik-system -> litellm/litellm:4000) since the existing public route already does exactly that.
+
+<!-- fr:journal kind=discovery scope=spec id=keys-exist-unused created=2026-08-02T17:18:41 -->
+### keys-exist-unused · discovery · Both kid-laptops LiteLLM keys exist and have never been used
+
+Verified against the live LiteLLM key store via /key/list?return_full_object=true using the master key from secret litellm-api-keys (ns litellm): aliases 'kid-laptops' and 'kid-laptops-hermes' both present, created 2026-07-30, spend=0.0. This grounds Test Plan step 6, which otherwise rested on the issue's assertion rather than measurement. The zero spend independently corroborates the issue's claim that the keys 'have simply never been reachable' — they were minted and then never successfully used. Minor correction: the issue says minted 2026-07-31; created_at reads 2026-07-30. No action needed, no new credentials required.

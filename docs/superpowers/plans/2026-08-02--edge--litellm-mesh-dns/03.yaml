@@ -72,7 +72,24 @@ tasks:
       ```
 
       Then flip `litellm-reachable-from-mesh-by-name` to `skipped` with the
-      evidence, via `fr acceptance set`.
+      evidence.
+
+      NOTE — there is no CLI verb for this in fr 3.15. `fr acceptance set` does
+      not exist (verified: the subcommands are check / report / status /
+      summary / add / init / backfill / digest), and `fr acceptance add` is
+      append-only — re-adding an existing id errors with
+      `duplicate row id: litellm-reachable-from-mesh-by-name` rather than
+      upserting. So this one edit is made by hand in
+      `docs/acceptance/matrix.yaml`, which is the documented exception to
+      "agents never hand-edit YAML shapes":
+
+      - set `status: not-implemented` -> `skipped`
+      - replace `notes:` with the evidence actually observed — the two resolved
+        IPs, the `200` from litellm-lb, the `401` (not `302`) from litellm-api,
+        and the date
+
+      Then validate the edit with `fr acceptance check`, which is the gate that
+      catches a malformed row or a broken origin ref.
 state:
   steps:
     P3.T1.S1:

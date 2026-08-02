@@ -71,13 +71,21 @@ tasks:
       recs = cfg['dns']['extra_records']
       assert isinstance(recs, list), type(recs)
       for r in recs: print(r['name'], '->', r['value'])
-      print('acl parses:', bool(yaml.safe_load(cm['data']['acl.yaml'])))
       "
       ```
 
-      Expect exactly four records printed (headplane, entry, gitea-ssh, litellm-lb)
-      and `acl parses: True`. Then run the full suite — `uv run --frozen pytest -q` —
-      and confirm the only delta against the baseline is your new test file.
+      Expect exactly four records printed (headplane, entry, gitea-ssh, litellm-lb).
+
+      CORRECTION (found during execution): do NOT extend this snippet to also
+      parse `data['acl.yaml']` with `yaml.safe_load`. Despite the key name that
+      value is **HuJSON** — Headscale policy, JSON with `//` comments — and it
+      loads with neither `yaml.safe_load` nor `json.loads`, only as JSON after
+      stripping `^\s*//` lines. It fails identically on unmodified `HEAD`, so a
+      stock-loader guard there would report a pre-existing condition as though
+      your edit had broken the file.
+
+      Then run the full suite — `uv run --frozen pytest -q` — and confirm the
+      only delta against the baseline (369 passed, 1 xfailed) is your new tests.
 state:
   steps:
     P1.T1.S1:
