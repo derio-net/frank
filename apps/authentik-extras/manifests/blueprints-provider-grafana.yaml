@@ -32,8 +32,6 @@ data:
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           redirect_uris:
             - matching_mode: strict
-              url: https://grafana.frank.derio.net/login/generic_oauth
-            - matching_mode: strict
               url: https://grafana.cluster.derio.net/login/generic_oauth
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           property_mappings:
