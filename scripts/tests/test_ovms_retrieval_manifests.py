@@ -624,11 +624,17 @@ def test_cpu_control_arm_seeds_the_cpu_repository_on_the_same_node():
         for line in "\n".join(init[0].get("command", []) + init[0].get("args", [])).splitlines()
         if not line.lstrip().startswith("#")
     )
-    assert re.search(
-        rf"^\s*cp\s+-R\s+{re.escape(CPU_SEED_SOURCE)}/\.\s+{re.escape(MODELS_MOUNT)}/",
-        script,
-        re.M,
-    ), f"the CPU arm must seed {CPU_SEED_SOURCE}: {script!r}"
+    # Pins the copy ROOT, not the command shape: the seed is a per-file loop
+    # rather than one `cp -R` (see the seed-OOM regression tests at the end of
+    # this file — the whole-tree form OOMKilled the Deployment's seed).
+    assert re.search(rf"^\s*cd\s+{re.escape(CPU_SEED_SOURCE)}\s*$", script, re.M), (
+        f"the CPU arm must establish {CPU_SEED_SOURCE} as its copy root: {script!r}"
+    )
+    assert "sync" in script, (
+        "the CPU arm's seed must sync between files for the same reason the "
+        "Deployment's does — a control arm that dies on its own seed measures "
+        "nothing"
+    )
     assert SEED_SOURCE not in script, (
         "the CPU arm seeds the GPU repository — that measures the GPU and "
         "labels it CPU"
