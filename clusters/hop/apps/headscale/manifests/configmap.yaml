@@ -71,6 +71,17 @@ data:
         - name: gitea-ssh.cluster.derio.net
           type: A
           value: 192.168.55.209
+        # Frank LiteLLM gateway, direct to its Cilium L2 LoadBalancer
+        # (192.168.55.206, http on port 4000). The public name
+        # litellm.cluster.derio.net goes through Traefik and carries the
+        # authentik-forwardauth middleware, which answers a mesh client with a
+        # 302 to auth.cluster.derio.net instead of serving the API; this name
+        # bypasses Traefik entirely, so LiteLLM's own Bearer-key auth is the
+        # gate. Requires --accept-routes on the client; the LAN IP is reachable
+        # via the argonath subnet routers (192.168.55.0/24).
+        - name: litellm-lb.cluster.derio.net
+          type: A
+          value: 192.168.55.206
 
     log:
       level: info
