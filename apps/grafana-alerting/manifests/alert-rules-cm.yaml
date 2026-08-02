@@ -929,7 +929,22 @@ data:
       # argocd_app_info, but ArgoCD app metrics aren't scraped yet.
       # Follow-up: add argocd metrics ServiceMonitor/VMServiceScrape to
       # restore per-app health signal.
-      # For now, alert on any NotReady argocd-* pod (server + controller).
+      #
+      # Query rewrite 2026-08-02: per-pod kube_pod_status_ready -> per-workload
+      # availability, the same move layer-25-cicd-down made in 2026-05 and for
+      # the same reason. A terminal pod (Succeeded/Failed) can never become
+      # Ready and Kubernetes does not GC it below --terminated-pod-gc-threshold
+      # (default 12500), so kube-state-metrics exports its NotReady series
+      # forever: the 2026-08-02 control-plane roll left 47 NodeShutdown
+      # tombstones behind and produced 48 firing alerts against a completely
+      # healthy cluster. A tombstone is not a replica, so counting unavailable
+      # replicas simply cannot see them. Note the threshold INVERTS with the
+      # metric: lt 1 on a readiness gauge becomes gt 0 on an unavailability
+      # counter. label_replace folds `deployment`/`statefulset` into one
+      # `workload` label plus a lowercase `kind`, so the summary can still name
+      # what broke and the runbook is a paste-able kubectl path. ArgoCD's
+      # application-controller is a StatefulSet, which has no _unavailable
+      # counter — hence the replicas-minus-ready difference.
       - orgId: 1
         name: layer-6-gitops-down
         folder: feature-health
@@ -944,7 +959,18 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace="argocd",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace="argocd"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
+                    or
+                    label_replace(
+                      label_replace(
+                        kube_statefulset_status_replicas{namespace="argocd"} - kube_statefulset_status_replicas_ready{namespace="argocd"},
+                        "workload", "$1", "statefulset", "(.*)"),
+                      "kind", "statefulset", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -960,16 +986,16 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 10m
+            for: 5m
             labels:
               severity: critical
               github_issue: "frank-ops#6"
             annotations:
-              summary: "L6 ArgoCD: pod {{ $labels.pod }} NotReady — cluster GitOps impaired"
-              runbook: "kubectl -n argocd describe pod {{ $labels.pod }}; kubectl -n argocd logs {{ $labels.pod }} --tail=50"
+              summary: "L6 ArgoCD: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable — cluster GitOps impaired"
+              runbook: "kubectl -n argocd rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n argocd describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 9 — Backup & DR (frank-ops#9) ---
       # Per-cronjob: one alert per backup CronJob whose last successful run is
@@ -1022,7 +1048,12 @@ data:
               runbook: "kubectl -n longhorn-system get cronjob {{ $labels.cronjob }}; kubectl -n longhorn-system get jobs --sort-by=.status.startTime | tail -5"
 
       # --- Layer 10 — Secrets (frank-ops#10) ---
-      # Per-pod: one alert per NotReady Infisical or ESO pod.
+      # Per-workload: one alert per under-replicated Infisical or ESO workload.
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. Infisical's
+      # postgresql and redis-master are StatefulSets, which have no
+      # _unavailable counter, so they are the replicas-minus-ready difference.
       - orgId: 1
         name: layer-10-secrets-down
         folder: feature-health
@@ -1037,7 +1068,18 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace=~"infisical|external-secrets",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace=~"infisical|external-secrets"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
+                    or
+                    label_replace(
+                      label_replace(
+                        kube_statefulset_status_replicas{namespace=~"infisical|external-secrets"} - kube_statefulset_status_replicas_ready{namespace=~"infisical|external-secrets"},
+                        "workload", "$1", "statefulset", "(.*)"),
+                      "kind", "statefulset", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1053,7 +1095,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 5m
@@ -1061,8 +1103,8 @@ data:
               severity: warning
               github_issue: "frank-ops#10"
             annotations:
-              summary: "L10 Secrets: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
-              runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+              summary: "L10 Secrets: {{ $labels.namespace }}/{{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
+              runbook: "kubectl -n {{ $labels.namespace }} rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n {{ $labels.namespace }} describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 11 — Local Inference (frank-ops#11) ---
       # End-to-end: probe_success{layer="11"} comes from the blackbox litellm_chat
@@ -1117,9 +1159,16 @@ data:
               runbook: "Check which workload holds gpu-1; probe_success{layer=11} in VMUI; kubectl -n ollama get deploy ollama"
 
       # --- Layer 12 — Agentic Control Plane (frank-ops#12) ---
-      # Restricted to Sympozium control-plane pods. Sympozium also spawns
-      # developer-team-* Job pods that naturally end in NotReady (Completed)
-      # state — those are NOT a Layer 12 health signal and must be excluded.
+      # Restricted to the Sympozium control-plane workloads. Sympozium also
+      # spawns developer-team-* Job pods that naturally end in NotReady
+      # (Completed) state — those are NOT a Layer 12 health signal.
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, of
+      # which this namespace is the repo's most prolific producer. Job pods are
+      # not owned by a Deployment, so they are now excluded by construction
+      # rather than by the pod-name regex. Threshold inverts lt 1 -> gt 0.
+      # Every workload here is a Deployment (`nats` included — it is not a
+      # StatefulSet on Frank), so there is no StatefulSet clause.
       - orgId: 1
         name: layer-12-agents-down
         folder: feature-health
@@ -1134,7 +1183,12 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace="sympozium-system",pod=~"sympozium-(apiserver|controller-manager|webhook|otel-collector)-.*|nats-.*",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace="sympozium-system",deployment=~"sympozium-(apiserver|controller-manager|webhook|otel-collector)|nats"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1150,7 +1204,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 5m
@@ -1158,11 +1212,18 @@ data:
               severity: warning
               github_issue: "frank-ops#12"
             annotations:
-              summary: "L12 Sympozium: pod {{ $labels.pod }} NotReady"
-              runbook: "kubectl -n sympozium-system describe pod {{ $labels.pod }}"
+              summary: "L12 Sympozium: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
+              runbook: "kubectl -n sympozium-system rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n sympozium-system describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 13 — Unified Auth / Authentik (frank-ops#13) ---
       # Critical — losing Authentik breaks forward-auth for every SSO-protected service.
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. The
+      # server|worker selector is carried over verbatim from the pod regex, so
+      # coverage is unchanged: the authentik-postgresql StatefulSet was outside
+      # this rule before the rewrite and stays outside it (widening the scope
+      # would be a behaviour change, not a migration — file it separately).
       - orgId: 1
         name: layer-13-auth-down
         folder: feature-health
@@ -1177,7 +1238,12 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace="authentik",pod=~"authentik-(server|worker).*",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace="authentik",deployment=~"authentik-(server|worker)"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1193,7 +1259,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 5m
@@ -1201,13 +1267,24 @@ data:
               severity: critical
               github_issue: "frank-ops#13"
             annotations:
-              summary: "L13 Authentik: pod {{ $labels.pod }} NotReady — SSO/forward-auth at risk"
-              runbook: "kubectl -n authentik describe pod {{ $labels.pod }}; kubectl -n authentik logs {{ $labels.pod }} --tail=50"
+              summary: "L13 Authentik: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable — SSO/forward-auth at risk"
+              runbook: "kubectl -n authentik rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n authentik logs {{ $labels.kind }}/{{ $labels.workload }} --tail=50"
 
       # --- Layer 14 — Multi-tenancy / vCluster (frank-ops#14) ---
-      # Targets vCluster StatefulSet control-plane pods (named <vcluster>-0).
-      # Synced-from-host workloads in vcluster-* namespaces are intentionally
-      # excluded — user workload health isn't a Layer 14 signal.
+      # Targets the vCluster control-plane StatefulSets. Synced-from-host
+      # workloads in vcluster-* namespaces are intentionally excluded — user
+      # workload health isn't a Layer 14 signal.
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. The old
+      # pod=~".*-[0-9]+$" filter was a hand-rolled "StatefulSet pods only"
+      # selector and is GONE — querying kube_statefulset_* selects StatefulSets
+      # by construction. StatefulSets have no _unavailable counter, hence the
+      # replicas-minus-ready difference.
+      # NOTE (pre-existing, deliberately unchanged): the namespace regex
+      # `vcluster-.*` does not match `cnc-staging-vcluster`, so that vCluster
+      # has never been covered by this rule. Carried over as-is rather than
+      # widened mid-migration; worth a follow-up.
       - orgId: 1
         name: layer-14-vcluster-down
         folder: feature-health
@@ -1222,7 +1299,12 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace=~"vcluster-.*",pod=~".*-[0-9]+$",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_statefulset_status_replicas{namespace=~"vcluster-.*"} - kube_statefulset_status_replicas_ready{namespace=~"vcluster-.*"},
+                        "workload", "$1", "statefulset", "(.*)"),
+                      "kind", "statefulset", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1238,21 +1320,29 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 10m
+            for: 5m
             labels:
               severity: warning
               github_issue: "frank-ops#14"
             annotations:
-              summary: "L14 vCluster: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
-              runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+              summary: "L14 vCluster: {{ $labels.namespace }}/{{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
+              runbook: "kubectl -n {{ $labels.namespace }} rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n {{ $labels.namespace }} describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 15 — Agentic Workflows (frank-ops#15) ---
-      # Covers n8n, VK remote (in `agents` ns), Paperclip. Excludes *-init-* Job
-      # pods (e.g. postgres-vk-init-electric-*) which sit Completed/NotReady.
+      # Covers n8n, VK remote (in `agents` ns), Paperclip.
       # Praison will be folded into the namespace regex when it deploys.
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. The old
+      # pod!~".*-init-.*" exclusion (postgres-vk-init-electric-* Job pods,
+      # which sit Completed/NotReady) is GONE for the same reason the vCluster
+      # pod-shape filter is: a Job pod is not owned by a Deployment or a
+      # StatefulSet, so it is excluded by construction now. n8n and Paperclip
+      # each carry a Postgres StatefulSet, which has no _unavailable counter —
+      # hence the replicas-minus-ready difference.
       - orgId: 1
         name: layer-15-workflows-down
         folder: feature-health
@@ -1267,7 +1357,18 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace=~"n8n-01|agents|paperclip-system",pod!~".*-init-.*",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace=~"n8n-01|agents|paperclip-system"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
+                    or
+                    label_replace(
+                      label_replace(
+                        kube_statefulset_status_replicas{namespace=~"n8n-01|agents|paperclip-system"} - kube_statefulset_status_replicas_ready{namespace=~"n8n-01|agents|paperclip-system"},
+                        "workload", "$1", "statefulset", "(.*)"),
+                      "kind", "statefulset", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1283,7 +1384,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 5m
@@ -1291,8 +1392,8 @@ data:
               severity: warning
               github_issue: "frank-ops#15"
             annotations:
-              summary: "L15 Workflows: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
-              runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+              summary: "L15 Workflows: {{ $labels.namespace }}/{{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
+              runbook: "kubectl -n {{ $labels.namespace }} rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n {{ $labels.namespace }} describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 16 — Media Generation (frank-ops#16) ---
       # End-to-end: probe_success{layer="16"} comes from the blackbox
@@ -1445,6 +1546,10 @@ data:
               # Hetzner API: needs hetzner_server_status exporter — file a follow-up.
 
       # --- Layer 19 — Progressive Delivery / Argo Rollouts (frank-ops#19) ---
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. The namespace
+      # holds only the controller Deployment, so there is no StatefulSet clause.
       - orgId: 1
         name: layer-19-rollouts-down
         folder: feature-health
@@ -1459,7 +1564,12 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace="argo-rollouts",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace="argo-rollouts"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1475,19 +1585,23 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 10m
+            for: 5m
             labels:
               severity: warning
               github_issue: "frank-ops#19"
             annotations:
-              summary: "L19 Rollouts: controller pod {{ $labels.pod }} NotReady — canary analyses will stall"
-              runbook: "kubectl -n argo-rollouts describe pod {{ $labels.pod }}"
+              summary: "L19 Rollouts: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable — canary analyses will stall"
+              runbook: "kubectl -n argo-rollouts rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n argo-rollouts describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 24 — In-Cluster Ingress / Traefik (frank-ops#24) ---
       # Namespace fix from plan: traefik-system (not traefik).
+      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
+      # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
+      # replica count cannot see. Threshold inverts lt 1 -> gt 0. The namespace
+      # holds only the traefik Deployment, so there is no StatefulSet clause.
       - orgId: 1
         name: layer-24-ingress-down
         folder: feature-health
@@ -1502,7 +1616,12 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace="traefik-system",condition="true"}'
+                  expr: |
+                    label_replace(
+                      label_replace(
+                        kube_deployment_status_replicas_unavailable{namespace="traefik-system"},
+                        "workload", "$1", "deployment", "(.*)"),
+                      "kind", "deployment", "", "")
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1518,7 +1637,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 5m
@@ -1526,8 +1645,8 @@ data:
               severity: critical
               github_issue: "frank-ops#24"
             annotations:
-              summary: "L24 Traefik: pod {{ $labels.pod }} NotReady — *.cluster.derio.net hostnames at risk"
-              runbook: "kubectl -n traefik-system describe pod {{ $labels.pod }}; kubectl -n traefik-system logs {{ $labels.pod }} --tail=50"
+              summary: "L24 Traefik: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable — *.cluster.derio.net hostnames at risk"
+              runbook: "kubectl -n traefik-system rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n traefik-system logs {{ $labels.kind }}/{{ $labels.workload }} --tail=50"
 
       # --- Layer 25 — CI/CD / Gitea + Tekton + Zot (frank-ops#25) ---
       # Query rewrite 2026-05-14: switched from per-pod kube_pod_status_ready

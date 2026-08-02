@@ -90,3 +90,142 @@ Exact severity/tracker snapshot captured into MIGRATED_RULES (this is the before
 MUTATION PROOF (the RED half for properties that already hold). A throwaway harness loaded the module, repointed ALERT_RULES_CM at doctored copies of the ConfigMap, and confirmed each invariant fails on its own violation - 11/11 detected: severity downgrade, folder typo (feature-heath), tracker label deleted, uid renamed, duplicate uid, blank uid, unknown severity value, malformed tracker (frank-ops-9), noDataState deleted, and the whole folder renamed. None of these is a test that merely describes the file.
 
 strict=True was also proven to bite rather than assumed: a scratch test with xfail(strict=True) over a passing assertion reports FAILED [XPASS(strict)], so no repo-level ini setting is neutralising it.
+
+<!-- fr:journal kind=discovery scope=plan id=55a557a79c1d created=2026-08-02T23:34:05 phase=2 -->
+### 55a557a79c1d · discovery · RED/GREEN evidence for the 8-rule migration, and the two threshold traps the tests actually caught (phase 2)
+
+RED (5 new tests, all failing against the unmodified ConfigMap, each for the intended reason):
+
+  uv run --frozen pytest scripts/tests/test_feature_health_workload_metrics.py -q
+  -> 5 failed, 7 passed, 1 xfailed in 4.23s
+
+Verbatim assertion headlines:
+  1. query_only_workload_availability_metrics -> all 8 uids offend with ['kube_pod_status_ready']
+  2. fire_when_replicas_are_unavailable_not_when_they_are_ready -> all 8 at {'type': 'lt', 'params': [1]}
+  3. wait_five_minutes_before_firing -> {'layer-14-vcluster-down': '10m', 'layer-19-rollouts-down': '10m', 'layer-6-gitops-down': '10m'}
+  4. summaries_name_the_workload_not_the_pod -> all 8 summaries interpolate $labels.pod
+  5. normalise_kind_in_lowercase -> all 8 'expr never label_replaces a `kind` label'
+
+Failure 3 is the one worth noting: the phase title says "for: 5m", and the spec's
+per-rule table says 5m for all eight — but THREE of them were on 10m, not 5m
+(layer-6, layer-14, layer-19). So this was not a no-op assertion restating the
+file; it forced three real changes. Anyone assuming "5m rules stay 5m" would have
+shipped an inconsistent batch.
+
+GREEN, same file: 12 passed, 1 xfailed in 4.48s.
+FULL SUITE: 547 passed, 2 xfailed, 0 failed in 131.83s.
+  Phase-1 baseline was 542 passed / 2 xfailed, so the delta is exactly +5 = this
+  phase's new tests. Zero failures, matching the corrected baseline (the "10
+  pre-existing test_cnc_staging_* failures" still does not reproduce).
+
+The strict xfail on test_no_feature_health_rule_uses_pod_readiness is UNTOUCHED and
+still XFAILs, correctly: layer-3/4/5 and layer-8 remain on kube_pod_status_ready.
+Phase 3 retires it, and only after layer-8.
+
+TEST DESIGN NOTE for phase 3: the new assertions are scoped to an explicit
+PHASE_2_UIDS frozenset, not folder-wide, so phase 3's un-migrated rules do not go
+red here. Phase 3 should EXTEND that set (or add its own) rather than widening to
+the folder while rules are still in flight — the folder-wide statement of intent
+is the strict xfail, which is the thing designed to flip exactly once.
+
+Two helpers were added and are reusable: _query_expr(rule) pulls the refId=A
+PromQL, _threshold_evaluator(rule) resolves the node named by rule['condition']
+(not a hardcoded 'C') and asserts it carries exactly one condition.
+
+<!-- fr:journal kind=discovery scope=plan id=e1d4fa9f157e created=2026-08-02T23:34:29 phase=2 -->
+### e1d4fa9f157e · discovery · Live verification: all 8 exprs return series, every series carries workload+kind, all values 0 — and the StatefulSet subtraction joins 13/13 (phase 2)
+
+Verified by extracting each rule's refId=A expr STRAIGHT FROM THE CONFIGMAP (double
+YAML load) and POSTing it through Grafana's datasource proxy, rather than retyping
+the query — so "what was verified" and "what ships" cannot diverge.
+
+  uid                       series  kinds                         values  for
+  layer-6-gitops-down            6  deployment, statefulset       [0]     5m
+  layer-10-secrets-down          6  deployment, statefulset       [0]     5m
+  layer-12-agents-down           5  deployment                    [0]     5m
+  layer-13-auth-down             2  deployment                    [0]     5m
+  layer-14-vcluster-down         1  statefulset                   [0]     5m
+  layer-15-workflows-down        7  deployment, statefulset       [0]     5m
+  layer-19-rollouts-down         1  deployment                    [0]     5m
+  layer-24-ingress-down          1  deployment                    [0]     5m
+
+Zero series carry a missing `workload` or `kind` label (checked explicitly, not
+inferred) — so the summary/runbook templates cannot render an empty resource path.
+Every value is 0 on a healthy cluster, which is the correct quiet state for `gt 0`;
+the same reading under the OLD `lt 1` threshold would have fired all 8 rules
+permanently. That is the polarity check, and it is the reason the values column is
+recorded rather than just the counts.
+
+THE SUBTRACTION JOINS CLEANLY. `kube_statefulset_status_replicas -
+kube_statefulset_status_replicas_ready` is a default (all-labels) vector match, so a
+single divergent label between the two metrics would silently DROP the series and
+produce a rule that can never fire. Measured cluster-wide:
+  count(kube_statefulset_status_replicas - kube_statefulset_status_replicas_ready) = 13
+which equals the total StatefulSet count — 13 in, 13 out, nothing dropped. Both
+metrics come from the same kube-state-metrics target, so their label sets are
+identical; `on(namespace,statefulset)` is unnecessary here. Phase 3 gets the same
+guarantee for free, but should re-run that count if it ever queries across targets.
+
+Also measured, as a movement check: cluster-wide there is currently NOTHING with
+`kube_deployment_status_replicas_unavailable > 0` or a positive StatefulSet
+difference. So the 0s above are the cluster's true state, not a dead metric — the
+counters exist for all 13 STS / all queried Deployments, they are simply at 0.
+
+Grafana access details for anyone repeating this: plain HTTP on 192.168.55.203
+(https gets a TLS reset), basic auth admin / secret victoria-metrics-grafana
+.data.admin-password in ns monitoring, datasource proxy uid P4169E866C3094E38.
+
+<!-- fr:journal kind=discovery scope=plan id=9381c4ebfc6d created=2026-08-02T23:34:57 phase=2 -->
+### 9381c4ebfc6d · discovery · Four judgement calls phase 3 should copy or contradict deliberately: dropped pod-shape filters, authentik scope, $values.B.Value, and the workload census (phase 2)
+
+1. TWO pod-shape filters were dropped, not just layer-14's.
+   The brief named layer-14's `pod=~".*-[0-9]+$"` as disappearing. layer-15 had the
+   same class of filter — `pod!~".*-init-.*"`, excluding postgres-vk-init-electric-*
+   Job pods — and it is dropped for the identical reason the spec gives for
+   layer-14: a Job pod is not owned by a Deployment or a StatefulSet, so querying
+   kube_deployment_*/kube_statefulset_* excludes it BY CONSTRUCTION. Carrying it
+   over would have been an inert filter implying Jobs could still appear.
+   Same reasoning retires layer-12's rationale for its regex (Sympozium's
+   developer-team-* Job pods) — but layer-12's regex is KEPT, because it also
+   scopes to named control-plane workloads, which is still meaningful.
+   Both drops are stated in the in-file comments, not silent.
+
+2. layer-13-auth-down stays DEPLOYMENT-ONLY, despite the spec table saying
+   "Deploy + STS".
+   The spec's "Kinds present" column is a namespace census feeding the `for:`
+   decision, not a mandate to query every kind — and the spec separately names
+   `authentik-(server|worker).*` among the regexes that carry over. The
+   authentik-postgresql StatefulSet was OUTSIDE this rule before the migration, so
+   including it would be new coverage smuggled in under a rewrite. Left out, with a
+   comment saying so. Worth a follow-up on its own merits: Authentik's Postgres
+   being down absolutely breaks SSO, and nothing currently watches it as a Layer 13
+   signal.
+
+3. Annotations use `{{ $values.B.Value | printf "%.0f" }}`, not the spec's
+   `{{ $value }}`.
+   In Grafana unified alerting `$value` renders the verbose multi-ref form
+   (`[ var='B' labels={...} value=1 ]`), which is unreadable in a Telegram/tile
+   summary. The in-repo precedent at the vk-bridge-failures rule already uses
+   `$values.B.Value | printf "%.0f"` over an identical A->B->C structure, and B is
+   the reduce node in every rule here. Phase 3 should match this, not the spec text.
+
+4. Live workload census per namespace (kubectl, 2026-08-02) — phase 3 will want
+   this shape of check before writing its own clauses:
+     argocd            5 Deploy + 1 STS (argocd-application-controller IS a STS)
+     infisical         1 Deploy + 2 STS (postgresql, redis-master)
+     external-secrets  3 Deploy
+     sympozium-system  5 Deploy — `nats` is a DEPLOYMENT on Frank, not a StatefulSet
+     authentik         2 Deploy + 1 STS
+     n8n-01            1 Deploy + 1 STS ; agents 3 Deploy ; paperclip-system 1 Deploy + 1 STS
+     argo-rollouts     1 Deploy ; traefik-system 1 Deploy
+   No DaemonSet in any of the eight — which is what justifies `for: 5m` for this
+   batch and is the whole basis of the phase split.
+
+5. PRE-EXISTING COVERAGE GAP, carried over unchanged and flagged in-file:
+   layer-14's namespace regex `vcluster-.*` does NOT match `cnc-staging-vcluster`
+   (the namespace is suffixed, not prefixed). So that vCluster has never been
+   covered by the Layer 14 alert — before or after this migration. Live check:
+   kube_statefulset_status_replicas{namespace=~".*vcluster.*"} returns
+   cnc-staging-vcluster/cnc-staging AND vcluster-experiments/experiments, but the
+   rule only ever sees the second. Deliberately NOT widened mid-migration (that is a
+   coverage change, not a query rewrite); it deserves its own change.

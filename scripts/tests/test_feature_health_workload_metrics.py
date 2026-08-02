@@ -313,3 +313,196 @@ def test_every_feature_health_rule_declares_nodata_and_execerr_states():
         "feature-health rule(s) missing an explicit noDataState/execErrState: "
         f"{offenders}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The rewrite contract for the rules migrated in phase 2.
+#
+# Scoped to an explicit uid list rather than the whole folder, on purpose: the
+# remaining pod-readiness rules are migrated in a later phase, and a
+# folder-wide assertion here would go red on rules nobody has touched yet —
+# which is indistinguishable from a real regression and trains people to
+# ignore it. The folder-wide statement of intent is the strict-xfail tripwire
+# above; this is the per-rule contract for the batch actually being changed.
+# ---------------------------------------------------------------------------
+
+# The eight rules whose namespaces contain no DaemonSet, so they keep a 5m
+# `for:` (a DaemonSet reports replicas unavailable during any node drain, which
+# is why the DaemonSet-bearing namespaces get a longer window in a later phase).
+PHASE_2_UIDS: frozenset[str] = frozenset(
+    {
+        "layer-6-gitops-down",
+        "layer-10-secrets-down",
+        "layer-12-agents-down",
+        "layer-13-auth-down",
+        "layer-14-vcluster-down",
+        "layer-15-workflows-down",
+        "layer-19-rollouts-down",
+        "layer-24-ingress-down",
+    }
+)
+
+# kube-state-metrics exports no unavailability counter for StatefulSets, hence
+# the two-metric difference. Nothing else belongs in a migrated `expr`.
+WORKLOAD_METRICS: frozenset[str] = frozenset(
+    {
+        "kube_deployment_status_replicas_unavailable",
+        "kube_statefulset_status_replicas",
+        "kube_statefulset_status_replicas_ready",
+    }
+)
+
+_KUBE_METRIC_RE = re.compile(r"kube_[a-z0-9_]+")
+
+
+def _phase_2_rules() -> dict[str, dict[str, Any]]:
+    by_uid = {rule["uid"]: rule for rule in _all_rules()}
+    missing = sorted(PHASE_2_UIDS - set(by_uid))
+    assert not missing, f"phase-2 rule uid(s) not found in the document: {missing}"
+    return {uid: by_uid[uid] for uid in sorted(PHASE_2_UIDS)}
+
+
+def _query_expr(rule: dict[str, Any]) -> str:
+    """The PromQL of the rule's `A` query node.
+
+    A Grafana-managed rule is a small DAG: `A` queries the datasource, `B`
+    reduces it, `C` thresholds `B`. Only `A` carries PromQL.
+    """
+    for node in rule.get("data", []):
+        model = node.get("model") or {}
+        if node.get("refId") == "A" and "expr" in model:
+            return str(model["expr"])
+    raise AssertionError(f"rule {rule['uid']} has no refId=A datasource query")
+
+
+def _threshold_evaluator(rule: dict[str, Any]) -> dict[str, Any]:
+    """The evaluator of the node named by the rule's `condition` field."""
+    condition = rule["condition"]
+    for node in rule.get("data", []):
+        if node.get("refId") != condition:
+            continue
+        conditions = (node.get("model") or {}).get("conditions") or []
+        assert len(conditions) == 1, (
+            f"rule {rule['uid']}: expected exactly one threshold condition on "
+            f"node {condition}, found {len(conditions)}"
+        )
+        return conditions[0]["evaluator"]
+    raise AssertionError(
+        f"rule {rule['uid']} names condition {condition!r} but has no such node"
+    )
+
+
+def test_phase_2_rules_query_only_workload_availability_metrics():
+    """The migration's whole point: count replicas, not pods.
+
+    A tombstone is not a replica, so `kube_deployment_status_replicas_unavailable`
+    and the StatefulSet difference simply cannot see the terminal pods that
+    produced 48 false alerts on 2026-08-02. Asserting the *allowlist* rather
+    than just the absence of `kube_pod_status_ready` also catches the other
+    tempting near-misses — `kube_pod_status_phase` joins, `kube_pod_container_*`
+    — that would reintroduce per-pod cardinality by a different door.
+    """
+    offenders: dict[str, list[str]] = {}
+    for uid, rule in _phase_2_rules().items():
+        used = set(_KUBE_METRIC_RE.findall(_query_expr(rule)))
+        stray = sorted(used - WORKLOAD_METRICS)
+        if stray or not used:
+            offenders[uid] = stray or ["<no kube_* metric at all>"]
+    assert not offenders, (
+        "phase-2 rule(s) query something other than workload availability. "
+        f"Allowed metrics: {sorted(WORKLOAD_METRICS)}. Offenders: {offenders}"
+    )
+
+
+def test_phase_2_rules_fire_when_replicas_are_unavailable_not_when_they_are_ready():
+    """The threshold INVERTS, and this is the highest-risk error in the change.
+
+    The old rule read `lt 1` against a readiness gauge (1 = Ready, so `< 1`
+    means NotReady). The new one reads `gt 0` against an *unavailability*
+    counter (0 = fully available, so `> 0` means replicas missing). Carrying
+    `lt 1` over unchanged produces a rule that fires permanently on every
+    healthy workload; writing `gt 1` produces one blind to a single-replica
+    outage. Neither looks wrong in a diff — both are `evaluator: {type, params}`
+    with plausible numbers — which is exactly why it is asserted mechanically.
+    """
+    drift: dict[str, dict[str, Any]] = {}
+    want = {"type": "gt", "params": [0]}
+    for uid, rule in _phase_2_rules().items():
+        evaluator = _threshold_evaluator(rule)
+        actual = {"type": evaluator.get("type"), "params": evaluator.get("params")}
+        if actual != want:
+            drift[uid] = actual
+    assert not drift, (
+        "phase-2 rule(s) threshold is not `gt 0`. The metric counts UNAVAILABLE "
+        "replicas, so the alert condition is `> 0`; `lt 1` (the old readiness "
+        f"threshold) fires forever against a healthy cluster. Got: {drift}"
+    )
+
+
+def test_phase_2_rules_wait_five_minutes_before_firing():
+    """`for: 5m` is the decision for namespaces with no DaemonSet.
+
+    None of these eight namespaces runs a DaemonSet, so nothing here reports
+    unavailable replicas merely because a node is draining — the 15m window
+    that buys DaemonSet-bearing namespaces reboot tolerance would only slow
+    detection. Three of these rules currently sit at 10m; the migration
+    normalises them.
+    """
+    drift = {
+        uid: rule.get("for")
+        for uid, rule in _phase_2_rules().items()
+        if rule.get("for") != "5m"
+    }
+    assert not drift, (
+        "phase-2 rule(s) with a `for:` other than 5m — these namespaces carry "
+        f"no DaemonSet, so the reboot-tolerance window does not apply: {drift}"
+    )
+
+
+def test_phase_2_summaries_name_the_workload_not_the_pod():
+    """An alert body is a triage instruction, and the label it interpolates has
+    to still exist after the rewrite.
+
+    `$labels.pod` is *gone* from these series — workload metrics carry no pod
+    label — so a summary left interpolating it renders an empty string and the
+    on-call is told that "" is down. The rewritten rules normalise every series
+    onto a `workload` label, so that is what the annotations must name.
+    """
+    offenders: dict[str, str] = {}
+    for uid, rule in _phase_2_rules().items():
+        annotations = rule.get("annotations") or {}
+        summary = str(annotations.get("summary") or "")
+        if "$labels.workload" not in summary:
+            offenders[uid] = f"summary does not interpolate $labels.workload: {summary!r}"
+        elif "$labels.pod" in " ".join(str(v) for v in annotations.values()):
+            offenders[uid] = "annotation still interpolates $labels.pod"
+    assert not offenders, (
+        "phase-2 rule annotation(s) still describe pods. Workload availability "
+        f"series have no `pod` label, so this renders empty: {offenders}"
+    )
+
+
+def test_phase_2_rules_normalise_kind_in_lowercase():
+    """`kind` is written straight into a kubectl resource path.
+
+    The runbook says `kubectl -n <ns> rollout status {{ $labels.kind }}/{{
+    $labels.workload }}`, so `kind` has to be `deployment`/`statefulset`, not
+    `Deployment`/`StatefulSet`. Grafana's alert templating is Go text/template
+    with a restricted function set — there is no `lower` to lean on — so the
+    lowercasing must happen in the PromQL `label_replace`, where a capital
+    letter is invisible until someone pastes a broken command at 03:00.
+    """
+    offenders: dict[str, str] = {}
+    for uid, rule in _phase_2_rules().items():
+        expr = _query_expr(rule)
+        kinds = set(re.findall(r'"kind",\s*"([A-Za-z]+)"', expr))
+        if not kinds:
+            offenders[uid] = "expr never label_replaces a `kind` label"
+        elif not kinds <= {"deployment", "statefulset"}:
+            offenders[uid] = f"non-lowercase or unknown kind value(s): {sorted(kinds)}"
+        elif not re.search(r'"workload",\s*"\$1"', expr):
+            offenders[uid] = "expr never label_replaces a `workload` label"
+    assert not offenders, (
+        "phase-2 rule(s) do not normalise workload/kind labels as required: "
+        f"{offenders}"
+    )

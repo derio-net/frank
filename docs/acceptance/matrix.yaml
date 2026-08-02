@@ -819,7 +819,10 @@ rows:
   status: not-implemented
   notes: 'The defect this migration removes: 48 alerts fired on 2026-08-02 for NodeShutdown tombstones
     against a healthy cluster. Pinned in CI by the no-kube_pod_status_ready tripwire; full proof arrives
-    at the next reboot.'
+    at the next reboot. Phase 2 (2026-08-02) migrated 8 of the 12 offending rules; layer-3/4/5 and
+    layer-8 still query per-pod readiness, so this stays not-implemented until phase 3 lands AND a
+    control-plane roll is observed. Deliberately not flipped on partial coverage: a reboot exercises
+    whichever rule is still wrong, not the ones already fixed.'
 - id: feature-health-detects-real-outage
   capability: Feature-health alerting
   acceptance: A workload that loses all available replicas still raises its layer's feature-health alert.
@@ -829,8 +832,13 @@ rows:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
-  notes: The coverage claim the migration must not regress. Verified post-merge by each rewritten rule
-    returning series in VMUI (Test Plan row 3).
+  notes: 'The coverage claim the migration must not regress. Verified post-merge by each rewritten rule
+    returning series in VMUI (Test Plan row 3). Phase 2 (2026-08-02) ran that check against live
+    VictoriaMetrics for its 8 rules — all returned series (1-7 each), every series carrying workload +
+    kind, every value 0 on a healthy cluster, which is the correct quiet state for the new gt 0
+    threshold. Still not-implemented: that proves the queries resolve, not that a real outage raises the
+    alert, and 4 rules are unmigrated. Flips when phase 3 completes and Grafana has reloaded the
+    provisioning file (read at boot, not watched).'
 - id: feature-health-routing-preserved
   capability: Feature-health alerting
   acceptance: Every migrated feature-health alert continues to route to the Health Bridge webhook only,
