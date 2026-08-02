@@ -49,3 +49,23 @@ Checked each concrete reference the spec makes: apps/intel-gpu-driver/ exists (t
 ### disc-dra-proof · discovery · DRA path proven live, with a negative control
 
 A throwaway ResourceClaim + pod on mini-1 got /dev/dri/{card0,renderD128} injected, crw-rw-rw- root:root — so no render-GID/supplementalGroups work is needed. The identical pod WITHOUT a claim had no /dev/dri at all, which matters because Frank's containerd has cluster-wide CDI discovery enabled (phase05) and could plausibly have injected the device for free. Also: ResourceSlice advertises capacity.memory 0 (shared host RAM), so a claim requesting GPU memory can never satisfy. Egress to huggingface.co from a mini pod works. PodSecurity enforces baseline, warns on restricted. Both probes deleted; resourceclaims back to empty.
+
+<!-- fr:journal kind=discovery scope=spec id=disc-gate-pass created=2026-08-02T15:33:17 -->
+### disc-gate-pass · discovery · GATE PASSED: OVMS enumerates the iGPU on a Talos control-plane node
+
+Ran openvino/model_server:2026.2.1-gpu on mini-1 with a real ResourceClaim. Log: 'Available devices for Open VINO: CPU, GPU'. The design's central premise is verified, not hoped for. Run during DESIGN rather than deferred to phase 1, which is what surfaced the findings below before a plan was written.
+
+<!-- fr:journal kind=review scope=spec id=r-model-acquisition created=2026-08-02T15:33:19 -->
+### r-model-acquisition · review · Spec review: the model-acquisition design was disproven and replaced
+
+Draft had initContainers running 'ovms --pull'. The gate showed three blocking facts. (1) Without --weight-format, pull downloads raw HF safetensors and the model then fails to load: 'Either openvino_tokenizer.xml was not provided or it was not loaded correctly'. (2) With --weight-format int8 the real error appears: 'missing optimum-intel. Use the ovms package with optimum-intel installed' — and Docker Hub publishes only 2026.2.1 and 2026.2.1-gpu for this release, neither of which carries it. (3) The pre-converted OpenVINO/ HF org has only bge-base-en-v1.5 and bge-reranker-base, i.e. ENGLISH-only variants — precisely the model class this request exists to move away from. Operator chose a CI-built model image (Frank's existing apps/<app>/docker + build workflow pattern, as used by comfyui/openrgb/gpu-switcher), built with OVMS's own export_model.py so the IR, tokenizer XML, graph.pbtxt and merged config.json all land in the layout OVMS expects. Runtime stays STOCK upstream; only a bag of model files is maintained here. Rejected alternatives: custom OVMS image with optimum-intel (in-pod conversion on an etcd member, runtime HF egress, unpinned bytes); ~20 community HF IR conversions (unvetted personal accounts); operator converts by hand (breaks declarative-only).
+
+<!-- fr:journal kind=review scope=spec id=r-readiness-probe created=2026-08-02T15:33:20 -->
+### r-readiness-probe · review · Spec review: readiness probe would have marked a dead pod healthy
+
+Draft used GET /v2/health/ready. The gate showed OVMS answering that endpoint with 200 while its only servable sat in LOADING_PRECONDITION_FAILED — it reports SERVER liveness, not model readiness. Left as drafted it would have produced a Ready pod, a green ArgoCD Application, and every request failing. Changed to model-level /v2/models/<name>/ready, with /v1/config as the per-servable diagnostic. Same silent-green family as the config-reaches-the-process traps already in this repo's gotchas.
+
+<!-- fr:journal kind=review scope=spec id=r-seed-version-gate created=2026-08-02T15:33:22 -->
+### r-seed-version-gate · review · Spec review: seed-if-absent would have reproduced a known Frank bug
+
+The initContainer seeding the model PVC must be version-gated by a marker file, not 'copy if the directory is absent'. Frank already documents this exact failure for the comfyui custom-nodes PVC: an image update never reaches an already-seeded volume, pods stay Ready, and stale content is served indefinitely. Written into the spec so the first model bump does not silently fail to deploy.

@@ -86,11 +86,57 @@ Also observed: **PodSecurity enforces `baseline` and only warns on
 `restricted`** (a `hostPath` probe was rejected outright; a `runAsNonRoot`
 violation merely warned). Manifests will be restricted-compliant regardless.
 
-**Egress:** a pod on mini-1 reached `huggingface.co` successfully, so pulling
-model weights at first boot is viable.
+**Egress:** a pod on mini-1 reached `huggingface.co` successfully.
 
 Both probes and their ResourceClaim were deleted; `kubectl get resourceclaims
 -A` is back to empty.
+
+### The runtime gate — run during design, not deferred to implementation
+
+The largest risk was that the device *node* being present proves nothing about
+the device *computing*. A real `openvino/model_server:2026.2.1-gpu` pod was run
+on mini-1 with a ResourceClaim. It logs:
+
+```
+[modelmanager][info][modelmanager.cpp:180] Available devices for Open VINO: CPU, GPU
+```
+
+**The gate passes.** OVMS enumerates the Intel Arc iGPU through the
+DRA-injected device inside a container on a Talos control-plane node. The
+central premise of this design is verified rather than hoped for.
+
+The same run disproved the model-acquisition design, which is why it was worth
+running before writing a plan. Three findings:
+
+**1. `ovms --pull` does not convert.** Without `--weight-format` it downloads
+raw HuggingFace safetensors via git-lfs, writes a `graph.pbtxt`, and the model
+then fails to load with `Either openvino_tokenizer.xml was not provided or it
+was not loaded correctly`. The download itself succeeds — the artifact is
+simply not servable.
+
+**2. Conversion needs a dependency no published image has.** Adding
+`--weight-format int8` surfaces the real error:
+
+```
+[serving][error][optimum_export.cpp:251] Trying to pull BAAI/bge-reranker-v2-m3
+from HuggingFace but missing optimum-intel. Use the ovms package with
+optimum-intel installed.
+```
+
+Docker Hub publishes only `2026.2.1` and `2026.2.1-gpu` for this release.
+Neither carries optimum-intel.
+
+**3. The pre-converted escape hatch does not cover these models.** The upstream
+docs' one-command examples work because they reference the `OpenVINO/` HF org.
+That org publishes `bge-base-en-v1.5` and `bge-reranker-base` — **English-only
+variants**, i.e. exactly the model class this request exists to move away from.
+It does not publish the multilingual m3 pair.
+
+**A silent-failure warning that changes the manifests.** In finding (1) the
+server answered `GET /v2/health/ready` with **200 while the model was in
+`LOADING_PRECONDITION_FAILED`**. That endpoint reports *server* liveness, not
+model readiness. A readiness probe pointed at it would mark a pod that serves
+nothing as healthy — see Health probes below.
 
 ## Why the minis and not gpu-1
 
@@ -141,10 +187,10 @@ measurement.
   │  nodeSelector: kubernetes.io/hostname=mini-1             │
   │  toleration: node-role.kubernetes.io/control-plane        │
   │                                                           │
-  │  initContainer pull-embeddings ─┐                         │
-  │  initContainer pull-rerank     ─┼─→ PVC /models (Longhorn)│
-  │                                 │                         │
-  │  container ovms  ───────────────┘                         │
+  │  initContainer seed-models ─────┐                         │
+  │    (ghcr.io/derio-net/          ├─→ PVC /models (Longhorn)│
+  │     ovms-retrieval-models)      │                         │
+  │  container ovms (stock image) ──┘                         │
   │    resources.claims: [igpu]  ──→ ResourceClaimTemplate    │
   │                                   deviceClass gpu.intel.com│
   │    :8000  /v3/embeddings                                  │
@@ -159,6 +205,7 @@ measurement.
 ### Files
 
 ```
+apps/ovms-retrieval/docker/Dockerfile     # builds the model image (IR + graphs)
 apps/ovms-retrieval/manifests/
   kustomization.yaml
   namespace.yaml            # pod-security: enforce=baseline, audit/warn=restricted
@@ -167,6 +214,7 @@ apps/ovms-retrieval/manifests/
   deployment.yaml
   service.yaml
 apps/root/templates/ovms-retrieval.yaml   # Application CR, project: infrastructure
+.github/workflows/build-ovms-retrieval-models.yml
 scripts/ovms-retrieval-bench.py           # the measurement harness
 ```
 
@@ -196,26 +244,57 @@ than a shared `ResourceClaim` so the allocation is owned by the pod's lifecycle
 and cannot dangle; with `strategy: Recreate` (forced anyway by the RWO PVC) only
 one pod ever holds it.
 
-### Model acquisition
+### Model acquisition — a CI-built model image
 
-OVMS pull mode downloads-and-exits, which is exactly an initContainer:
+Runtime conversion is off the table (see the gate findings). Instead the
+OpenVINO IR is produced **once, in CI**, and shipped as an image. This follows
+the pattern Frank already uses for comfyui, openrgb and gpu-switcher:
+`apps/<app>/docker/Dockerfile` + `.github/workflows/build-<app>.yml` → GHCR.
+
+The build uses OVMS's **own** `export_model.py` rather than raw `optimum-cli`,
+because it emits the IR, the `openvino_tokenizer.xml`, the per-model
+`graph.pbtxt` **and** the `config.json` in the exact layout OVMS expects —
+which is precisely the set of artifacts whose absence caused the gate failure:
 
 ```
-ovms --pull --source_model BAAI/bge-m3            --task embeddings \
-     --model_name bge-m3            --model_repository_path /models
-ovms --pull --source_model BAAI/bge-reranker-v2-m3 --task rerank \
-     --model_name bge-reranker-v2-m3 --model_repository_path /models
+python export_model.py embeddings_ov \
+    --source_model BAAI/bge-m3 --weight-format int8 \
+    --config_file_path /models/config.json --model_repository_path /models
+python export_model.py rerank_ov \
+    --source_model BAAI/bge-reranker-v2-m3 --weight-format int8 \
+    --config_file_path /models/config.json --model_repository_path /models
 ```
 
-Idempotent — skip when the model directory already exists, so a pod restart does
-not re-download. Weights land on the Longhorn PVC and survive reschedules.
+The result is copied into a minimal final stage, so the published image carries
+model artifacts and nothing else. `optimum-intel`, `nncf` and the whole PyTorch
+export toolchain stay in the discarded build stage and never reach the cluster.
 
-**If pull mode does not maintain `/models/config.json`,** the fallback is a
-Kustomize `configMapGenerator` supplying it. That generator is mandatory rather
-than a plain ConfigMap because of this repo's standing rule: a hash-suffixed
-name is what makes ArgoCD roll the pod on a content change. Using the generator
-requires the Application to set `prune: true`, with a per-resource
-`Prune=false` on the PVC so a mis-sync can never destroy the model cache.
+**Why this shape beats the alternatives for a control-plane node:** no
+HuggingFace egress at runtime, no multi-minute conversion inside a pod on an
+etcd member, and model bytes pinned by image digest instead of by whatever
+HuggingFace serves that day. It also makes the CPU control arm honest — both
+arms then run byte-identical weights.
+
+**Seeding.** An initContainer from the model image copies the repository onto
+the PVC. It must be **version-gated by a marker file**, not seed-if-absent —
+Frank already has this exact bug documented for the comfyui custom-nodes PVC,
+where an image update never reached an already-seeded volume and pods stayed
+Ready while serving stale content. A bare `[ -d /models/... ] || cp` would
+reproduce it: the first model bump would silently not deploy.
+
+### Health probes — do not use `/v2/health/ready`
+
+The gate showed OVMS answering `/v2/health/ready` with **200 while its only
+model was in `LOADING_PRECONDITION_FAILED`**. That endpoint is server-level.
+
+- **Readiness** must be model-level: `GET /v2/models/bge-reranker-v2-m3/ready`.
+- `GET /v1/config` is the diagnostic — it reports per-servable state
+  (`AVAILABLE` vs `LOADING_PRECONDITION_FAILED`) and is what to look at when a
+  pod is Running but requests fail.
+- Liveness may stay on `/v2/health/live`.
+
+Getting this wrong produces the worst available outcome: a Ready pod, a green
+Application, and every request failing.
 
 ### Resource ceiling
 
@@ -240,12 +319,16 @@ check. The pin is deliberate rather than letting the DRA scheduler choose: an
 inference pod silently hopping between control-plane nodes is not something to
 discover later.
 
-### Image
+### Images
 
-`openvino/model_server:2026.2.1-gpu` — the newest released GPU tag (2026-07).
-Pinned, never `latest-gpu`: the same image serves the initContainers, so an
-unpinned tag would mean the puller and the server could silently diverge across
-a pod restart.
+| Role | Image | Notes |
+|---|---|---|
+| Serving | `openvino/model_server:2026.2.1-gpu` | **stock upstream**, newest released GPU tag (2026-07). Verified to enumerate the iGPU on mini-1. |
+| Model artifacts | `ghcr.io/derio-net/ovms-retrieval-models:<tag>` | built here; IR + tokenizers + graphs + config.json |
+
+Both pinned; never `latest`. Keeping the *runtime* stock is deliberate — the
+only thing Frank maintains is a bag of model files, so an OVMS upgrade is a tag
+bump rather than a rebuild of a forked server image.
 
 ### Security context
 
@@ -328,18 +411,24 @@ the device-plugin-vs-DRA drift itself.
 
 ## Named gaps
 
-1. **Compute is not proven, only the device node is.** `ls /dev/dri` says the
-   device was injected; it does not say level-zero or OpenCL can enumerate it
-   inside the OVMS container. This is the single largest technical risk and is
-   the first phase's gate — if the GPU does not enumerate, the whole design is
-   moot and the plan must stop there rather than build around it.
-2. **OVMS pull-mode's `config.json` behaviour is unverified.** Fallback
-   (configMapGenerator) is specified above, but which branch applies is unknown
-   until it runs.
-3. ~~The OVMS GPU image tag is not pinned.~~ **Closed during spec review** —
-   pinned to `2026.2.1-gpu`. What remains unverified is whether *that specific
-   build* enumerates a Meteor Lake iGPU under Talos's 6.18 kernel, which is
-   gap (1), not a tagging question.
+1. ~~Compute is not proven, only the device node is.~~ **CLOSED by the gate** —
+   `openvino/model_server:2026.2.1-gpu` on mini-1 logs `Available devices for
+   Open VINO: CPU, GPU`. What remains unmeasured is *how fast* the GPU is, which
+   is the spike's deliverable rather than a risk.
+2. ~~OVMS pull-mode's `config.json` behaviour is unverified.~~ **CLOSED by the
+   gate, negatively** — pull mode cannot convert these models at all. The design
+   moved to a CI-built model image. See the gate findings.
+3. ~~The OVMS GPU image tag is not pinned.~~ **Closed** — `2026.2.1-gpu`, and
+   that exact build is the one the gate exercised.
+3a. **The two-servable `config.json` is unverified.** The gate served a single
+   model. `export_model.py` is documented to merge both into one
+   `--config_file_path`, but that specific merged file has not been served yet.
+   First implementation phase confirms it.
+3b. **The CPU control arm may need its own config.** `target_device` is baked
+   into each servable's `graph.pbtxt` at export time, so the CPU arm probably
+   needs a second exported repository (or an env override) rather than a flag at
+   run time. Cheap either way — the same build stage emits both — but it is a
+   real step, not a one-word change.
 4. **The NPU is untested and out of scope.** Talos may not carry the
    `intel_vpu` module, `/dev/accel` was not checked, and the DRA driver
    publishes GPU devices only — an NPU would need a separate device plumbing
@@ -391,8 +480,8 @@ must not contain. That row is owned by the requesting repo.
 
 | # | Step | Pass condition | Owner |
 |---|---|---|---|
-| 1 | `kubectl -n retrieval get pod` after sync | pod `Running`, `/v2/health/ready` 200 | Frank |
-| 2 | Confirm the GPU actually computes (device enumerated in OVMS logs, not just `/dev/dri` present) | GPU device listed by the runtime | Frank |
+| 1 | `kubectl -n retrieval get pod` after sync | pod `Running`; **`GET /v1/config` shows both servables `AVAILABLE`** — not `/v2/health/ready`, which returns 200 on a broken model | Frank |
+| 2 | Confirm the GPU is the device in use, not just enumerated | OVMS logs `Available devices … GPU` **and** the servables loaded against the GPU repository | Frank |
 | 3 | `POST /v3/rerank`, 20 passages | `{results:[{index, relevance_score}]}`, scores well-separated (not the degenerate 1e-9..1e-12 pattern that sank the earlier attempt) | Frank |
 | 4 | Rerank latency, N=30 after warm-up | p50 / p95 / max **recorded** | Frank |
 | 5 | Same, `--target_device CPU` | CPU arm recorded; GPU-vs-CPU verdict stated | Frank |
@@ -407,13 +496,23 @@ corpus lives.
 
 ## Sequencing
 
-1. **Gate** — prove the iGPU enumerates for compute inside an OVMS container on
-   mini-1. Stop the plan here if it does not.
-2. Model acquisition (initContainers) + PVC, pinned image tag.
-3. Deployment / Service / ResourceClaimTemplate / Application CR.
-4. Benchmark harness + the measurement run, including the CPU control arm.
-5. Control-plane health verification.
-6. Documentation: phase05 README correction, gotchas topic file, README sync.
-7. Retroactive edits to the existing Layer 11 posts (this extends Local
-   Inference; it is not a new layer, so no new posts) — reporting the *measured*
-   numbers, and describing the consumer only as an external client.
+~~1. Gate~~ — **already done during design.** The iGPU enumerates inside OVMS on
+mini-1; see the gate findings. The plan starts from a proven premise.
+
+1. Model image: `apps/ovms-retrieval/docker/Dockerfile` + its CI workflow,
+   producing IR for both models (GPU and CPU repositories) and the merged
+   `config.json`.
+2. Manifests: PVC, ResourceClaimTemplate, Deployment (version-gated seed
+   initContainer, model-level readiness probe), Service, Application CR.
+3. Offline tripwires — the assertions that are checkable without a cluster:
+   claim shape carries no memory request, readiness probe is not
+   `/v2/health/ready`, seed is version-gated, images are digest/tag-pinned,
+   resource limits present.
+4. Benchmark harness (`scripts/ovms-retrieval-bench.py`) including the CPU
+   control arm.
+5. Documentation: phase05 README correction, new gotchas topic file, README
+   sync.
+6. **[manual, last]** Post-merge: deploy verification, the measurement run,
+   control-plane health, and the post-deploy checklist. Retroactive edits to the
+   existing Layer 11 posts land here too, because they must report *measured*
+   numbers — and they describe the consumer only as an external client.
