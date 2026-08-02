@@ -15,8 +15,17 @@ Folder census: feature-health = 37 rules across 33 groups; blog-edge = 3 rules. 
 
 Global uid uniqueness across the whole document holds today (0 duplicates). Every feature-health rule has noDataState + execErrState present, and severity in {warning(19), critical(18)}.
 
-<!-- fr:journal kind=finding scope=plan id=5cfd15c9efbd created=2026-08-02T22:53:59 phase=1 state=open -->
-### 5cfd15c9efbd · finding [open] · The migration set is TWELVE rules, not eleven — layer-8-observability-down also uses kube_pod_status_ready (phase 1)
+<!-- fr:journal kind=finding scope=plan id=5cfd15c9efbd created=2026-08-02T22:53:59 phase=1 state=fixed -->
+### 5cfd15c9efbd · finding [fixed] · The migration set is TWELVE rules, not eleven — layer-8-observability-down also uses kube_pod_status_ready (phase 1)
+
+> **Closed in phase 3**, which took this entry's own recommended option (a) and
+> migrated `layer-8-observability-down` — see `970bfaa0947a` (the `probe_success`
+> polarity fix that migration required) and `7cdf97b484a2` (which records the
+> strict xfail flipping to `FAILED [XPASS(strict)]` at 12-of-12, forcing its
+> retirement — exactly the outcome this entry predicted). State flipped by hand
+> in phase 5: `fr journal add --id <existing>` is a no-op rather than an update
+> (probed in phase 4, see `7d088477925d`), so there is no CLI path to close a
+> finding in place. Body below is phase 1's original analysis, unedited.
 
 RED evidence, verbatim from the tripwire's assertion message:
 
@@ -851,3 +860,252 @@ file when someone wants it.
 GENERAL: after any phase that fixes a previously-recorded finding, check
 `fr journal render ... | grep 'finding \[open\]'` before declaring the phase
 done. The count is the check; the CLI will not maintain it for you.
+
+<!-- fr:journal kind=discovery scope=plan id=4cdbab53758b created=2026-08-03T00:57:37 phase=5 -->
+### 4cdbab53758b · discovery · The brief's '13 rules touched' is 14 — and every documented measurement was re-verified live rather than copied from the journal (phase 5)
+
+DOCUMENTATION PHASE, so the only available 'test' is that each claim is true.
+Every factual statement written into the gotcha bullet and the runbook section
+was re-derived from the ConfigMap, the manifests or the live cluster at phase-5
+time. Two claims changed as a result.
+
+1. RULE COUNT. The phase-5 brief says '13 rules touched, not the 11 the plan
+   first named'. Measured by diffing the parsed ConfigMap between origin/main
+   and HEAD (uid-keyed, YAML-normalised, so a formatting-only change cannot
+   register):
+
+     ADDED   2  layer-8-observability-collectors-down,
+                workload-unexpectedly-scaled-to-zero
+     CHANGED 12 layer-3, -4, -5, -6, -8, -10, -12, -13, -14, -15, -19, -24
+     REMOVED 0
+     TOTAL  14
+
+   So it is 14, not 13. The docs say 14. `layer-25-cicd-down` is UNCHANGED on
+   this branch — it was already migrated in 2026-05 and is the precedent, so
+   anyone counting 'rules now on workload metrics' gets 15 and anyone counting
+   'rules this change touched' gets 14. Both numbers are right for different
+   questions; the docs state which.
+
+2. LIVE RE-MEASUREMENT, re-run through the Grafana datasource proxy at phase-5
+   time rather than trusting phase 2-4's numbers:
+
+     kube_deployment_spec_replicas == 0            -> 2 series, BOTH value '0'
+                                                      (comfyui/comfyui, litellm/litellm)
+     count(shipped selector, filter stripped)      -> 73
+     count(kube_statefulset_status_replicas
+           - ..._ready)                            -> 13   = count(..._replicas) 13
+     daemonset=~'cilium.*'                         -> 2    | 'cilium-.*'  -> 1
+     daemonset='longhorn-manager'                  -> 1    | 'longhorn-manager-.*' -> 0
+
+   All identical to phase 2-4. The `== 0` result is the load-bearing one: the
+   values are literally '0', which IS the evidence that `== 0` is a filter
+   returning original values, not a comparison returning 1. It is quoted in the
+   runbook for that reason.
+
+   The GPU timeshare is in the same position as at phase 4 (ollama holds the
+   GPU at 1, comfyui at 0), so the exclusion for `ollama` remains inert today
+   and load-bearing after the next switch. The runbook says so explicitly,
+   because a reader re-measuring at a different moment will see them swapped
+   and would otherwise think one of the two readings is wrong.
+
+3. LIVE STATE for the two Rollout cases, since the whole scale-to-0 exclusion
+   set rests on them:
+
+     deploy/litellm             spec.replicas=0  available=<none>
+     rollout/litellm            desired=5 ready=5 available=5
+     deploy/sympozium-apiserver 1/1/1
+     rollout/sympozium-apiserver ready=1  spec.workloadRef.scaleDown=<none>
+
+4. Infrastructure claims checked before writing them: the Grafana Deployment is
+   `victoria-metrics-grafana` in ns monitoring (the restart command in the
+   runbook would otherwise be wrong), and
+   .github/workflows/repo-tripwires.yml does run `pytest scripts/tests/` on
+   `pull_request` with NO `paths:` filter, so the guard file really is a
+   blocking PR gate.
+
+FULL SUITE after all edits: 573 passed, 1 xfailed, 0 failed (host) — identical
+to the phase-4 baseline, as a documentation phase should be.
+
+<!-- fr:journal kind=discovery scope=plan id=e0bb00a91cfa created=2026-08-03T00:58:08 phase=5 -->
+### e0bb00a91cfa · discovery · Two documentation defects fixed at the source: a stale journal state marker, and a manifest comment that would have caused the exact damage the alert prevents (phase 5)
+
+Both are 'just docs' and both are load-bearing.
+
+1. LEDGER HYGIENE. `5cfd15c9efbd` (phase 1, 'the migration set is TWELVE rules')
+   still rendered `finding [open]` although phase 3 resolved it by taking that
+   entry's own recommended option (a) and migrating layer-8. Because
+   `fr journal add --id <existing>` is a no-op rather than an update (probed in
+   phase 4, `7d088477925d`), a resolved plan renders as if it is shipping with
+   an open finding — and `fr journal render` is exactly what a reviewer reads
+   before approving the PR.
+
+   Flipped both the `state=` token in the HTML marker and the rendered `[open]`
+   in the heading, and prepended a pointer to the two entries that close it
+   (`970bfaa0947a`, `7cdf97b484a2`). Phase 1's analysis body is left VERBATIM:
+   the state field is the part that is supposed to change when a finding is
+   resolved; the prose is the historical record and is not.
+
+   `86ffb32eb446` was checked as instructed and needed nothing — phase 4 had
+   already flipped it correctly and attached its closing note.
+
+   VERIFIED by the check phase 4 recommended:
+     fr journal render ... | grep -c 'finding \[open\]'  -> 1
+   and that single hit is at line 839, inside phase 4's own PROSE describing the
+   problem, not an entry heading. All SEVEN findings in the ledger now render
+   `[fixed]`. Worth noting for anyone repeating the check: the grep is
+   self-referential, so a raw count is not the answer — look at where it hits.
+
+2. THE SYMPOZIUM COMMENT (recorded as a follow-up in phase 4's `d16e09b1d11f`,
+   fixed here). `apps/sympozium-extras/manifests/rollout.yaml` opened with
+   'The Deployment is scaled to 0 — this is expected and correct.' Re-verified
+   false against live state before touching it:
+
+     deploy/sympozium-apiserver             1/1/1
+     rollout/sympozium-apiserver ready=1  spec.workloadRef.scaleDown=<none>
+
+   No `scaleDown` means the Argo Rollouts default `never`, so the Deployment is
+   supposed to be up — the opposite of what the comment said.
+
+   This matters beyond tidiness. The `workload-unexpectedly-scaled-to-zero` rule
+   exists precisely to catch a Deployment that is at 0 and should not be, and its
+   exclusion set is the list of workloads that are allowed to be at 0. Anyone
+   deriving that set by READING the rollout files' prose adds
+   `sympozium-apiserver` to it and silently stops watching a live control-plane
+   component — the alert's own blind spot, created by a comment. The CI guard is
+   immune (it keys on `scaleDown == 'onsuccess'` and does parse this very file,
+   so its correctness here is discriminating rather than incidental), but the
+   human reading path was not.
+
+   Rewritten to state what the field actually says, contrast it explicitly with
+   apps/litellm/manifests/rollout.yaml (which DOES set `scaleDown: onsuccess`),
+   record the live verification, and tell the reader that the exclusion set is
+   derived by parsing — so the correct response to adding `scaleDown` here is to
+   let the guard pick it up, not to hand-edit the alert. COMMENT ONLY: no
+   `scaleDown` added, no behaviour change, `git diff` touches nothing but the
+   leading comment block.
+
+GENERAL: this is the second instance in this plan of the same shape — the
+design spec's first draft derived the GPU scale-to-0 set from a ClusterRole, and
+this comment would have derived it from prose. The field is the fact; the
+comment is the trap. Both the runbook section and the gotcha one-liner say so in
+those terms.
+
+<!-- fr:journal kind=discovery scope=plan id=25fc5818c254 created=2026-08-03T00:58:39 phase=5 -->
+### 25fc5818c254 · discovery · What the documentation deliberately does NOT say, and where each trap was placed so the next person hits it (phase 5)
+
+Placement was the actual design work here; the content came from the ledger.
+
+THE ONE SENTENCE THAT MUST NOT BE WRITTEN. The obvious summary of this plan is
+'every feature-health rule now thresholds at gt 0'. It is FALSE for exactly one
+rule and the brief flagged it. Both documents therefore state the exception in
+the same breath as the convention, and the runbook sets it off in a block quote
+so a skimmer cannot pick up the convention without the exception. The runbook
+also says outright that 'tidying' `== 0` + `lt 1` to `gt 0` silently deletes the
+rule, and names the guard that asserts the PAIRING — because the only durable
+defence is that the next reader learns the pairing is intentional before they
+'fix' it.
+
+PLACEMENT DECISIONS.
+
+* `docs/runbooks/frank-gotchas/grafana.md` gets the prose, as a new `##` section
+  ADJOINED to phase 1's 'Node-shutdown tombstones flood the feature-health
+  alerts (2026-08-02)' rather than duplicating it. The tombstone section's
+  closing 'Standing exposure' subsection ended with 'Neither is done; the triage
+  tool now classifies the flood correctly instead' — which this work makes FALSE.
+  Rewritten to '### Standing exposure — CLOSED, see the next section', keeping
+  the half that is still true (tombstones still accumulate; nothing lowers
+  --terminated-pod-gc-threshold) and linking forward. Leaving a stale 'not done'
+  next to the section that does it is how a runbook starts lying.
+
+* The 2026-05 section '## kube_pod_status_ready false-positives in batch
+  namespaces' (the layer-25 origin story) gained a two-line forward pointer.
+  Its fix (a) is now folder-wide policy, and a reader landing there via search
+  would otherwise stop at the 2026-05 view and re-derive the traps themselves.
+
+* `agents/rules/frank-gotchas.md` gets ONE new bullet plus a short clause
+  appended to the existing tombstone bullet. The index file is one long bullet
+  per gotcha, so 'one-liner only' is satisfied by density, not brevity. Two
+  bullets rather than one because the tombstone bullet's topic is the TRIAGE
+  CLASSIFIER — burying four PromQL traps inside it means nobody searching for
+  'probe_success' or 'pod regex' finds them.
+
+WHAT WENT IN THE RUNBOOK BUT NOT THE INDEX (deliberately, to keep the bullet
+navigable): the five-metric table; `$values.B.Value` vs `$value` and layer-8's
+`component` normalisation; layer-8's runbook annotation interpolating nothing on
+purpose; the verification recipe (read the expr OUT of the ConfigMap by double
+YAML load, POST it through the datasource proxy, query each `or` branch
+SEPARATELY, assert on returned workload NAMES and on the VALUES being 0); and
+the three known coverage limits carried forward unwidened (layer-13's
+authentik-postgresql, layer-14's cnc-staging-vcluster, layer-8's DaemonSet
+routing).
+
+THE ONE PIECE OF ADVICE MOST LIKELY TO SAVE SOMEONE: 'after rewriting a selector
+from pod-shaped to workload-shaped, assert the RETURNED WORKLOAD NAMES against
+kubectl get deploy,ds,sts — never just non-empty.' It appears in BOTH documents
+because non-empty was true for the broken layer-3, which is what makes that trap
+survive code review, structural tests and a live smoke check simultaneously.
+
+SPEC STATUS left at `Draft` as instructed; phase 6 sets it to Deployed. Also
+left alone: the spec's own body, which is wrong in three places now corrected by
+findings (the `for:` normalisation, 'preserve probe_success verbatim', and the
+`== 0` threshold). Phase 3 declined to amend it on the grounds that it does not
+own the spec, and the runbook now carries the corrected version, so the spec is
+the historical design record and the runbook is the operational truth. If phase
+6 wants them reconciled, the findings name every divergence.
+
+<!-- fr:journal kind=finding scope=plan id=a89020abe620 created=2026-08-03T01:01:02 phase=5 state=fixed -->
+### a89020abe620 · finding [fixed] · Caught in my own draft: 'exactly one feature-health rule thresholds at lt 1' is FALSE — twelve do, and the gt 0 convention belongs to unavailability counters, not the folder (phase 5)
+
+The phase-5 brief's trap #1 says: do NOT write 'every feature-health rule
+thresholds at gt 0', because the scale-to-0 rule is deliberately `lt 1`. My
+first draft obeyed that instruction and then OVERSHOT it, writing:
+
+  'Exactly one rule thresholds at lt 1, on purpose, and it is documented
+   in-file.'
+
+That is a different false claim, arrived at by correcting the first one too
+enthusiastically. Measured across the folder before shipping:
+
+  Counter({'gt': 27, 'lt': 12})   over 39 feature-health rules
+
+  lt rules: endpoint-down, agent-pod-not-running,
+            workload-unexpectedly-scaled-to-zero,
+            layer-1-node-memory-headroom (lt 1073741824),
+            layer-11-inference-down, layer-16-media-gen-down,
+            gpu-node-both-down, layer-17-edge-down,
+            tls-cert-expiring-14d (lt 1209600), tls-cert-expiring-7d (lt 604800),
+            alert-agent-cred-expiry-heartbeat-stale,
+            headscale-api-key-expiry-heartbeat-stale
+
+`lt` is not exotic in this folder at all — it is the natural threshold for a
+probe, a heartbeat dead-man switch, a cert-expiry countdown and the
+GPU-timeshare rules, most of which predate this work. `gt 0` is the convention
+for UNAVAILABILITY COUNTERS specifically. Stating it as a folder-wide rule (in
+either direction) is what created the original spec bug in the first place: the
+spec applied 'the folder's gt 0 convention' to a `== 0` filter and produced a
+rule that can never fire.
+
+So the accurate claim, now in both documents, is scoped three ways:
+  * all 12 MIGRATED rules invert lt 1 -> gt 0  (true, verified)
+  * gt 0 is the convention for unavailability COUNTERS, not for the folder
+  * among the WORKLOAD-AVAILABILITY rules, workload-unexpectedly-scaled-to-zero
+    is the single lt 1, deliberately
+
+FIXED in `docs/runbooks/frank-gotchas/grafana.md` (the block quote now gives the
+27/12 census) and in the `agents/rules/frank-gotchas.md` bullet (which also had
+'is now FALSE', implying the statement used to be true — it never was; several
+of those 12 lt rules are older than this plan).
+
+Also tightened while there: the subsection heading said 'two rules are
+exceptions', but the two exceptions are not the same kind of thing — one is a
+CLAUSE polarity inside a migrated rule (layer-8's probe_success, whose rule-level
+threshold really is gt 0), the other is a whole RULE's threshold (the scale-to-0
+rule). Conflating them would send someone looking for a second lt-thresholded
+migrated rule that does not exist. Now 'two polarity traps inside that
+inversion', with the clause/rule distinction stated.
+
+LESSON, and the reason this is logged as a finding rather than quietly fixed:
+the brief warned about exactly one over-broad sentence, and the corrected draft
+introduced a second over-broad sentence one line later. A documentation phase
+whose whole premise is 'verify every claim' has to apply that to its own
+corrections, not just to the material it inherited. The census took one query.
