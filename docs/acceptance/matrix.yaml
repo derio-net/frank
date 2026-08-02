@@ -729,3 +729,27 @@ rows:
     status: not-implemented
     notes: Requires UI, discovery, API-authentication, certificate, and mesh-resolution
       checks after DNS cleanup.
+  - id: litellm-reachable-from-mesh-by-name
+    capability: Edge & mesh access
+    acceptance: A device on the Headscale mesh, on any foreign network, can resolve
+      a name for Frank's LiteLLM and get an authenticated API response from it without
+      passing through the public SSO ingress.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Post-merge manual proof: requires the headscale rollout restart (manual-op
+      edge-headscale-litellm-mesh-dns-restart), then Test Plan steps 3-6. Off-LAN end-to-end
+      proof (step 8) is carried by derio-homelab/kid-laptops row laptop-reaches-frank-from-anywhere.'
+  - id: litellm-public-host-keeps-sso
+    capability: Edge & mesh access
+    acceptance: Adding mesh-only API endpoints for LiteLLM does not remove SSO from
+      its public hostname, and the mesh endpoints never acquire the forward-auth middleware
+      that would break API-key clients.
+    origin:
+    - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Offline-verifiable invariant: a scripts/tests guard asserts litellm.cluster.derio.net
+      retains authentik-forwardauth AND litellm-api.cluster.derio.net lacks it. Both
+      directions, because each failure mode is silent in opposite ways.'
