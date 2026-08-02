@@ -32,13 +32,37 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T16:47:54+00:00'
+      note: 'PR 3 (#747) merged as 0c094108; authentik, authentik-extras, traefik,
+        traefik-extras, paperclip and victoria-metrics all Synced/Healthy. Legacy
+        Authentik objects confirmed absent via live ORM: providers Longhorn UI, Hubble
+        UI, Sympozium, n8n-01 and applications longhorn, hubble, sympozium, n8n-01
+        all count 0, while Longhorn UI (cluster) and Hubble UI (cluster) survive -
+        the tombstones removed exactly what they declared. UNDOCUMENTED MANUAL STEP
+        FOUND: the nine *-frank IngressRoutes did NOT disappear on merge. Their owning
+        Application is traefik-extras (NOT traefik, which is the Helm chart and stays
+        Synced regardless) and it runs with prune disabled, so deleting the manifests
+        only moved it to OutOfSync while every route kept serving. Required a manual
+        kubectl -n traefik-system delete ingressroute of all nine; traefik-extras
+        returned to Synced immediately after. Verified: no *-frank routes remain.'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T16:48:00+00:00'
+      note: 'Single-issuer ConfigPatch applied 2026-08-02 ~16:20Z and verified at
+        16:42Z. All three kube-apiserver pods Ready, no --oidc-* flags, --authentication-config
+        present, /readyz healthy on 6/6 samples. DECISIVE BEHAVIOURAL PROOF: a freshly
+        minted LEGACY-issuer token is now REJECTED by TokenReview (it was accepted
+        on every run before the apply), while a freshly minted cluster-issuer token
+        is accepted as authentik:ak-Kubernetes Agent Access-client_credentials, and
+        the Omni service-account kubeconfig retains cluster-admin throughout. TRAP:
+        omnictl apply reads a LOCAL file, so the first two applies silently re-applied
+        the pre-merge dual-issuer config from an unpulled checkout and reported success;
+        only git pull then apply changed anything, and the legacy-token check is what
+        exposed it. Applying the patch rolls the three control planes ONE AT A TIME
+        (mini-2, mini-3, then mini-1); during the roll mini-2 etcd flapped its health
+        check and /readyz failed intermittently while reads and writes stayed fine
+        - self-resolved, 6/6 by 16:42Z.'
     P6.T2.S1:
       state: ' '
       ticked_at: null

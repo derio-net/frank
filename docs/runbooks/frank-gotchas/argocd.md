@@ -260,3 +260,68 @@ not that live matches `main`. Assert on the artifact instead — the rendered
 ConfigMap key, `status.capacity.storage`, the field you actually changed — and
 prefer an in-pod check (`df`, `curl`, `grep` inside the container) where the
 distinction between "file on disk" and "process using it" also matters.
+
+## Deleting a manifest removes nothing under `prune: false` (2026-08-02)
+
+The repo convention is `prune: false` on every Application. That is the right
+default for a homelab — it means a bad render can never cascade into mass
+deletion. But it also means **a retirement PR does not retire anything.**
+Removing a resource from git makes ArgoCD stop managing it and report
+`OutOfSync`; the live object carries on serving indefinitely.
+
+Found during the `frank.derio.net` retirement (#747, Phase 6). The PR deleted
+all nine outage-era `*-frank` compatibility IngressRoutes. After merge, every
+one of them was still live and still routing:
+
+```bash
+kubectl -n traefik-system get ingressroute -o name | grep -E '(-frank$|authentik-frank$)'
+```
+
+The fix is a manual delete, which should be planned as an explicit step:
+
+```bash
+kubectl -n traefik-system delete ingressroute \
+  argocd-frank authentik-frank grafana-frank hubble-frank \
+  infisical-frank longhorn-frank n8n-01-frank paperclip-frank sympozium-frank
+```
+
+The owning Application returns to `Synced` immediately afterwards.
+
+### Why this was hard to see
+
+Three things conspired, and each one alone would have been survivable.
+
+**The obvious app name is the wrong one.** The routes live in
+`apps/traefik/manifests`, but that path belongs to Application
+**`traefik-extras`**. There is also a `traefik` Application — the Helm chart —
+which is `Synced/Healthy` throughout and has nothing to do with the routes. A
+verification script that checked `traefik` reported all-green while nine routes
+kept serving. Check the Application that owns the *path*, not the one that
+shares the name:
+
+```bash
+kubectl -n traefik-system get ingressroute <name> \
+  -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}'
+```
+
+**Half the same PR *did* self-remove.** The Authentik objects in that PR were
+expressed as blueprint `state: absent` tombstones — genuine declarative
+deletion — so the legacy providers and applications vanished on their own. Half
+the change disappearing correctly is strong evidence that the other half did
+too. It was not.
+
+**`OutOfSync` is a weak signal.** It is the same status a drifted annotation
+produces, so it does not read as "nine public routes are still up".
+
+### The general rule
+
+Under `prune: false`, deletion is never declarative. Either express it
+declaratively where the tool supports it (Authentik blueprint tombstones,
+`state: absent`), or plan an explicit manual delete and **assert the object is
+gone** — `kubectl get` returning NotFound — rather than asserting the app is
+`Synced`. Same family as the stale-revision entry above: the sync status is not
+the artifact.
+
+If an Application genuinely needs pruning, the pattern used elsewhere in this
+repo is `prune: true` plus a per-resource `Prune=false` annotation on anything
+load-bearing (see the caddy cert PVC and the gitea-runner PVC).
