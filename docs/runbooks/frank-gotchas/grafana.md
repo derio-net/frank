@@ -149,3 +149,102 @@ degraded(quiet), L16 green. Neither → both degraded **+ PAGE**.
 **Verify (VMUI, datasource VictoriaMetrics):** `probe_success{probe_group="gpu_timeshare"}` — one
 series 1, one series 0 in steady state. Which workload holds the GPU: `kubectl -n ollama get deploy
 ollama` vs `kubectl -n comfyui get deploy comfyui` (the `0/0` one yielded the GPU).
+
+---
+
+## Node-shutdown tombstones flood the feature-health alerts (2026-08-02)
+
+**Symptom.** 72 of 236 Grafana rules in state `Alerting`, 48 of them
+`Layer 3 Cilium Agent Down`. Telegram lit up. The cluster was entirely healthy.
+
+**What was actually true at the time:**
+
+| Check | Result |
+|---|---|
+| `kubectl get nodes` | all 7 `Ready` |
+| `kubectl -n kube-system get deploy cilium-operator` | `2/2 READY, 2 AVAILABLE` |
+| every `Running` pod, ready-containers vs total | **zero** partially-ready pods cluster-wide |
+| `cilium-operator` pods | 50 total — 47 `Failed`, 2 `Running`, 1 `Succeeded` |
+
+**Cause.** The Phase 6 `frank.derio.net` retirement ConfigPatch rolled the three
+control planes at ~16:2x UTC. As each node drained, the scheduler kept placing
+`cilium-operator` replicas onto it and the shutting-down kubelet **rejected**
+every one:
+
+```
+phase:   Failed
+reason:  NodeShutdown
+message: Pod was rejected: Pod was rejected as the node is shutting down.
+```
+
+That rejection loop minted 47 tombstones in minutes. Kubernetes does **not**
+garbage-collect them — `--terminated-pod-gc-threshold` defaults to 12500 — so
+kube-state-metrics keeps exporting a NotReady `kube_pod_status_ready` series for
+each one indefinitely, and each series keeps its layer's feature-health rule
+firing.
+
+This is the same object family as the graceful-shutdown tombstones documented in
+`storage-secrets-ssa.md`, but a **different `reason`**: those pods were killed
+mid-run (`reason: Terminated`); these were rejected before they ever started
+(`reason: NodeShutdown`).
+
+### The tooling bug this exposed
+
+`agents/skills/frank-alert-triage/classify.py` declared:
+
+```python
+_TERMINAL_POD_STATES = frozenset({"Succeeded", "Completed", None})
+```
+
+Kubernetes has **two** terminal phases, `Succeeded` **and `Failed`**. A pod in
+either can never transition back to Ready, so its readiness series is stale in
+both cases. Because `Failed` was missing, the classifier muted `Succeeded`
+tombstones correctly and escalated `Failed` ones as `unexplained` — 48 false
+escalations, i.e. the triage tool pointed at a non-existent Cilium outage.
+
+The runbook already knew about `Failed` tombstones; the classifier did not. When
+a gotcha file and the tool that pages disagree, the tool wins in practice.
+
+**Fixed** by adding `Failed` to the terminal set, plus an optional `pod_reason`
+kwarg. The reason never changes the verdict — a terminal pod is stale regardless
+— but it changes the recommended action:
+
+- `NodeShutdown` / `Terminated` → node-lifecycle artifact, no diagnostic value,
+  **safe to delete**.
+- any other reason (`DeadlineExceeded` on a timed-out CI job, an app crash) →
+  still a false-positive alert, but the pod object **is** the failure evidence.
+  Report the reason; do **not** advise deleting it.
+
+### Two traps when diagnosing this
+
+1. **Never read the phase off `kubectl get pods` column output.** A node-shutdown
+   tombstone renders as `0/1 ContainerStatusUnknown` — that column is a *display*
+   string, not `status.phase` (which is `Failed`). Tooling that greps columns
+   sees a vocabulary the API never emits.
+2. **Distinguish a tombstone flood from a real outage by the pod names.** Many
+   *distinct* pod names from a single ReplicaSet ⇒ tombstones; a genuine outage
+   re-alerts on the same pod. Corroborate with the owning workload: a Deployment
+   reading fully `AVAILABLE` beside dozens of NotReady pod alerts is the
+   signature of stale series.
+
+### Operator cleanup (recommended, not run by the triage skill)
+
+```bash
+# Node-shutdown tombstones only — leaves DeadlineExceeded/app failures intact.
+kubectl get pods -A --field-selector=status.phase=Failed \
+  -o jsonpath='{range .items[?(@.status.reason=="NodeShutdown")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' \
+  | while read -r ns name; do kubectl -n "$ns" delete pod "$name"; done
+```
+
+The alerts resolve on a short delay, not instantly: the deleted pod's readiness
+series ages out of VictoriaMetrics on its ~5-minute staleness window.
+
+### Standing exposure
+
+Every node reboot regenerates these. The durable fix would be either lowering
+`--terminated-pod-gc-threshold` on the control planes (a kube-controller-manager
+flag, i.e. a Talos ConfigPatch), or moving the feature-health rules off
+per-pod `kube_pod_status_ready` and onto
+`kube_deployment_status_replicas_unavailable` — which the Grafana section of
+`frank-gotchas.md` already recommends for exactly this false-positive class.
+Neither is done; the triage tool now classifies the flood correctly instead.
