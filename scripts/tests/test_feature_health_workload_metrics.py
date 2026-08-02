@@ -439,23 +439,49 @@ def test_phase_2_rules_fire_when_replicas_are_unavailable_not_when_they_are_read
     )
 
 
-def test_phase_2_rules_wait_five_minutes_before_firing():
-    """`for: 5m` is the decision for namespaces with no DaemonSet.
+# The `for:` each phase-2 rule had BEFORE the migration, which it must still
+# have after. This is deliberately a per-uid map rather than a blanket "5m".
+#
+# The design spec originally said "5m everywhere except DaemonSet-bearing
+# rules", and the first cut of this test enforced that — normalising layer-6,
+# layer-14 and layer-19 down from 10m. That was wrong. This change swaps the
+# METRIC a rule watches; it is not licence to re-tune sensitivity. Tightening
+# ArgoCD's *critical* alert from 10m to 5m raises the chance of firing during a
+# slow rollout, which is precisely the false-positive class this work exists to
+# remove. The in-repo precedent agrees: `layer-25-cicd-down`, migrated to
+# workload metrics back in 2026-05, sits at 10m.
+#
+# A sensitivity change needs its own justification and its own change. None of
+# these three had one.
+PHASE_2_EXPECTED_FOR: dict[str, str] = {
+    "layer-6-gitops-down": "10m",
+    "layer-10-secrets-down": "5m",
+    "layer-12-agents-down": "5m",
+    "layer-13-auth-down": "5m",
+    "layer-14-vcluster-down": "10m",
+    "layer-15-workflows-down": "5m",
+    "layer-19-rollouts-down": "10m",
+    "layer-24-ingress-down": "5m",
+}
 
-    None of these eight namespaces runs a DaemonSet, so nothing here reports
-    unavailable replicas merely because a node is draining — the 15m window
-    that buys DaemonSet-bearing namespaces reboot tolerance would only slow
-    detection. Three of these rules currently sit at 10m; the migration
-    normalises them.
+
+def test_phase_2_rules_preserve_their_pre_migration_for_window():
+    """The migration changes the metric, never the sensitivity.
+
+    None of these eight namespaces runs a DaemonSet, so none of them needs the
+    15m reboot-tolerance window. But "doesn't need 15m" is not the same as
+    "should be 5m": three of these rules were deliberately set to 10m long
+    before this work, and a rewrite is the wrong place to quietly re-tune them.
     """
     drift = {
-        uid: rule.get("for")
+        uid: (rule.get("for"), PHASE_2_EXPECTED_FOR[uid])
         for uid, rule in _phase_2_rules().items()
-        if rule.get("for") != "5m"
+        if rule.get("for") != PHASE_2_EXPECTED_FOR[uid]
     }
     assert not drift, (
-        "phase-2 rule(s) with a `for:` other than 5m — these namespaces carry "
-        f"no DaemonSet, so the reboot-tolerance window does not apply: {drift}"
+        "phase-2 rule(s) whose `for:` window changed during the migration "
+        f"(uid: got -> want): {drift}. Changing a rule's sensitivity is a "
+        "separate change from changing the metric it watches."
     )
 
 

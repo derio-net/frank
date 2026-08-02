@@ -61,13 +61,26 @@ Only the last row is a shared blind spot, and it is addressed separately below.
    precedented, but the alert cannot say which workload is degraded. Rejected:
    one rule per workload kind — grows 11 rules to ~25 and double-pages a
    multi-kind outage.)
-2. **`for: 15m` on any rule whose namespace contains a DaemonSet**, 5m
-   elsewhere. A DaemonSet reports replicas unavailable during any node drain, so
-   a uniform 5m would make every planned Talos reboot produce an alert burst —
-   trading one noise source for another. Tonight's control-plane roll took ~7
-   minutes and would not have alerted at 15m. (Rejected: PromQL `unless` join
-   against node-Ready — Grafana-managed rules have no native inhibition and the
-   hand-rolled version is fragile.)
+2. **`for: 15m` on any rule that queries a DaemonSet metric; every other rule
+   keeps the `for:` it already had.** A DaemonSet reports replicas unavailable
+   during any node drain, so leaving those at their old window would make every
+   planned Talos reboot produce an alert burst — trading one noise source for
+   another. The 2026-08-02 control-plane roll took ~7 minutes and would not have
+   alerted at 15m. (Rejected: PromQL `unless` join against node-Ready —
+   Grafana-managed rules have no native inhibition and the hand-rolled version is
+   fragile.)
+
+   **Correction (phase 2).** This decision was first written as "5m elsewhere",
+   and phase 2 implemented it faithfully — normalising `layer-6-gitops-down`,
+   `layer-14-vcluster-down` and `layer-19-rollouts-down` down from **10m to 5m**.
+   That was wrong and has been reverted. This change swaps the *metric* a rule
+   watches; it is not licence to re-tune sensitivity. Tightening ArgoCD's
+   `critical` alert from 10m to 5m raises the chance of firing during a slow
+   rollout — precisely the false-positive class this work exists to remove. The
+   in-repo precedent agrees: `layer-25-cicd-down`, migrated to workload metrics
+   in 2026-05, sits at 10m. The guard is now a per-uid expected-`for:` map
+   (`PHASE_2_EXPECTED_FOR`), not a blanket constant, so any future window change
+   has to be written down deliberately.
 3. **Alert on unexpected scale-to-0**, with the intentionally-scalable set
    excluded. See the implementation note below — this is delivered differently
    from how it was drawn in the decision preview, for a measured reason.

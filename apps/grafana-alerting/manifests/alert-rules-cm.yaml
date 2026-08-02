@@ -989,7 +989,7 @@ data:
                     - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 5m
+            for: 10m
             labels:
               severity: critical
               github_issue: "frank-ops#6"
@@ -1323,7 +1323,7 @@ data:
                     - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 5m
+            for: 10m
             labels:
               severity: warning
               github_issue: "frank-ops#14"
@@ -1588,7 +1588,7 @@ data:
                     - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 5m
+            for: 10m
             labels:
               severity: warning
               github_issue: "frank-ops#19"

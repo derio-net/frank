@@ -229,3 +229,38 @@ Grafana access details for anyone repeating this: plain HTTP on 192.168.55.203
    cnc-staging-vcluster/cnc-staging AND vcluster-experiments/experiments, but the
    rule only ever sees the second. Deliberately NOT widened mid-migration (that is a
    coverage change, not a query rewrite); it deserves its own change.
+
+<!-- fr:journal kind=finding scope=plan id=0e085f03cc03 created=2026-08-02T23:41:04 phase=2 state=fixed -->
+### 0e085f03cc03 · finding [fixed] · Reverted an unintended sensitivity change: three rules normalised 10m -> 5m (phase 2)
+
+Phase 2 implemented the spec decision "for: 15m on DaemonSet-bearing rules, 5m
+elsewhere" faithfully, which silently tightened three rules that had been
+deliberately set to 10m:
+
+- `layer-6-gitops-down` (ArgoCD, **critical**)
+- `layer-14-vcluster-down`
+- `layer-19-rollouts-down`
+
+The spec was wrong, not the implementation. This change swaps the METRIC a rule
+watches; it is not licence to re-tune sensitivity. Tightening a critical alert
+from 10m to 5m raises the chance of firing during a slow rollout — the exact
+false-positive class this work exists to remove.
+
+Corroborating evidence found after the fact: `layer-25-cicd-down` — the in-repo
+precedent, migrated to workload metrics in 2026-05 and cited throughout this
+spec as the pattern to follow — sits at **10m**. So the repo had already made
+this call once, in the same direction, and the spec contradicted it.
+
+**Fixed:** all three restored to 10m. The guard
+`test_phase_2_rules_wait_five_minutes_before_firing` was replaced with
+`test_phase_2_rules_preserve_their_pre_migration_for_window`, backed by a per-uid
+`PHASE_2_EXPECTED_FOR` map instead of a blanket constant — so a future window
+change must be written down deliberately rather than falling out of a rewrite.
+Red on exactly the three rules before the fix, 12 passed / 1 xfailed after.
+
+Spec decision 2 amended with the correction.
+
+**For phase 3:** do NOT assume the surviving rules should be 5m either.
+`layer-4-storage-down` is currently at **10m** and moves to 15m only because it
+queries a DaemonSet metric. `layer-8-observability-down` is at 5m and must STAY
+at 5m.
