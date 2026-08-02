@@ -3,8 +3,8 @@
 **Date:** 2026-08-02
 **Layer:** `infer` (11) — Local Inference
 **Status:** Designed — not deployed.
-**Prompted by:** an infrastructure request filed as issue #48 in a **private
-downstream repo**. That repo owns the consumer; this repo owns the service. The
+**Prompted by:** an infrastructure request filed in a **private downstream
+repo**. That repo owns the consumer; this repo owns the service. The
 consumer is deliberately left unnamed here and in every artifact this work
 produces — see the operator for the pointer.
 
@@ -17,9 +17,10 @@ This spec, its plan, the PR body, the runbook entries and any blog text are all
 - Do **not** reproduce the requester's benchmark queries, document titles, or
   corpus statistics. They are the private corpus's contents.
 - **Do** keep the technical driver, which is generic and load-bearing: the
-  consumer's corpus is multilingual across three European languages, which is
-  why an English-centric embedding model under-ranked and why a *multilingual*
-  pair was specified.
+  consumer's corpus is multilingual, which is why an English-centric embedding
+  model under-ranked and why a *multilingual* pair was specified. The languages
+  themselves are a corpus statistic — "multilingual" is the whole of what this
+  repo needs to know.
 
 Everything below respects that line. Reviewers should treat a breach of it as a
 blocking finding.
@@ -30,7 +31,7 @@ Two retrieval models, served on Frank, reachable in-cluster:
 
 | Model | Role | Params | Why this one |
 |---|---|---|---|
-| `BAAI/bge-m3` | embeddings | 568M | multilingual — replaces an English-centric model that mis-ranked non-English notes |
+| `BAAI/bge-m3` | embeddings | 568M | multilingual — replaces an English-centric model that mis-ranked non-English documents |
 | `BAAI/bge-reranker-v2-m3` | rerank | 568M | a **true cross-encoder**, and multilingual |
 
 The requester's measured problem is **ranking, not recall**: the right document
@@ -488,7 +489,7 @@ must not contain. That row is owned by the requesting repo.
 | 6 | `POST /v3/embeddings` | dimensionality **recorded** (expect 1024) | Frank |
 | 7 | Control-plane health across a warm load window | leader changes **unchanged**; etcd fsync p99 on mini-1 within noise of mini-2/3; node `Ready` throughout | Frank |
 | 8 | `patches/phase05-mini-config/README.md` re-read | no device-plugin/extended-resource language; claim example present | Frank |
-| 9 | The requester's 8-query benchmark, re-run against these endpoints | recall@5 ≥ 7/8 (baseline 5/8); recall@10 also reported | **Requesting repo** |
+| 9 | The requester's own recall benchmark, re-run against these endpoints | meets the recall targets stated in the private issue; recall@10 also reported | **Requesting repo** |
 
 Row 9 is the request's headline acceptance criterion. Frank's job is to make it
 *runnable*; whether the models actually fix the ranking is measured where the

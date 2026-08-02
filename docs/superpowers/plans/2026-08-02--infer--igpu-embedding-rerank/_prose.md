@@ -78,7 +78,7 @@ node**. The minis are 14-core and ~95% idle, so "the iGPU beats these CPUs for a
 568M cross-encoder" is a hypothesis. If the CPU arm wins, the DRA plumbing was
 unnecessary complexity and the plan should say so rather than bury it.
 
-The requester's own recall benchmark (recall@5 ≥ 7/8) is **not** verifiable here —
+The requester's own recall benchmark is **not** verifiable here —
 it depends on a corpus this cluster does not have and this repo must not contain.
 Frank's job ends at making it runnable and reporting the latency and dimension
 back.

@@ -23,7 +23,7 @@ fr models resolve was unbound for claude-code. Operator chose mechanical=haiku, 
 <!-- fr:journal kind=decision scope=spec id=d-discretion created=2026-08-02T13:59:21 -->
 ### d-discretion · decision · Consumer repo stays unnamed in all public artifacts
 
-The requesting repo is private; this repo is public. Operator asked for discretion. Spec, plan, PR body, runbook entries and any blog text must not name the consumer repo, its product, or its corpus, and must not reproduce its benchmark queries, document titles or corpus statistics. The multilingual (three European languages) property IS kept — it is the generic technical driver for choosing bge-m3 over an English-centric model. Treat a breach as a blocking review finding.
+The requesting repo is private; this repo is public. Operator asked for discretion. Spec, plan, PR body, runbook entries and any blog text must not name the consumer repo, its product, or its corpus, and must not reproduce its benchmark queries, document titles or corpus statistics. The bare 'multilingual' property IS kept — it is the generic technical driver for choosing bge-m3 over an English-centric model. Treat a breach as a blocking review finding.
 
 <!-- fr:journal kind=review scope=spec id=r-image-tag created=2026-08-02T13:59:47 -->
 ### r-image-tag · review · Spec review: image tag was deferred when it was answerable
