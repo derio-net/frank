@@ -32,10 +32,6 @@ data:
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           redirect_uris:
             - matching_mode: strict
-              url: https://argocd.frank.derio.net/auth/callback
-            - matching_mode: strict
-              url: https://argocd.frank.derio.net/api/dex/callback
-            - matching_mode: strict
               url: https://argocd.cluster.derio.net/auth/callback
             - matching_mode: strict
               url: https://argocd.cluster.derio.net/api/dex/callback

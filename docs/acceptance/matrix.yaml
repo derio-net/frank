@@ -715,20 +715,45 @@ rows:
       configuration, ingress, and DNS after the migration overlap closes.
     origin:
     - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
-    levels: {}
-    status: not-implemented
-    notes: Verified by repository reference checks plus live DNS and route probes after
-      Phase 4.
+    levels:
+      unit:
+      - frank:scripts/tests/test_frank_domain_retirement.py
+    status: skipped
+    notes: 'PARTIAL — the repository half is done and CI-guarded; the DNS half is NOT
+      yet verified and is owed by Phase 6. Phase 5 (PR 3) removed all 30 non-Omni
+      frank.derio.net references across 9 files: the legacy JWT issuer from both the
+      standalone and embedded AuthenticationConfiguration, the legacy OIDC callbacks
+      on ArgoCD/Grafana/Infisical, the legacy Paperclip allowed hostname, all nine
+      outage-era compatibility IngressRoutes and their certificate requests, and the
+      four legacy forward-auth providers plus their four applications (now URL-free
+      state: absent tombstones so removal is declarative). The unit ref sweeps apps,
+      patches, clusters, references and secrets in raw text and allows only
+      omni.frank.derio.net; measured after the change it returns exactly 3 omni hits
+      and nothing else. It runs in CI via repo-tripwires.yml. Still unproven until
+      Phase 6: authoritative DNS record removal and live NXDOMAIN/no-route probes
+      from LAN and mesh clients.'
   - id: net-omni-domain-preserved
     capability: Canonical cluster service access
     acceptance: Omni remains reachable and usable at omni.frank.derio.net after all
       other frank.derio.net service names are retired.
     origin:
     - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
-    levels: {}
-    status: not-implemented
-    notes: Requires UI, discovery, API-authentication, certificate, and mesh-resolution
-      checks after DNS cleanup.
+    levels:
+      unit:
+      - frank:scripts/tests/test_frank_domain_retirement.py
+    status: skipped
+    notes: 'PARTIAL — the repository half is done and CI-guarded; the live half is
+      owed by Phase 6. The guard asserts omni.frank.derio.net POSITIVELY (it must
+      still be present somewhere under the scanned trees) and asserts the Headscale
+      frank.derio.net split-DNS suffix is retained, so the blanket retirement sweep
+      cannot silently eat either survivor — the offender regex requires a leading
+      label, which is what exempts the bare zone key. Measured after Phase 5: the
+      three surviving references are the homepage bookmark and the two blackbox
+      probe targets (UI and :8100). A fourth reference was removed deliberately —
+      it was a COMMENT inside the deleted incident banner explaining why Omni had
+      no re-front route, not a functional reference. Still unproven until Phase 6:
+      live Omni UI and discovery returning 200, unauthenticated :8100 returning 401,
+      certificate validity, and mesh resolution after DNS cleanup.'
   - id: litellm-reachable-from-mesh-by-name
     capability: Edge & mesh access
     acceptance: Frank publishes mesh-resolvable names for LiteLLM, and an authenticated
