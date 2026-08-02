@@ -709,15 +709,20 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
   levels: {}
-  status: not-implemented
-  notes: 'Post-merge manual proof: requires the headscale rollout restart (manual-op edge-headscale-litellm-mesh-dns-restart),
-    then Test Plan steps 3-6 — INCLUDING the authenticated call at step 6, which is what separates "reachable"
-    from "returns 401 to everybody". SCOPE CORRECTION 2026-08-02 (code review): this row originally claimed
-    a device "on any foreign network", which frank cannot verify — that needs a laptop off-LAN, and it
-    is precisely the claim already carried by the derio-homelab/kid-laptops row laptop-reaches-frank-from-anywhere.
-    Two repos asserting one end-to-end left this row unflippable by frank''s own operator while duplicating
-    theirs. Narrowed to what frank actually delivers (the names, and the authenticated route that is not
-    SSO-intercepted); the foreign-network leg stays with the consumer repo.'
+  status: skipped
+  notes: 'PROVEN LIVE 2026-08-02, after manual-op edge-headscale-litellm-mesh-dns-restart. DNS, read
+    on a mesh node with all three controls so the homelab wildcard could not fake it: gitea-ssh.cluster.derio.net
+    -> 192.168.55.209 (positive control: MagicDNS answering and outranking the wildcard), nope-xyz.cluster.derio.net
+    -> 192.168.55.220 (negative control: the wildcard itself), litellm-lb.cluster.derio.net -> 192.168.55.206
+    (proof: differs from the wildcard, so it can only be the new map). Reachability: http://litellm-lb.cluster.derio.net:4000/health/liveliness
+    -> 200. Route: https://litellm-api.cluster.derio.net/v1/models -> 401 from LiteLLM with a valid
+    wildcard cert (ssl_verify=0), NOT a 302 to Authentik. Authenticated: the same URL with the vaulted
+    kid-laptops virtual key -> 200 and a 12-model list (mistral-small-24b, gemma-12b, ...), which is
+    the load-bearing check - every other result above is satisfied by a LiteLLM that rejects all keys.
+    SSO regression: https://litellm.cluster.derio.net/ still 302s to Authentik. Status is skipped rather
+    than ci because the proof needs a live mesh node and a real credential; the offline half (route
+    shape, no forward-auth) IS ci-guarded under litellm-public-host-keeps-sso. The off-LAN foreign-network
+    leg is derio-homelab/kid-laptops'' row laptop-reaches-frank-from-anywhere.'
 - id: litellm-public-host-keeps-sso
   capability: Edge & mesh access
   acceptance: Adding mesh-only API endpoints for LiteLLM does not remove SSO from its public hostname,

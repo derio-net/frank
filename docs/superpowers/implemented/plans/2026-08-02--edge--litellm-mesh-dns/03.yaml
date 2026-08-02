@@ -94,7 +94,7 @@ tasks:
       - '# LOAD-BEARING: an authenticated call. Everything above is satisfied by a
         LiteLLM that rejects every key in existence.'
       - 'curl -sS -H "Authorization: Bearer $KID_LAPTOPS_KEY" https://litellm-api.cluster.derio.net/v1/models | head -c 300   # expect 200 + model list'
-      status: pending
+      status: done
       ```
   - id: P3.T1.S2
     text: |
@@ -216,14 +216,22 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T21:07:23+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-02T21:07:25+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-08-02T21:07:27+00:00'
+    note: 'Operator ran the restart 2026-08-02. Gate passed (both records in the live
+      ConfigMap before restarting); rollout succeeded. All three DNS controls correct:
+      gitea-ssh .209, nope-xyz .220 (wildcard), litellm-lb .206 (proof). litellm-lb
+      health 200; litellm-api 401 not 302 with a valid wildcard cert; authenticated
+      call with the kid-laptops key returned 200 + 12 models; public litellm still
+      302s to Authentik. Acceptance row litellm-reachable-from-mesh-by-name flipped
+      to skipped with that evidence. Note: the rollout emitted a pre-existing PodSecurity
+      ''restricted:latest'' warning (headscale uses hostPort 3478 for STUN) — a warning,
+      not an error; the rollout completed and it is unrelated to this change.'
     observed_prs: []
