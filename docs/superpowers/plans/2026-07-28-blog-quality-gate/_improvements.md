@@ -236,3 +236,61 @@ Findings invisible to every existing gate, lint, and CI check:
 
 Every one of these passed the educational gate, the AI-tells lint, the glossary
 gate, the mermaid check and `hugo --minify`.
+
+---
+
+## Phases 4–5 (added 2026-08-03)
+
+38. **A research grep over `blog/` must exclude `blog/public/`.** It is generated
+    Hugo output, and `en.search-data.json` concatenates the text of *every* post
+    into one file — so a string appearing in ONE post looks like it appears in
+    many. A Phase 4 researcher raised a false alarm this way, reporting that a
+    commit SHA "recurs verbatim across 9+ unrelated posts" when it occurs in
+    exactly one. Item 24 said a Grep-only agent can prove presence but never
+    absence; this is the sharper version — its **positive** claim was wrong too,
+    because the corpus included build artefacts.
+39. **`validate_mermaid.py` is a disabled gate that exits 0, and the CI step's
+    name says otherwise.** With `quality.mermaid_syntax: false` it prints
+    `GATE DISABLED … would report 50 findings across 85 file(s)` and returns 0.
+    The blog CI step is called "Validate mermaid syntax", so the run log shows a
+    green check for a validator that checked nothing, with 50 real findings
+    behind the flag. This is the plan's own thesis one level up: the branch
+    exists because a heading regex passes an empty section; here a whole gate
+    passes an entire corpus. **Not flipped** — that is a 50-finding backlog and
+    Phase 6 only mandates `quality.enabled`. Flip it deliberately, or rename the
+    step so the log stops implying a check that is not happening.
+40. **`.githooks/pre-commit` is both broken and not installed, while a rule file
+    claims it enforces validation.** VERIFIED: `core.hooksPath` points at
+    `.git/hooks`, which contains only `*.sample` files — zero real hooks, so the
+    hook never runs. Were it installed it would abort immediately: it invokes
+    `scripts/validate-dossier.py`, `scripts/validate-papers.py` and
+    `scripts/sync-dossier-to-data.py`, none of which exist (the real tooling is
+    `blog/scripts/*_*.py`). It is `set -euo pipefail`, so it fails loudly rather
+    than passing silently — but it has not had the chance.
+    `agents/rules/repo-workflows.md:33` states "Validation is enforced by
+    `.githooks/pre-commit`". CI does enforce these gates with the correct paths,
+    so nothing is actually unguarded; the documented *local* gate is decorative.
+41. **`validate_mermaid_layout.mjs` is font-metric dependent — a local run is not
+    evidence about CI.** Mermaid derives diagram width from text measurement,
+    which depends on installed fonts. On this Mac (Brave) a fresh build reports
+    `10 of 186 diagram(s)` over the 1400px budget; the identical corpus and the
+    identical gate are green on `main` and on this PR under ubuntu/Chrome. The
+    failing ten are all in posts this branch never touched. **Do not "fix" them
+    from a local run** — that is ten good diagrams restructured to satisfy a
+    number that only exists on one laptop. Reproduce on the CI platform first.
+42. **`agents/rules/repo-papers.md` describes a dossier the tooling does not
+    build.** It lists a `## Diagrams planned` section: the scaffold
+    (`blog/scripts/scaffold-paper.sh`) does not write it, and
+    `validate_dossier.py` does not read it — though every existing dossier
+    carries it, so it is being added by hand from the rule file. The same file
+    also documents the gate as five thresholds when seven are enforced
+    (`min_source_types: 3` and `min_artefact_kinds: 2` are live and undocumented).
+    The scaffold's own stub text knows the real numbers; only the prose is behind.
+43. **A brief written by the orchestrator is evidence, not gospel, and mine had
+    two defects.** The Phase 4 brief carried a retyped `kubectl top nodes` block
+    whose digits did not match the evidence file (two captures seconds apart);
+    the executor caught it and refused to publish either without re-running. The
+    Phase 5 brief asserted the dossier scaffold writes "six `##` sections" when
+    it writes five. Both were caught by the actor downstream of me, which is the
+    argument for telling every executor explicitly that the brief may be wrong
+    and it should say so.
