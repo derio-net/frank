@@ -8,6 +8,58 @@ alertmanager:
 kubeControllerManager:
   enabled: false
 
+# etcd scrape — point a STATIC Endpoints object at the three control-plane
+# minis, on etcd's dedicated metrics listener.
+#
+# This block is not enabling something that was off. `kubeEtcd.enabled` is TRUE
+# BY CHART DEFAULT and this file never disabled it, so the objects have been
+# live since the cluster was built:
+#
+#   service/…-kube-etcd     ClusterIP   None   2379/TCP   148d
+#   endpoints/…-kube-etcd   <none>                        148d
+#   vmservicescrape/…-kube-etcd
+#
+# The Endpoints object was EMPTY that entire time. The chart's Service selects
+# pods labelled `component: etcd` — the kubeadm layout — and TALOS RUNS ETCD AS
+# A HOST SYSTEM SERVICE, NOT A POD, so the selector can never match. Zero
+# endpoints, zero targets, zero series, and no error anywhere. Exactly the
+# failure family as the promscrape.maxScrapeSize drop documented below: a
+# selector or a limit silently yields nothing, and the only symptom is an
+# absence. It survived 148 days because `etcd_request_duration_seconds` and
+# friends DO exist in VMSingle and look like etcd monitoring — they are the
+# apiserver's storage CLIENT metrics, and they cannot tell you whether the
+# quorum has a leader.
+#
+# Supplying `endpoints:` is the fix: it switches the chart off selector-based
+# discovery and onto a static Endpoints object, which is what a host system
+# service requires. The IPs are Frank's documented control planes
+# (agents/rules/frank-infrastructure.md) and are fixed by Talos machine config.
+#
+# The `vmScrape` override REPLACES the chart default wholesale, and that is
+# deliberate: the default endpoint is `scheme: https` plus a ServiceAccount
+# bearer token aimed at 2379, all three of which are wrong for the plain-HTTP
+# metrics listener. Inheriting any part of it yields a target that fails
+# forever while this file still reads as configured.
+#
+# Port 2381 is opened by patches/phase08-obs/omni-configpatch-etcd-metrics.yaml,
+# applied out of band with omnictl. That file and this one are connected by
+# nothing but the port number, so scripts/tests/test_etcd_scrape.py asserts
+# they agree — and asserts these IPs against the repo's own machine table.
+kubeEtcd:
+  enabled: true
+  endpoints:
+    - 192.168.55.21   # mini-1
+    - 192.168.55.22   # mini-2
+    - 192.168.55.23   # mini-3
+  service:
+    port: 2381
+    targetPort: 2381
+  vmScrape:
+    spec:
+      endpoints:
+        - port: http-metrics
+          scheme: http
+
 # VMSingle — single-node metrics storage
 vmsingle:
   spec:

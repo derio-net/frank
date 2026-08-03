@@ -887,7 +887,7 @@ rows:
   notes: 'New row with the spec. Live half: up{job="kube-etcd"} == 1 on all three control-plane nodes and etcd_server_has_leader
     / etcd_disk_wal_fsync_duration_seconds / etcd_mvcc_db_total_size_in_bytes present in VMSingle (Test Plan step
     3). CI half: scripts/tests/test_etcd_scrape.py asserts the ConfigPatch port, the static endpoints and the plain-http
-    vmScrape stay coherent -- they live in different files and nothing else connects them.'
+    vmScrape stay coherent -- they live in different files and nothing else connects them. PHASE 1 LANDED THE CI HALF (4 tests, green): test_configpatch_opens_the_metrics_listener, test_kube_etcd_values_target_the_control_planes, test_listener_port_matches_the_scrape_target_port, test_endpoints_match_the_documented_control_plane_ips -- the last two mutation-checked. Chart render at the pinned 0.72.4 confirms the values produce a headless Service on 2381, a static Endpoints with the three mini IPs, and job="kube-etcd". STATUS STAYS not-implemented on purpose: the listener is still connection-refused on .21/.22/.23 (the ConfigPatch is the back-loaded operator phase), so nothing is scraped yet and no series exist. Flips to skipped-with-evidence after Test Plan step 3.'
 - id: obs-etcd-quorum-loss-pages
   capability: Control-plane observability
   acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane maintenance does not.

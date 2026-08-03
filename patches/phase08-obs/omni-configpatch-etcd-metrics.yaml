@@ -1,0 +1,65 @@
+# etcd metrics listener — open :2381 on the control-plane machine set.
+#
+# WHY THIS EXISTS
+# Frank did not scrape its own etcd for 148 days. `kubeEtcd.enabled` is true by
+# chart default in victoria-metrics-k8s-stack and was never disabled, so a
+# headless Service, a VMServiceScrape and an Endpoints object have all existed
+# since the cluster was built — the Endpoints object empty the entire time,
+# because the chart selects pods labelled `component: etcd` and Talos runs etcd
+# as a host system service, not a pod. Zero targets, zero series, no error.
+# The `etcd_*` series that DO exist in VMSingle (etcd_request_duration_seconds
+# and friends) are the apiserver's storage CLIENT, not etcd: they say the
+# apiserver's calls are slow, never whether the quorum has a leader.
+#
+# WHY PLAIN HTTP IS ACCEPTABLE
+# etcd serves /metrics on its client port (2379) behind mutual TLS, so scraping
+# there means handing a scraper an etcd client certificate — a credential that
+# also grants full read/write to all cluster state. The blast radius of that
+# credential dwarfs the value of a latency histogram, and rotating it becomes a
+# new silent-failure surface. `listen-metrics-urls` is etcd's dedicated,
+# supported alternative: it serves /metrics and /health ONLY, read-only, and
+# carries no key material. Binding 0.0.0.0 rather than three per-node LAN IPs
+# is a deliberate trade (design spec, decision `d1-exposure`): the LAN is
+# already Frank's trust boundary — the ArgoCD UI serves plain HTTP on
+# 192.168.55.200 — and the LAN NIC is the exposed interface either way, so the
+# per-node variant costs 3x the config surface for no real gain.
+#
+# WHY MACHINE-SET SCOPED
+# etcd runs on control planes only. A cluster-wide patch would push etcd args
+# to gpu-1, pc-1 and the two raspis, none of which run etcd. Scoping mirrors
+# the working example at patches/phase13-auth/omni-configpatch.yaml (PR #742),
+# the only other machine-set-scoped ConfigPatch in this repo.
+#
+# id: 160 was verified free against every `id:` in patches/ (32 files) — the
+# occupied ids are 100, 102, 110, 150, 200, 300, 303, 305, 306, 400-404 and
+# 500-502.
+#
+# APPLY (operator, out of band — this is NOT GitOps):
+#   source .env && source .env_devops
+#   omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
+# It restarts etcd on each control-plane node in turn. Watch the roll ONE node
+# at a time, asserting quorum between nodes with `talosctl -n <ip> etcd status`
+# (3 members, one leader) before moving on.
+#
+# ROLLBACK: delete the ConfigPatch. etcd returns to serving metrics on 2379
+# only, and the scrape target simply goes down — every alert rule added by this
+# layer uses `noDataState: OK`, so nothing fires.
+#
+# The port here is asserted equal to `kubeEtcd.service.targetPort` in
+# apps/victoria-metrics/values.yaml by scripts/tests/test_etcd_scrape.py. The
+# two files are applied by different tools (omnictl vs ArgoCD) and nothing else
+# connects them; a port typo in either reproduces exactly the silent
+# empty-target failure described above.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 160-etcd-metrics-listener
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/machine-set: frank-control-planes
+spec:
+    data: |
+        cluster:
+            etcd:
+                extraArgs:
+                    listen-metrics-urls: http://0.0.0.0:2381
