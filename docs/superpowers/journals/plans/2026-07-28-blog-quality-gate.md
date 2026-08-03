@@ -506,3 +506,68 @@ gate is font-metric dependent (see item 41) — main and this PR are both green 
 That matters for anyone using the count as a progress metric: it can only ever go down by one per line fixed, and a partially-fixed line (one end retargeted, the other not) still reports one finding, looking like no progress at all.
 
 Also worth knowing before running it: the linter is pure regex with no renderer, so it cannot tell you whether your replacement id actually exists. Retargeting an edge at a typo'd node id is silently ACCEPTED by the gate — Mermaid then invents an empty node and the diagram renders wrong rather than failing. That is why every touched post was re-rendered through `mmdc` here; the Hugo build cannot catch it either, since Mermaid runs client-side.
+
+<!-- fr:journal kind=discovery scope=plan id=tripwire-predicate-designed-against-evidence created=2026-08-03T12:45:03 phase=6 -->
+### tripwire-predicate-designed-against-evidence · discovery · The tripwire's literal predicate flagged 29 sections; 24 were the house Recovery Path table (phase 6)
+
+The step specified the predicate as "at least one fenced code block before the next heading of the same-or-higher level". Written exactly that way, the tripwire flagged **29 sections across 27 posts** on a corpus that had just reported 0 gate findings.
+
+Twenty-four of the 29 were the same thing: the building series' house `## Recovery Path` section, which is a `| Symptom | Cause | Fix |` table with the commands in the cells. Satisfying the literal rule would have meant converting two dozen good tables into code blocks. That is the exact move the T3 gotcha this phase was told to write warns against, arriving one level down — in the guard built to backstop the regex, not in the regex.
+
+So the predicate was designed against the evidence rather than asserted, in two steps, each measured:
+
+| predicate | hollow sections |
+|---|---|
+| fenced code block only (as specified) | 29 |
+| + a table row carrying an inline-code span | 6 |
+| + a subheading inherits its parent section's artefacts | 2 |
+
+The second refinement matters as much as the first. The 4 it cleared were all *labels inside a section that already gives the reader something to run*: `### Diagnosis` in a Symptom/Diagnosis/Fix triple (building/07-observability), two `#### Recovery: <note>` annotations under runbook steps that carry the commands above them (operating/03-gitops), and a `### Verify` that names the two commands printed in fenced blocks earlier in the same H2 (operating/01-cluster-nodes). The unit a reader navigates to is the H2; a subheading is a paragraph label within it, and requiring each to carry its own runbook manufactures duplication.
+
+Strength is preserved where it counts. A top-level actionable heading with nothing under it — the defect the guard exists for — has no parent to inherit from and is still caught. The inline-code requirement on table rows keeps a table of pure prose from satisfying anything. `test_the_detector_can_actually_fail` pins all of it on fixtures in both directions, including the two negative cases the refinements could have destroyed (`TABLE_WITHOUT_CODE`, `SUBHEADING_WITH_NOTHING_ANYWHERE`).
+
+Worth stating plainly: **zero of the 29 were the defect the guard is aimed at.** The corpus has no hollow actionable sections. That is the expected result for a tripwire written at the end of a cleanup — it is not here to find today's defect, it is here to catch the next one, and specifically to catch the cheapest way to clear the upstream gate (rename a paragraph "Verifying the Setup" and change nothing else).
+
+<!-- fr:journal kind=finding scope=plan id=update-py-conflicts-on-stale-sync-snapshot created=2026-08-03T12:45:57 phase=6 state=fixed -->
+### update-py-conflicts-on-stale-sync-snapshot · finding [fixed] · update.py CONFLICTed rather than merged: the sync snapshot was stale because the mermaid flip never applied (phase 6)
+
+The plan predicted `update.py` would plan a **MERGE** on `.github/workflows/blog-ci.yml` once `quality.enabled: true` was set. It planned a **CONFLICT** instead, and the reason is worth recording because the failure mode is the one `.blog-craft.sync.yaml`'s own header warns about.
+
+`update.py` re-renders the merge base from the **sync snapshot** at `blog_craft_version`, not from the live config. The snapshot is only rewritten after a *conflict-free* apply. Earlier this session `quality.mermaid_syntax` was flipped `false -> true` by hand, and no apply followed — so the snapshot still described the pre-flip config. Toolchain version was fine (`v0.19.0` in both files, matching the plugin cache), which is the thing the header tells you to check; the *config* half of the snapshot had drifted and nothing says so.
+
+The conflict itself was trivial and entirely about whitespace. Base had no educational step. Incoming inserted it. Local (frank) had a blank line at the insertion point, because frank's blog-ci.yml separates every step with one and the shipped template does not. `git merge-file` correctly refuses to guess.
+
+The resolution sequence, which generalises to any blog-craft config flip that adds a CI step:
+
+1. Write the step **byte-identical to the template's rendering**, house style and all local comments omitted.
+2. `--apply`. The plan collapses to `NOOP ... (merge produced no change)` and the snapshot is recorded — that recording is the whole point of the round trip.
+3. *Then* restyle: re-add the blank lines and any frank-specific comment. Against the now-correct base those are local-only changes, so the next `update.py` reports NOOP rather than re-conflicting forever.
+
+Doing it in the other order — resolving by hand into frank's house style and moving on — leaves the snapshot stale and makes this hunk conflict on **every** future update, permanently, with no signal that the cause is a snapshot that was never recorded.
+
+Verified after the round trip: dry-run reports `5 noop`, the step is present at `blog-ci.yml:119-120`, and `scripts/tests/test_blog_ci_at_repo_root.py` is 10/10 green (frank's documented CI-superset customizations — repo-root placement, `blog-validate` job name, Setup Go, `paths:` filters, no `deploy` job — all survived).
+
+One side effect to expect and not be alarmed by: the apply rewrote `.blog-craft.sync.yaml` wholesale, including ~40 lines of comment prose that had been updated in `.blog-craft.yaml` when mermaid_syntax was flipped. That is the snapshot doing its job (it is a generated copy of the config), not update.py editing frank's config. Nothing outside the three expected files changed: `.blog-craft.yaml`, `.blog-craft.sync.yaml`, `.github/workflows/blog-ci.yml`.
+
+<!-- fr:journal kind=decision scope=plan id=fun-stuff-waived-not-fabricated created=2026-08-03T12:46:47 phase=6 -->
+### fun-stuff-waived-not-fabricated · decision · building/06-fun-stuff's two hollow headings are waived by name, not fixed by inventing commands (phase 6)
+
+The tripwire deliberately ignores `quality_exempt` (Phase 3's discovery: it is a whole-post opt-out that drops the post from the lint layer too, so exempting it here would put a blind spot inside the guard built to remove blind spots). `building/06-fun-stuff` is the one exempt post, and once the predicate was correct it was the **only** post still failing — on two H2s:
+
+- `## Diagnosing a device that accepts writes and does nothing`
+- `## Why there is no verification section`
+
+Neither is fixable by writing a command, and that is the point.
+
+The second is a pure vocabulary artefact: `\bverif\w*` matches the word "verification" in a heading whose entire argument is that this layer has no verification section, no alert rule, no runbook entry and no failure worth catching. A fenced block under it would contradict its own text.
+
+The first is an elimination ORDER — rule out permissions, then USB autosuspend, then read the register back — which is the transferable content. The layer's whole finding is that the controller accepts writes and ignores them, so there is no command whose output changes anything. Phase 3 already made this editorial call deliberately (see the `quality_exempt` and cold-reader entries), and Phase 5 made the same call about a Missteps section it refused to invent. Manufacturing a runbook here is precisely the failure this plan exists to prevent.
+
+So they are handled as **enumerated waivers**, not a predicate loosening: `PROSE_ONLY_SECTIONS` maps (post, heading) to a written reason. Two entries, one post. It is pinned in both directions by `test_every_waiver_is_still_real_and_still_needed`:
+
+- the waived heading must still exist and still be actionable — a waiver pointing at a renamed heading is dead text that reads as a considered exception;
+- the section must still be flagged without it — a waiver for a section that has since grown a command is a standing permission nobody re-examined, which is how a two-entry list becomes the way things are done here.
+
+`test_the_waiver_list_stays_small` caps it at 2 and requires a non-empty reason on each. Raising that cap should feel like an argument, because it is one.
+
+Recording the alternative that was rejected: narrowing the tripwire's vocabulary to skip headings beginning "Why ...". It would have cleared the second case without an allowlist, but it creates a silent escape hatch ("Why you should verify your backups") discoverable by accident, whereas a named waiver with a reason has to be written on purpose and shows up in review.

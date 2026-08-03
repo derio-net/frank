@@ -286,6 +286,14 @@ features:
 # which were over it already. Narrowing those is a layout problem, not a
 # syntax one — do not reach for `%% blog-craft: wide-ok` to paper over it.
 quality:
+  # Structural educational-writing gate (reader_goal, diataxis mode, command
+  # blocks, an actionable section, a diagram). Enabled 2026-08-03 at the end of
+  # the blog-quality-gate plan, once the whole corpus reported 0 findings —
+  # turning it on earlier would have made every PR red for work the plan was
+  # still doing. It is a HEADING regex for the actionable check, so
+  # scripts/tests/test_actionable_sections_carry_commands.py backstops it: a
+  # heading with nothing under it passes this gate and fails that tripwire.
+  enabled: true
   # Warnings-first AI-tells lint; severities/thresholds in docs/CONFIG.md. (options: true,false)
   lint:
     enabled: true

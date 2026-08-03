@@ -294,3 +294,46 @@ gate, the mermaid check and `hugo --minify`.
     it writes five. Both were caught by the actor downstream of me, which is the
     argument for telling every executor explicitly that the brief may be wrong
     and it should say so.
+
+## Phase 6 (added 2026-08-03)
+
+44. **[open — blog-craft] `update.py`'s sync snapshot goes stale on any hand-edit
+    of `.blog-craft.yaml`, and the only symptom is a conflict that never goes
+    away.** The snapshot is rewritten only after a *conflict-free* apply, so a
+    config flip made by hand (here: `quality.mermaid_syntax` earlier in this
+    session) leaves the merge base describing the previous config. The next run
+    then renders a base missing whatever that flip implies, and any local edit in
+    the same region conflicts — permanently, because resolving by hand does not
+    record a snapshot either. `.blog-craft.sync.yaml`'s header tells you to check
+    `blog_craft_version`, which was correct throughout; the *config* half drifted
+    with no signal. Two cheap fixes upstream: warn when the snapshot's config
+    differs from the live one (it already reads both), and/or offer
+    `--record-snapshot` for an operator who resolved a conflict by hand. Frank's
+    workaround is a round trip — write the step byte-identical to the template,
+    apply to record the snapshot, then restyle — documented in the Phase 6
+    journal because nothing in the tool suggests it.
+45. **[open — blog-craft] The educational gate's actionable-section check has no
+    content check at all, and a table is invisible to it in both directions.**
+    `_ACTIONABLE` matches heading text; nothing looks underneath. Frank now
+    backstops it locally
+    (`scripts/tests/test_actionable_sections_carry_commands.py`), and building
+    that guard surfaced the shape of the upstream gap: the corpus's most common
+    actionable section is a `| Symptom | Cause | Fix |` table, which satisfies no
+    fenced-block rule and which a *content*-aware version of this check would
+    have to understand. If blog-craft ever adds "the section must contain
+    something", ship it with the table case, a subheading-inheritance rule, and a
+    per-heading waiver — the three things frank needed to get from 29 false
+    positives to 0. Related: an `actionable_exempt: <reason>` per-check waiver
+    (Phase 3's suggestion) would let a novelty layer decline the actionable
+    section without also leaving the AI-tells lint layer.
+46. **The brief was stale in exactly the way item 43 predicts, and said so up
+    front — which is what made it cheap.** The Phase 6 dispatch corrected two of
+    its own plan's claims before I read the plan (the `quality:` block's
+    contents, and the blog-craft version), and told me to report anything else
+    that did not survive checking. Two more did not: `update.py` planned a
+    CONFLICT where the plan predicted a MERGE (item 44), and the tripwire's
+    specified predicate was wrong for this corpus by a factor of ~15 (item 45).
+    Both were found in minutes because the brief had already established that
+    disagreeing with it was the job. Carry the pattern: state the known-stale
+    parts of a plan in the dispatch, and licence the executor to contradict the
+    rest.
