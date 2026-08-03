@@ -45,7 +45,7 @@ SIX DELIBERATE DESIGN CHOICES, each with a reason that cost something to learn:
 
 5. **A symptom/cause/fix table row counts, if it carries inline code.** The
    plan specified "at least one fenced code block". Written that way, this guard
-   flagged 29 sections — and 24 of them were the building series' house
+   flagged 29 sections — and 23 of them were the building series' house
    `## Recovery Path` table (symptom | cause | fix, commands in the cells).
    Satisfying the literal rule would have meant converting two dozen good tables
    into code blocks: renaming working prose to please a regex, which is the
@@ -61,11 +61,46 @@ SIX DELIBERATE DESIGN CHOICES, each with a reason that cost something to learn:
    with nothing under it — the defect this guard exists for — is still caught,
    because it has no parent to inherit from.
 
-Measured while designing it, on the corpus at the end of Phase 5:
+   THE SIZE OF THAT BLIND SPOT, measured rather than assumed: **28 nested
+   actionable headings across 11 posts** sit under a parent section that
+   carries an artefact, so each would pass this guard even if its own section
+   were empty. Four of them are empty today (`building/07-observability`
+   'Diagnosis', `operating/01-cluster-nodes` 'Verify', and two
+   `operating/03-gitops` 'Recovery: …' subheads); the other 24 carry their own
+   commands and inherit nothing. Inheritance is **one level only** and that is
+   load-bearing: an H4 under a hollow H3 under a command-bearing H2 IS still
+   flagged, because the H4 looks at the H3 and stops. Pinned by
+   `test_inheritance_is_one_level_only`.
+
+MEASURED, ON THE CORPUS AT THE END OF PHASE 5 (68 posts):
 29 hollow sections under the literal rule, 6 once tables counted, 2 once
 subheadings inherited. Both survivors are in one post and are waived below with
 reasons. Zero of the 29 were the defect the guard is aimed at, which is the
 expected result for a tripwire: it is here to catch the next one.
+
+WHERE INLINE CODE COUNTS, AND WHERE IT DOES NOT. This is the sharpest edge in
+the detector and it is asymmetric on purpose: an inline-code span satisfies an
+actionable heading when it sits **in a table row**, and does nothing when it
+sits in a list item or a prose paragraph. A table row is a structured
+symptom-to-fix mapping — the row itself is the promise that the code span is
+the thing you run — whereas a paragraph mentioning `/dev/hidraw2` is prose that
+happens to name a path.
+
+Both looser rules were measured against the corpus before being rejected:
+
+  * counting inline code in numbered-list items changes the residue **not at
+    all** (2 hollow before, 2 after). It was proposed as the way to retire
+    waiver #1, and it does not: that section's artefacts are in bold-led
+    paragraphs, and it contains **zero** list items of any kind. Extending to
+    bullets as well as numbers is likewise 2 → 2.
+  * counting inline code in **any** prose line takes the residue to **0** and
+    retires both waivers — by making the guard trivially satisfiable. Nearly
+    every actionable section in this corpus names a file or a flag somewhere in
+    its prose, so that rule would pass a "Verifying the Setup" heading with a
+    paragraph under it and no command anywhere, which is exactly the gaming
+    this file exists to catch.
+
+So the asymmetry stays, and waiver #1 stays with it.
 """
 
 from __future__ import annotations
@@ -75,7 +110,11 @@ import re
 
 import pytest
 
-yaml = pytest.importorskip("yaml")
+# Imported, not `pytest.importorskip`-ed. A missing PyYAML must FAIL this
+# module, never skip it: a guard that deletes itself when a dependency moves is
+# the same "green because nothing ran" failure it was written to prevent, and
+# it would take the whole corpus scan with it silently.
+import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONFIG = ROOT / ".blog-craft.yaml"
@@ -103,12 +142,17 @@ PROSE_ONLY_SECTIONS: dict[tuple[str, str], str] = {
         "building/06-fun-stuff",
         "Diagnosing a device that accepts writes and does nothing",
     ): (
-        "The post is `quality_exempt` because the layer has no operational "
-        "surface: the LED controller accepts writes and ignores them, and no "
-        "command a reader runs changes that. The section is an elimination "
-        "ORDER (permissions, then autosuspend, then read the register back), "
-        "which is the transferable part. Inventing commands here would "
-        "manufacture the runbook this plan exists to prevent."
+        "Waived for a DETECTOR limitation, not for missing content. The "
+        "section already carries real artefacts — a `/sys` read for USB "
+        "autosuspend, a privileged pod driving `/dev/hidraw2` through the "
+        "`HIDIOCSFEATURE` ioctl (`0xC0404806`) and reading the register back "
+        "with `HIDIOCGFEATURE` — but every one of them sits in a bold-led "
+        "PROSE PARAGRAPH, and inline code counts only inside a table row (see "
+        "the asymmetry section of the module docstring). Rewriting an "
+        "elimination ORDER as a table or a fence to satisfy the shape of the "
+        "check would be renaming good prose to please a regex. The post is "
+        "also `quality_exempt`: the LED controller accepts writes and ignores "
+        "them, so there is no command whose output changes anything."
     ),
     ("building/06-fun-stuff", "Why there is no verification section"): (
         "A heading that declares the ABSENCE of a verification section, matched "
@@ -381,6 +425,29 @@ Prose only.
 Also prose only.
 """
 
+H4_UNDER_A_HOLLOW_H3 = """\
+## Gotcha 3: it does not work
+
+```bash
+kubectl get cm -n monitoring
+```
+
+### Diagnosis
+
+Prose only.
+
+#### Verify the fix
+
+Prose only.
+"""
+
+NUMBERED_LIST_WITH_INLINE_CODE = """\
+## Verify the Bootstrap
+
+1. Read `/sys/bus/usb/devices/*/power/control`.
+2. Compare it against `on`.
+"""
+
 
 def test_the_detector_can_actually_fail() -> None:
     """Pin both directions: a hollow section is flagged, a real one is not."""
@@ -397,6 +464,30 @@ def test_the_detector_can_actually_fail() -> None:
     assert hollow_actionable_sections(NARRATIVE_HEADING) == []
     assert hollow_actionable_sections(FIX_TABLE) == []
     assert hollow_actionable_sections(SUBHEADING_INHERITS) == []
+
+
+def test_inheritance_is_one_level_only() -> None:
+    """A subheading inherits from its PARENT, not from its whole ancestry.
+
+    The docstring's blind-spot measurement depends on this. If inheritance
+    climbed to the nearest artefact-bearing ancestor instead, one command
+    block at the top of a post would shield every subheading beneath it, and
+    the residue this guard reports would stop meaning anything.
+    """
+    assert hollow_actionable_sections(H4_UNDER_A_HOLLOW_H3) == ["Verify the fix"]
+
+
+def test_inline_code_in_a_list_item_is_not_an_artefact() -> None:
+    """Pin the asymmetry, so a future loosening is a deliberate act.
+
+    Counting it changes nothing on this corpus (measured: 2 hollow sections
+    before and after) and counting inline code in prose takes the residue to
+    zero by making the guard trivially satisfiable. Both are argued in the
+    module docstring; this pins the behaviour they describe.
+    """
+    assert hollow_actionable_sections(NUMBERED_LIST_WITH_INLINE_CODE) == [
+        "Verify the Bootstrap"
+    ]
 
 
 def test_a_heading_inside_a_fence_is_not_a_heading() -> None:

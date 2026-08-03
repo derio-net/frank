@@ -39,6 +39,8 @@ flowchart LR
 
   SSHLB --> SSHD
   VKLB --> VK
+  SSHD --> PVC
+  SC --> PVC
   Claude --> PVC
   VK --> PVC
 ```
@@ -188,11 +190,11 @@ $ curl -s http://192.168.55.218:8081 | head -1
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **PVC mount hides image contents** — Dockerfile-at /home/claude files invisible after PVC mount | Kubernetes mounts PVC over the directory, making image contents invisible | Moved config templates to `/opt/`, seed via entrypoint on first boot | `4a5b6c7d` |
-| **`wait -n` supervision loses tmux on any child exit** — a SIGHUP to supercronic kills entire container | `wait -n` exits when first child dies; signal propagation takes down the pgroup | Replaced with s6-overlay v3 for per-service supervision | `8e9f0g1h` |
+| **PVC mount hides image contents** — Dockerfile-at /home/claude files invisible after PVC mount | Kubernetes mounts PVC over the directory, making image contents invisible | Moved config templates to `/opt/`, seed via entrypoint on first boot | — |
+| **`wait -n` supervision loses tmux on any child exit** — a SIGHUP to supercronic kills entire container | `wait -n` exits when first child dies; signal propagation takes down the pgroup | Replaced with s6-overlay v3 for per-service supervision | — |
 | **Cilium FQDN policy breaks all egress** — "LRU not yet initialized" on first FQDN-based policy | Cilium DNS proxy not initialized for this node's endpoints | Disabled policy pending Cilium upgrade; other hardening layers remain | — |
-| **sshd cannot start as non-root with default config** — {{< abbr "PAM" >}} requires root; default port 22 fails | non-root user cannot bind privileged ports or use PAM | Port 2222, `UsePAM no`, `StrictModes no` | `2i3j4k5l` |
-| **/run/secrets conflicts with SA token mount** — `/run` → `/var/run` is a symlink in Talos | Mounting anything at `/run/secrets` collides with the SA token mount point | Avoid `/run/secrets` paths for any volume mount | `6m7n8o9p` |
+| **sshd cannot start as non-root with default config** — {{< abbr "PAM" >}} requires root; default port 22 fails | non-root user cannot bind privileged ports or use PAM | Port 2222, `UsePAM no`, `StrictModes no` | — |
+| **/run/secrets conflicts with SA token mount** — `/run` → `/var/run` is a symlink in Talos | Mounting anything at `/run/secrets` collides with the SA token mount point | Avoid `/run/secrets` paths for any volume mount | — |
 
 ## Recovery Path
 

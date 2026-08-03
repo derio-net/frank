@@ -571,3 +571,67 @@ So they are handled as **enumerated waivers**, not a predicate loosening: `PROSE
 `test_the_waiver_list_stays_small` caps it at 2 and requires a non-empty reason on each. Raising that cap should feel like an argument, because it is one.
 
 Recording the alternative that was rejected: narrowing the tripwire's vocabulary to skip headings beginning "Why ...". It would have cleared the second case without an allowlist, but it creates a silent escape hatch ("Why you should verify your backups") discoverable by accident, whereas a named waiver with a reason has to be written on purpose and shows up in review.
+
+<!-- fr:journal kind=finding scope=plan id=fabricated-commit-ids created=2026-08-03T13:53:49 state=fixed -->
+### fabricated-commit-ids · finding [fixed] · 86 fabricated commit ids across 17 posts, now blanked and guarded
+
+The building series' `## Missteps` tables end in a **Commit** column. 86 values in it across 17 posts named no commit that exists — verified twice, locally (`git cat-file -e <v>^{commit}` against a full 1699-commit clone) and against the GitHub API (`repos/derio-net/frank/commits/<v>` → 422 for every one, so they are not stranded objects on deleted branches either).
+
+Two shapes, one origin. Most are an unfilled template carried post to post verbatim — `a1b2c3d4`, `e5f6g7h8`, `i9j0k1l2`, `m3n4o5p6`, `q7r8s9t0` appear in that exact order in nine different posts, and some are not even hexadecimal (`3456fghi`, `9h0i1j2k`, `7p8q9r0s`). The dangerous ones are the hex-shaped minority (`27d947d2`, `c34d065b`, `19a2b4f1` in building/11), which read as entirely genuine and are the reason a human reviewer would never catch this by eye.
+
+Fix: every non-resolving value blanked to `—`, the placeholder building/30-frank-papers already used. Rows kept — the misstep is the part worth keeping. One cell (`PR #448, `c5812e2b``) kept its real half and lost only the sha.
+
+Guard: `scripts/tests/test_cited_commits_resolve.py`, RED at 17 posts / 86 ids before the fix.
+
+<!-- fr:journal kind=discovery scope=plan id=commit-detector-shape created=2026-08-03T13:54:06 -->
+### commit-detector-shape · discovery · Detecting a fake commit id is a shape question, not a hex question
+
+The obvious detector — backticked `[0-9a-f]{7,40}` in a Commit column — would have missed **over half** the fabrications, because the placeholders were mashed-keyboard strings (`3456fghi`, `q7r8s9t0`) that no hex regex matches. A hex-only guard would have reported ~40 hits, been fixed, and left the rest sitting there looking checked.
+
+The rule that works on this corpus: a backticked run of 7-40 **alphanumerics containing at least one digit**, read only from a column headed `Commit` or `Evidence`. The digit is what excludes ordinary backticked words (`Recreate`, `hostPath`, `caBundle`, `emptyDir`, `talosctl`) — none carries one, and a real abbreviated sha without a digit is a 0.04% accident. Repo paths and line ranges cited as evidence (`apps/litellm/values.yaml:85-89`) never match, because `/`, `.`, `:` and `-` are not alphanumerics.
+
+Two parsing traps found the hard way: (1) reading whole LINES instead of the Commit COLUMN produces 22 false positives from English words in other cells; (2) a `\\|` escaped pipe inside inline code (building/08-backup) shifts every cell index right, so a naive `line.split('|')` reads the wrong column — split on `(?<!\\\\)\\|`.
+
+<!-- fr:journal kind=discovery scope=plan id=inline-code-asymmetry-measured created=2026-08-03T13:54:22 -->
+### inline-code-asymmetry-measured · discovery · Counting inline code in list items retires nothing — measured 2 → 2
+
+The review asked whether counting inline code inside numbered-list items (it currently counts only inside a table row) would retire waiver #1 in `test_actionable_sections_carry_commands.py`. Measured on the 68-post corpus: **it changes nothing**. Residue is 2 hollow sections before and 2 after; extending to bullets as well is also 2.
+
+The reason is specific: the waived section (`building/06-fun-stuff`, 'Diagnosing a device that accepts writes and does nothing') contains **zero list items of any kind**. Its artefacts — a `/sys` read, `/dev/hidraw2`, `HIDIOCSFEATURE`/`HIDIOCGFEATURE`, ioctl `0xC0404806` — live in bold-led PROSE PARAGRAPHS.
+
+Counting inline code in any prose line does retire both waivers (2 → 0), and that is exactly why it must not be done: nearly every actionable section in this corpus names a file or a flag in its prose, so the rule would pass a 'Verifying the Setup' heading with a paragraph and no command — the gaming the tripwire exists to catch. The asymmetry is now argued in the docstring and pinned by `test_inline_code_in_a_list_item_is_not_an_artefact`.
+
+Waiver #1's stated reason was also wrong (it claimed inventing commands would 'manufacture the runbook this plan exists to prevent', when the section already carries real artefacts). Rewritten to name the detector limitation.
+
+<!-- fr:journal kind=discovery scope=plan id=inheritance-blind-spot-measured created=2026-08-03T13:54:38 -->
+### inheritance-blind-spot-measured · discovery · Inheritance blind spot is 28 headings / 11 posts — and it is one level deep
+
+Measured, not assumed, and now written into the tripwire docstring.
+
+**28 nested actionable headings across 11 posts** sit under a parent section that carries an artefact, so each would pass the guard even if its own section were empty. Four of them ARE empty today and pass purely by inheritance: `building/07-observability` 'Diagnosis', `operating/01-cluster-nodes` 'Verify', and two `operating/03-gitops` 'Recovery: …' subheads. The other 24 carry their own commands and inherit nothing — so the live exposure is 4, not 28.
+
+Inheritance is **one level only**, confirmed empirically rather than by reading: an H4 under a hollow H3 under a command-bearing H2 IS flagged, because `_section_has_artefact` is called on the immediate parent and stops there. That is load-bearing — if it climbed the whole ancestry, one code block at the top of a post would shield every subheading below it. Now pinned by `test_inheritance_is_one_level_only`.
+
+Also corrected while measuring: the docstring and the `frank-gotchas.md` rule both said **24** `## Recovery Path` sections were flagged under the literal rule. It is **23** (23 posts carry that heading; 29 hollow total). The gotcha is a permanent rule, so the wrong number there was the one that mattered.
+
+<!-- fr:journal kind=finding scope=plan id=diagram-fidelity-round created=2026-08-03T13:55:05 state=fixed -->
+### diagram-fidelity-round · finding [fixed] · Six diagram/prose fidelity defects from the Phase 5+6 review
+
+Each verified against the repo before editing:
+
+- **building/32-automation** — `CHART -->|operator watches| CR` had a Helm chart watching a CR, and the `Operator` subgraph had zero incoming edges, so the operator was never shown being created. Restored the chain: `CHART -->|installs| OP`, `CR -->|watched by| OP`, `OP -->|reconciles| …`, with an explicit `awx-operator Deployment` node. Prose now states what `apps/awx/values.yaml` actually does (`AWX.enabled: false` — the CR is our raw manifest, not chart output).
+- **building/15-paperclip** — `DB -->|wave 0 healthy first| P` fanned out to 1 of `Wave1`'s 4 members, orphaning `ES`, `PVC`, `LB` in a figure whose whole point is wave ordering. Fanned out to all four; the invented edge label moved into prose, where it is now sourced (`argocd.argoproj.io/sync-wave: "1"` on `apps/root/templates/paperclip.yaml:7`).
+- **building/19-progressive-delivery** — the diagram's shortening to `LB .206`/`LB .207` had removed the only occurrences of two canonical LB IPs from the post (verified 2 → 0). Restored `192.168.55.206` and `192.168.55.207` in adjacent prose with their real Service names (`litellm`, `sympozium-apiserver-lb`), leaving the labels short. Layout gate unchanged at 9 failures, none this post.
+- **building/28-agent-images-sidecar** — `BUMP -->|opens PR, merged| DEPLOY` asserted the merge while the prose one line down promises a *reviewable* PR. Dropped `, merged`.
+- **building/21-secure-agent-pod** — `Claude --> PVC` narrowed a container-level mount to one consumer. `apps/secure-agent-pod/manifests/deployment.yaml:110` mounts `agent-home` at `/home/claude` for the whole `kali` container; fanned out to `SSHD` (authorized_keys) and `SC` (supercronic) too.
+- **building/30-frank-papers** — the banner misstep said 'green shirt on green background, silhouette unreadable'. `a6a83cb` says the shirt was green *the same hue as his skin* and the symptom was the necktie reading as floating. Row rewritten to the commit.
+- **building/30-frank-papers** — the scaffold example used paper number `04`, already held by `04-distributed-storage`. Moved to the unused `12` (weight 13). The script's guard is `-e $BUNDLE` on the full `NN-slug` directory, so a number collision under a different slug passes it — now said out loud in the post.
+
+<!-- fr:journal kind=decision scope=plan id=kubectl-autoscale-cpu-flag created=2026-08-03T13:55:19 -->
+### kubectl-autoscale-cpu-flag · decision · REFUTED: kubectl autoscale --cpu=70% is correct; left unchanged
+
+The review claimed `operating/29-metrics-api:96`'s `kubectl autoscale … --cpu=70%` is invalid and must be `--cpu-percent`. It is not, and the line was left alone.
+
+Evidence (both re-checked here): `kubectl autoscale --help` on this machine documents `--cpu` and gives the example `kubectl autoscale deployment bar --min=3 --max=6 --cpu=60% --memory=70%`; and running the literal command parses the flag and fails only on cluster connectivity — an unknown flag errors before any API contact. `--cpu-percent` is the pre-autoscaling/v2 name.
+
+Recorded because this is the second time in this plan a 'defect' turned out to be the checker being out of date rather than the corpus being wrong.

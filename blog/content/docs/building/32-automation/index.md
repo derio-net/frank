@@ -20,7 +20,7 @@ Ansible has exactly that verb. So this layer — `auto` — is me growing an imp
 
 ## Two Operators, One Cluster
 
-ArgoCD installs the awx-operator Helm chart and applies an `AWX` custom resource. That is all ArgoCD manages. Then the *operator* takes over: it reconciles the {{< abbr "CR" >}} into a Deployment for the web pod, the task pod, a StatefulSet for Postgres, migrations Job, Services. None of that is in Git.
+ArgoCD installs the awx-operator Helm chart and applies an `AWX` custom resource. The chart contributes only the operator's own Deployment — `apps/awx/values.yaml` sets `AWX.enabled: false`, so the {{< abbr "CR" >}} is a raw manifest of ours rather than chart output, and the two arrive from two different sources in the same Application. That is all ArgoCD manages. Then the *operator* takes over: it watches the CR and reconciles it into a Deployment for the web pod, the task pod, a StatefulSet for Postgres, migrations Job, Services. None of that is in Git.
 
 ```mermaid
 flowchart TD
@@ -29,16 +29,18 @@ flowchart TD
     CR[AWX custom resource]
   end
   subgraph Operator[awx-operator]
+    OP[awx-operator Deployment]
     WEB[awx-web Deployment]
     TASK[awx-task Deployment]
     PG[awx-postgres-15 StatefulSet]
     MIG[migration Job]
   end
-  CHART -->|operator watches| CR
-  CR -->|reconciles| WEB
-  CR -->|reconciles| TASK
-  CR -->|reconciles| PG
-  CR -->|reconciles| MIG
+  CHART -->|installs| OP
+  CR -->|watched by| OP
+  OP -->|reconciles| WEB
+  OP -->|reconciles| TASK
+  OP -->|reconciles| PG
+  OP -->|reconciles| MIG
 ```
 
 **Synced and Healthy on ArgoCD proves the CR exists. It proves nothing about whether AWX works.** The truth lives one layer down, and the only way to know is to look at pods ArgoCD never sees.
@@ -112,12 +114,12 @@ ok: [raspi-vlan10-E]
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **extra_settings missing inner quotes** — `awx-web` CrashLoop, migrations never run, task pod blocked | Operator pastes `value` as literal Python RHS; bare URL is syntax error | Wrap string values in both YAML double-quotes and Python single-quotes | `a1b2c3d4` |
-| **Postgres cannot mkdir data directory** — UID 26 cannot write to root-owned Longhorn PVC | Operator emits empty `securityContext` on StatefulSet | Set `postgres_data_volume_init: true` for root init container chown | `e5f6g7h8` |
-| **Authentik OIDC blueprint silently fails** — `BlueprintInstance` status `error`, no provider created | Authentik 2026.2.1 schema: `redirect_uris` must be list, `invalidation_flow` required | Updated blueprint to new format; fixed same issue in 4 other blueprints | `i9j0k1l2` |
-| **OIDC secret written but never stored** — PATCH to `authentication` category accepted but discarded | AWX groups settings by category slug; OIDC settings are in `oidc`, not `authentication` | Write to `api/v2/settings/oidc/` instead | `m3n4o5p6` |
-| **First ad-hoc ping passed with wrong SSH key** — `ssh-copy-id`d new key, but verify used operator's existing key | Verify was riding on existing key, not the new dedicated key | Generated fresh keypair, verified with `ssh -i <new-key>` only | `q7r8s9t0` |
-| **`ansible_ssh_common_args` rejected in ad-hoc** — AWX security denylist blocks extra_vars containing ssh args | AWX restricts certain extra_vars to prevent privilege escalation | Put host-key handling on the inventory as a variable instead | `u1v2w3x4` |
+| **extra_settings missing inner quotes** — `awx-web` CrashLoop, migrations never run, task pod blocked | Operator pastes `value` as literal Python RHS; bare URL is syntax error | Wrap string values in both YAML double-quotes and Python single-quotes | — |
+| **Postgres cannot mkdir data directory** — UID 26 cannot write to root-owned Longhorn PVC | Operator emits empty `securityContext` on StatefulSet | Set `postgres_data_volume_init: true` for root init container chown | — |
+| **Authentik OIDC blueprint silently fails** — `BlueprintInstance` status `error`, no provider created | Authentik 2026.2.1 schema: `redirect_uris` must be list, `invalidation_flow` required | Updated blueprint to new format; fixed same issue in 4 other blueprints | — |
+| **OIDC secret written but never stored** — PATCH to `authentication` category accepted but discarded | AWX groups settings by category slug; OIDC settings are in `oidc`, not `authentication` | Write to `api/v2/settings/oidc/` instead | — |
+| **First ad-hoc ping passed with wrong SSH key** — `ssh-copy-id`d new key, but verify used operator's existing key | Verify was riding on existing key, not the new dedicated key | Generated fresh keypair, verified with `ssh -i <new-key>` only | — |
+| **`ansible_ssh_common_args` rejected in ad-hoc** — AWX security denylist blocks extra_vars containing ssh args | AWX restricts certain extra_vars to prevent privilege escalation | Put host-key handling on the inventory as a variable instead | — |
 
 ## Recovery Path
 

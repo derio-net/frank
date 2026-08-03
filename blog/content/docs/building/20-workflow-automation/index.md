@@ -114,9 +114,9 @@ VMAgent auto-discovers these and feeds execution counts, durations, error rates 
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **OIDC init planned but unworkable** — n8n {{< abbr "CE" >}} has no `user:create` CLI command, OIDC is enterprise-only | Community forums suggested `user:create` CLI exists; it does not in CE | Switched to Authentik forward-auth proxy; removed init container | `3a4b5c6d` |
-| **N8N_ENCRYPTION_KEY not set** — auto-generated key stored on filesystem, all credentials unrecoverable on PVC loss | Default n8n behavior generates a key on first boot without persisting it explicitly | Added `N8N_ENCRYPTION_KEY` from SOPS secret | `7d8e9f0g` |
-| **RollingUpdate deadlocks on {{< abbr "RWO" >}} PVC** — new pod cannot attach while old pod holds the claim | Default strategy creates new pod before terminating old one | Changed to `Recreate` strategy | `1h2i3j4k` |
+| **OIDC init planned but unworkable** — n8n {{< abbr "CE" >}} has no `user:create` CLI command, OIDC is enterprise-only | Community forums suggested `user:create` CLI exists; it does not in CE | Switched to Authentik forward-auth proxy; removed init container | — |
+| **N8N_ENCRYPTION_KEY not set** — auto-generated key stored on filesystem, all credentials unrecoverable on PVC loss | Default n8n behavior generates a key on first boot without persisting it explicitly | Added `N8N_ENCRYPTION_KEY` from SOPS secret | — |
+| **RollingUpdate deadlocks on {{< abbr "RWO" >}} PVC** — new pod cannot attach while old pod holds the claim | Default strategy creates new pod before terminating old one | Changed to `Recreate` strategy | — |
 
 ## Recovery Path
 

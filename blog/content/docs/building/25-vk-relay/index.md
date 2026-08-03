@@ -138,9 +138,9 @@ yamux multiplexing means multiple API calls share a single WebSocket connection.
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Relay path blocked by Authentik forward-auth** — WebSocket upgrade handshake failed; browser showed "Relay client connected but unresponsive" | Relay uses JWT auth, not session cookies; forward-auth intercepts WebSocket upgrade | Skipped `authentik-forwardauth` middleware on the relay IngressRoute path | `5n6m7o8p` |
-| **Initial attempt: separate relay pod** — new Deployment, Service, secrets | Unnecessary complexity; already have PostgreSQL and JWT secret in vk-remote pod | Switched to sidecar container in existing vk-remote Deployment | `9q0r1s2t` |
-| **Traefik rule order matters** — relay path never matched, all traffic went to main vk-remote | Less specific `Host()` rule evaluated before `Host() && PathPrefix()` | Placed relay IngressRoute rule first in the routes list | `3u4v5w6x` |
+| **Relay path blocked by Authentik forward-auth** — WebSocket upgrade handshake failed; browser showed "Relay client connected but unresponsive" | Relay uses JWT auth, not session cookies; forward-auth intercepts WebSocket upgrade | Skipped `authentik-forwardauth` middleware on the relay IngressRoute path | — |
+| **Initial attempt: separate relay pod** — new Deployment, Service, secrets | Unnecessary complexity; already have PostgreSQL and JWT secret in vk-remote pod | Switched to sidecar container in existing vk-remote Deployment | — |
+| **Traefik rule order matters** — relay path never matched, all traffic went to main vk-remote | Less specific `Host()` rule evaluated before `Host() && PathPrefix()` | Placed relay IngressRoute rule first in the routes list | — |
 
 ## Recovery Path
 

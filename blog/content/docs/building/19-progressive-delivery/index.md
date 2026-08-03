@@ -41,6 +41,8 @@ flowchart LR
 
 ## Architecture
 
+One controller, two strategies, two LoadBalancer addresses that must not move: `Service/litellm` keeps `192.168.55.206` and `Service/sympozium-apiserver-lb` keeps `192.168.55.207` across every promotion — the diagram abbreviates them to their last octet to stay readable.
+
 ```mermaid
 flowchart TD
   subgraph ArgoRollouts[Argo Rollouts — argo-rollouts namespace]

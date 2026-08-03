@@ -218,11 +218,11 @@ ignoreDifferences:
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **ALERTS{} metric missing** — Grafana panel showed no data | Grafana-managed alerts never write `ALERTS{}` time series | Use native `alertlist` panel type instead | `a1b2c3d4` |
-| **SSE format required** — `refId B` reduce stage missing, error `no variable specified to reference for refId C` | Grafana 12.x requires three-step SSE (query → reduce → threshold) for provisioned rules | Added reduce expression as refId B in every rule | `e5f6g7h8` |
-| **VMOperator webhook cert mismatch** — `x509: certificate signed by unknown authority` on CRD submissions | `genCA` in Helm chart produces new CA every render; operator serves old cert | Added `ignoreDifferences` for `caBundle` in ArgoCD Application | `i9j0k1l2` |
-| **Pushgateway job label overwritten** — all heartbeat metrics showed `job="pushgateway"` | Default scrape behavior overwrites pushed `job` label | Set `honorLabels: true` on VMServiceScrape | `m3n4o5p6` |
-| **Telegram alerts stopped after token rotation** — previous alerts already notified, dedup prevented re-fire | Grafana alertmanager dedup has 4-hour repeat interval | Restarted Grafana pod to reset dedup state | `q7r8s9t0` |
+| **ALERTS{} metric missing** — Grafana panel showed no data | Grafana-managed alerts never write `ALERTS{}` time series | Use native `alertlist` panel type instead | — |
+| **SSE format required** — `refId B` reduce stage missing, error `no variable specified to reference for refId C` | Grafana 12.x requires three-step SSE (query → reduce → threshold) for provisioned rules | Added reduce expression as refId B in every rule | — |
+| **VMOperator webhook cert mismatch** — `x509: certificate signed by unknown authority` on CRD submissions | `genCA` in Helm chart produces new CA every render; operator serves old cert | Added `ignoreDifferences` for `caBundle` in ArgoCD Application | — |
+| **Pushgateway job label overwritten** — all heartbeat metrics showed `job="pushgateway"` | Default scrape behavior overwrites pushed `job` label | Set `honorLabels: true` on VMServiceScrape | — |
+| **Telegram alerts stopped after token rotation** — previous alerts already notified, dedup prevented re-fire | Grafana alertmanager dedup has 4-hour repeat interval | Restarted Grafana pod to reset dedup state | — |
 
 ## Recovery Path
 

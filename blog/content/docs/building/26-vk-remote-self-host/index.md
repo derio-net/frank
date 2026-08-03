@@ -151,11 +151,11 @@ The spec originally called for `vk.frank.derio.net`, but Frank's Traefik wildcar
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **ElectricSQL cannot connect to PG** — `wal_level=logical` not set, no replication slot available | Default PG `wal_level` is `replica`, not `logical` | Added `-c wal_level=logical` to postgres container args | `c3d4e5f6` |
-| **PostSync Job backoff limit exhausted** — Job fails if PG takes >5 retries to become ready on cold node | `pg_isready` polling with sleep loop, Job has 5-retry default | Delete failed Job, let ArgoCD re-trigger; or increase backoff limit | `g7h8i9j0` |
-| **Blueprint needs manual outpost assignment** — Authentik proxy provider and application created but not assigned to embedded outpost | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django {{< abbr "ORM" >}}: `outpost.providers.add(provider)` | `k1l2m3n4` |
-| **Old cloud data inaccessible** — expected migration path, but cloud was already decommissioned by the time self-hosted was ready | 30-day shutdown window, OAuth failing before migration completed | Fresh project, fresh issues, fresh start — no data migration | `o5p6q7r8` |
-| **Cross-namespace DNS confusion** — agent pod tried `vk-remote:8081` without {{< abbr "FQDN" >}} | Pod in `secure-agent-pod` namespace needs `vk-remote.agents.svc.cluster.local` | Updated env var to use FQDN | `s9t0u1v2` |
+| **ElectricSQL cannot connect to PG** — `wal_level=logical` not set, no replication slot available | Default PG `wal_level` is `replica`, not `logical` | Added `-c wal_level=logical` to postgres container args | — |
+| **PostSync Job backoff limit exhausted** — Job fails if PG takes >5 retries to become ready on cold node | `pg_isready` polling with sleep loop, Job has 5-retry default | Delete failed Job, let ArgoCD re-trigger; or increase backoff limit | — |
+| **Blueprint needs manual outpost assignment** — Authentik proxy provider and application created but not assigned to embedded outpost | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django {{< abbr "ORM" >}}: `outpost.providers.add(provider)` | — |
+| **Old cloud data inaccessible** — expected migration path, but cloud was already decommissioned by the time self-hosted was ready | 30-day shutdown window, OAuth failing before migration completed | Fresh project, fresh issues, fresh start — no data migration | — |
+| **Cross-namespace DNS confusion** — agent pod tried `vk-remote:8081` without {{< abbr "FQDN" >}} | Pod in `secure-agent-pod` namespace needs `vk-remote.agents.svc.cluster.local` | Updated env var to use FQDN | — |
 
 ## Recovery Path
 

@@ -121,12 +121,12 @@ On boot, a reconcile script computes the diff, installs/removes accordingly, wri
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **PostgreSQL deployed but never used** — RVF JSON store was the actual data layer | `.env.example` showed `DATABASE_URL`; runtime revealed RVF | Mounted 5Gi PVC at `/app/db/`; left PostgreSQL parked | `a1b2c3d4` |
-| **RVF shim broken for uploads** — `upload.once is not a function`, attachments 500'd | Shim compiled against Mongo API but did not implement stream contract | Replaced with real Node.js Writable/Readable in one file | `e5f6g7h8` |
-| **LiteLLM returned 401 on first SSR render** — `OPENAI_API_KEY` was OpenRouter key, not LiteLLM virtual key | LiteLLM authenticates against its own key store, not upstream provider | Provisioned `RUFLO_LITELLM_KEY` in Infisical, projected as `OPENAI_API_KEY` | `i9j0k1l2` |
-| **`shareProcessNamespace: true` crashes s6-overlay** — "can only run as pid 1" on shell container | Agent-shell-base's s6-overlay v3 init expects pid 1 of its own PID namespace | Removed `shareProcessNamespace` from manifest | `m3n4o5p6` |
-| **Probe flapping on SSR endpoint** — `/` SSR-renders model list, any LiteLLM flake flips probes | Liveness probe was also a full dependency check | Changed probe to `/api/v2/feature-flags` | `q7r8s9t0` |
-| **npm install fails with {{< abbr "EACCES" >}}** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | `u1v2w3x4` |
+| **PostgreSQL deployed but never used** — RVF JSON store was the actual data layer | `.env.example` showed `DATABASE_URL`; runtime revealed RVF | Mounted 5Gi PVC at `/app/db/`; left PostgreSQL parked | — |
+| **RVF shim broken for uploads** — `upload.once is not a function`, attachments 500'd | Shim compiled against Mongo API but did not implement stream contract | Replaced with real Node.js Writable/Readable in one file | — |
+| **LiteLLM returned 401 on first SSR render** — `OPENAI_API_KEY` was OpenRouter key, not LiteLLM virtual key | LiteLLM authenticates against its own key store, not upstream provider | Provisioned `RUFLO_LITELLM_KEY` in Infisical, projected as `OPENAI_API_KEY` | — |
+| **`shareProcessNamespace: true` crashes s6-overlay** — "can only run as pid 1" on shell container | Agent-shell-base's s6-overlay v3 init expects pid 1 of its own PID namespace | Removed `shareProcessNamespace` from manifest | — |
+| **Probe flapping on SSR endpoint** — `/` SSR-renders model list, any LiteLLM flake flips probes | Liveness probe was also a full dependency check | Changed probe to `/api/v2/feature-flags` | — |
+| **npm install fails with {{< abbr "EACCES" >}}** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | — |
 
 ## Recovery Path
 

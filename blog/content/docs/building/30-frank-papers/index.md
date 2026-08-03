@@ -106,13 +106,13 @@ The dossier is a structured Markdown file whose five `##` sections the validator
 ## The Scaffold Script
 
 ```console
-$ blog/scripts/scaffold-paper.sh --config .blog-craft.yaml 04 gpu-operators
-Scaffolded paper 04:
-  bundle:  content/docs/papers/04-gpu-operators/
-  dossier: docs/papers-dossiers/04-gpu-operators/dossier.md
+$ blog/scripts/scaffold-paper.sh --config .blog-craft.yaml 12 gpu-operators
+Scaffolded paper 12:
+  bundle:  content/docs/papers/12-gpu-operators/
+  dossier: docs/papers-dossiers/12-gpu-operators/dossier.md
 ```
 
-`--config` is mandatory, not optional decoration: the script reads `weight_offset`, `dossier_dir` and the papers series key out of `.blog-craft.yaml` rather than hardcoding them. That is also where the `weight = paper_number + 1` offset comes from — Paper 04 scaffolds with `weight: 5`, because Hugo sorts `weight: 0` last and a Paper 00 would otherwise land at the bottom of the sidebar.
+`--config` is mandatory, not optional decoration: the script reads `weight_offset`, `dossier_dir` and the papers series key out of `.blog-craft.yaml` rather than hardcoding them. That is also where the `weight = paper_number + 1` offset comes from — Paper 12 scaffolds with `weight: 13`, because Hugo sorts `weight: 0` last and a Paper 00 would otherwise land at the bottom of the sidebar. Pick a number nothing has claimed. The script refuses to overwrite an existing `NN-slug` directory, but it compares the whole directory name — a second paper numbered `04` under a different slug sails through and lands a duplicate `weight: 5` in the sidebar.
 
 One sharp edge: the script resolves its output root from the directory holding the config, but only the dossier path goes through `dossier_dir`. The bundle is written to `<root>/content/docs/papers/`, and Frank keeps `.blog-craft.yaml` at the repo root with the Hugo site one level down in `blog/` — so the bundle lands beside the site rather than inside it, and has to be moved into `blog/content/docs/papers/`. The printed `bundle:` line is honest about where it went; it just is not where a Frank paper lives.
 
@@ -220,7 +220,7 @@ Paper 00 (prologue) landed three commits depending on phase-0 surface that had n
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
 | **Paper 00 landed before Phase 0** — pre-commit hook tried to run validator that did not exist | Two branches open simultaneously; merge order followed writing energy, not dependency arrow | Reverted Paper 00 phases 1-3; re-landed after Phase 0 completed | `3cd2f78` |
-| **Banner image Frank blended with background** — green shirt on green background, silhouette unreadable | Prompt did not specify shirt color; Gemini defaulted to green | Explicit "white dress shirt" in prompt text | `a6a83cb` |
+| **Banner image Frank's shirt matched his skin** — the model left the shirt green, the same hue as Frank's green skin, so the thin black necktie read as floating in front of his torso | Prompt did not pin the shirt colour; Gemini defaulted to green, and green-on-green erases the garment rather than the figure | Pinned it in the prompt: "WHITE BUTTON-DOWN DRESS SHIRT (clearly white, not green; the shirt fabric must contrast visibly with his green skin)", then regenerated | `a6a83cb` |
 | **Dossier link rendered twice** — both inline shortcode and automatic footer injection fired | `single.html` auto-injects dossier chip; shortcode in body adds a second | Documented gotcha: use either the shortcode or the auto-injection, not both | — |
 | **Spec referenced old file paths** — `.claude/rules/` and `.claude/skills/` moved to `agents/` | Blog refactored between spec (April) and Phase 0 (May) | Translated paths during implementation | — |
 | **The pre-commit hook outlived its validators** — the blog-craft cutover moved the papers validators to `blog/scripts/` with underscored names, leaving `.githooks/pre-commit` calling `scripts/validate-dossier.py`, `scripts/validate-papers.py` and `scripts/sync-dossier-to-data.py`, none of which exist | The gate had already moved to CI, so nothing failed and nothing noticed. A gate you believe in but that cannot run is worse than no gate — it buys the confidence without doing the work | Not fixed here, recorded: CI is the enforcement of record | `bd0415e6` |

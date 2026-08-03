@@ -141,11 +141,11 @@ What replaced them: one new image (hermes-agent-shell-hindsight) that owns a thi
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Root-owned data directory stalls startup** — privilege-drop shim hangs on `chmod` | Restored data was root-owned; official image's CLI runs as non-root | `chown -R hermes:hermes /opt/data` | `a1b2c3d4` |
-| **Hindsight sidecar CrashLoops — micromamba cache under missing $HOME** | Inherited interactive-shell init scripts assume mounted `$HOME` | Stripped init scripts to 3 essentials; redirected cache to writable path | `e5f6g7h8` |
-| **Embedding model cannot load — "cannot resolve revision 'main'"** | `snapshot_download` does not write `refs/main` pointer | Load by `local_dir` path instead of revision name | `i9j0k1l2` |
-| **Postgres refuses to start on restart — PGDATA has group/world access** | `fsGroup: 1000` re-loosens PGDATA on every remount | `chmod 700 "$PGDATA"` every boot before Postgres start | `m3n4o5p6` |
-| **Pod flapping despite healthy app — httpGet probe hits pod IP, app binds loopback** | Probe path and listen address are different interfaces | Changed to `exec` probes curling `127.0.0.1` from inside container | `q7r8s9t0` |
+| **Root-owned data directory stalls startup** — privilege-drop shim hangs on `chmod` | Restored data was root-owned; official image's CLI runs as non-root | `chown -R hermes:hermes /opt/data` | — |
+| **Hindsight sidecar CrashLoops — micromamba cache under missing $HOME** | Inherited interactive-shell init scripts assume mounted `$HOME` | Stripped init scripts to 3 essentials; redirected cache to writable path | — |
+| **Embedding model cannot load — "cannot resolve revision 'main'"** | `snapshot_download` does not write `refs/main` pointer | Load by `local_dir` path instead of revision name | — |
+| **Postgres refuses to start on restart — PGDATA has group/world access** | `fsGroup: 1000` re-loosens PGDATA on every remount | `chmod 700 "$PGDATA"` every boot before Postgres start | — |
+| **Pod flapping despite healthy app — httpGet probe hits pod IP, app binds loopback** | Probe path and listen address are different interfaces | Changed to `exec` probes curling `127.0.0.1` from inside container | — |
 
 ## Recovery Path
 
