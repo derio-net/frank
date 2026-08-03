@@ -1366,6 +1366,69 @@ def test_the_two_copies_of_the_manual_operation_agree():
     )
 
 
+MANUAL_OPS_RUNBOOK = REPO / "docs" / "runbooks" / "manual-operations.yaml"
+
+
+def test_the_manual_operation_reached_the_central_runbook():
+    """The two copies agreeing with each other is not the point — the SYNC is.
+
+    The entire justification for duplicating this block into the plan phase file
+    and guarding the duplication with a byte-equality test is "so /sync-runbook
+    picks it up". On the first pass it was duplicated, guarded — and never
+    synced: `obs-etcd-metrics-listener-apply` was absent from
+    `docs/runbooks/manual-operations.yaml`, the single registry an operator
+    actually consults, while two copies of it sat in this branch agreeing
+    perfectly with each other.
+
+    That is the same shape as the empty `Endpoints` object this whole layer
+    exists to name: every artefact present and internally consistent, and the
+    one thing that had to happen never happened, with nothing reporting it.
+
+    Asserted on the FIELDS, not merely on the id. `/sync-runbook` refreshes
+    every field except `status` (human-set), so a runbook entry whose `when:` or
+    `verify:` disagrees with the plan means the block was edited and never
+    re-synced — and the operator is then reading a stale procedure from the
+    place they were told was authoritative. If this fails, run `/sync-runbook`.
+    """
+    assert MANUAL_OPS_RUNBOOK.exists(), (
+        f"{MANUAL_OPS_RUNBOOK.relative_to(REPO)} is missing — it is the central "
+        "registry every manual operation on Frank is supposed to reach"
+    )
+    runbook = yaml.safe_load(MANUAL_OPS_RUNBOOK.read_text(encoding="utf-8"))
+    operations = runbook.get("operations") or []
+    matches = [op for op in operations if op.get("id") == MANUAL_OP_ID]
+
+    assert matches, (
+        f"{MANUAL_OP_ID!r} is not in "
+        f"{MANUAL_OPS_RUNBOOK.relative_to(REPO)}. The block exists in "
+        f"{PATCH_README.relative_to(REPO)} and in "
+        f"{_plan_phase_5().relative_to(REPO)}, and those two agree — but the "
+        "sync that is the whole reason for the duplication never ran. Run "
+        "`/sync-runbook`. Two copies that agree with each other and not with "
+        "the registry they feed is the empty-Endpoints failure in documentation "
+        f"form. Runbook currently holds {len(operations)} operations."
+    )
+    assert len(matches) == 1, (
+        f"{MANUAL_OP_ID!r} appears {len(matches)} times in the runbook; `id` is "
+        "the merge key, so a duplicate means one of them is unreachable"
+    )
+
+    entry = matches[0]
+    plan_entry = yaml.safe_load(_plan_manual_op_block())
+    drifted = {
+        field: {"runbook": entry.get(field), "plan": value}
+        for field, value in plan_entry.items()
+        # `status` is deliberately human-owned: /sync-runbook never overwrites
+        # it, so the plan can say `pending` while the runbook records `done`.
+        if field != "status" and entry.get(field) != value
+    }
+    assert not drifted, (
+        f"{MANUAL_OPS_RUNBOOK.relative_to(REPO)} is out of date with the plan "
+        f"block for {MANUAL_OP_ID!r} — run `/sync-runbook`. The registry is "
+        "what an operator reads when they are not reading the plan, so a stale "
+        f"entry there is a stale procedure at the moment it matters: {drifted}"
+    )
+
 # ---------------------------------------------------------------------------
 # The ordering claim is load-bearing, was WRONG, and must not silently revert.
 #
