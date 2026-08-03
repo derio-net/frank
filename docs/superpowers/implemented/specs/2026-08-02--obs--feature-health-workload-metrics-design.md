@@ -1,6 +1,6 @@
 # Feature-health alerts on workload availability, not per-pod readiness
 
-**Status:** Draft
+**Status:** Deployed
 **Layer:** obs
 **Date:** 2026-08-02
 **Supersedes nothing.** Follow-up to PR #752, which fixed the *triage* of this

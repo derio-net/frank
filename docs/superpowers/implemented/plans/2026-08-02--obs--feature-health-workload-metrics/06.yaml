@@ -60,14 +60,20 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:48:08+00:00'
       note: null
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:48:10+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-08-03T07:48:29+00:00'
+    note: 'Verified live 2026-08-03 after PR #756 merged as b8558529. ArgoCD lagged
+      ~2min (asserted on the live ConfigMap, not the sync status); Grafana rolled
+      to load the provisioning file. 39 feature-health rules live, ZERO on kube_pod_status_ready,
+      both new rules present with health_bridge_only intact. Firing set 25 -> 3 (2
+      TLS canaries + 1 gpu_timeshare) — exactly the predicted baseline. scale-to-0
+      returns 0 series, and 2 (comfyui, litellm) with exclusions stripped, so it is
+      quiet for the right reason.'
     observed_prs: []
