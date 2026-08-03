@@ -1,0 +1,70 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Documentation — correct the phase05 drift, add the iGPU/DRA gotchas
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - gpu-igpu-claim-documented
+tasks:
+- number: 1
+  title: Pin the documentation contract with a failing test
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Create `scripts/tests/test_igpu_dra_docs.py`. Assert
+      `patches/phase05-mini-config/README.md` contains neither
+      `apps/intel-gpu-plugin` (the path does not exist; it is
+      `apps/intel-gpu-driver`) nor device-plugin/extended-resource language such
+      as `gpu.intel.com/i915` presented as schedulable, and that it DOES mention
+      `ResourceClaim`. Assert every file in `docs/runbooks/frank-gotchas/` has a
+      row in that directory's `README.md` index. Run the focused test; red on the
+      README assertions.
+- number: 2
+  title: Fix the docs
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Correct `patches/phase05-mini-config/README.md` step 4 to describe the DRA
+      resource driver at `apps/intel-gpu-driver/`, and add a short worked
+      `ResourceClaim` example — the correction alone still leaves a reader
+      without the replacement idiom, which is how the drift survived (its own
+      Verify section was already DRA-correct).
+  - id: P4.T2.S2
+    text: |
+      Add `docs/runbooks/frank-gotchas/igpu-dra.md` with full prose for: the
+      `capacity.memory: "0"` trap; the world-readable render node (no
+      supplementalGroups needed) and the claim-vs-no-claim negative control
+      proving CDI does not auto-inject; `ovms --pull` downloading unservable raw
+      weights; `missing optimum-intel` and the absence of any published image
+      carrying it; the `OpenVINO/` org holding only English bge variants; and
+      `/v2/health/ready` returning 200 on a failed servable. Add its row to the
+      directory README index and one-liners to the matching section of
+      `agents/rules/frank-gotchas.md`.
+  - id: P4.T2.S3
+    text: |
+      Run `uv run --frozen pytest scripts/tests/ -q`; expect the full suite green.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T14:25:15+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T14:25:17+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-08-02T14:25:18+00:00'
+      note: null
+    P4.T2.S3:
+      state: x
+      ticked_at: '2026-08-02T14:25:20+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T14:30:01+00:00'
+    note: null
+    observed_prs: []

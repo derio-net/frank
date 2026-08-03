@@ -18,8 +18,14 @@ the cluster** (no pod deletes, no acks, no restarts). A genuinely-unexplained
 alert is handed off to `superpowers:systematic-debugging` / `fr-debugging`.
 
 The classification logic lives in `classify.py` (pure, unit-tested in
-`test_classify.py`) alongside this file. The alert-agent (`apps/alert-agent`)
-documents the same tree in its own SKILL.md — keep the two in sync.
+`test_classify.py`) alongside this file — that module is the single source of
+truth for the tree, and Step 4 below is a rendering of it.
+
+(This file previously claimed the alert-agent at `apps/alert-agent` mirrors the
+same tree and must be kept in sync. It does not: its SKILL.md is a 60-line
+operating brief with no decision tree, and it states outright that it has **no
+kubernetes credential** — so it cannot resolve a pod phase and could never run
+this tree. Corrected 2026-08-02.)
 
 ## Step 0 — cluster context
 
@@ -46,17 +52,33 @@ endpoint reports `Normal` / `Alerting` / `Normal (NoData)`, not `firing`).
 ## Step 2 — resolve pod state for readiness alerts
 
 An alert whose `__name__` is `kube_pod_status_ready` fires on a pod being
-NotReady — but a **terminal or absent** pod (a graceful-shutdown `Succeeded`
-tombstone left by a node reboot) holds a *stale* series and reads NotReady
-forever. So for each such alert, resolve the live pod phase — and critically,
+NotReady — but a **terminal or absent** pod holds a *stale* series and reads
+NotReady forever. Kubernetes has **two** terminal phases, `Succeeded` **and
+`Failed`**; a pod in either can never become Ready again. So for each such
+alert, resolve the live pod phase *and* its `status.reason` — and critically,
 **distinguish a genuinely-absent pod from a kubectl that merely failed**:
 
 ```bash
-kubectl -n <namespace-label> get pod <pod-label> -o jsonpath='{.status.phase}'
-# rc 0            → the phase (Running / Succeeded / …)
+kubectl -n <namespace-label> get pod <pod-label> \
+  -o jsonpath='{.status.phase}/{.status.reason}'
+# rc 0            → phase (Running / Succeeded / Failed / …) + reason
 # rc≠0 "NotFound" → the pod is genuinely gone (absent)
 # rc≠0 otherwise  → kubectl failed to connect — do NOT treat this as "absent"
 ```
+
+**Do not read the phase off `kubectl get pods` column output.** That column is a
+*display* string, not `status.phase`: a node-shutdown tombstone renders as
+`0/1 ContainerStatusUnknown` while its actual phase is `Failed`. Triage that
+greps the column sees a vocabulary the classifier has never heard of.
+
+`status.reason` does not change the verdict — a terminal pod is stale either way
+— but it changes the **recommended action**. `NodeShutdown` (the kubelet rejected
+the pod because the node was already draining) and `Terminated` (killed mid-run
+by the same shutdown) are node-lifecycle artifacts that carry no diagnostic
+value, so deleting them is safe. Any other `Failed` reason — `DeadlineExceeded`
+on a timed-out CI job, an application crash — means the pod object **is** the
+failure evidence; the alert is still a false positive, but do not tell the
+operator to delete it.
 
 **`pod_state` semantics are load-bearing:** `None` passed to `classify()` MUST
 mean **resolved-absent** (→ tombstone → `false-positive`), NEVER "resolution
@@ -88,19 +110,21 @@ for a in alerts:
     if a.get("state") != "Alerting":
         continue
     lbl = a["labels"]
-    pod_state = None
+    pod_state = pod_reason = None
     if lbl.get("__name__") == "kube_pod_status_ready" and lbl.get("pod"):
         out = subprocess.run(
             ["kubectl", "-n", lbl.get("namespace", ""), "get", "pod", lbl["pod"],
-             "-o", "jsonpath={.status.phase}"],
+             "-o", "jsonpath={.status.phase}/{.status.reason}"],
             capture_output=True, text=True)
         if out.returncode == 0:
-            pod_state = out.stdout.strip() or None      # resolved phase
+            phase, _, reason = out.stdout.strip().partition("/")
+            pod_state = phase or None                   # resolved phase
+            pod_reason = reason or None                 # drives the ACTION, not the verdict
         elif "NotFound" in out.stderr:
             pod_state = None                            # genuinely absent → tombstone
         else:
             pod_state = "unresolved"                    # kubectl failed → NOT terminal → escalate
-    v = classify(lbl, pod_state)
+    v = classify(lbl, pod_state, pod_reason)
     rows.append((lbl.get("alertname", "?"), lbl.get("severity", "?"), v))
 
 w = max((len(r[0]) for r in rows), default=5)
@@ -116,7 +140,8 @@ PY
 |---|---|---|
 | `canary: true` | `muted` | Deliberately-firing canary (e.g. expired-cert canary #251) — never paged |
 | `gpu_timeshare: true` | `by-design` | gpu-1 hosts one of Ollama/ComfyUI at a time; one probe is always down. The only real pager is `gpu-node-both-down` |
-| `__name__: kube_pod_status_ready` + pod `Succeeded`/`Completed`/absent | `false-positive` | Stale kube-state-metrics series held by a graceful-shutdown tombstone. Recommend (do NOT run) deleting the terminal pod to clear it |
+| `__name__: kube_pod_status_ready` + pod `Succeeded`/`Completed`/absent, or `Failed` with reason `NodeShutdown`/`Terminated` | `false-positive` | Stale kube-state-metrics series held by a node-shutdown tombstone. Recommend (do NOT run) deleting the terminal pod to clear it |
+| `__name__: kube_pod_status_ready` + pod `Failed` for any other reason | `false-positive` | Still terminal, so still a stale series — but the pod object is the failure evidence. Report the reason; do **not** recommend deleting it |
 | none of the above | `unexplained` | No known-benign pattern — **escalate** to `fr-debugging` |
 
 `github_issue: frank-ops#N` is captured as an orthogonal **tracker** annotation
@@ -143,3 +168,18 @@ signal (a live NotReady pod carries it too).
 - Verify the fix worked by re-fetching after any operator cleanup: a deleted
   tombstone's readiness series ages out of VictoriaMetrics on its ~5-min
   staleness window, so the alert resolves on a short delay, not instantly.
+- **A node reboot mints tombstones in bulk, so this alert class arrives as a
+  flood.** During the 2026-08-02 control-plane roll the scheduler kept placing
+  `cilium-operator` replicas onto each draining node and the kubelet rejected
+  every one: 47 `Failed`/`NodeShutdown` pods from a single ReplicaSet, 48 firing
+  alerts, zero actual degradation. Kubernetes does not garbage-collect them —
+  `--terminated-pod-gc-threshold` defaults to **12500** — so they alert until
+  someone deletes them. The tell that a flood is tombstones rather than an
+  outage: the alerts name many *distinct* pod names from one ReplicaSet (a real
+  outage re-alerts on the same pod), and the owning Deployment reads fully
+  available.
+- Cross-check the workload, not just the pod. `kubectl get deploy` showing
+  `READY 2/2, AVAILABLE 2` alongside dozens of NotReady pod alerts is the
+  signature of stale series. The cluster-wide version of that check —
+  "is any *Running* pod less than fully ready?" — is the fastest way to confirm
+  a flood is entirely artifact.

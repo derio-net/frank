@@ -42,22 +42,64 @@ state:
         embedded-outpost host; corrective fix is tracked in the 2026-08-01 authentik-outpost-canonical-host
         debug journal.'
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T08:40:47+00:00'
+      note: 'Reconstructed 2026-08-02 after worktree loss: PR #744 merged and gc reaped
+        the isolation worktree before these ticks were committed; sole evidence is
+        the 2026-08-01 operator session transcript. Browser OIDC round trips succeeded
+        on canonical hosts for ArgoCD and Grafana. Forward-auth succeeded for Longhorn,
+        Hubble and n8n. Infisical OIDC skipped: Pro-only and never configured. Sympozium
+        forward-auth skipped: deployed design intentionally uses auth none. No redirect
+        to a non-Omni frank host after the embedded-outpost fix in PR #744.'
     P4.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T08:40:51+00:00'
+      note: 'Reconstructed 2026-08-02 after worktree loss: originally ticked 2026-08-01
+        but never committed. Minted correctly scoped old and cluster k8s-agent tokens
+        through their respective hosts. Both carry aud=k8s-agent, preferred_username=ak-Kubernetes
+        Agent Access-client_credentials, empty groups, and host-specific iss. TokenReview
+        authenticated both as authentik:ak-Kubernetes Agent Access-client_credentials
+        with system:authenticated. Omni service-account cluster-admin remained yes.
+        Re-verified live 2026-08-02: provider Kubernetes Agent Access client_id=k8s-agent
+        access_token_validity=hours=8, and all 18 embedded-outpost provider assignments
+        intact.'
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T08:40:54+00:00'
+      note: 'Reconstructed 2026-08-02 after worktree loss: originally ticked 2026-08-01
+        but never committed. T0=2026-08-01T17:56:02Z taken from the final old-issuer
+        mint, later than the PR #743 cutover completion. Hold boundary T0+8h=2026-08-02T01:56:02Z.
+        Legacy discovery, JWKS, DNS and compatibility ingress held healthy across
+        the window; PR 3 not started early.'
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T08:53:15+00:00'
+      note: 'Overlap closed 2026-08-02T08:51:38Z, T0+14h55m. Omni service-account
+        kubeconfig still administers: server https://omni.frank.derio.net:8100/, can-i
+        all-verbs all-resources --all-namespaces = yes. Fresh cluster token authenticates:
+        iss=https://auth.cluster.derio.net/application/o/k8s-agent/, aud=k8s-agent,
+        TokenReview authenticated=true, username=authentik:ak-Kubernetes Agent Access-client_credentials,
+        groups=[system:authenticated]. The retained-old-token assertion was NOT directly
+        tested: that credential was lost with the reaped PR #744 worktree. Operator-agreed
+        substitute, a freshly minted LEGACY token, gave a stronger result: iss=https://auth.frank.derio.net/application/o/k8s-agent/
+        with TokenReview authenticated=true and identical normalized identity, proving
+        authenticator A still trusts newly minted legacy tokens and that only the
+        PR 3 removal closes that door, not the passage of time. Expiry of pre-T0 tokens
+        therefore rests on arithmetic over a MEASURED TTL: access_token_validity=hours=8
+        confirmed in the ORM and independently by both minted tokens carrying exp
+        = mint+8h exactly; every token issued at or before T0=2026-08-01T17:56:02Z
+        expired at or before 2026-08-02T01:56:02Z, roughly 7h before this run. Legacy
+        and cluster discovery endpoints both returned HTTP 200. Caveat: this probe
+        created a legacy token valid until 2026-08-02T16:51:41Z; it is unused and
+        will be invalidated by the PR 3 removal of authenticator A.'
   completion:
-    at: null
-    note: null
+    at: '2026-08-02T08:53:19+00:00'
+    note: 'Phase 4 manual gate closed 2026-08-02. Coordinated cutover verified from
+      live resources, browser OIDC and forward-auth round trips passed on canonical
+      hosts with Infisical and Sympozium honestly skipped, dual-issuer continuity
+      proven with identical normalized identity, and the eight-hour overlap held from
+      T0=2026-08-01T17:56:02Z. Ticks for T1.S2, T1.S3 and T2.S1 were reconstructed
+      from the operator session transcript after the PR #744 worktree was reaped before
+      they were committed. Phase 5 precondition established: authenticator A still
+      validates freshly minted legacy tokens, so PR 3 removal is the hard cutoff.'
     observed_prs: []

@@ -1,0 +1,286 @@
+# OpenVINO Model Server hosting BOTH retrieval models — an embeddings model
+# and a true cross-encoder reranker — on ONE Intel iGPU claimed via DRA.
+# One Deployment, one pod, one ResourceClaim, one device, rather than two of
+# everything.
+#
+# Placement: pinned by hostname to mini-1, the control-plane node with the most
+# headroom (2% CPU / 10% memory of 14 cores / 64 GB, measured 2026-08-02), so
+# the quorum risk of the experiment lands where there is most slack. mini-2 and
+# mini-3 stay untouched and serve as the comparison arms for the
+# control-plane-health check. The pin is deliberate rather than letting the DRA
+# scheduler pick: an inference pod silently hopping between etcd members is not
+# something to discover later.
+#
+# Design spec:
+# docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+# Shape pinned by scripts/tests/test_ovms_retrieval_manifests.py.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ovms-retrieval
+  namespace: retrieval
+  labels:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: server
+spec:
+  # One replica. Three would triple control-plane exposure before a single
+  # number has been measured, and one produces every number this spike needs.
+  # Scaling later is a `replicas` change plus dropping the hostname pin.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ovms-retrieval
+      app.kubernetes.io/component: server
+  strategy:
+    # Forced by the RWO model PVC: a RollingUpdate deadlocks with the new pod
+    # unable to attach the volume the old pod still holds.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ovms-retrieval
+        app.kubernetes.io/component: server
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: mini-1
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 5000
+        runAsGroup: 5000
+        # REQUIRED, and the easiest thing here to get wrong. A Longhorn PVC
+        # mounts root-owned; OVMS (and therefore the seed container) runs as
+        # uid 5000. Without fsGroup the seed cannot write the model repository
+        # and the pod fails at first boot — a failure visible only if you are
+        # watching the initContainer rather than the pod. Same trap already
+        # documented for Tekton PVC workspaces in this repo's gotchas.
+        fsGroup: 5000
+        seccompProfile:
+          type: RuntimeDefault
+      # No supplementalGroups: /dev/dri arrives as crw-rw-rw- root:root
+      # (measured live on mini-1 through a real claim), so the usual
+      # hunt-the-render-GID tax does not apply here.
+      terminationGracePeriodSeconds: 30
+      # The DRA claim. `igpu` is the pod-local name the serving container's
+      # resources.claims refers to; the template itself lives in
+      # resourceclaimtemplate.yaml.
+      resourceClaims:
+        - name: igpu
+          resourceClaimTemplateName: ovms-igpu
+      initContainers:
+        # Seeds the model repository onto the PVC from the CI-built model
+        # image. The runtime image stays stock upstream — this is the only
+        # place Frank-built bytes enter the pod.
+        - name: seed-models
+          image: ghcr.io/derio-net/ovms-retrieval-models:1
+          # IfNotPresent is safe because the tag is the immutable model rev:
+          # new contents get a new rev (and therefore a genuine pull), while a
+          # restart reuses the node cache instead of re-pulling GBs of weights.
+          imagePullPolicy: IfNotPresent
+          env:
+            # MUST equal this image's own tag. The marker written below records
+            # it, and the skip test compares against it — so a mismatch would
+            # mean the marker claims a rev the bytes on the volume are not.
+            # Guarded by test_model_image_tag_matches_the_rev_ci_publishes.
+            - name: MODELS_REV
+              value: "1"
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            # VERSION-GATED, not seed-if-absent. Frank already documents the
+            # seed-if-absent bug for the comfyui custom-nodes PVC: an image
+            # update never reaches an already-populated volume, the pod stays
+            # Ready, and stale content is served indefinitely with ArgoCD
+            # green throughout. A bare `[ -d /models/... ] || cp` here would
+            # mean the first model bump silently does not deploy.
+            #
+            # The marker is written LAST, so an interrupted seed leaves no
+            # marker and re-runs on the next start rather than declaring a
+            # half-copied repository current.
+            - |
+              marker="/models/.seed-rev"
+
+              if [ -f "$marker" ] && [ "$(cat "$marker")" = "$MODELS_REV" ]; then
+                echo "seed-models: /models already at rev $MODELS_REV — skipping"
+                exit 0
+              fi
+
+              if [ -f "$marker" ]; then
+                echo "seed-models: /models at rev $(cat "$marker"), want $MODELS_REV — reseeding"
+              else
+                echo "seed-models: /models unseeded — seeding rev $MODELS_REV"
+              fi
+
+              # Clear first: a plain overlay copy would leave behind servables
+              # that a later rev removed, and OVMS would keep loading them.
+              # lost+found is ext4's, not ours.
+              for p in /models/* /models/.[!.]*; do
+                [ -e "$p" ] || continue
+                case "$p" in */lost+found) continue ;; esac
+                rm -rf "$p"
+              done
+
+              # /models-src/gpu, not /models-src: the image also carries a CPU
+              # control arm (byte-identical int8 weights, different
+              # graph.pbtxt target_device) used by the benchmark's comparison
+              # run. Seeding the wrong one would silently serve on the CPU.
+              #
+              # -R, not -a: `-a` implies `-p`, which tries to preserve the
+              # source's root ownership. This container runs as uid 5000, so
+              # that chown is refused, busybox reports the failure, and `set
+              # -e` would abort a seed that had in fact copied every byte. The
+              # repository is plain files and directories, nothing here needs
+              # -p, and ownership comes from fsGroup anyway.
+              # Copy FILE BY FILE with a sync after each, rather than one
+              # `cp -R` of the whole tree.
+              #
+              # The tree-at-once form OOMKilled this initContainer in ONE
+              # SECOND on first deploy (exit 137, four restarts). It is not
+              # volume of data over time — it is dirty-page pressure: reads
+              # come off the local overlayfs at NVMe speed while writes go to a
+              # Longhorn network volume, so dirty pages accumulate far faster
+              # than writeback drains them. In cgroup v2 page cache is charged
+              # to the cgroup, and while CLEAN pages are reclaimed under
+              # pressure, DIRTY pages cannot be until written back — so the
+              # cgroup hits its limit and the kernel kills the process.
+              #
+              # Syncing per file bounds the dirty set to the largest single
+              # file (~600 MiB here) instead of the whole ~2.4 GiB repository.
+              # The limit below is headroom over that bound, not the total —
+              # which is what keeps this working if a servable is added later.
+              #
+              # Bare `sync`, not `sync FILE`: GNU coreutils accepts a file
+              # operand, busybox's applet does not, and this image is busybox —
+              # `sync /models/x` would fail there and abort a seed that had
+              # copied every byte, the same shape as the `cp -a` trap above.
+              cd /models-src/gpu
+              find . -type d | while IFS= read -r d; do
+                mkdir -p "/models/$d"
+              done
+              find . -type f | while IFS= read -r f; do
+                cp "$f" "/models/$f"
+                sync
+              done
+              cd /
+
+              test -f /models/config.json  # the merged servable list OVMS reads
+
+              printf '%s' "$MODELS_REV" > "$marker"
+              echo "seed-models: rev $MODELS_REV in place"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            # 2Gi, not 512Mi: 512Mi OOMKilled this container in one second on
+            # the first real deploy. The bound that matters is the largest
+            # SINGLE file (~600 MiB, given the per-file sync above), not the
+            # ~2.4 GiB repository total — roughly 3x headroom over that, and it
+            # does not need to grow when a servable is added.
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: models
+              mountPath: /models
+      containers:
+        - name: ovms
+          # STOCK upstream. Verified live on mini-1 to enumerate the iGPU
+          # through the DRA-injected device:
+          #   "Available devices for Open VINO: CPU, GPU"
+          # Keeping the runtime unforked means an OVMS upgrade is a tag bump
+          # rather than a rebuild of a maintained server image.
+          image: openvino/model_server:2026.2.1-gpu
+          imagePullPolicy: IfNotPresent
+          args:
+            # Relative base_paths inside config.json resolve against its own
+            # directory, which is why the whole repository is seeded together.
+            - --config_path
+            - /models/config.json
+            - --port
+            - "9000"
+            - --rest_port
+            - "8000"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            # Both halves are set on purpose: a limit without a request lets
+            # the scheduler over-commit an etcd member. 2 of 14 cores and 6 of
+            # 64 GB. The memory limit is the real backstop rather than a
+            # formality — iGPU allocations come out of host RAM via i915, so
+            # there is no separate VRAM ceiling to hit first.
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 6Gi
+            # The iGPU, claimed through DRA. Only this container gets it — the
+            # seed container copies files and would hold the device through
+            # the whole init phase for nothing.
+            claims:
+              - name: igpu
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true
+          # PROBES — the single most dangerous thing to copy from a tutorial.
+          #
+          # Measured during the design gate: OVMS answers GET /v2/health/ready
+          # with 200 while its only servable sits in
+          # LOADING_PRECONDITION_FAILED. That endpoint is SERVER-level. A
+          # readiness probe pointed there yields the worst available outcome —
+          # a Ready pod, a green Application, and every request failing.
+          #
+          # So readiness is model-level. The startup probe gates the
+          # embeddings servable and the readiness probe the reranker: kubelet
+          # runs neither readiness nor liveness until startup succeeds, so
+          # between them BOTH models must be loaded before the pod takes
+          # traffic, using only httpGet.
+          #
+          # When a pod is Running but requests fail, GET /v1/config is the
+          # diagnostic — it reports per-servable state.
+          startupProbe:
+            httpGet:
+              path: /v2/models/bge-m3/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            # First boot compiles the OpenVINO IR for the iGPU, which is
+            # minutes rather than seconds; 60 x 10s is deliberately generous
+            # so a slow cold start is not read as a crash.
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /v2/models/bge-reranker-v2-m3/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            # Server-level is CORRECT here: liveness should restart a wedged
+            # process, not a healthy server whose model failed to load (that
+            # would crash-loop instead of staying up and reporting it).
+            httpGet:
+              path: /v2/health/live
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ovms-retrieval-models

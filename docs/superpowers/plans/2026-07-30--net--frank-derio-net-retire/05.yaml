@@ -31,22 +31,57 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:48:18+00:00'
+      note: 'Focused guard rewritten to the final-state contract: exactly one JWT
+        issuer (cluster), exact-set equality on OIDC callbacks, no legacy Paperclip
+        allowed hostname, a structural IngressRoute/TLS-domain check, and a raw-text
+        repo sweep over apps/patches/clusters/references/secrets that allows only
+        omni.frank.derio.net. The bare Headscale frank.derio.net suffix is excluded
+        by the regex requiring a leading label, and both survivors are asserted POSITIVELY
+        so a blanket sweep cannot eat them. Red retained: 6 failed, 3 passed; the
+        sweep enumerates all 9 offending files.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:48:22+00:00'
+      note: 'Added test_legacy_proxy_entries_are_url_free_absent_tombstones: all four
+        legacy providers (Longhorn UI, Hubble UI, Sympozium, n8n-01) and all four
+        applications (longhorn, hubble, sympozium, n8n-01) must remain in blueprints-proxy-providers.yaml
+        as state: absent with no external_host and no meta_launch_url, so deleting
+        the ConfigMap can never strand live Authentik objects. Also asserts ordering:
+        application tombstones must precede provider tombstones, because applications
+        hold a FK to their provider and must be removed first.'
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:57:26+00:00'
+      note: 'Removed all 30 non-Omni frank.derio.net references across 9 files. Both
+        AuthenticationConfigurations (standalone patches/phase13-auth/authn-config.yaml
+        and the copy embedded in omni-configpatch.yaml) reduced to the single cluster
+        issuer; the guard asserts the two stay equal so reducing one without the other
+        fails. Legacy OIDC callbacks dropped from ArgoCD, Grafana and Infisical. Legacy
+        Paperclip allowed hostname dropped. All nine outage-era compatibility IngressRoutes
+        and their certificate requests deleted, together with the two incident comment
+        banners. The four legacy forward-auth providers and their four applications
+        replaced by URL-free state: absent tombstones, applications ordered FIRST
+        because each holds a foreign key to its provider. Preserved: three functional
+        omni.frank.derio.net references and the Headscale bare-suffix split-DNS entry.'
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T13:57:30+00:00'
+      note: 'Focused guard 9 passed. Full tripwire suite 372 passed, 1 xfailed (was
+        369+1 before; +3 net new guards). kubectl apply --dry-run=client clean for
+        both apps/traefik/manifests and apps/authentik-extras/manifests, run from
+        the HOST because the dev devcontainer profile ships no kubectl. git diff --check
+        clean. IMPORTANT: the prescribed rg sweep is VACUOUS in this environment -
+        rg is not installed in the dev profile, so it exited silently and printed
+        nothing, which reads exactly like a pass. Re-run with grep it returns exactly
+        3 omni.frank.derio.net hits and nothing else, matching the plan expectation,
+        and the Headscale suffix survives at configmap.yaml line 51.'
   completion:
-    at: null
-    note: null
+    at: '2026-08-02T13:57:34+00:00'
+    note: 'Phase 5 complete. Repository-side retirement done and CI-guarded; both
+      acceptance rows moved not-implemented to skipped as PARTIAL, with the DNS and
+      live-probe halves explicitly owed by Phase 6. Note for Phase 6: the dev devcontainer
+      profile has no rg and no kubectl, so the plan''s literal verification commands
+      cannot all run inside isolation.'
     observed_prs: []

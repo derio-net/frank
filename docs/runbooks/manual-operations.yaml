@@ -633,6 +633,35 @@ operations:
   - 'cat /proc/sys/net/ipv4/ip_forward  # Should return 1'
   - 'tailscale status  # Should show connected with tag:subnet-router'
   status: decommissioned
+- id: edge-headscale-litellm-mesh-dns-restart
+  layer: edge
+  app: headscale
+  plan: docs/superpowers/plans/2026-08-02--edge--litellm-mesh-dns
+  when: After the PR merges and ArgoCD syncs the headscale Application.
+  why_manual: headscale-config is a plain (unhashed) ConfigMap that cannot be converted to a Kustomize configMapGenerator,
+    because headplane is a separate ArgoCD Application mounting the same ConfigMap by name with config_strict. Hashing would
+    rename it and crashloop headplane, so nothing in the pod spec changes on a content change and ArgoCD reports Synced while
+    headscale keeps serving the DNS map it parsed at boot.
+  commands:
+  - source .env_hop
+  - '# Gate on live ConfigMap CONTENT, not ArgoCD sync status: restarting before the sync lands re-reads the OLD map and looks
+    identical to a failed restart.'
+  - kubectl -n headscale-system get cm headscale-config -o jsonpath='{.data.config\.yaml}' | grep -E 'litellm-(lb|api)\.cluster\.derio\.net'
+  - kubectl -n headscale-system rollout restart deploy/headscale
+  - kubectl -n headscale-system rollout status deploy/headscale --timeout=180s
+  verify:
+  - '# Homelab DNS serves a WILDCARD *.cluster.derio.net -> 192.168.55.220, so "litellm-api resolves to .220" proves NOTHING
+    on the LAN. Only litellm-lb discriminates (.206 differs from the wildcard). One ConfigMap, one restart, so proving one
+    record proves both. macOS has no getent; on Linux mesh nodes use `getent hosts <name>`.'
+  - sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
+  - dscacheutil -q host -a name gitea-ssh.cluster.derio.net
+  - dscacheutil -q host -a name nope-xyz.cluster.derio.net
+  - dscacheutil -q host -a name litellm-lb.cluster.derio.net
+  - curl -sS -o /dev/null -w '%{http_code}\n' https://litellm-api.cluster.derio.net/v1/models
+  - '# LOAD-BEARING: an authenticated call. Everything above is satisfied by a LiteLLM that rejects every key in existence.'
+  - 'curl -sS -H "Authorization: Bearer $KID_LAPTOPS_KEY" https://litellm-api.cluster.derio.net/v1/models | head -c 300   #
+    expect 200 + model list'
+  status: done
 - id: edge-hop-argocd-bootstrap
   layer: edge
   app: argocd (hop)

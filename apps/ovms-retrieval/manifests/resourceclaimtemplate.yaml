@@ -1,0 +1,44 @@
+# Frank's FIRST Dynamic Resource Allocation consumer.
+#
+# `resource.k8s.io/v1` is GA on this cluster (Kubernetes v1.35.3); the alpha
+# and beta group names that most tutorials still show would apply against
+# nothing here. The DeviceClass `gpu.intel.com` is published by the
+# intel-gpu-resource-driver (apps/intel-gpu-driver/), and all three minis
+# advertise a healthy ResourceSlice for it.
+#
+# NO CAPACITY SELECTOR — this is the non-obvious part. The ResourceSlice
+# advertises `capacity.memory: "0"`: the iGPU has no dedicated VRAM, it borrows
+# the node's 64 GB through i915. A request for GPU memory therefore can never
+# be satisfied, and the failure is silent — the pod just sits Pending with no
+# event naming the cause. The claim selects the device and nothing else; the
+# real memory backstop is the container's `limits.memory`, since iGPU
+# allocations come out of host RAM.
+#
+# A ResourceClaimTemplate rather than a shared ResourceClaim so the allocation
+# is owned by the pod's lifecycle and cannot dangle after a delete. With
+# `strategy: Recreate` (forced anyway by the RWO model PVC) only one pod ever
+# holds it.
+#
+# Verified live before this was written: a claim of exactly this shape got
+# /dev/dri/{card0,renderD128} injected on mini-1 as crw-rw-rw- root:root — so
+# no render-GID `supplementalGroups` work is needed. The negative control
+# matters too: the identical pod WITHOUT a claim had no /dev/dri at all, which
+# rules out Frank's cluster-wide containerd CDI discovery (patches/phase05-*)
+# having injected the device for free.
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: ovms-igpu
+  namespace: retrieval
+  labels:
+    app.kubernetes.io/name: ovms-retrieval
+    app.kubernetes.io/component: igpu
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: gpu.intel.com
+            allocationMode: ExactCount
+            count: 1

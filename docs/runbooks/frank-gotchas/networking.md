@@ -281,3 +281,76 @@ behind a friendly 200. The blackbox probe therefore checks
 `https://www.derio.net` for reachability, and the real signal that the site is
 serving *content* rather than the fallback is the deploy verification step
 (`curl -s https://www.derio.net | grep counter.derio.net`).
+
+## MagicDNS verification is vacuous under the homelab wildcard
+
+**Date:** 2026-08-02 · **Layer:** edge · Spec:
+`docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md`
+
+Homelab DNS (192.168.10.11/12) serves a **wildcard** `*.cluster.derio.net →
+192.168.55.220` (Traefik's LB). Measured:
+
+```
+dig +short @192.168.10.11 nope-xyz.cluster.derio.net              -> 192.168.55.220
+dig +short @192.168.10.11 definitely-not-a-service.cluster...     -> 192.168.55.220
+```
+
+The zone is **not public** — Cloudflare DoH returns `Status: 3` (NXDOMAIN) for
+every `*.cluster.derio.net` name — so the wildcard only applies on the LAN or
+through a subnet router.
+
+### Why this breaks verification
+
+A Headscale `extra_records` entry that points at Traefik (`192.168.55.220`) is
+**indistinguishable from the wildcard**. So a verification step like
+
+```
+dscacheutil -q host -a name litellm-api.cluster.derio.net   # expect 192.168.55.220
+```
+
+passes identically whether the record exists, was never added, or the headscale
+restart silently failed. It is not a weak check; it is a check that cannot fail.
+This shipped into a plan's manual phase and was caught only in review — the
+operator would have run it immediately before travelling and read green.
+
+### The discriminating check
+
+Only a record whose value **differs** from the wildcard proves anything:
+
+| Name | Value | Discriminates? |
+|---|---|---|
+| `gitea-ssh.cluster.derio.net` | `192.168.55.209` | yes |
+| `litellm-lb.cluster.derio.net` | `192.168.55.206` | yes |
+| `litellm-api.cluster.derio.net` | `192.168.55.220` | **no — same as wildcard** |
+
+Since all `extra_records` live in one ConfigMap and are loaded by one restart,
+proving a discriminating one proves the rest.
+
+### Run three lookups, not one
+
+```bash
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder   # or you replay the pre-change answer
+dscacheutil -q host -a name gitea-ssh.cluster.derio.net    # -> .209  POSITIVE control: MagicDNS is answering, and outranks the wildcard
+dscacheutil -q host -a name nope-xyz.cluster.derio.net     # -> .220  NEGATIVE control: this is what the wildcard says
+dscacheutil -q host -a name litellm-lb.cluster.derio.net   # -> .206  PROOF: differs from the wildcard
+```
+
+Reading the three together separates failure modes that a single lookup
+conflates:
+
+- `gitea-ssh` = `.220` → you are **not on the tailnet**, or Tailscale DNS is
+  toggled off. Nothing to do with the change under test.
+- `gitea-ssh` = `.209` but `litellm-lb` = `.220` → the **headscale restart did
+  not take effect**; it is still serving its boot-time map.
+- `litellm-lb` = `.206` → the new map is live.
+
+macOS has no `getent`; use `dscacheutil -q host -a name`. On Linux mesh nodes
+(the laptops, argonath) `getent hosts <name>` is correct.
+
+### Related
+
+Same family as ArgoCD's "`Synced` can mean synced to a STALE revision"
+(`argocd.md`) and the `configMapGenerator` traps in
+`storage-secrets-ssa.md`: in each, a check runs, reports success, and is
+measuring something other than what the reader believes. The general defence is
+a negative control — assert that something which *must* fail actually does.

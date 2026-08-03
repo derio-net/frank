@@ -1,0 +1,105 @@
+name: Build OVMS Retrieval Models
+
+# Builds the OpenVINO IR bundle apps/ovms-retrieval/docker/Dockerfile produces
+# — see that file and
+# docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+# ("The runtime gate") for why the IR has to be built in CI at all: `ovms
+# --pull` cannot convert these two models at runtime.
+#
+# UNLIKE every sibling build-*.yml in this repo (comfyui, openrgb, caddy,
+# ai-alert-helper — all push:main only), this workflow ALSO runs on
+# pull_request. A push-only trigger means a Dockerfile change reaches main
+# completely unbuilt: the PR merges green with nothing having proven the
+# export toolchain still resolves or the four export_model.py invocations
+# still succeed. The pull_request job builds (no `--target_device` needs real
+# GPU hardware — export/quantization runs on CPU regardless; target_device
+# only shapes the emitted graph.pbtxt) without touching the registry; only
+# push:main publishes. Same push-gate shape as deploy-blog.yml's
+# build-container job.
+#
+# The two `paths:` lists MUST stay identical (guarded by
+# test_pull_request_and_push_path_filters_are_identical). An earlier version
+# filtered the PR on this workflow file as well but not the push: a PR that
+# only edited this file — bumping MODELS_REV, changing `tags:` — would build
+# on the PR and then publish NOTHING on merge, leaving the Deployment pinned
+# to a tag that was never pushed. The asymmetry is invisible on the PR page,
+# because the half that runs is the half that works. (Spelled out twice rather
+# than shared via a YAML anchor — GitHub Actions rejects anchors outright.)
+on:
+  pull_request:
+    paths:
+      - "apps/ovms-retrieval/docker/**"
+      - ".github/workflows/build-ovms-retrieval-models.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ovms-retrieval/docker/**"
+      - ".github/workflows/build-ovms-retrieval-models.yml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/ovms-retrieval-models
+  # Bump whenever the Dockerfile's model contents change (model refs, weight
+  # format, exporter pin) so the published tag — and the Deployment pin that
+  # consumes it — moves too. This is ENFORCED, not merely asked for:
+  # test_models_rev_moves_when_the_dockerfile_changes fails a PR that edits
+  # apps/ovms-retrieval/docker/Dockerfile without moving this value. Without
+  # that gate the drift is invisible end to end — CI republishes the same tag
+  # with different bytes, the manifest is byte-identical so ArgoCD sees
+  # nothing, `imagePullPolicy: IfNotPresent` reuses the node-cached image, and
+  # the seed marker (which compares MODELS_REV only) skips re-seeding even if
+  # the new bytes did land.
+  MODELS_REV: "1"
+
+concurrency:
+  group: build-ovms-retrieval-models-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # push-only: a pull_request event also gets a read-only token with no
+      # registry secrets (same reasoning as deploy-blog.yml's build-container).
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+
+      - name: Build (publish only on push to main)
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: apps/ovms-retrieval/docker
+          push: ${{ github.event_name != 'pull_request' }}
+          # ONE tag, the immutable rev. No `:latest` — nothing consumes it (the
+          # Deployment pins the rev, and the manifests suite forbids it from
+          # doing anything else), and on an image whose entire premise is "new
+          # contents get a new rev" a floating tag is an attractive nuisance:
+          # it makes republishing under an unchanged rev look survivable when
+          # it is exactly the drift this design refuses.
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.MODELS_REV }}
+          build-args: |
+            MODELS_REV=${{ env.MODELS_REV }}
+          # NO type=gha cache, deliberately. GitHub's Actions cache is a
+          # REPO-WIDE 10 GB budget with LRU eviction, and this image is
+          # multi-GB of model weights: caching it would evict most of what
+          # build-comfyui.yml and build-openrgb.yml (the repo's only other
+          # type=gha consumers) rely on — a cross-workflow slowdown with no
+          # owner. `mode=min` would not help: the final stage IS the weights,
+          # while the expensive part (pip install + four export_model.py
+          # conversions) lives in a stage mode=min does not export. This
+          # workflow runs only when the Dockerfile changes, which is exactly
+          # when the cache would miss anyway.

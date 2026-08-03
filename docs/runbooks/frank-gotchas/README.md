@@ -15,6 +15,7 @@ Long-form companion to `agents/rules/frank-gotchas.md`. That hot file is auto-lo
 | [obs-digest.md](obs-digest.md) | AI digest: Falco Loki-push field names, traffic/security split window, dry-run audit |
 | [networking.md](networking.md) | Cilium L2 IPAM, FQDN policies, MixedProtocolLBService, mosh |
 | [gpu-1.md](gpu-1.md) | Node-pinning idiom, port-forward CNI flake, Ollama cgroup memory |
+| [igpu-dra.md](igpu-dra.md) | Intel iGPU via DRA: ResourceClaim capacity/permissions, CDI no-auto-inject, OVMS model acquisition + readiness |
 | [agent-shells.md](agent-shells.md) | s6-overlay v3, sshd env, `cont-init.d`, tmux-continuum |
 | [paperclip-ruflo.md](paperclip-ruflo.md) | PVC sizing, app-vs-shell container split, ruvocal RVF/liveness |
 | [omni.md](omni.md) | Cert renewal path (NOT the snap timer) + recovery |

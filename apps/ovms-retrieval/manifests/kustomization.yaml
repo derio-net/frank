@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: retrieval
+
+# Plain resources, no generators. The one piece of configuration this app has
+# beyond the model repository — the seed script — lives INLINE in the pod
+# spec, which already gives it the property a configMapGenerator exists to
+# provide: editing it changes the pod spec, so ArgoCD rolls the pod. Keeping
+# generators out means the Application can stay `prune: false`, and the 20Gi
+# model cache is therefore never one mis-sync away from deletion.
+#
+# Guarded both ways by scripts/tests/test_ovms_retrieval_manifests.py: if a
+# generator is ever added, the test starts requiring `prune: true` plus a
+# per-resource `Prune=false` on the PVC.
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - resourceclaimtemplate.yaml
+  - deployment.yaml
+  - service.yaml
