@@ -71,3 +71,113 @@ The plan prose says it outright: the local design gate is evidence for the
 on Longhorn under a kubelet that re-walks `fsGroup` on every remount. Phase 1
 ships manifests and offline guards; nothing here has observed a running
 container. The row flips in phase 4, on live output from the pod.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-mutation-pgdata created=2026-08-03T17:47:00 phase=2 -->
+### p2-mutation-pgdata · discovery · PGDATA guard: fails on both broken shapes, survives a rename — mutation-checked three ways (phase 2)
+
+Phase 1 shipped a PGDATA test, but it compared against MODULE CONSTANTS
+(`GBRAIN_MOUNT`, `GBRAIN_PGDATA`) and ended on `assert pgdata == GBRAIN_PGDATA`
+— a literal restatement of the YAML. Rewritten in phase 2 to read the mountPath
+back off the manifest (whichever volumeMount is backed by the gbrain PVC) and
+assert the RELATIONSHIP. Then doctored three ways:
+
+- **M1 — `PGDATA: /opt/gbrain`** (the mount root, the failure the design gate
+  actually found): **FAILED as it should.**
+  `AssertionError: PGDATA ('/opt/gbrain') must not BE the mount root …
+  assert '/opt/gbrain' != '/opt/gbrain'`
+- **M1b — `PGDATA: /var/lib/postgresql/data`** (off the volume entirely, so the
+  database would not survive a pod recreate): **FAILED as it should**, on the
+  `startswith(mount_path + "/")` half. Worth doing separately: the two
+  assertions catch different bugs and only one of them was exercised by M1.
+- **M1c — POSITIVE CONTROL: renamed the mountPath AND PGDATA together**
+  (`/opt/gbrain` -> `/opt/store`, PGDATA -> `/opt/store/pgdata`): **stayed
+  GREEN**, which is the claim the rewrite exists to make. Under phase 1's
+  constant-based version this rename would have failed while breaking nothing.
+
+Restored after each; `git diff -- apps/` empty at the end.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-mutation-probes created=2026-08-03T17:47:16 phase=2 -->
+### p2-mutation-probes · discovery · Probe guard: the port assertion only stops restating the YAML once it is derived from the server's own args (phase 2)
+
+The probe guard now derives the port from the container's `-c port=` arg
+(`_configured_port`) instead of matching the literal `"5434"`, and checks the
+ABSENCE of `httpGet`/`tcpSocket` keys rather than only the presence of `exec`
+(both can be declared at once, and the kubelet would honour the wrong one).
+Three mutations:
+
+- **M2 — readinessProbe swapped for `tcpSocket: {port: 5434}`** (the shape that
+  cost the `hindsight` sidecar 37 restarts): **FAILED as it should.**
+  `readinessProbe must not declare tcpSocket — the kubelet dials the POD IP and
+  gbrain binds 127.0.0.1 only`
+- **M2b — livenessProbe port 5434 -> 5433, server arg untouched**: **FAILED as
+  it should.** This is the one phase 1's literal check could not have caught in
+  general: a probe naming a plausible Postgres port reads as correct, and 5433
+  is the Hindsight database next door — the probe would have passed against the
+  WRONG healthy server, reporting gbrain ready while gbrain was not running.
+- **M2c — server arg `port=5434` -> `port=5433`, probes untouched**: **FAILED as
+  it should, in TWO guards at once** —
+  `test_gbrain_binds_loopback_only_on_its_own_port` (collision: both servers
+  share this pod's single netns, so the second to start cannot bind) and
+  `test_gbrain_probes_are_exec_pg_isready_on_loopback` (probe/server
+  disagreement). The derived-port check is symmetric — it catches the drift
+  whichever side moved.
+
+Restored after each; manifest diff empty.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-mutation-hindsight-untouched created=2026-08-03T17:47:36 phase=2 -->
+### p2-mutation-hindsight-untouched · discovery · "Hindsight is untouched" is now three assertions, and all three were doctored into failing (phase 2)
+
+#759's headline justification turned into mechanical checks, each
+mutation-verified:
+
+- **M3 — `pvc-hindsight.yaml` 5Gi -> 10Gi** (reviving the withdrawn expansion,
+  the single riskiest thing in the original issue — an RWO detach-and-expand on
+  a volume holding a live database): **FAILED as it should**
+  (`test_hindsight_pvc_still_requests_its_original_size`, `- 5Gi / + 10Gi`).
+- **M4a — gbrain additionally mounts the `hindsight-data` volume**: **FAILED as
+  it should** on the shared-volume-name assertion.
+- **M4b — gbrain's mountPath nested INSIDE Hindsight's**
+  (`/opt/hindsight/gbrain`, PGDATA moved with it): **FAILED as it should**, at a
+  DIFFERENT assertion line than M4a. This is why the disjointness check is a
+  prefix test and not `!=`: nesting recouples the two stores' lifecycles exactly
+  as sharing does, while leaving every volume name distinct and reading as a
+  mount tidy-up.
+- **M5 — ssh wrapper `exec /usr/sbin/sshd -D -e` instead of the image
+  entrypoint** (the tempting way to land the sibling plan's Bun runtime in a
+  hurry): **FAILED as it should**, in both the new non-regression test and the
+  pre-existing `test_hermes_ssh_byok_env_snapshot.py` that owns the full
+  contract. The overlap is deliberate and bounded — this file asserts only the
+  one line this plan could plausibly break, per the step's instruction not to
+  duplicate that guard.
+
+Restored after each; `git diff -- apps/` empty before commit.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-mutation-config-exemption created=2026-08-03T17:47:55 phase=2 -->
+### p2-mutation-config-exemption · discovery · The config-mount exemption is load-bearing for the initdb CM specifically — checked by deleting it, not by reading it (phase 2)
+
+Task 4 only asked for a reason-string edit plus a green run, but "still green"
+cannot distinguish a live exemption from a dead one, so the entry was doctored
+too.
+
+**M6 — deleted the `apps/hermes-agent-shell/manifests:hermes-agent-shell` EXEMPT
+entry**: `test_no_unreviewed_plain_configmap_mounts` **FAILED as it should**,
+and the failure message enumerated the covered ConfigMaps:
+
+    {'apps/hermes-agent-shell/manifests:hermes-agent-shell':
+      ['hermes-agent-shell-gbrain-initdb', 'hermes-agent-shell-env',
+       'hermes-agent-shell-fetch-text']}
+
+That is the evidence the spec's claim needed. The exemption is app-scoped, so
+the new initdb ConfigMap is genuinely inside it — not tripping the tripwire, and
+not silently outside its remit either. The reason string now says why that is
+CORRECT rather than merely tolerable: initdb.d is read once, when the entrypoint
+has to initialise an empty PGDATA, and skipped entirely on every later start, so
+rolling the pod on a change to it could not deliver that change. One entry, not
+two — the key is app-scoped and a second would be a dead entry by construction
+(`test_exempt_list_has_no_dead_entries` keys on the app, not the ConfigMap).
+
+**Operational trap worth recording:** restoring a mutation with
+`git checkout -- <file>` reverts the WHOLE file, so mutating a test file you
+have also legitimately edited silently discards your own work. It ate the Task 4
+reason edit; caught and re-applied. Mutate manifests where possible, and check
+`git diff` after restoring rather than assuming.
