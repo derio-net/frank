@@ -1171,3 +1171,174 @@ def test_etcd_dashboard_is_provisioned_and_mounted():
         "mounted syncs green in ArgoCD and renders nowhere. Found subPaths: "
         f"{subpaths}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The manual operation exists in two places, and has to, so it must agree.
+#
+# `/sync-runbook` scans ONLY `docs/superpowers/plans/`. A `# manual-operation`
+# block written only in `patches/phase08-obs/README.md` — where an operator
+# about to apply the patch would actually look for it — would therefore never
+# reach `docs/runbooks/manual-operations.yaml`, silently: the sync reports
+# nothing missing, because it never saw it.
+#
+# So the block is deliberately duplicated: the plan copy is what the runbook is
+# generated from, the README copy is what a human reads next to the patch. That
+# duplication is a drift risk of exactly the kind this file exists to catch, and
+# it drifts in the worst direction — someone corrects the apply procedure in the
+# README, the plan keeps the old one, and the NEXT `/sync-runbook` overwrites the
+# central runbook with the stale version.
+# ---------------------------------------------------------------------------
+
+PATCH_README = REPO / "patches" / "phase08-obs" / "README.md"
+
+PLAN_SLUG = "2026-08-03--obs--etcd-scrape-control-plane"
+PLAN_PHASE_FILE = "05.yaml"
+
+# The plan moves once its work lands: `docs/superpowers/plans/` while active,
+# `docs/superpowers/implemented/plans/` afterwards. Hardcoding the active path
+# would turn this guard RED on the archival commit — a failure with nothing
+# wrong behind it, which is the fastest way to get a guard deleted.
+_PLAN_ROOTS = (
+    REPO / "docs" / "superpowers" / "plans",
+    REPO / "docs" / "superpowers" / "implemented" / "plans",
+    REPO / "docs" / "superpowers" / "archived-plans",
+)
+
+
+def _plan_phase_5() -> pathlib.Path:
+    candidates = [root / PLAN_SLUG / PLAN_PHASE_FILE for root in _PLAN_ROOTS]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise AssertionError(
+        f"could not find {PLAN_SLUG}/{PLAN_PHASE_FILE} under any of "
+        f"{[str(p.relative_to(REPO)) for p in _PLAN_ROOTS]}. That phase file "
+        "carries the `# manual-operation` block /sync-runbook reads, so it is "
+        "not optional to this guard — if the plan moved somewhere new, add the "
+        "root here rather than deleting the check."
+    )
+
+MANUAL_OP_ID = "obs-etcd-metrics-listener-apply"
+
+# The fields `agents/rules/repo-manual-ops.md` requires of every block.
+MANUAL_OP_REQUIRED_FIELDS = (
+    "id",
+    "layer",
+    "app",
+    "plan",
+    "when",
+    "why_manual",
+    "commands",
+    "verify",
+    "status",
+)
+
+_MANUAL_OP_BLOCK = re.compile(r"```yaml\n(# manual-operation\n.*?)```", re.DOTALL)
+
+
+def _manual_op_block_in(text: str, source: str) -> str:
+    """The single `# manual-operation` fenced block in `text`, verbatim."""
+    blocks = _MANUAL_OP_BLOCK.findall(text)
+    assert len(blocks) == 1, (
+        f"expected exactly one `# manual-operation` fenced block in {source}, "
+        f"found {len(blocks)}. Two blocks in one place means one of them is a "
+        "copy nobody will keep current."
+    )
+    return blocks[0]
+
+
+def _readme_manual_op_block() -> str:
+    return _manual_op_block_in(
+        PATCH_README.read_text(encoding="utf-8"),
+        f"{PATCH_README.relative_to(REPO)}",
+    )
+
+
+def _plan_manual_op_block() -> str:
+    """The block as it survives the plan YAML's `text: |` round-trip.
+
+    Read through `yaml.safe_load` rather than off the raw file, because the
+    block is indented inside a step's literal scalar — reading it raw would
+    compare the indentation rather than the content, and would pass or fail for
+    reasons that have nothing to do with the operation.
+    """
+    plan_phase_5 = _plan_phase_5()
+    document = yaml.safe_load(plan_phase_5.read_text(encoding="utf-8"))
+    texts = [
+        step.get("text") or ""
+        for task in document.get("tasks") or []
+        for step in task.get("steps") or []
+    ]
+    carrying = [text for text in texts if "# manual-operation" in text]
+    assert len(carrying) == 1, (
+        f"expected exactly one step in {plan_phase_5.relative_to(REPO)} to "
+        f"carry the `# manual-operation` block, found {len(carrying)}. "
+        "`/sync-runbook` reads the plan, so the plan is where the runbook "
+        "entry comes from."
+    )
+    return _manual_op_block_in(
+        carrying[0], f"{plan_phase_5.relative_to(REPO)} (step text)"
+    )
+
+
+def test_the_manual_operation_block_is_complete_and_says_what_it_asserts():
+    """Required fields present, and `verify:` asserts an outcome.
+
+    `omnictl apply` exiting 0 proves the ConfigPatch was ACCEPTED by Omni. It
+    does not prove etcd restarted with it, that the listener opened, or that a
+    single series arrived — and Omni is documented to wedge on a cold-boot clock
+    jump while still serving cached reads, so "the apply succeeded" is exactly
+    the reassurance that failure mode gives you. A verify section that checks
+    the exit status of the thing it just ran is not a verification.
+    """
+    block = _readme_manual_op_block()
+    entry = yaml.safe_load(block)
+
+    missing = [field for field in MANUAL_OP_REQUIRED_FIELDS if field not in entry]
+    assert not missing, (
+        f"the `# manual-operation` block is missing required field(s) {missing} "
+        "(see agents/rules/repo-manual-ops.md). `/sync-runbook` merges by `id`, "
+        "so an incomplete block becomes an incomplete runbook entry."
+    )
+    assert entry["id"] == MANUAL_OP_ID, (
+        f"expected id {MANUAL_OP_ID!r}, got {entry['id']!r} — the id is the "
+        "runbook's merge key, so renaming it appends a second entry rather "
+        "than updating the first."
+    )
+
+    verify = "\n".join(str(line) for line in entry.get("verify") or [])
+    assert "2381" in verify, (
+        "`verify:` never mentions the metrics listener port — it has to assert "
+        "the listener actually responds on the three minis, not merely that "
+        "omnictl exited 0"
+    )
+    assert 'job="kube-etcd"' in verify or "kube-etcd" in verify, (
+        '`verify:` never asserts the scrape target came up (up{job="kube-etcd"} '
+        "= 3 series at 1). A patch that applies cleanly and produces no series "
+        "is precisely the state this layer exists to make visible."
+    )
+
+
+def test_the_two_copies_of_the_manual_operation_agree():
+    """The README copy and the plan copy are the same operation.
+
+    They cannot be collapsed into one: `/sync-runbook` reads only the plan, and
+    an operator about to run `omnictl apply` reads the README. So the guard is
+    that they never diverge — a correction made in one place and not the other
+    means the central runbook is regenerated from the stale half, quietly.
+    """
+    readme_block = _readme_manual_op_block()
+    plan_block = _plan_manual_op_block()
+
+    assert readme_block == plan_block, (
+        "the `# manual-operation` block has DRIFTED between its two homes:\n"
+        f"  {PATCH_README.relative_to(REPO)}  (what an operator reads)\n"
+        f"  {_plan_phase_5().relative_to(REPO)}  (what /sync-runbook reads)\n"
+        "Both must carry the block verbatim. /sync-runbook scans only "
+        "docs/superpowers/plans/, so the plan copy is the one that reaches "
+        "docs/runbooks/manual-operations.yaml — meaning a fix applied only to "
+        "the README is silently discarded on the next sync, and a fix applied "
+        "only to the plan leaves the operator reading the old procedure at the "
+        "moment they are restarting the quorum."
+    )

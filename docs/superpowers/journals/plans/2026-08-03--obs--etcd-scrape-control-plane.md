@@ -164,3 +164,52 @@ FOR PHASE 4 (docs/gotchas): the gotcha must name both boards by title+uid (curat
 ### p3-complete-phase-acceptance-warning-expected · discovery · fr plan edit --complete-phase 3 warns on not-implemented acceptance rows — expected, not a phase 3 gap
 
 P3 completion. fr plan edit --complete-phase 3 emitted: "warning: phase 3 completed but its acceptance rows are still not-implemented: obs-etcd-server-metrics-scraped — flip them (edit status + cite the test refs) or record why in notes." This is expected, not a defect in phase 3's work — per the spec's Test Plan section (d4-testplan), obs-etcd-server-metrics-scraped only flips to skipped once an operator has applied the ConfigPatch (Test Plan step 1, the plan's back-loaded manual phase — Phase 5 per the pickup) and run Test Plan step 3 (confirm the scrape in VMSingle) against the live cluster. No unit test can produce that evidence; it requires the operator's own hands on omnictl. Recording here so phase 4/5 does not mistake this pre-existing warning for a regression introduced by the dashboard work, and so whoever runs the operator steps knows the acceptance-row flip (hand-edit + fr acceptance report --deterministic) is still outstanding after phase 3.
+
+<!-- fr:journal kind=finding scope=plan id=p4-manual-op-block-invisible-to-sync-runbook created=2026-08-03T13:44:45 state=fixed -->
+### p4-manual-op-block-invisible-to-sync-runbook · finding [fixed] · A manual-operation block in patches/ is invisible to /sync-runbook — the phase-4 step as written would never reach the runbook
+
+P4.T1.S2 instructs the `# manual-operation` block to go in `patches/phase08-obs/README.md`. `/sync-runbook` (agents/skills/sync-runbook/SKILL.md, step 1) scans ONLY `docs/superpowers/plans/` — both the v1 `*.md` glob and the v2 `<slug>/NN.yaml` phase files. A block written only under `patches/` is therefore never seen, and the failure is silent in the worst way: the sync runs, reports 'N updated, N total', and reports nothing missing, because it never encountered the block. Phase 5's close-out step P5.T3.S4 ("run /sync-runbook now that the manual op has actually been performed") would have produced no runbook entry for `obs-etcd-metrics-listener-apply` at all.
+
+RESOLUTION, deliberately not a silent workaround. The block now exists in BOTH places, verbatim:
+  - patches/phase08-obs/README.md  — what an operator about to run omnictl actually reads, next to the patch
+  - docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane/05.yaml, inside step P5.T1.S1's text — what /sync-runbook reads
+Collapsing to one copy was rejected in both directions: README-only breaks the sync (above), plan-only leaves the operator reading prose in one file and the procedure in another at the moment they are restarting the quorum.
+
+Duplication is exactly the drift risk this plan's own tripwire file exists to catch, so it is guarded rather than trusted: `test_the_two_copies_of_the_manual_operation_agree` in scripts/tests/test_etcd_scrape.py reads the README block raw and the plan block THROUGH yaml.safe_load (so it compares content, not the step-text indentation) and asserts byte equality. Mutation-checked: flipping `status: pending` -> `done` in the README alone fails with a message naming both paths and which one /sync-runbook reads. A sibling test asserts the nine fields repo-manual-ops.md requires, plus that `verify:` mentions 2381 and the kube-etcd job — i.e. that it asserts an OUTCOME, since `omnictl` exiting 0 proves the patch was accepted, not that etcd restarted with it.
+
+FOR PHASE 5: edit both copies or neither. Run /sync-runbook only after the apply has actually been performed, and flip `status: pending` -> `done` in BOTH files (the tripwire will fail the PR if you flip one). Note /sync-runbook itself preserves human-set status on an existing id and only sets `pending` on a new one, so the first sync will land it as pending regardless — the status edit belongs in these two source files, not in manual-operations.yaml.
+
+<!-- fr:journal kind=discovery scope=plan id=p4-kube-scheduler-has-the-same-empty-endpoints-shape created=2026-08-03T13:45:19 -->
+### p4-kube-scheduler-has-the-same-empty-endpoints-shape · discovery · kube-scheduler renders the SAME pod-selector shape — the gotcha generalises, and its live state is unverified
+
+P4.T1.S1. Before writing the gotcha as a reusable shape rather than an incident report, the claim was checked against the pinned chart rather than asserted.
+
+Rendered victoria-metrics-k8s-stack 0.72.4 with the real apps/victoria-metrics/values.yaml, release name victoria-metrics:
+
+  Service …-kube-etcd       selector: None (dropped, because we supply endpoints:)  ports: 2381
+  Endpoints …-kube-etcd     subsets: [.21, .22, .23] on http-metrics/2381
+  Service …-kube-scheduler  selector: {component: kube-scheduler}  ports: 10259   <- NO Endpoints object rendered
+  VMServiceScrape …-kube-scheduler  endpoints: [{scheme: https, bearerTokenFile: …/token, tlsConfig: {caFile: …}}]
+
+So kube-scheduler is in EXACTLY the pre-fix shape kube-etcd was in: a Service selecting pods by a kubeadm-convention label, no static Endpoints object, and a scrape config that looks entirely correct. kubeControllerManager renders nothing at all because values.yaml disables it (the 65-char Service name), so it is not exposed.
+
+WHAT IS AND IS NOT ESTABLISHED. The render proves the CHART shape. It does NOT prove kube-scheduler is currently unscraped on Frank — that needs `kubectl -n kube-system get endpoints` against the live cluster, which this phase had no access to. The two components also differ in kind: Talos runs etcd as a host system service (no pod exists at all, so the selector can NEVER match), whereas kube-scheduler IS a static pod — it may or may not carry `component: kube-scheduler`, since Talos and kubeadm do not use identical labels. Both possibilities end in an empty Endpoints object if the label differs, which is why the gotcha is written as 'check its ENDPOINTS before assuming it is scraped' and NOT as 'kube-scheduler is also blind'.
+
+Both gotcha entries (the one-liner in agents/rules/frank-gotchas.md and the prose in docs/runbooks/frank-gotchas/grafana.md) and the building blog post state it at exactly that strength, with the render date. If someone with cluster access runs `kubectl -n kube-system get endpoints | grep scheduler` and finds it empty, that is a second instance of this layer's bug and worth its own fix — the shape of that fix is already written down here (static endpoints + whatever listener kube-scheduler needs), but it is deliberately NOT claimed as done.
+
+<!-- fr:journal kind=discovery scope=plan id=p4-what-phase-5-must-still-write created=2026-08-03T13:45:44 -->
+### p4-what-phase-5-must-still-write · discovery · What phase 5 still owes the two blog posts, and the one frontmatter field left deliberately stale
+
+P4.T2. The blog edits shipped with NO measured numbers, per the phase brief — the soak comparison does not exist until the operator runs Test Plan steps 5-6, and a placeholder results paragraph would have been forgotten and shipped. Both posts describe what WILL be measured, or say nothing.
+
+WHAT PHASE 5 MUST ADD (P5.T3.S4 already says 'add the measured numbers to the operating post's new section' — this is the specific list):
+
+1. blog/content/docs/building/07-observability/index.md, Gotcha 4, the paragraph that currently reads: 'There is no results paragraph here yet, on purpose. The soak re-run that this unblocks … has not been performed at the time of writing.' Replace it with the before/under-load numbers, or with an honest statement of why the comparison still cannot be made. Do not leave that sentence in place once it is false.
+
+2. blog/content/docs/operating/05-observability/index.md, section 'Checking the etcd Scrape'. It documents the five queries and the six alerts but carries no baseline. Once the idle baseline and the under-load figures exist, a short 'what normal looks like on Frank' line under the query block is the natural home — WAL fsync p99 and steady-state leader changes especially, because the WAL threshold (50ms) is documented as provisional in three places (the alert annotation, the runbook table, and this post) and the baseline is what makes tightening it defensible.
+
+3. blog/content/docs/operating/05-observability/index.md frontmatter: `last_updated` was bumped to 2026-08-03, but `last_updated_commit` was deliberately LEFT at a77bf484 (a July commit). Phase 4 could not know its own merge sha, and the branch sha would be wrong after a squash-merge anyway. Set it to the actual merge commit when phase 5 touches the post. The building post has no such field — nothing to do there.
+
+The two posts are the only blog files touched. blog/data/roadmap.yaml was NOT touched (correct — this is a fix/extension of Layer 8, not a new layer), no new post was created, and no series index needed editing (they are page-derived).
+
+BUILD VERIFICATION, since past blog edits on this repo have silently rewritten repo state: `hugo --minify` from blog/ exited 0 and `git status --porcelain` was byte-identical before and after — no blog/go.mod, no blog/go.sum, no lockfile. Both pages rendered with the new sections present in blog/public and zero REF_NOT_FOUND. validate_glossary.py passes on both files (13 markers, one new: the WAL marker in the building post). validate_mermaid.py reports the syntax gate is DISABLED repo-wide (quality.mermaid_syntax: false), so it proves nothing — no mermaid was added either way.
