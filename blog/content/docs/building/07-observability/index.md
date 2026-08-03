@@ -322,7 +322,7 @@ The chart's Service selects pods labelled `component: etcd` — the kubeadm layo
 
 This is the reusable shape, and it is not specific to etcd. Any chart component that discovers its target by **pod selector** — `kubeEtcd`, `kubeControllerManager`, `kubeScheduler` — assumes a distribution whose control plane runs as labelled pods.
 
-On Talos, exactly one of those assumptions is wrong. Talos runs kube-apiserver, kube-controller-manager and kube-scheduler as **static pods** carrying the very `component:` labels the chart expects, so the selector finds them; `kube-scheduler` has three healthy endpoints on this cluster and reports into `up` like any other job. **etcd is the sole component Talos runs as a host system service** — which is why it is the only one that went dark.
+On Talos, exactly one of those assumptions is wrong. Talos runs kube-apiserver, kube-controller-manager and kube-scheduler as **static pods** carrying the very `component:` labels the chart expects, so the selector finds them and their `Endpoints` objects fill. **etcd is the sole component Talos runs as a host system service** — which is why it is the only one whose `Endpoints` object is empty.
 
 I nearly wrote the opposite. Rendering the chart shows a selector-based Service for the scheduler and no `Endpoints` object beside it, which looks like the identical failure. It isn't: **a template render can never show `Endpoints`**, because Kubernetes creates and fills them at runtime from whatever pods match. Every selector-based component looks endpoint-less in a render, the healthy ones included. That is a second silent-absence trap stacked on the first — reasoning about presence from an artifact that structurally cannot contain the thing you're looking for — and the only cure is to check the live cluster.
 
@@ -333,6 +333,33 @@ kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manage
 ```
 
 An empty `ENDPOINTS` column is the whole signal. `kubectl get svc` and `kubectl get vmservicescrape` both look entirely correct while it is true, which is why five months of looking at this stack never caught it.
+
+#### And then the cluster handed me a second one
+
+Checking that live turned up something I was not looking for. `kube-scheduler` has three populated endpoints — and no data either:
+
+```text
+count(up==0) by (job)                          ->  {job="kube-scheduler"}  3
+max_over_time(up{job="kube-scheduler"}[90d])   ->  0, 0, 0
+{__name__=~"scheduler_.*"}                     ->  []      (zero series)
+```
+
+Three targets, three failing scrapes, zero scheduler metrics for exactly as long as etcd went unwatched. Talos binds 10259 with TLS and authentication that the chart's default endpoint — HTTPS with the ServiceAccount bearer token and the in-cluster CA — does not satisfy. Different mechanism, same outcome.
+
+So "the scheduler reports into `up` like any other job" is literally true and about as misleading as a true sentence gets. It reports `up=0`.
+
+The two failures are worth separating, because **neither diagnostic finds the other**:
+
+| | `kube-etcd` | `kube-scheduler` |
+|---|---|---|
+| Endpoints | empty — the selector matches nothing | populated, three addresses |
+| Targets | zero | three |
+| `up` | the series does not exist | `0` |
+| Found by | `kubectl get endpoints` | `up < 1` |
+
+Reading `ENDPOINTS` catches a scrape with no targets. `count(up==0) by (job)` catches a scrape whose targets never answer. I had built the first check, congratulated myself, and would have missed the second one — using, as it happens, the exact query idiom this layer's own alert rules are written in.
+
+I have not fixed the scheduler here. It needs a decision about how to authenticate against Talos's static-pod control plane, which is a different piece of work from a values block. It is written down instead, which is the honest state: a known gap beats an unknown one, and an unknown one is what the last five months were.
 
 #### Why nobody noticed: the metrics that lie
 
@@ -389,6 +416,16 @@ Port 2381 rather than 2379 is the security decision. etcd serves `/metrics` on i
 Those two files are applied by different tools — `omnictl` by hand, ArgoCD from `main` — and nothing else in the repo connects them. A port typo in either reproduces exactly the silent empty-target failure being fixed, so a CI tripwire parses the port out of the ConfigPatch URL, compares it against `kubeEtcd.service.targetPort`, and derives the three control-plane addresses from the repo's own machine table rather than restating them.
 
 Six Grafana rules watch the result, of which only two page: quorum has no leader, and a member is down. The other four — leader-change churn, {{< abbr "WAL" >}} fsync latency, database size against quota, and an `absent()` watchdog — go to the health bridge and stay off the phone. The watchdog exists because every one of these rules uses `noDataState: OK`, so if the `Endpoints` object ever empties again the rules would all go quiet and read as healthy. `absent()` is the only expression that fires when a series *disappears*.
+
+#### The order between the two halves is not free, and I had it backwards
+
+The plan said, in seven places, that the two halves could land in either order: merge the values first and the target is simply down, every rule sits at `NoData`, `noDataState: OK`, nothing fires. Code review took that apart, and the scheduler numbers above are the proof.
+
+**`up` is not a series etcd exports.** The scraper *synthesises* it — one series per **configured** target, every interval, `1` on a successful scrape and `0` on a failed one. It is never absent while the target is configured. And supplying `kubeEtcd.endpoints` is precisely what configures targets. So merging the GitOps half first does not produce a quiet `NoData` window; it produces three targets dialling a refused port, sitting at `up=0`, and `up < 1` at `for: 10m` is one of the two rules that *pages*. With the notification policy repeating every three minutes, that is Telegram going off around the clock against a perfectly healthy quorum, until someone applies a patch the plan had deliberately scheduled for afterwards.
+
+An absent series and a series reading zero are different states, and only the first one is `NoData`. That one word carried the whole ordering argument.
+
+The fix is the ordering, not the alert: the ConfigPatch is harmless on its own — it opens a read-only port nothing is scraping yet — so it becomes a **pre-merge gate**. Loosening the rule instead would have bought the same quiet by discarding the signal the layer exists to add. The same asymmetry runs backwards, too: deleting the ConfigPatch alone is not a rollback, it is a pager, because the `Endpoints` object survives and `up` goes to zero rather than away. A real rollback reverts both halves.
 
 There is no results paragraph here yet, on purpose. The soak re-run that this unblocks — the same request volume as the original measurement, captured before and under load — has not been performed at the time of writing. When it has, the numbers belong on the curated dashboard, not in a sentence here.
 

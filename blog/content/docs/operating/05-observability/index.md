@@ -205,11 +205,32 @@ The consequence for day-to-day operation is that **`Endpoints` is the object to 
 # VMServiceScrape look correct while the scrape is producing nothing.
 kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manager'
 
-# The Endpoints object is labelled k8s-app, NOT jobLabel — jobLabel is on the
-# Service. Selecting on jobLabel returns nothing, which reads as "the object
-# is gone" at exactly the moment you are asking whether it is.
+# The label key CHANGES with this layer. Once the static Endpoints object is
+# deployed the chart labels it k8s-app; before that the endpoint controller
+# creates it and copies the Service's labels, so the key is jobLabel. Each
+# selector returns nothing in the other era — which reads as "the object is
+# gone" at exactly the moment you are asking whether it is. When unsure, list
+# without a selector (above).
 kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml
 ```
+
+**Reading `ENDPOINTS` is only half the check.** It finds a scrape with *no
+targets*; it says nothing about a scrape whose targets never answer. That second
+failure is live on this cluster right now:
+
+```promql
+# Scrapes that resolved targets and then failed them.
+count(up == 0) by (job)          # -> {job="kube-scheduler"} 3
+up{job="kube-scheduler"}         # 0 on all three, since the cluster was built
+```
+
+`kube-scheduler` has three healthy-looking endpoints (Talos runs it as a static
+pod, so the chart's selector works) and three failing scrapes — Talos binds
+10259 with TLS and auth the chart default does not satisfy, so there have been
+**zero `scheduler_*` series** for as long as there were zero etcd ones. It is a
+known, unfixed gap, of a different species from etcd's: an absent series and a
+series reading `0` are different states, and only the first is `NoData`. Run
+both checks; neither finds the other's failure.
 
 Is anything listening? Ask from inside the cluster, not from a laptop:
 
@@ -480,8 +501,10 @@ If a metric has an unbounded label (request ID, session token), either drop the 
 | `curl localhost:9428/select/logsql/query?query=*&limit=10` | Query logs via API |
 | `curl localhost:8429/targets` | List vmagent scrape targets |
 | `curl localhost:8429/api/v1/status/tsdb` | {{< abbr "TSDB" >}} cardinality stats |
-| `kubectl -n kube-system get endpoints \| grep -E 'etcd\|scheduler'` | Is a control-plane scrape actually wired? Empty `ENDPOINTS` = dead |
+| `kubectl -n kube-system get endpoints \| grep -E 'etcd\|scheduler'` | Is a control-plane scrape wired at all? Empty `ENDPOINTS` = no targets (list bare — the label key differs before/after this layer) |
+| `count(up == 0) by (job)` | The other half: scrapes that resolved targets and then failed them. Currently returns `kube-scheduler` (3), a known unfixed gap |
 | `up{job="kube-etcd"}` | etcd scrape liveness — 3 series, all `1`, when healthy |
+| `up{job="kube-scheduler"}` | `0` on all three — the scheduler scrape has never succeeded on this cluster |
 | `etcd_server_has_leader` | Does the quorum have a leader? Per member, `1` = yes |
 
 ## References
