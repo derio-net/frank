@@ -180,9 +180,6 @@ def test_configpatch_opens_the_metrics_listener():
 # that fails forever while the configuration looks entirely plausible in a diff.
 # ---------------------------------------------------------------------------
 
-METRICS_PORT_NAME = "http-metrics"
-
-
 def _vm_values() -> dict[str, Any]:
     return yaml.safe_load(VM_VALUES.read_text(encoding="utf-8"))
 
@@ -228,9 +225,19 @@ def test_kube_etcd_values_target_the_control_planes():
         f"kubeControllerManager disable above it. Got: {kube_etcd.get('enabled')!r}"
     )
 
+    # DERIVED, not restated. This file's whole thesis is that the port lives in
+    # the ConfigPatch and everything else agrees with it; writing `2381` here
+    # would make the guard the third hardcoded copy of the very value it exists
+    # to keep synchronised, and it would agree with a typo it also contained.
+    listener_port = urlparse(_listen_metrics_urls()).port
     service = kube_etcd.get("service") or {}
-    assert service.get("port") == 2381 and service.get("targetPort") == 2381, (
-        "kubeEtcd.service.port and .targetPort must both be 2381, etcd's "
+    assert (
+        service.get("port") == listener_port
+        and service.get("targetPort") == listener_port
+    ), (
+        "kubeEtcd.service.port and .targetPort must both be the port the "
+        f"ConfigPatch opens ({listener_port}, from "
+        f"{CONFIGPATCH.relative_to(REPO)}'s listen-metrics-urls) — etcd's "
         "dedicated metrics listener. The chart default is 2379, the mutual-TLS "
         f"client port. Got port={service.get('port')!r}, "
         f"targetPort={service.get('targetPort')!r}"
@@ -255,10 +262,22 @@ def test_kube_etcd_values_target_the_control_planes():
         "listener is plain HTTP by design; the chart's default `https` "
         f"produces a target that fails forever. Got: {endpoint.get('scheme')!r}"
     )
-    assert endpoint.get("port") == METRICS_PORT_NAME, (
-        f"the etcd scrape endpoint must name port `{METRICS_PORT_NAME}` — the "
-        "port name the chart gives the Service it renders. Got: "
-        f"{endpoint.get('port')!r}"
+    # Also derived. `http-metrics` is a CHART-TEMPLATE literal, not a values
+    # key — the chart builds the name as
+    # `{{ list "http-metrics" | append $portName | join "-" }}`, so a chart bump
+    # that renames or suffixes it moves the Service's port name while this
+    # values file keeps naming the old one. The VMServiceScrape would then
+    # reference a port the Service does not have, the operator would generate no
+    # scrape config at all, and the result is ZERO TARGETS AND NO ERROR: the
+    # exact silent failure this file exists to prevent, surviving every other
+    # assertion in it. So the expected name comes out of the rendered Service.
+    expected_port_name = _rendered_metrics_port_name()
+    assert endpoint.get("port") == expected_port_name, (
+        f"the etcd scrape endpoint must name port `{expected_port_name}` — the "
+        "port name the chart actually gives the Service it renders (derived "
+        f"from `helm template`, not from a literal in this file). A scrape "
+        "naming a port the Service lacks produces no scrape config and "
+        f"therefore no targets, silently. Got: {endpoint.get('port')!r}"
     )
 
     forbidden = sorted(
@@ -378,6 +397,16 @@ FEATURE_HEALTH = "feature-health"
 # Frank's VictoriaMetrics datasource. A rule pointed at any other uid provisions
 # fine and then errors on every evaluation.
 GRAFANA_DATASOURCE_UID = "P4169E866C3094E38"
+
+# The sentinel uid that routes a node to Grafana's server-side expression
+# engine. Nodes B and C are expressions, not queries: pointing either at the
+# VictoriaMetrics uid asks VictoriaMetrics to execute `type: reduce`.
+EXPRESSION_DATASOURCE_UID = "__expr__"
+
+# Every reduce node in `alert-rules-cm.yaml` — all 48 of them — uses `last`.
+# These rules alert on the CURRENT value, so `last` is the reducer that matches
+# the question being asked.
+REDUCER = "last"
 
 # The job label the scrape produces. Written here only so failure messages can
 # name it — NOTHING asserts against this constant. The rules are checked against
@@ -540,6 +569,22 @@ def test_etcd_rules_use_the_three_step_sse_shape():
     `A` queries the datasource, `B` reduces the series to one value, `C`
     thresholds `B`, and `condition: C` names which node decides. Every existing
     rule in this folder has that shape; these six copy it.
+
+    Three of the assertions below are about failures that are *silent no-ops*
+    rather than loud rejections, and each was missing from the first draft of
+    this test while this docstring already claimed to cover them:
+
+    * **`datasourceUid: __expr__` on B and C.** The expression nodes are not
+      datasource queries; `__expr__` is the sentinel that routes them to the
+      server-side expression engine. Point B or C at the VictoriaMetrics uid
+      instead and Grafana tries to run `type: reduce` as a PromQL query.
+    * **B's `reducer`.** A reduce node with no reducer has nothing to reduce
+      *with*. All 48 reduce nodes in this document use `last`; an omitted one is
+      a field you cannot see missing in a diff.
+    * **C's condition must carry an `evaluator` with a `type` and `params`.**
+      Counting the conditions to 1 accepts `conditions: [{}]` — a threshold
+      node with no threshold, which is a rule that can never fire while looking
+      structurally complete.
     """
     problems: dict[str, list[str]] = {}
     for uid, rule in _etcd_rules().items():
@@ -559,12 +604,28 @@ def test_etcd_rules_use_the_three_step_sse_shape():
             if not str(a_model.get("expr") or "").strip():
                 faults.append("node A carries no PromQL `expr`")
 
+            for ref in ("B", "C"):
+                if nodes[ref].get("datasourceUid") != EXPRESSION_DATASOURCE_UID:
+                    faults.append(
+                        f"node {ref} datasourceUid is "
+                        f"{nodes[ref].get('datasourceUid')!r}, expected "
+                        f"{EXPRESSION_DATASOURCE_UID!r} — the expression nodes "
+                        "are evaluated server-side, not by the datasource"
+                    )
+
             b_model = nodes["B"].get("model") or {}
             if b_model.get("type") != "reduce":
                 faults.append(f"node B type is {b_model.get('type')!r}, expected 'reduce'")
             if b_model.get("expression") != "A":
                 faults.append(
                     f"node B reduces {b_model.get('expression')!r}, expected 'A'"
+                )
+            if b_model.get("reducer") != REDUCER:
+                faults.append(
+                    f"node B reducer is {b_model.get('reducer')!r}, expected "
+                    f"{REDUCER!r} — a reduce node with no reducer has nothing "
+                    "to reduce with, and every reduce node in this document "
+                    f"uses {REDUCER!r}"
                 )
 
             c_model = nodes["C"].get("model") or {}
@@ -581,6 +642,22 @@ def test_etcd_rules_use_the_three_step_sse_shape():
                 faults.append(
                     f"node C has {len(conditions)} threshold condition(s), expected 1"
                 )
+            else:
+                # `conditions: [{}]` counts as one and thresholds nothing.
+                evaluator = (conditions[0] or {}).get("evaluator") or {}
+                if not evaluator.get("type"):
+                    faults.append(
+                        "node C's threshold condition has no `evaluator.type` "
+                        f"(gt / lt / within_range): {conditions[0]!r} — a "
+                        "threshold with no comparison never fires"
+                    )
+                params = evaluator.get("params")
+                if not isinstance(params, list) or not params:
+                    faults.append(
+                        "node C's threshold condition has no non-empty "
+                        f"`evaluator.params`: {conditions[0]!r} — the threshold "
+                        "VALUE is missing, so the rule is decorative"
+                    )
 
         if rule.get("condition") != "C":
             faults.append(f"`condition` is {rule.get('condition')!r}, expected 'C'")
@@ -952,6 +1029,31 @@ def _rendered_kube_etcd_objects() -> dict[str, dict[str, Any]]:
         )
     _render_cache["objects"] = objects
     return objects
+
+
+def _rendered_metrics_port_name() -> str:
+    """The port NAME the chart gives the kube-etcd Service.
+
+    Derived rather than restated because `http-metrics` is a chart-template
+    literal — the chart composes it as
+    `{{ list "http-metrics" | append $portName | join "-" }}` — so it is not a
+    value this repo sets and not a value a diff of this repo would show moving.
+    """
+    service = _rendered_kube_etcd_objects()["Service"]
+    ports = (service.get("spec") or {}).get("ports") or []
+    assert len(ports) == 1, (
+        "expected the rendered kube-etcd Service to carry exactly one port (the "
+        f"metrics listener); it carries {len(ports)}: {ports!r}. If the chart "
+        "now renders several, this derivation has to choose between them and "
+        "the choice belongs in the test, stated, not implied."
+    )
+    name = ports[0].get("name")
+    assert name, (
+        "the rendered kube-etcd Service port has no `name`, so the "
+        "VMServiceScrape cannot reference it by name and the operator "
+        f"generates no scrape config. Rendered port: {ports[0]!r}"
+    )
+    return str(name)
 
 
 def _rendered_job_label() -> str:
@@ -1428,6 +1530,7 @@ def test_the_manual_operation_reached_the_central_runbook():
         "what an operator reads when they are not reading the plan, so a stale "
         f"entry there is a stale procedure at the moment it matters: {drifted}"
     )
+
 
 # ---------------------------------------------------------------------------
 # The ordering claim is load-bearing, was WRONG, and must not silently revert.
