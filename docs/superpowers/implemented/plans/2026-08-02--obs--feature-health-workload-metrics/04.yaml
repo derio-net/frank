@@ -1,0 +1,153 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Unexpected scale-to-0 rule, with its exclusion set derived in CI
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - feature-health-scale-to-zero-guarded
+tasks:
+- number: 1
+  title: Derive the by-design scale-to-0 set from its two declarative sources
+  steps:
+  - id: P4.T1.S1
+    text: |
+      RED. Add the guard that keeps the exclusion set honest. It must DERIVE the
+      expected set, never restate it:
+
+      1. Parse `apps/gpu-switcher/manifests/deployment.yaml`, find the container
+         env var `WORKLOADS`, and split its `name:namespace:deployment` triples.
+         Current value: `ollama:ollama:ollama,comfyui:comfyui:comfyui` — two
+         workloads. (`apps/gpu-switcher/manifests/clusterrole.yaml` is NOT a source
+         of truth: a ClusterRole has no namespace scoping at all, despite its
+         leading comment.)
+      2. Glob `apps/**/rollout.yaml`, parse each Argo Rollout, and collect every
+         `spec.workloadRef` whose `scaleDown` is `onsuccess` — those Deployments
+         sit at 0 replicas by design while the Rollout serves traffic. Currently
+         exactly one: `litellm/litellm`.
+      3. Assert the scale-to-0 rule's exclusion regexes cover exactly that union —
+         no more, no less. An over-broad exclusion silently drops coverage; an
+         under-broad one pages for a healthy service.
+
+      Confirm RED (the rule does not exist yet).
+  - id: P4.T1.S2
+    text: |
+      GREEN. Add the `workload-unexpectedly-scaled-to-zero` rule to the
+      `feature-health` folder, exactly as specified:
+
+      - `expr`: `kube_deployment_spec_replicas{namespace!~"ollama|comfyui", deployment!~"litellm"} == 0`
+      - `for: 15m` — a `Recreate`-strategy rollout passes through 0 replicas, and
+        several Frank apps use `Recreate` for RWO PVC reasons, so a short window
+        would false-positive on ordinary deploys
+      - `severity: warning`, `github_issue: "frank-ops#8"` (layer 8 is `obs`)
+      - annotations naming the namespace/deployment and pointing the runbook at
+        `kubectl -n <ns> get rollouts.argoproj.io` — because "owned by a Rollout"
+        is the most likely benign explanation
+
+      Exclude `litellm` by DEPLOYMENT name rather than namespace, so an unrelated
+      Deployment appearing in the litellm namespace is still covered.
+
+      Comment the rule with the reason each exclusion exists, and point at the
+      guard that keeps them in sync.
+  - id: P4.T1.S3
+    text: |
+      Verify against live state — this rule's whole risk is false-positives, and
+      the cluster currently has two Deployments at 0 replicas, both healthy.
+
+      Run the expr live (same curl as P2.T2.S1) and confirm it returns
+      **zero series**: `comfyui` is excluded by namespace, `litellm` by deployment
+      name, and nothing else on the cluster is at 0.
+
+      Then confirm the rule is not vacuous — drop the exclusions from a scratch
+      copy of the query and confirm it DOES return comfyui and litellm. A rule
+      that returns nothing because it matches nothing is indistinguishable from a
+      correct one until the day it matters.
+- number: 2
+  title: Restore the monitoring-DaemonSet coverage phase 3 dropped
+  steps:
+  - id: P4.T2.S1
+    text: |
+      RED. Phase 3 left an OPEN finding (journal `86ffb32eb446`) that must be
+      CLOSED here, not shipped.
+
+      Migrating `layer-8-observability-down` to Deployments+StatefulSets dropped
+      the two `monitoring` DaemonSets — `fluent-bit` and
+      `victoria-metrics-prometheus-node-exporter`. The spec justified that by
+      claiming "their real coverage is the Layer 1/2 node alerts". **That claim
+      was false**, verified directly: both `layer-1-hardware-down` and
+      `layer-2-os-down` query
+      `kube_node_status_condition{condition="Ready",status="false"}`, so they
+      fire only when a NODE goes NotReady and are blind to a collector dying on
+      a healthy node.
+
+      The pre-migration per-pod layer-8 query DID cover those pods, so this is a
+      coverage regression this work introduced — fix it rather than document it.
+
+      Add assertions for a new rule uid `layer-8-observability-collectors-down`:
+
+      - `folder: feature-health`, `severity: warning`,
+        `github_issue: "frank-ops#8"`
+      - expr references `kube_daemonset_status_number_unavailable` scoped to
+        `namespace="monitoring"`
+      - `for: 15m` — it queries a DaemonSet metric, so the phase-3 policy guard
+        is satisfied with no exemption needed
+      - threshold `{type: gt, params: [0]}`
+      - series carry `workload` and lowercase `kind` labels
+
+      Confirm RED.
+  - id: P4.T2.S2
+    text: |
+      GREEN. Add the rule per the spec's "Correction (phase 3)" block.
+
+      `severity: warning`, not critical: losing `fluent-bit` stops log shipping
+      and losing `node-exporter` stops node metrics — both real degradations —
+      but `vmagent` / `vmsingle` / `grafana` are Deployments still covered at
+      critical/5m by layer-8 proper, so the alerting stack itself is not blind.
+
+      Comment the rule with why it is SEPARATE from layer-8 rather than folded
+      in: folding the DaemonSets back would force that whole rule to 15m,
+      slowing detection of the alerting stack's own failure.
+
+      Verify live: the expr must return 2 series (the two monitoring
+      DaemonSets), both valued 0.
+  - id: P4.T2.S3
+    text: |
+      Close phase 3's open finding:
+      `fr journal add --scope plan --kind finding --state fixed --phase 4 ...`
+      referencing `86ffb32eb446`, stating what was restored and how.
+
+      Re-check the in-file comment and test docstring phase 3 corrected — they
+      should now point at this new rule as where the DaemonSet coverage lives,
+      rather than merely noting the gap.
+state:
+  steps:
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T22:34:13+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-08-02T22:34:14+00:00'
+      note: null
+    P4.T2.S3:
+      state: x
+      ticked_at: '2026-08-02T22:34:16+00:00'
+      note: null
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T22:34:08+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-08-02T22:34:09+00:00'
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: '2026-08-02T22:34:11+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T22:34:23+00:00'
+    note: null
+    observed_prs: []

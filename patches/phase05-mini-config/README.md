@@ -8,7 +8,26 @@
 1. Fixes mini node labels (`accelerator: intel-igpu`, `igpu: intel-arc`)
 2. Adds Intel Arc iGPU Talos extensions (`i915` + `intel-ucode`) to mini-{1..3} image schematics via Omni (triggers rolling reboot, one node at a time)
 3. Enables CDI device discovery in containerd (cluster-wide config patch, no reboot)
-4. Deploys the Intel GPU Device Plugin via ArgoCD to expose `gpu.intel.com/i915` as a schedulable resource
+4. Deploys Intel's **DRA resource driver** (`resource.k8s.io/v1`, GA on this
+   cluster) via ArgoCD, at `apps/intel-gpu-driver/`. It publishes a
+   `ResourceSlice` per node under DeviceClass `gpu.intel.com` — **not** an
+   extended resource. `gpu.intel.com/i915` does not exist; querying
+   `node.status.allocatable` for it returns nothing. Workloads claim the iGPU
+   with a `ResourceClaim`/`ResourceClaimTemplate` instead — see "Claiming the
+   iGPU" below.
+
+   **What this is NOT: the Intel GPU Device Plugin.** Until this document was
+   corrected it described the Intel GPU Device Plugin — the pre-DRA model, in
+   which a per-node plugin advertises the iGPU as an *extended resource* that
+   pods then request through `resources.limits` — and pointed at a plugin app
+   path that has since been removed from this repo. **That model is not
+   deployed on Frank.** It is worth naming rather than hiding, because most
+   Intel iGPU material online still describes it: if you find yourself
+   expecting an `i915` entry under `node.status.allocatable`, or writing an
+   extended-resource request into a pod's `resources.limits`, you are
+   following the retired model and the pod will simply never schedule — with
+   no event saying why. DRA replaced it; the claim idiom below is the
+   replacement. Full history: `docs/runbooks/frank-gotchas/igpu-dra.md`.
 
 ## Prerequisites
 
@@ -24,7 +43,7 @@
 | `502-mini3-i915-extensions.yaml` | omnictl | Adds i915+intel-ucode to mini-3 (triggers reboot) |
 | `05-mini-cdi-containerd.yaml` | omnictl | Enables CDI in containerd cluster-wide (no reboot) |
 
-ArgoCD Application + values: `apps/intel-gpu-plugin/`
+ArgoCD Application + values: `apps/intel-gpu-driver/`
 
 ## Apply Order
 
@@ -69,11 +88,61 @@ source .env
 talosctl -n 192.168.55.21 get extensions  # i915, intel-ucode, iscsi-tools
 talosctl -n 192.168.55.21 ls /dev/dri     # card0, renderD128
 
-# DRA: driver pods and ResourceSlices (not node.status.allocatable — that's device plugin)
+# DRA: driver pods and ResourceSlices. Do NOT look in node.status.allocatable —
+# that is the retired Intel GPU Device Plugin model, not deployed here.
 kubectl get pods -n intel-gpu-resource-driver -o wide
 kubectl get resourceslice -o wide
 kubectl get deviceclass
 ```
+
+## Claiming the iGPU
+
+A workload asks for the device with a `ResourceClaimTemplate` (per-pod
+lifecycle — no shared claim to dangle) selecting DeviceClass `gpu.intel.com`,
+then references it from a container's `resources.claims`. This is the real
+shape in use on the cluster (`apps/ovms-retrieval/manifests/`):
+
+```yaml
+# resourceclaimtemplate.yaml
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: ovms-igpu
+  namespace: retrieval
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu
+          exactly:
+            deviceClassName: gpu.intel.com
+            allocationMode: ExactCount
+            count: 1
+```
+
+```yaml
+# deployment.yaml (excerpt)
+spec:
+  template:
+    spec:
+      resourceClaims:
+        - name: igpu
+          resourceClaimTemplateName: ovms-igpu
+      containers:
+        - name: ovms
+          resources:
+            claims:
+              - name: igpu
+```
+
+**No `capacity` selector.** The ResourceSlice advertises `capacity.memory:
+"0"` — the iGPU has no dedicated VRAM, it borrows the node's 64 GB via i915 —
+so a claim that requests GPU memory can never be satisfied; select the device
+and nothing else, and use the container's `resources.limits.memory` as the
+real backstop. `/dev/dri` arrives `crw-rw-rw- root:root`, so no
+`supplementalGroups` render-GID hunting is needed. Full detail (including the
+CDI-does-not-auto-inject negative control):
+`docs/runbooks/frank-gotchas/igpu-dra.md`.
 
 ## Rollback
 

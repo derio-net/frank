@@ -1,7 +1,21 @@
 # Argo Rollouts blue-green for Sympozium API server
 #
 # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
-# The Deployment is scaled to 0 — this is expected and correct.
+# The Deployment KEEPS RUNNING alongside the Rollout: workloadRef below sets no
+# `scaleDown`, so Argo Rollouts applies its default of `never`. This is unlike
+# apps/litellm/manifests/rollout.yaml, which sets `scaleDown: onsuccess` and
+# does park its Deployment at 0. Verified live 2026-08-02:
+# deploy/sympozium-apiserver reads 1/1, and it is absent from
+# `kube_deployment_spec_replicas == 0`.
+#
+# This comment previously claimed the Deployment was scaled to 0. That was never
+# true, and it is a trap: the `workload-unexpectedly-scaled-to-zero` Grafana rule
+# derives its exclusion set by PARSING `workloadRef.scaleDown` across
+# apps/**/rollout.yaml, precisely so nobody excludes a Deployment — and thereby
+# stops watching it — on the strength of prose. If `scaleDown: onsuccess` is ever
+# added here, that derivation picks it up; do not hand-edit the rule's
+# exclusions. See docs/runbooks/frank-gotchas/grafana.md.
+#
 # ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
 #
 # Blue-green: both active (blue) and preview (green) run simultaneously.

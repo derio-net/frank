@@ -271,6 +271,9 @@ features:
 # Two were converted here (operating/12, operating/13) as worked examples of
 # the fix: point the edge at a representative node inside the subgraph.
 quality:
+  # Warnings-first AI-tells lint; severities/thresholds in docs/CONFIG.md. (options: true,false)
+  lint:
+    enabled: true
   mermaid_syntax: false
 
 voice: |

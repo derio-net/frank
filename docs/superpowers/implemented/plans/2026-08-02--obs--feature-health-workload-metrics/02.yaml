@@ -1,0 +1,111 @@
+schema_version: 2
+phase:
+  number: 2
+  title: 'Migrate the 8 rules whose namespaces carry no DaemonSet (for: 5m)'
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - feature-health-detects-real-outage
+  - feature-health-survives-node-reboot
+tasks:
+- number: 1
+  title: Encode the rewrite contract as a test
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED. Extend the tripwire file with the properties the rewritten rules must
+      have. Scope these assertions to the 8 uids in this phase (list them
+      explicitly) so phase 3's rules do not fail this phase's tests:
+
+        layer-6-gitops-down, layer-10-secrets-down, layer-12-agents-down,
+        layer-13-auth-down, layer-14-vcluster-down, layer-15-workflows-down,
+        layer-19-rollouts-down, layer-24-ingress-down
+
+      Assert for each:
+
+      - its `expr` references only workload-level metrics —
+        `kube_deployment_status_replicas_unavailable`,
+        `kube_statefulset_status_replicas`, `kube_statefulset_status_replicas_ready`
+      - the threshold condition is `{type: gt, params: [0]}`. **This is the
+        highest-risk mechanical error in the change**: the old rule was
+        `lt 1` on a readiness gauge, the new one is `gt 0` on an unavailability
+        counter. Backwards yields a rule that fires constantly or never, and both
+        look plausible in review.
+      - `for` is `5m`
+      - the summary annotation interpolates `$labels.workload` (not `$labels.pod`)
+
+      Confirm RED against the unmodified file.
+  - id: P2.T1.S2
+    text: |
+      GREEN. Rewrite the 8 rules in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`.
+
+      Per the spec's rewrite pattern: keep `uid`, `title`, `folder`, `condition`,
+      the A->B->C SSE structure, `noDataState`, `execErrState`, `severity` and
+      `github_issue` EXACTLY as they are. Change only `expr`, the `C` evaluator,
+      `for`, and the two annotations.
+
+      Normalize labels with nested `label_replace` so every series carries
+      `workload` and a **lowercase** `kind` (`deployment` / `statefulset`) —
+      lowercase so it interpolates straight into a kubectl resource path
+      (`{{ $labels.kind }}/{{ $labels.workload }}`). Do NOT rely on a `lower`
+      template filter; Grafana's alert templating is Go text/template with a
+      restricted function set.
+
+      StatefulSets have no `_unavailable` metric — derive it as
+      `kube_statefulset_status_replicas{...} - kube_statefulset_status_replicas_ready{...}`.
+
+      Carry over the existing pod-name regexes as workload-name regexes; they get
+      simpler because a workload name has no ReplicaSet-hash suffix.
+      `layer-14-vcluster-down`'s `pod=~".*-[0-9]+$"` filter disappears entirely —
+      querying `kube_statefulset_*` selects StatefulSets by construction.
+
+      Add a short comment above each rewritten group in the house style of the
+      existing `layer-25-cicd-down` comment: what changed, and why (terminal-pod
+      tombstones hold stale readiness series forever).
+
+      Re-run the tripwire file — this phase's assertions pass, the
+      no-kube_pod_status_ready test still xfails (phase 3 rules remain).
+- number: 2
+  title: Verify the rewritten expressions against live data
+  steps:
+  - id: P2.T2.S1
+    text: |
+      A rule that parses is not a rule that returns data — a typo'd metric name
+      yields NoData, which reads identically to "nothing is wrong".
+
+      For each of the 8 rewritten `expr` values, run it against VictoriaMetrics
+      through Grafana's datasource proxy and confirm a non-empty result:
+
+      ```bash
+      PW=$(kubectl -n monitoring get secret victoria-metrics-grafana \
+             -o jsonpath='{.data.admin-password}' | base64 -d)
+      curl -s -u "admin:$PW" --get --data-urlencode "query=<expr>" \
+        "http://192.168.55.203/api/datasources/proxy/uid/P4169E866C3094E38/api/v1/query"
+      ```
+
+      Note the datasource uid `P4169E866C3094E38` is the one the rules already use.
+      Grafana is plain HTTP on .203 — `https://` gets a TLS reset.
+
+      Record each expression's series count in the journal. A zero-series result
+      here is a real defect, not a quiet cluster: every one of these namespaces has
+      running workloads.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T21:35:14+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-08-02T21:35:16+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T21:35:18+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T21:35:19+00:00'
+    note: null
+    observed_prs: []
