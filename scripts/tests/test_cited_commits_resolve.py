@@ -337,6 +337,35 @@ def test_the_em_dash_is_the_documented_placeholder() -> None:
 # --------------------------------------------------------------------------- corpus
 
 
+def test_the_clone_is_not_shallow() -> None:
+    """A shallow clone makes this guard lie, so refuse to run in one.
+
+    Learned from this guard's first CI run, which failed with twenty posts
+    "citing commit ids that do not exist" — every one of which existed. GitHub's
+    `actions/checkout` defaults to `fetch-depth: 1`, so `git cat-file -e` misses
+    essentially all history and the verdict inverts: real citations read as
+    fabrications.
+
+    `test_git_can_resolve_commits_at_all` did NOT catch it, because its canary
+    is reachable at depth 1 by construction — it is near HEAD. Shallowness has
+    to be asked about directly.
+
+    The repo pins `fetch-depth: 0` on the tripwires job. If that is ever
+    dropped, this fails with the real reason instead of blaming the posts.
+    """
+    shallow = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert shallow == "false", (
+        f"{ROOT} is a shallow clone, so commit lookups cannot be trusted and "
+        "this guard would report real citations as fabricated. Set "
+        "`fetch-depth: 0` on the actions/checkout step that runs these tests."
+    )
+
+
 def test_git_can_resolve_commits_at_all() -> None:
     """Guard against a scanner that passes because `git` is unusable.
 

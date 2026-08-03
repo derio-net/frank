@@ -20,31 +20,31 @@ This layer adds the opposite. **Ruflo** is the rebrand of ruvnet's `claude-flow`
 
 ```mermaid
 flowchart TD
-  subgraph Pod[ruflo pod — ruflo-system namespace]
-    subgraph Server[ruflo-server]
-      RUV[ruvocal SSR<br/>node:24-slim<br/>port 3000]
-      RVF[RVF JSON store<br/>5Gi PVC /app/db]
-    end
-    subgraph Shell[ruflo-shell — s6-overlay]
-      SSHD[sshd — key-only<br/>port 22]
-      CF[claude-flow CLI]
-      INV[Inventory ConfigMap<br/>mise/npm/pipx/cargo]
-    end
-    SH[ruflo-shell-home PVC<br/>10Gi — mise, cargo, pipx]
-    WS[ruflo-workspace PVC<br/>20Gi — shared]
+  subgraph Pod[ruflo pod]
+    direction TB
+    RUV["ruflo-server<br/>ruvocal SSR, :3000"]
+    RVF["RVF store<br/>5Gi PVC"]
+    SSHD["ruflo-shell<br/>s6 + sshd :22"]
+    CF["claude-flow CLI"]
+    VOL["PVCs<br/>shell-home 10Gi<br/>workspace 20Gi"]
   end
   subgraph Network
     direction TB
-    WEB[ruflo.cluster.derio.net<br/>Traefik + Authentik]
-    SSH[192.168.55.222:22<br/>SSH + Mosh UDP]
-    LLM[litellm.litellm.svc:4000<br/>LiteLLM gateway]
+    WEB["ruflo.cluster.derio.net"]
+    SSH["SSH + Mosh"]
+    LLM["LiteLLM gateway"]
   end
 
+  WEB --> RUV
+  RUV --> RVF
+  SSH --> SSHD
+  SSHD --> CF
+  SSHD --> VOL
   CF -->|OPENAI_BASE_URL| LLM
   RUV -->|OPENAI_BASE_URL| LLM
-  WEB --> RUV
-  SSH --> SSHD
 ```
+
+The three network edges, in full: the web UI is `ruflo.cluster.derio.net` behind Traefik with Authentik forward-auth; the shell answers SSH on `192.168.55.222:22` with Mosh on UDP 60016-60031; and both containers reach the gateway at `litellm.litellm.svc:4000`. The diagram keeps those labels short to stay legible.
 
 Two ArgoCD apps: `apps/ruflo-db/` and `apps/ruflo/`. Zero frontier-{{< abbr "LLM" >}} provider keys in the pod — every LLM call exits through the in-cluster LiteLLM gateway.
 

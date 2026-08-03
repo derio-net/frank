@@ -40,6 +40,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # FULL history. test_cited_commits_resolve.py asks git whether every
+          # commit id cited in a blog post exists, and the default depth-1
+          # checkout contains almost none of them — so on its first CI run the
+          # guard reported real, resolvable commits as fabricated. The test now
+          # refuses to run in a shallow clone rather than emit that misleading
+          # verdict, which makes this line load-bearing: remove it and the job
+          # fails loudly instead of silently checking nothing.
+          fetch-depth: 0
 
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:

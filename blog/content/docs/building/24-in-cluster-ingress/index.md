@@ -33,33 +33,15 @@ flowchart TD
       MW[Middlewares<br/>ip-allowlist + security-headers]
       FA[authentik-forward-auth]
     end
-    subgraph Direct[Direct proxy — native auth]
-      A[ArgoCD]
-      S[Sympozium]
-      AK[Authentik]
-      H[Homepage]
-    end
-    subgraph SSO[Forward-auth via Authentik]
-      G[Grafana]
-      L[Longhorn]
-      I[Infisical]
-      N[n8n]
-      GI[Gitea]
-    end
+    Direct["Direct proxy — native auth<br/>ArgoCD · Sympozium · Authentik · Homepage"]
+    SSO["Forward-auth via Authentik<br/>Grafana · Longhorn · Infisical · n8n · Gitea"]
   end
   DNS --> T
   T --> AC
   T --> MW
   T --> FA
-  T --> A
-  T --> S
-  T --> AK
-  T --> H
-  FA --> G
-  FA --> L
-  FA --> I
-  FA --> N
-  FA --> GI
+  T --> Direct
+  FA --> SSO
 ```
 
 ## Why Traefik
