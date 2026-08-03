@@ -32,22 +32,65 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T16:47:54+00:00'
+      note: 'PR 3 (#747) merged as 0c094108; authentik, authentik-extras, traefik,
+        traefik-extras, paperclip and victoria-metrics all Synced/Healthy. Legacy
+        Authentik objects confirmed absent via live ORM: providers Longhorn UI, Hubble
+        UI, Sympozium, n8n-01 and applications longhorn, hubble, sympozium, n8n-01
+        all count 0, while Longhorn UI (cluster) and Hubble UI (cluster) survive -
+        the tombstones removed exactly what they declared. UNDOCUMENTED MANUAL STEP
+        FOUND: the nine *-frank IngressRoutes did NOT disappear on merge. Their owning
+        Application is traefik-extras (NOT traefik, which is the Helm chart and stays
+        Synced regardless) and it runs with prune disabled, so deleting the manifests
+        only moved it to OutOfSync while every route kept serving. Required a manual
+        kubectl -n traefik-system delete ingressroute of all nine; traefik-extras
+        returned to Synced immediately after. Verified: no *-frank routes remain.'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T16:48:00+00:00'
+      note: 'Single-issuer ConfigPatch applied 2026-08-02 ~16:20Z and verified at
+        16:42Z. All three kube-apiserver pods Ready, no --oidc-* flags, --authentication-config
+        present, /readyz healthy on 6/6 samples. DECISIVE BEHAVIOURAL PROOF: a freshly
+        minted LEGACY-issuer token is now REJECTED by TokenReview (it was accepted
+        on every run before the apply), while a freshly minted cluster-issuer token
+        is accepted as authentik:ak-Kubernetes Agent Access-client_credentials, and
+        the Omni service-account kubeconfig retains cluster-admin throughout. TRAP:
+        omnictl apply reads a LOCAL file, so the first two applies silently re-applied
+        the pre-merge dual-issuer config from an unpulled checkout and reported success;
+        only git pull then apply changed anything, and the legacy-token check is what
+        exposed it. Applying the patch rolls the three control planes ONE AT A TIME
+        (mini-2, mini-3, then mini-1); during the roll mini-2 etcd flapped its health
+        check and /readyz failed intermittently while reads and writes stayed fine
+        - self-resolved, 6/6 by 16:42Z.'
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T08:54:39+00:00'
+      note: 'Operator-run in the homelab repos (outside this repo), so what is recorded
+        here is the verified OUTCOME, not the execution. Verified live 2026-08-03T08:51Z:
+        Omni survives in full - UI returns 200, discovery returns 200, and unauthenticated
+        :8100 returns 401 - while every non-Omni frank.derio.net name is gone from
+        the edge. No *-frank IngressRoute remains in traefik-system (26 routes total,
+        all cluster.derio.net).'
     P6.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T08:54:58+00:00'
+      note: 'Verified live 2026-08-03T08:51Z. All nine legacy names return a genuine
+        NXDOMAIN, checked by dig response STATUS rather than by empty output - the
+        distinction matters because an absent answer and a failed resolver are indistinguishable
+        on stdout: auth, grafana, argocd, longhorn, hubble, infisical, paperclip,
+        sympozium, n8n-01. Positive controls all hold: omni.frank.derio.net still
+        resolves (CNAME to omni.frank.lan) and the Headscale frank.derio.net split
+        resolver is retained in clusters/hop/apps/headscale/manifests/configmap.yaml.
+        Canonical domain proven end-to-end now that the legacy fallback cannot mask
+        it: argocd and vk return HTTP 200, and grafana, longhorn, hubble, infisical,
+        paperclip, auth, n8n and tekton return 302 to Authentik, all with ssl_verify_result=0.'
   completion:
-    at: null
-    note: null
+    at: '2026-08-03T08:58:01+00:00'
+    note: 'All four steps verified. T1 half deployed 2026-08-02 (PR #747 merged state
+      + single-issuer ConfigPatch). T2 half delivered across four homelab repos and
+      deployed 2026-08-02/03: derio-homelab/homelab#1-#4, ansible-pihole#1-#2, kid-laptops#78/#81,
+      gondor-blog#8. p6-verify.sh reports 37 pass / 0 fail / 0 pending; 20 retired
+      names return NXDOMAIN across both Pi-holes and the Headscale mesh resolver.
+      S1 was satisfied by repo cleanup rather than a Traefik reload — see its note.'
     observed_prs: []

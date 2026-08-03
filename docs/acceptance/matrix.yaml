@@ -638,14 +638,16 @@ rows:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
   status: skipped
-  notes: 'Live manual proof across Phases 3-4 on 2026-08-01/2026-08-02: ArgoCD and Grafana completed browser
-    OIDC round trips on their cluster.derio.net hosts, and Longhorn, Hubble and n8n passed forward-auth,
-    with no redirect to a non-Omni frank.derio.net host once PR #744 declared the embedded outpost browser
-    host. Two services are honestly out of scope rather than verified: Infisical OIDC is Pro-only and
-    was never configured, and Sympozium is deployed with auth none by design. The unit ref automates only
-    the repository-reference half (in CI via repo-tripwires.yml); live reachability and login stay manual,
-    so this remains skipped rather than ci. Phase 5 removes the legacy routes this claim asserts independence
-    from.'
+  notes: 'VERIFIED LIVE 2026-08-03 — services remain reachable on *.cluster.derio.net now that the legacy frank
+    fallback is gone. Spot-checked argocd.cluster.derio.net -> 200, with the *.cluster.derio.net wildcard
+    intact for litellm/harbor/auth/grafana. The homelab master dashboard was repointed and redeployed: 15
+    tiles now target *.cluster.derio.net with live siteMonitor probes, omni keeps its preserved name, and the
+    Portainer tile plus the rp.frank.derio.net Traefik bookmark are gone. CORRECTION worth recording:
+    litellm.cluster.derio.net is the forward-auth admin UI and 302s an API client to SSO even with a valid
+    Bearer key — so ''canonical'' is per-consumer, not per-name. Machine clients use
+    litellm-api.cluster.derio.net (no forward-auth, added in frank#749), verified returning LiteLLM''s own 401
+    on /v1/models and resolving via the mesh resolver; kid-laptops and the operator .env files moved to it in
+    derio-homelab/kid-laptops#81, with a tripwire against regression.'
 - id: net-oidc-cutover-continuity
   capability: Canonical cluster service access
   acceptance: Existing Kubernetes OIDC credentials continue to authenticate during the issuer migration
@@ -673,16 +675,18 @@ rows:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
   status: skipped
-  notes: 'PARTIAL — the repository half is done and CI-guarded; the DNS half is NOT yet verified and is
-    owed by Phase 6. Phase 5 (PR 3) removed all 30 non-Omni frank.derio.net references across 9 files:
-    the legacy JWT issuer from both the standalone and embedded AuthenticationConfiguration, the legacy
-    OIDC callbacks on ArgoCD/Grafana/Infisical, the legacy Paperclip allowed hostname, all nine outage-era
-    compatibility IngressRoutes and their certificate requests, and the four legacy forward-auth providers
-    plus their four applications (now URL-free state: absent tombstones so removal is declarative). The
-    unit ref sweeps apps, patches, clusters, references and secrets in raw text and allows only omni.frank.derio.net;
-    measured after the change it returns exactly 3 omni hits and nothing else. It runs in CI via repo-tripwires.yml.
-    Still unproven until Phase 6: authoritative DNS record removal and live NXDOMAIN/no-route probes from
-    LAN and mesh clients.'
+  notes: 'VERIFIED LIVE 2026-08-03 — the DNS half this row was waiting on is done. derio-homelab/ansible-pihole#1
+    removed the frank.derio.net wildcard A (192.168.55.220); #2 removed the mini-1/2/3.frank.derio.net CNAMEs
+    and the commented future-extension block after confirming nothing in any repo referenced them. Both
+    deployed via dns.yaml. Measured AFTER deploy: 20 retired names x 3 resolvers = 60/60 NXDOMAIN — pihole A
+    (192.168.10.11), pihole B (192.168.10.12), and the Headscale mesh resolver (100.100.100.100) from a
+    mesh-joined host, which is the LAN-and-mesh proof this row demands and which scripts/tmp/p6-verify.sh
+    explicitly cannot make. auth.frank.derio.net specifically stopped resolving to 192.168.55.220, closing the
+    dangling default-cert name. The repository half stays CI-guarded by
+    scripts/tests/test_frank_domain_retirement.py; the homelab side gained its own tripwire
+    (ansible-homelab-automation/scripts/check-retired-domains.sh, wired into `make check`). NOTE: the first
+    dns.yaml run applied a two-commit-stale checkout and exited 0 — only re-querying the names caught it, the
+    same family as the omnictl-reads-a-local-file gotcha recorded elsewhere in this plan.'
 - id: net-omni-domain-preserved
   capability: Canonical cluster service access
   acceptance: Omni remains reachable and usable at omni.frank.derio.net after all other frank.derio.net
@@ -693,15 +697,14 @@ rows:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
   status: skipped
-  notes: 'PARTIAL — the repository half is done and CI-guarded; the live half is owed by Phase 6. The
-    guard asserts omni.frank.derio.net POSITIVELY (it must still be present somewhere under the scanned
-    trees) and asserts the Headscale frank.derio.net split-DNS suffix is retained, so the blanket retirement
-    sweep cannot silently eat either survivor — the offender regex requires a leading label, which is
-    what exempts the bare zone key. Measured after Phase 5: the three surviving references are the homepage
-    bookmark and the two blackbox probe targets (UI and :8100). A fourth reference was removed deliberately
-    — it was a COMMENT inside the deleted incident banner explaining why Omni had no re-front route, not
-    a functional reference. Still unproven until Phase 6: live Omni UI and discovery returning 200, unauthenticated
-    :8100 returning 401, certificate validity, and mesh resolution after DNS cleanup.'
+  notes: 'VERIFIED LIVE 2026-08-03 — omni.frank.derio.net survived the wildcard removal because an explicit CNAME
+    outlives the wildcard it sat under: it resolves to omni.frank.lan -> 192.168.10.30 on BOTH the LAN and the
+    mesh resolver. Omni UI returns 200 with a genuine Let''s Encrypt certificate (CN=omni.frank.derio.net,
+    valid to 2026-10-08 — not a Traefik default cert); discovery returns 200; unauthenticated :8100 returns
+    401. Certificate renewal — which upstream required be preserved — is owned by proxmox-cluster''s
+    omni-cert-renew systemd timer rather than by Traefik, because Omni now runs on the gondor VM with no
+    reverse proxy at all: the timer is active, its last run reported Result=success ExecMainStatus=0, and the
+    next run is scheduled. p6-verify.sh: 37 pass / 0 fail / 0 pending.'
 - id: litellm-reachable-from-mesh-by-name
   capability: Edge & mesh access
   acceptance: Frank publishes mesh-resolvable names for LiteLLM, and an authenticated API call to them
