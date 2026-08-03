@@ -657,6 +657,39 @@ Same family as the `maxScrapeSize` whole-response drop above: **a selector or a
 limit silently yields nothing, and the only symptom is an absence.** An etcd
 problem on this cluster was invisible until it became an apiserver problem.
 
+#### etcd is the only one of the three that breaks — and the near-miss is instructive
+
+The obvious generalisation ("pod selectors are wrong on Talos, so check the
+scheduler and controller-manager too") is **false**, and acting on it sends you
+hunting a non-problem.
+
+Talos runs kube-apiserver, kube-controller-manager and kube-scheduler as
+**static pods**, and those pods carry exactly the `component:` labels the chart
+expects. The selector works for them. Only **etcd** is a host system service,
+which is precisely why it is the only one that broke.
+
+Verified live 2026-08-03:
+
+```text
+endpoints/…-kube-etcd        <none>                                                   148d
+endpoints/…-kube-scheduler   192.168.55.21:10259,192.168.55.22:10259,…:10259          148d
+```
+
+and `kube-scheduler` is present in the `up` job list while `kube-etcd` is not.
+(`kubeControllerManager` is disabled on Frank for an unrelated reason — the
+Service name exceeds 63 characters with this release name.)
+
+**The near-miss worth recording:** the first draft of this entry claimed the
+scheduler had the same empty-Endpoints shape, on the strength of a
+`helm template` render showing a selector-based Service and no `Endpoints`
+object. That inference is invalid. **A template render can never show
+`Endpoints`** — the API server creates and populates them at *runtime* from
+pods matching the selector — so *every* selector-based component looks
+endpoint-less in a render, healthy ones included. Confusing render-time with
+runtime is a second silent-absence trap sitting directly on top of the first,
+and it is why the diagnosis below is deliberately a **live** check and not a
+render.
+
 ### The diagnosis: read ENDPOINTS, not the Service and not the scrape config
 
 ```bash

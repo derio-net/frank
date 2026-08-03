@@ -320,7 +320,11 @@ A headless Service, a `VMServiceScrape` aimed at it, and an `Endpoints` object t
 
 The chart's Service selects pods labelled `component: etcd` — the kubeadm layout, where etcd runs as a labelled static pod. **Talos runs etcd as a host system service, not a pod.** The selector can never match. Zero endpoints, zero targets, zero series, and no error anywhere, because nothing failed: every object the chart was asked to create existed and was correct.
 
-This is the reusable shape, and it is not specific to etcd. Any chart component that discovers its target by **pod selector** — `kubeEtcd`, `kubeControllerManager`, `kubeScheduler` — assumes a distribution whose control plane runs as labelled pods. On Talos that assumption is wrong for etcd outright, and worth checking for the other two. `kubeControllerManager` was already disabled here for an unrelated reason (the 65-character Service name); `kubeScheduler` is not, and at chart 0.72.4 it still renders `selector: {component: kube-scheduler}` with no `Endpoints` object of its own.
+This is the reusable shape, and it is not specific to etcd. Any chart component that discovers its target by **pod selector** — `kubeEtcd`, `kubeControllerManager`, `kubeScheduler` — assumes a distribution whose control plane runs as labelled pods.
+
+On Talos, exactly one of those assumptions is wrong. Talos runs kube-apiserver, kube-controller-manager and kube-scheduler as **static pods** carrying the very `component:` labels the chart expects, so the selector finds them; `kube-scheduler` has three healthy endpoints on this cluster and reports into `up` like any other job. **etcd is the sole component Talos runs as a host system service** — which is why it is the only one that went dark.
+
+I nearly wrote the opposite. Rendering the chart shows a selector-based Service for the scheduler and no `Endpoints` object beside it, which looks like the identical failure. It isn't: **a template render can never show `Endpoints`**, because Kubernetes creates and fills them at runtime from whatever pods match. Every selector-based component looks endpoint-less in a render, the healthy ones included. That is a second silent-absence trap stacked on the first — reasoning about presence from an artifact that structurally cannot contain the thing you're looking for — and the only cure is to check the live cluster.
 
 **The diagnosis is to read `ENDPOINTS`, not the Service and not the scrape config:**
 
