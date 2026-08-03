@@ -222,6 +222,29 @@ secure-agent-pod boards.
 The chart's `defaultDashboards` etcd board was rejected: it is upstream-shaped,
 and every other dashboard on Frank is a curated ConfigMap.
 
+**Correction, measured after the decision was taken.** That board is not an
+option to enable — it is **already live**. `kubectl -n monitoring get cm -l
+grafana_dashboard=1` returns 15 ConfigMaps including
+`victoria-metrics-victoria-metrics-k8s-stack-etcd`, and Grafana runs a
+`grafana-sc-dashboard` sidecar that consumes them. So an upstream etcd dashboard
+has been sitting in Frank's Grafana for 148 days rendering nothing, for exactly
+the same reason the alerts could not exist.
+
+It also cannot be disabled on its own: `defaultDashboards.dashboards` exposes
+only three toggles (`victoriametrics-vmalert`, `victoriametrics-operator`,
+`node-exporter-full`); the etcd board follows `kubeEtcd.enabled`. The only levers
+are `defaultDashboards.enabled: false` (removes all 15 boards) or
+`kubeEtcd.enabled: false` (removes the scrape this plan exists to add). Neither
+is acceptable — and with the Application at `prune: false`, a values-level
+disable would leave the ConfigMap orphaned on the cluster anyway.
+
+Frank therefore ends up with **two** etcd dashboards, and the upstream one will
+start populating once the ConfigPatch lands. The curated board still ships:
+`d3-dashboard`'s intent — a Frank-curated board where the acceptance evidence
+lives — survives the corrected fact. But it must carry a distinct title and uid,
+and the gotchas entry must say which is which, so that whoever later finds
+duplicate etcd dashboards does not delete the curated one as the redundant copy.
+
 The panels are not decoration — they are where the acceptance re-run's
 before/under-load evidence lives. Without them the promoted row has no durable
 home beyond a paragraph of prose.

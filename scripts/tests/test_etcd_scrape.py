@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 from typing import Any
 from urllib.parse import urlparse
 
@@ -340,4 +341,657 @@ def test_endpoints_match_the_documented_control_plane_ips():
         "in one list and not the other is either a node that is scraped but "
         "runs no etcd, or an etcd member that is not scraped at all — and "
         "neither shows up as an error, only as missing series."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The signals: six Grafana-managed alert rules.
+#
+# A scrape that nobody alerts on is a dashboard, not observability — and the
+# whole reason this layer exists is that a green dashboard is exactly what 148
+# days of silence looked like. These assertions are in two halves, deliberately.
+#
+# The first half asserts the rules are PRESENT and STRUCTURALLY VALID: right
+# folder, unique uid, the 3-step A -> B -> C SSE shape Grafana 12.x requires,
+# and explicit noData/execErr states. Every one of those failures is silent in
+# production — a classic-condition rule fails provisioning with `sse.parseError`
+# and simply never evaluates; a duplicate uid means one rule overwrites the
+# other org-wide and the loser never evaluates either.
+#
+# The second half asserts the rules are CORRECT rather than merely present, and
+# that half is the point of the file.
+# ---------------------------------------------------------------------------
+
+ALERT_RULES_CM = (
+    REPO / "apps" / "grafana-alerting" / "manifests" / "alert-rules-cm.yaml"
+)
+
+# The ConfigMap key holding the Grafana provisioning document. The document is
+# carried as a YAML *string*, so reading a rule needs two loads — the same
+# double-load shape as the Omni ConfigPatch above.
+PROVISIONING_KEY = "alert-rules.yaml"
+
+# The folder `notification-policy-cm.yaml` routes to the Health Bridge Webhook,
+# via its last policy (`grafana_folder="feature-health"`).
+FEATURE_HEALTH = "feature-health"
+
+# Frank's VictoriaMetrics datasource. A rule pointed at any other uid provisions
+# fine and then errors on every evaluation.
+GRAFANA_DATASOURCE_UID = "P4169E866C3094E38"
+
+# The job label the scrape produces. Written here only so failure messages can
+# name it — NOTHING asserts against this constant. The rules are checked against
+# the value DERIVED from the rendered chart in
+# `test_absent_watchdog_selects_the_job_the_chart_renders`, because a constant
+# and a rule that agree with each other are just the same paste twice.
+ETCD_JOB = "kube-etcd"
+
+# The two rules that reach Telegram. Loss of quorum is an operator problem;
+# everything else is a tracked bug.
+ETCD_PAGING_UIDS: frozenset[str] = frozenset(
+    {
+        "layer-2-etcd-no-leader",
+        "layer-2-etcd-member-down",
+    }
+)
+
+# The four that go to the Health Bridge and nowhere else.
+ETCD_BRIDGE_ONLY_UIDS: frozenset[str] = frozenset(
+    {
+        "layer-2-etcd-scrape-absent",
+        "layer-2-etcd-leader-changes",
+        "layer-2-etcd-wal-fsync-slow",
+        "layer-2-etcd-db-quota",
+    }
+)
+
+ETCD_RULE_UIDS: frozenset[str] = ETCD_PAGING_UIDS | ETCD_BRIDGE_ONLY_UIDS
+
+# The rule that fires when the whole scrape disappears — the guard against this
+# layer silently reverting to the state it was built to fix.
+ETCD_ABSENT_WATCHDOG = "layer-2-etcd-scrape-absent"
+
+# The minimum `for:` on a paging rule. A planned Talos rolling reboot takes one
+# etcd member down and elects a new leader entirely legitimately; the 2026-08-02
+# control-plane roll took roughly 7 minutes and produced 48 alerts against a
+# healthy cluster.
+PAGING_MIN_FOR_MINUTES = 10
+
+
+def _provisioning_document() -> dict[str, Any]:
+    """The inner Grafana provisioning document (double YAML load)."""
+    configmap = yaml.safe_load(ALERT_RULES_CM.read_text(encoding="utf-8"))
+    assert configmap.get("kind") == "ConfigMap", (
+        f"{ALERT_RULES_CM.relative_to(REPO)} is expected to be a ConfigMap "
+        "wrapping the Grafana provisioning document"
+    )
+    data = configmap.get("data") or {}
+    assert PROVISIONING_KEY in data, (
+        f"{ALERT_RULES_CM.relative_to(REPO)} has no `data.{PROVISIONING_KEY}` "
+        f"key — the provisioning document moved. Keys present: {sorted(data)}"
+    )
+    document = yaml.safe_load(data[PROVISIONING_KEY])
+    assert document.get("apiVersion") == 1, (
+        "expected a Grafana alerting provisioning document (apiVersion: 1)"
+    )
+    return document
+
+
+def _all_alert_rules() -> list[dict[str, Any]]:
+    """Every rule in the document, flattened, each carrying its group context.
+
+    `folder` — the routing key — is a GROUP-level field, so a flat list of
+    rules alone would drop exactly the property most worth asserting.
+    """
+    rules: list[dict[str, Any]] = []
+    for group in _provisioning_document().get("groups") or []:
+        for rule in group.get("rules") or []:
+            enriched = dict(rule)
+            enriched["_group"] = group.get("name")
+            enriched["_folder"] = group.get("folder")
+            rules.append(enriched)
+    return rules
+
+
+def _etcd_rules() -> dict[str, dict[str, Any]]:
+    """The six etcd rules, by uid. Fails loudly if any is missing."""
+    by_uid = {
+        rule.get("uid"): rule
+        for rule in _all_alert_rules()
+        if rule.get("uid") in ETCD_RULE_UIDS
+    }
+    missing = sorted(ETCD_RULE_UIDS - set(by_uid))
+    assert not missing, (
+        "etcd alert rule uid(s) absent from "
+        f"{ALERT_RULES_CM.relative_to(REPO)}: {missing}. A scrape with no rules "
+        "on it is a dashboard, not monitoring — and a dashboard nobody opens is "
+        "what 148 days of unmonitored etcd already looked like."
+    )
+    return by_uid
+
+
+def _for_minutes(value: Any) -> int:
+    """`for:` as whole minutes. Grafana accepts 0m / 30s / 10m / 1h / 3h."""
+    text = str(value or "").strip()
+    match = re.fullmatch(r"(\d+)([smh])", text)
+    assert match, (
+        f"could not parse a duration out of `for: {value!r}` — Grafana writes "
+        "these as e.g. 0m / 10m / 1h"
+    )
+    amount, unit = int(match.group(1)), match.group(2)
+    return {"s": amount // 60, "m": amount, "h": amount * 60}[unit]
+
+
+def test_the_six_etcd_rules_exist_in_the_feature_health_folder():
+    """`folder` is a group-level field, so one mistyped group header silently
+    moves every rule under it off the Health Bridge route.
+
+    The failure is invisible from the rule itself: a rule in a nonexistent
+    folder still evaluates and still fires — it just matches no route in
+    `notification-policy-cm.yaml`, whose last entry keys on
+    `grafana_folder="feature-health"`. Nothing errors; the alert goes nowhere.
+    """
+    wrong = {
+        uid: rule["_folder"]
+        for uid, rule in _etcd_rules().items()
+        if rule["_folder"] != FEATURE_HEALTH
+    }
+    assert not wrong, (
+        "etcd alert rule(s) outside the "
+        f"`{FEATURE_HEALTH}` folder (uid -> folder): {wrong}. "
+        "notification-policy-cm.yaml routes the Health Bridge on "
+        f'grafana_folder="{FEATURE_HEALTH}", so a folder typo does not error — '
+        "it silently unroutes the rule."
+    )
+
+
+def test_etcd_rule_uids_do_not_collide_with_any_existing_rule():
+    """Grafana keys provisioned rules by uid ORG-WIDE, not per folder.
+
+    A duplicate is not rejected at provisioning time — one rule simply
+    overwrites the other, and the loser never evaluates again. Scoped to the
+    six new uids on purpose: the folder-wide uniqueness guard already lives in
+    `test_feature_health_workload_metrics.py`, and what this phase can newly
+    break is a NEW uid landing on top of an existing rule.
+    """
+    counts: dict[str, int] = {}
+    for rule in _all_alert_rules():
+        uid = rule.get("uid")
+        if uid in ETCD_RULE_UIDS:
+            counts[uid] = counts.get(uid, 0) + 1
+
+    collisions = sorted(uid for uid, count in counts.items() if count > 1)
+    assert not collisions, (
+        "etcd alert rule uid(s) appear more than once in the provisioning "
+        f"document: {collisions}. Grafana keys rules by uid across the whole "
+        "org, so one of each pair silently overwrites the other and never "
+        "evaluates."
+    )
+
+
+def test_etcd_rules_use_the_three_step_sse_shape():
+    """A -> B -> C, or the rule never evaluates at all.
+
+    Grafana 12.x rejects a classic-condition rule with `sse.parseError` at
+    provisioning time. The rule is then simply absent from the evaluator while
+    still present in this file, which is the most deceptive failure available:
+    the config says the alert exists and the cluster disagrees silently.
+
+    `A` queries the datasource, `B` reduces the series to one value, `C`
+    thresholds `B`, and `condition: C` names which node decides. Every existing
+    rule in this folder has that shape; these six copy it.
+    """
+    problems: dict[str, list[str]] = {}
+    for uid, rule in _etcd_rules().items():
+        faults: list[str] = []
+        nodes = {node.get("refId"): node for node in rule.get("data") or []}
+
+        if sorted(nodes) != ["A", "B", "C"]:
+            faults.append(f"refIds are {sorted(nodes)}, expected ['A', 'B', 'C']")
+        else:
+            a_model = nodes["A"].get("model") or {}
+            if nodes["A"].get("datasourceUid") != GRAFANA_DATASOURCE_UID:
+                faults.append(
+                    "node A datasourceUid is "
+                    f"{nodes['A'].get('datasourceUid')!r}, expected "
+                    f"{GRAFANA_DATASOURCE_UID!r}"
+                )
+            if not str(a_model.get("expr") or "").strip():
+                faults.append("node A carries no PromQL `expr`")
+
+            b_model = nodes["B"].get("model") or {}
+            if b_model.get("type") != "reduce":
+                faults.append(f"node B type is {b_model.get('type')!r}, expected 'reduce'")
+            if b_model.get("expression") != "A":
+                faults.append(
+                    f"node B reduces {b_model.get('expression')!r}, expected 'A'"
+                )
+
+            c_model = nodes["C"].get("model") or {}
+            if c_model.get("type") != "threshold":
+                faults.append(
+                    f"node C type is {c_model.get('type')!r}, expected 'threshold'"
+                )
+            if c_model.get("expression") != "B":
+                faults.append(
+                    f"node C thresholds {c_model.get('expression')!r}, expected 'B'"
+                )
+            conditions = c_model.get("conditions") or []
+            if len(conditions) != 1:
+                faults.append(
+                    f"node C has {len(conditions)} threshold condition(s), expected 1"
+                )
+
+        if rule.get("condition") != "C":
+            faults.append(f"`condition` is {rule.get('condition')!r}, expected 'C'")
+
+        if faults:
+            problems[uid] = faults
+
+    assert not problems, (
+        "etcd alert rule(s) are not in the 3-step A -> B -> C SSE shape. "
+        "Grafana 12.x fails a classic-condition rule with `sse.parseError` at "
+        "provisioning time, so the rule is missing from the evaluator while "
+        f"still present in this file: {problems}"
+    )
+
+
+def test_etcd_rules_declare_nodata_ok_and_execerr_error():
+    """`noDataState: OK` is the deliberate posture, and it has a cost.
+
+    Grafana defaults an omitted `noDataState` to `NoData`, which FIRES. Before
+    the ConfigPatch lands the target is simply down, so every one of these rules
+    sits at NoData — omitting the field would page on merge, for a cluster that
+    is perfectly healthy.
+
+    The cost is that a scrape which disappears LATER also reads OK, which is
+    precisely why `layer-2-etcd-scrape-absent` exists. Stating both fields is
+    what makes that trade-off visible in the file instead of implied by a
+    default.
+    """
+    offenders = {
+        uid: {
+            "noDataState": rule.get("noDataState"),
+            "execErrState": rule.get("execErrState"),
+        }
+        for uid, rule in _etcd_rules().items()
+        if rule.get("noDataState") != "OK" or rule.get("execErrState") != "Error"
+    }
+    assert not offenders, (
+        "etcd alert rule(s) do not declare `noDataState: OK` / "
+        f"`execErrState: Error`: {offenders}. An omitted noDataState defaults "
+        "to NoData, which fires — and these rules are NoData by construction "
+        "until the operator applies the Talos ConfigPatch."
+    )
+
+
+# ---------------------------------------------------------------------------
+# What makes these rules CORRECT rather than merely present.
+#
+# Everything above would pass on six well-formed rules measuring the wrong
+# thing. The assertions below are the ones that encode why this layer exists.
+# ---------------------------------------------------------------------------
+
+# etcd's own server metrics. The four families are all this layer's rules may
+# use: `etcd_server_*` (leader, leader changes, backend quota), `etcd_disk_*`
+# (WAL fsync, backend commit), `etcd_mvcc_*` (DB size) and `etcd_network_*`
+# (peer round-trip).
+_ETCD_SERVER_METRIC = re.compile(r"^etcd_(server|disk|mvcc|network)_")
+
+# The apiserver's storage CLIENT metrics — the trap this whole layer exists to
+# name. These series were in VMSingle the entire 148 days etcd went unscraped,
+# which is exactly why nobody noticed: greping `etcd` in VMUI returns them, and
+# they look like etcd monitoring.
+_APISERVER_CLIENT_METRIC = re.compile(r"^etcd_(request|requests|lease|bookmark)")
+
+_ETCD_METRIC_TOKEN = re.compile(r"\betcd_[a-z0-9_]+\b")
+
+# The `up{job="..."}` form the member-down rule and the absent watchdog use.
+# Extracted rather than matched loosely so a rule that selects a DIFFERENT job
+# cannot pass by containing the substring `up{job=`.
+_UP_JOB = re.compile(r'\bup\s*\{\s*job\s*=\s*"([^"]+)"')
+
+
+def _rule_expr(rule: dict[str, Any]) -> str:
+    """The PromQL on the rule's refId=A node. Only `A` carries a query."""
+    for node in rule.get("data") or []:
+        model = node.get("model") or {}
+        if node.get("refId") == "A" and "expr" in model:
+            return str(model["expr"])
+    raise AssertionError(
+        f"rule {rule.get('uid')!r} has no refId=A datasource query to read"
+    )
+
+
+def test_etcd_rules_measure_etcd_itself_not_the_apiserver_storage_client():
+    """THE assertion. Everything else in this file supports it.
+
+    `etcd_request_duration_seconds`, `etcd_request_errors_total`,
+    `etcd_requests_total`, `etcd_lease_object_counts` and
+    `etcd_bookmark_counts` already exist in VMSingle and always did. They are
+    the **apiserver's client** to etcd — they measure the caller, from inside
+    the caller's process, and they are entirely available when etcd is not
+    scraped at all. They tell you the apiserver's storage calls are slow; they
+    cannot tell you whether the quorum has a leader, how often it re-elected
+    one, how long a WAL fsync takes, or how close the backend is to its quota.
+
+    That distinction is the whole reason this went unnoticed for 148 days: a
+    reasonable person greps `etcd` in VMUI, finds series, and concludes etcd is
+    monitored.
+
+    So the failure mode this guards is not a typo — it is a plausible future
+    repair. When one of these rules breaks (a chart bump, a metric rename, a
+    scrape that stops), the fastest-looking fix is to repoint it at a metric
+    that demonstrably HAS data. Every such metric here is an apiserver-client
+    metric. The rule would go green, the dashboard would fill in, and Frank
+    would be measuring the wrong process while believing it had fixed the
+    monitoring gap this layer was built to close.
+    """
+    offenders: dict[str, list[str]] = {}
+    for uid, rule in _etcd_rules().items():
+        expr = _rule_expr(rule)
+        metrics = sorted(set(_ETCD_METRIC_TOKEN.findall(expr)))
+
+        client_metrics = [m for m in metrics if _APISERVER_CLIENT_METRIC.match(m)]
+        if client_metrics:
+            offenders[uid] = [f"apiserver storage-client metric: {m}" for m in client_metrics]
+            continue
+
+        stray = [m for m in metrics if not _ETCD_SERVER_METRIC.match(m)]
+        if stray:
+            offenders[uid] = [f"metric outside the etcd server families: {m}" for m in stray]
+            continue
+
+        # A rule with no `etcd_*` metric at all is legitimate only if it is one
+        # of the `up{job="kube-etcd"}` forms — target liveness and the absent
+        # watchdog both ask about the SCRAPE, not about a series etcd exports.
+        if not metrics and not _UP_JOB.search(expr):
+            offenders[uid] = [
+                "queries neither an etcd server metric nor "
+                f'up{{job="{ETCD_JOB}"}}: {expr!r}'
+            ]
+
+    assert not offenders, (
+        "etcd alert rule(s) do not measure etcd.\n"
+        f"  allowed: metrics matching {_ETCD_SERVER_METRIC.pattern}, or the "
+        f'up{{job="{ETCD_JOB}"}} / absent(...) forms\n'
+        f"  FORBIDDEN: etcd_request_* / etcd_requests_* / etcd_lease_* / "
+        "etcd_bookmark_* — these are the APISERVER'S STORAGE CLIENT, not "
+        "etcd. They existed in VMSingle throughout the 148 days etcd was "
+        "unmonitored, and mistaking them for etcd metrics is the exact reason "
+        "nobody noticed. A rule repointed at one of them goes green and "
+        "measures the wrong process.\n"
+        f"  offenders: {offenders}"
+    )
+
+
+def test_only_quorum_loss_pages():
+    """Routing is by label, and the labels are the entire routing decision.
+
+    `notification-policy-cm.yaml` puts the `health_bridge_only="true"` route
+    BEFORE the severity routes with `continue: false`, so that label is a hard
+    diversion: a rule carrying it can never reach Telegram whatever its
+    severity. That is deliberate — health-bridge's dead-to-bug-issue lifecycle
+    requires `severity: critical`, and the escape hatch is what lets a critical
+    alert file a tracked bug without paging.
+
+    The consequence is that a stray `health_bridge_only` on a paging rule
+    silently un-pages it, with no error and no visible difference in Grafana.
+    Losing quorum on Frank's control plane would then file an issue nobody
+    reads at 03:00.
+
+    `for:` is the other half. A planned Talos rolling reboot takes one member
+    down and elects a new leader legitimately; the 2026-08-02 control-plane
+    roll produced 48 alerts against a completely healthy cluster and took about
+    7 minutes. A paging etcd rule below 10m would fire on every planned roll,
+    and an alert that fires on planned maintenance gets muted within a month —
+    which is worse than no alert, because it still looks like coverage.
+    """
+    faults: dict[str, list[str]] = {}
+    rules = _etcd_rules()
+
+    for uid in sorted(ETCD_PAGING_UIDS):
+        rule = rules[uid]
+        labels = rule.get("labels") or {}
+        problems: list[str] = []
+        if labels.get("severity") != "critical":
+            problems.append(f"severity is {labels.get('severity')!r}, expected 'critical'")
+        if "health_bridge_only" in labels:
+            problems.append(
+                "carries health_bridge_only="
+                f"{labels['health_bridge_only']!r} — the policy's escape-hatch "
+                "route precedes the severity routes with continue: false, so "
+                "this rule can never reach Telegram"
+            )
+        window = _for_minutes(rule.get("for"))
+        if window < PAGING_MIN_FOR_MINUTES:
+            problems.append(
+                f"for: {rule.get('for')!r} is under {PAGING_MIN_FOR_MINUTES}m, "
+                "so a planned control-plane roll pages"
+            )
+        if problems:
+            faults[uid] = problems
+
+    for uid in sorted(ETCD_BRIDGE_ONLY_UIDS):
+        labels = rules[uid].get("labels") or {}
+        if labels.get("health_bridge_only") != "true":
+            faults[uid] = [
+                "missing health_bridge_only=\"true\" — it would reach Telegram "
+                f"via the severity route. Got labels: {dict(labels)}"
+            ]
+
+    assert not faults, (
+        "etcd alert routing is wrong. Only quorum loss pages: "
+        f"{sorted(ETCD_PAGING_UIDS)} carry severity: critical, "
+        f"for: >= {PAGING_MIN_FOR_MINUTES}m and NO health_bridge_only; "
+        f"{sorted(ETCD_BRIDGE_ONLY_UIDS)} carry health_bridge_only=\"true\". "
+        f"Faults: {faults}"
+    )
+
+
+def test_no_etcd_annotation_contains_html_metacharacters():
+    """`<`, `>` and `&` make the alert fire and never deliver.
+
+    Grafana's Telegram contact point sends `parse_mode: HTML`. A bare angle
+    bracket in a summary is parsed as an unclosed tag, Telegram rejects the
+    whole message with 400, and the failure appears only as an
+    `ngalert.notifier` line in the Grafana log. The alert is firing in the UI,
+    the contact point is configured, and nothing arrives — which is
+    indistinguishable from the alert not having fired.
+
+    It bit `layer-1-nic-link-flap` on 2026-06-08 (`<node-ip>` in a runbook),
+    which is why every rule near these writes `NODE_IP`.
+
+    Asserted across ALL annotations rather than just `summary`: Grafana
+    templates every annotation into the notification body, so a runbook is as
+    fatal as a summary.
+    """
+    offenders: dict[str, dict[str, str]] = {}
+    for uid, rule in _etcd_rules().items():
+        bad = {
+            key: value
+            for key, value in (rule.get("annotations") or {}).items()
+            if any(char in str(value) for char in "<>&")
+        }
+        if bad:
+            offenders[uid] = bad
+    assert not offenders, (
+        "etcd alert annotation(s) contain `<`, `>` or `&`. Grafana's Telegram "
+        "contact point uses HTML parse_mode, so Telegram rejects the message "
+        "with 400 and the alert fires but is NEVER DELIVERED — visible only in "
+        "the Grafana log. Write NODE_IP, not a bracketed placeholder, and "
+        f"spell comparisons out in words: {offenders}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The watchdog must watch the name the chart actually renders.
+#
+# `absent(up{job="kube-etcd"})` is the guard against this layer silently
+# reverting — and it is itself silently breakable, in a way that looks the same
+# from either direction. A watchdog naming a job that never exists returns
+# `absent() == 1` forever: it fires immediately, permanently, against a
+# perfectly healthy scrape, which reads as a broken rule and gets muted. A
+# watchdog naming a job that stopped existing after a rename returns exactly the
+# same thing — and gets muted for the same reason, at the moment it is right.
+# Either way the guard against silent absence is itself silently wrong, which is
+# the defect class this whole plan exists to stop recurring, on its third
+# appearance.
+#
+# So the job name is DERIVED from the rendered chart rather than compared with a
+# constant. The constant and the rule would only ever be the same paste twice.
+# The derivation is two hops, both of which a chart bump can move independently:
+#
+#   VMServiceScrape.spec.jobLabel  ->  names a Service LABEL KEY ("jobLabel")
+#   Service.metadata.labels[key]   ->  the job VALUE ("kube-etcd")
+#
+# This shells out to `helm template` against the pinned chart, following
+# test_cnc_staging_host_secrets.py, and is fail-closed: a missing helm or no
+# egress goes RED on infrastructure rather than green on nothing. CI installs
+# helm for exactly this reason (.github/workflows/repo-tripwires.yml).
+# ---------------------------------------------------------------------------
+
+VM_APPLICATION = REPO / "apps" / "root" / "templates" / "victoria-metrics.yaml"
+
+# The rendered objects are named `<release>-<chart>-kube-etcd`; the release name
+# must match production or the Service labels the scrape selects on differ.
+VM_RELEASE = "victoria-metrics"
+
+_render_cache: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def _vm_chart_pin() -> tuple[str, str, str]:
+    """(repoURL, chart, version) for the k8s-stack source, from the App CR.
+
+    Read by regex, not YAML: the Application is a Helm template and carries
+    `{{ .Values.repoURL }}` in its sibling sources, so `yaml.safe_load` cannot
+    parse it. Deriving the pin means a chart bump re-runs this guard against
+    whatever is actually deployed instead of against a stale literal.
+    """
+    text = VM_APPLICATION.read_text(encoding="utf-8")
+    match = re.search(
+        r"repoURL:\s*(?P<repo>\S+)\s*\n\s*chart:\s*(?P<chart>\S+)\s*\n\s*"
+        r"targetRevision:\s*\"?(?P<version>[0-9][^\"\s]*)\"?",
+        text,
+    )
+    assert match, (
+        f"could not find the charted source pin in "
+        f"{VM_APPLICATION.relative_to(REPO)} — this guard renders the chart at "
+        "the version ArgoCD actually deploys, and cannot do that if the "
+        "Application's shape has changed"
+    )
+    return match.group("repo"), match.group("chart"), match.group("version")
+
+
+def _rendered_kube_etcd_objects() -> dict[str, dict[str, Any]]:
+    """`{kind: object}` for the kube-etcd objects the chart renders.
+
+    Rendered with the real `apps/victoria-metrics/values.yaml` and the
+    production release name, so the labels here are the labels the cluster has.
+    """
+    if "objects" in _render_cache:
+        return _render_cache["objects"]
+
+    repo, chart, version = _vm_chart_pin()
+    result = subprocess.run(
+        [
+            "helm", "template", VM_RELEASE, chart,
+            "--repo", repo,
+            "--version", version,
+            "-f", str(VM_VALUES),
+            # The operator subchart renders CRDs and a webhook we do not need
+            # and which slow the render considerably.
+            "--set", "victoria-metrics-operator.enabled=false",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"`helm template {chart} --version {version}` failed, so the job label "
+        "could not be derived. This guard is fail-closed on purpose: a green "
+        "run must mean the chart was rendered and agreed, never that rendering "
+        f"was skipped.\n{result.stderr}"
+    )
+
+    objects: dict[str, dict[str, Any]] = {}
+    for document in yaml.safe_load_all(result.stdout):
+        if not document:
+            continue
+        name = (document.get("metadata") or {}).get("name") or ""
+        if name.endswith("-kube-etcd"):
+            objects[document["kind"]] = document
+
+    for kind in ("Service", "VMServiceScrape"):
+        assert kind in objects, (
+            f"the chart rendered no kube-etcd {kind}. Either kubeEtcd went "
+            "disabled in apps/victoria-metrics/values.yaml — in which case "
+            "there is no scrape and these alert rules are decoration — or the "
+            f"chart renamed its objects. Rendered kinds: {sorted(objects)}"
+        )
+    _render_cache["objects"] = objects
+    return objects
+
+
+def _rendered_job_label() -> str:
+    """The job name series will actually carry, derived in two hops."""
+    objects = _rendered_kube_etcd_objects()
+
+    label_key = (objects["VMServiceScrape"].get("spec") or {}).get("jobLabel")
+    assert label_key, (
+        "the rendered VMServiceScrape has no `spec.jobLabel`, so vmagent would "
+        "fall back to its own default job naming and every selector in these "
+        "rules would be wrong in a way nothing else reports"
+    )
+
+    service_labels = (objects["Service"].get("metadata") or {}).get("labels") or {}
+    assert label_key in service_labels, (
+        f"the VMServiceScrape takes the job name from the Service label "
+        f"{label_key!r}, but the rendered Service carries no such label. "
+        f"Service labels: {sorted(service_labels)}"
+    )
+    return str(service_labels[label_key])
+
+
+def test_absent_watchdog_selects_the_job_the_chart_renders():
+    """The watchdog's `job` is the chart's, not a remembered string.
+
+    Checked for every `up{job="..."}` selector in the six rules, not only the
+    watchdog: `layer-2-etcd-member-down` fails the same way and even more
+    quietly. A wrong job there yields no series at all, which under
+    `noDataState: OK` reads as a healthy quorum forever — a rule that cannot
+    fire, reporting health.
+    """
+    expected = _rendered_job_label()
+
+    selectors: dict[str, list[str]] = {}
+    for uid, rule in _etcd_rules().items():
+        jobs = _UP_JOB.findall(_rule_expr(rule))
+        if jobs:
+            selectors[uid] = jobs
+
+    assert ETCD_ABSENT_WATCHDOG in selectors, (
+        f"{ETCD_ABSENT_WATCHDOG} does not select on an `up{{job=...}}` series. "
+        "absent() is the only expression that fires when a series DISAPPEARS, "
+        "and `up` is the only series guaranteed to exist for as long as the "
+        "target does — so the watchdog against the scrape vanishing has to be "
+        "built on it."
+    )
+
+    wrong = {
+        uid: jobs
+        for uid, jobs in selectors.items()
+        if any(job != expected for job in jobs)
+    }
+    assert not wrong, (
+        "etcd alert rule(s) select a job the chart does not render.\n"
+        f"  chart renders: job={expected!r}\n"
+        f"  rules select:  {wrong}\n"
+        "The name arrives by two hops — the Service carries a `jobLabel` label, "
+        "and the VMServiceScrape's `spec.jobLabel` says to take the job name "
+        "from it — so a rename at either end moves it. A selector naming a job "
+        "that does not exist yields no series, which for the watchdog means "
+        "`absent() == 1` permanently (fires against a healthy scrape, then gets "
+        "muted) and for every other rule means NoData, which noDataState: OK "
+        "reads as health. Both are the guard being silently wrong, which is the "
+        "exact defect this layer exists to stop recurring."
     )

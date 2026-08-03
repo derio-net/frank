@@ -63,3 +63,86 @@ TWO PRE-EXISTING OBJECTS PHASE 2 SHOULD KNOW ABOUT (both render identically with
 
 Command used (rtk proxy, because rtk summarises helm output and truncates the render):
   rtk proxy helm template victoria-metrics vm/victoria-metrics-k8s-stack --version 0.72.4 -f <(kubeEtcd block extracted with python) --set victoria-metrics-operator.enabled=false
+
+<!-- fr:journal kind=discovery scope=plan id=p3-upstream-etcd-dashboard-is-already-live created=2026-08-03T12:11:39 -->
+### p3-upstream-etcd-dashboard-is-already-live · discovery · The chart's etcd dashboard is ALREADY live in Grafana and cannot be disabled independently
+
+Measured live 2026-08-03, and it changes the premise of spec decision d3-dashboard.
+
+d3 was answered as a choice between hand-writing panels and 'enabling' the chart's defaultDashboards etcd board. The board is not something to enable — it is already there:
+
+  kubectl -n monitoring get cm -l grafana_dashboard=1
+    -> 15 ConfigMaps, INCLUDING victoria-metrics-victoria-metrics-k8s-stack-etcd
+
+and the Grafana Deployment runs three containers — grafana, grafana-sc-datasources and grafana-sc-dashboard — so the sidecar that consumes grafana_dashboard-labelled ConfigMaps is active. An upstream etcd dashboard has therefore been sitting in Frank's Grafana for 148 days rendering nothing, for the same reason the alerts could not exist: no series.
+
+It cannot be turned off on its own. defaultDashboards.dashboards exposes exactly three toggles (victoriametrics-vmalert, victoriametrics-operator, node-exporter-full); the etcd board follows kubeEtcd.enabled. The only levers are defaultDashboards.enabled: false, which would remove all 15 boards including node-exporter-full and the kubernetes views, and kubeEtcd.enabled: false, which removes the scrape this whole plan exists to add. Neither is acceptable. Note also that with the victoria-metrics Application at prune: false, even a values-level disable would leave the live ConfigMap orphaned on the cluster.
+
+CONSEQUENCE FOR PHASE 3: Frank will have two etcd dashboards, and once the ConfigPatch lands the upstream one will start populating too. Ship the curated board anyway — d3's intent (a curated board where the acceptance evidence lives) survives the corrected fact — but (1) give it a distinct title and uid so the two are never confused, (2) do NOT attempt to disable the upstream board, and (3) say all of this in the dashboard ConfigMap's header comment and in the gotchas entry, so the next person who finds duplicate etcd dashboards does not delete Frank's curated one believing it to be the redundant copy.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-fifteen-minute-window-guard-collision created=2026-08-03T12:29:55 -->
+### p2-fifteen-minute-window-guard-collision · discovery · Three of the six rules trip the folder's 15m-window policy guard — the exemption allowlist is the intended answer
+
+P2.T1.S3. The spec's for: values collide with an existing folder-wide policy guard that nothing in the plan or spec mentions. Writing the six rules made scripts/tests/test_feature_health_workload_metrics.py go red:
+
+  AssertionError: feature-health rule(s) sit at `for: 15m` without querying kube_daemonset_status_number_unavailable. That window exists to absorb node drains; using it for anything else needs its own rationale, not this one's. Either pick a window this rule can justify on its own, or add it to FIFTEEN_MINUTE_EXEMPTIONS with a written reason: ['layer-2-etcd-db-quota', 'layer-2-etcd-scrape-absent', 'layer-2-etcd-wal-fsync-slow']
+
+The guard (test_the_fifteen_minute_window_is_reserved_for_daemonset_rules, landed 2026-08-02 with the workload-metrics migration) says 15m exists in the feature-health folder for exactly ONE reason — absorbing a node drain — and any other rule adopting it is a sensitivity decision wearing that one's clothes. The spec's three 15m rules genuinely are not drain-tolerance cases, so the guard is RIGHT and the rules are also right; the resolution the guard itself prescribes is FIFTEEN_MINUTE_EXEMPTIONS, whose VALUE is the justification prose (a sibling test asserts each entry is >=80 chars and that its rule is still actually at 15m, so a stale exemption fails).
+
+Three entries added, each arguing the window on its own terms rather than borrowing the drain argument:
+  - layer-2-etcd-scrape-absent: absent() has no `for`-like tolerance of its own, so the window IS the tolerance for the two legitimate pauses (vmagent restart; the rolling etcd restart the ConfigPatch causes). Binary condition, so 15m waits rather than blunts.
+  - layer-2-etcd-wal-fsync-slow: a p99 disk quantile is spiky (compaction, Longhorn replica rebuild, backup window); 15m demands the elevation persist across three evaluations. The THRESHOLD carries the sensitivity here and is documented provisional; the window only rejects spikes.
+  - layer-2-etcd-db-quota: the backend grows over hours/days, so detection latency is irrelevant — at 80% of quota there is a long runway before the NOSPACE alarm. The window rejects the transient ratio moves around compaction/defrag.
+
+FOR PHASES 3-5: any further rule added to the feature-health folder at for: 15m must either query kube_daemonset_status_number_unavailable or land in that allowlist with its own written reason. Do not reach for 15m as a generic 'less noisy' default — that is precisely the behaviour the guard exists to convert into a written decision.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-watchdog-job-derivation-renders-the-chart created=2026-08-03T12:30:34 -->
+### p2-watchdog-job-derivation-renders-the-chart · discovery · The watchdog job assertion renders the pinned chart in-test; mutation-checked, and it names both hops
+
+P2.T2.S1. test_absent_watchdog_selects_the_job_the_chart_renders does NOT compare the rule against a constant — a constant and a rule that agree are the same paste twice. It shells out to `helm template` against the chart pin PARSED OUT OF apps/root/templates/victoria-metrics.yaml (regex, not yaml.safe_load: the Application is a Helm template and its sibling sources carry {{ .Values.repoURL }}, so it does not parse), renders with the real apps/victoria-metrics/values.yaml and release name `victoria-metrics`, and derives the job name in the two hops the P1 journal recorded:
+
+  VMServiceScrape.spec.jobLabel  -> names a Service LABEL KEY  ("jobLabel")
+  Service.metadata.labels[key]   -> the job VALUE              ("kube-etcd")
+
+Precedent for shelling out is scripts/tests/test_cnc_staging_host_secrets.py (`helm template --repo <url> --version`), and CI already installs helm for test_argocd_vcluster_pod_exclusion (.github/workflows/repo-tripwires.yml). Fail-closed like that precedent: a non-zero helm exit, a missing kube-etcd Service or a missing jobLabel is an AssertionError, never a skip. Cost is real — the render is ~30-50s, and it is the reason test_etcd_scrape.py went from 7s to 52s.
+
+The test checks EVERY up{job=...} selector in the six rules, not only the watchdog. layer-2-etcd-member-down fails the same way and more quietly: a wrong job yields no series, which under noDataState: OK reads as a healthy quorum forever.
+
+MUTATION CHECK (absent expression job kube-etcd -> kube-etcd-x): 1 failed, 11 passed. The message names both the derived value and the offending rule, so it says WHICH file disagrees rather than merely that something does:
+
+  AssertionError: etcd alert rule(s) select a job the chart does not render.
+      chart renders: job='kube-etcd'
+      rules select:  {'layer-2-etcd-scrape-absent': ['kube-etcd-x']}
+    The name arrives by two hops - the Service carries a `jobLabel` label, and the VMServiceScrape's `spec.jobLabel` says to take the job name from it - so a rename at either end moves it. A selector naming a job that does not exist yields no series, which for the watchdog means `absent() == 1` permanently (fires against a healthy scrape, then gets muted) and for every other rule means NoData, which noDataState: OK reads as health. Both are the guard being silently wrong, which is the exact defect this layer exists to stop recurring.
+
+Reverted; back to 12 passed. NOTE FOR PHASE 3: _rendered_kube_etcd_objects() caches the render at module scope, so a dashboard test that also needs chart facts should reuse it rather than paying a second 30s render.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-inert-upstream-vmrule-documented-in-place created=2026-08-03T12:31:08 -->
+### p2-inert-upstream-vmrule-documented-in-place · discovery · The 15 inert upstream etcd alerts are now named in the ConfigMap itself, with which half is live
+
+P2.T1.S3. Acting on the P1 discovery p1-rendered-job-label-kube-etcd. The chart renders VMRule victoria-metrics-victoria-metrics-k8s-stack-etcd carrying 15 upstream etcd alerts, all selecting job=~".*etcd.*" (which MATCHES kube-etcd), overlapping four of the six new rules at looser thresholds — etcdNoLeader vs layer-2-etcd-no-leader, etcdHighFsyncDurations at 0.5s/1s vs our 0.05s, etcdDatabaseQuotaLowSpace at 95% vs our 80%, etcdMembersDown/etcdInsufficientMembers vs layer-2-etcd-member-down.
+
+They are inert: a VMRule is evaluated by vmalert, and apps/victoria-metrics/values.yaml sets vmalert.enabled: false (alerting on Frank is Grafana-managed). They render whether or not our kubeEtcd block exists, since they follow kubeEtcd.enabled which was already true by chart default.
+
+The risk is not that they fire — it is that a future reader discovers 'duplicate etcd alerting' and resolves it by deleting the LIVE half, because the upstream rules look canonical and ours look like a local addition. So the comment block above the new group states outright which half is live and why the other cannot fire, and ends with 'do not delete them in favour of the inert ones'. Same shape as the mitigation phase 3 owes the curated-vs-upstream DASHBOARD pair (see r6-upstream-dashboard-already-live) — worth keeping the two notes consistent in wording so the pattern is recognisable.
+
+Also recorded in that comment block: the metric allowlist (etcd_server_/disk_/mvcc_/network_ and up{job="kube-etcd"}) and the explicit NEVER for etcd_request_*/etcd_requests_*/etcd_lease_*/etcd_bookmark_*, so the rule against measuring the apiserver's storage client exists both as a CI assertion and as prose next to the rules it governs.
+
+<!-- fr:journal kind=finding scope=plan id=p2-endpoints-label-is-k8s-app-not-joblabel created=2026-08-03T12:35:48 state=fixed -->
+### p2-endpoints-label-is-k8s-app-not-joblabel · finding [fixed] · The kube-etcd Endpoints object is labelled k8s-app, not jobLabel — a runbook selecting jobLabel returns empty and reads as a missing object
+
+P2.T1.S3, caught before commit by checking the render rather than trusting the shape.
+
+The scrape-absent runbook first said:
+  kubectl -n kube-system get endpoints -l jobLabel=kube-etcd -o yaml
+
+That selector matches NOTHING. The chart labels the three objects differently, and the difference is invisible unless you look:
+  Service   metadata.labels: {..., jobLabel: kube-etcd}      <- jobLabel lives HERE
+  Endpoints metadata.labels: {..., k8s-app:  kube-etcd}      <- and NOT here
+  VMServiceScrape spec.jobLabel: jobLabel                    <- names the Service label key
+
+So the command an operator runs at the moment the watchdog fires would have returned no resources — which, for a rule whose entire meaning is 'the scrape produced no series', reads as CONFIRMATION that the Endpoints object is gone. It would have sent triage straight past the actual cause (an empty subsets list, or a closed 2381 listener) toward re-creating an object that was there all along.
+
+Fixed to `-l k8s-app=kube-etcd`, with the distinction stated inline in the runbook so the next person does not re-derive it wrongly. Verified against the 0.72.4 render.
+
+GENERAL SHAPE, worth carrying into phases 3-5: a runbook command is not documentation, it is code that runs during an incident, and a selector that returns empty is indistinguishable from the thing it selects being absent. Any kubectl selector written into an annotation should be checked against a render or the live cluster before shipping — same family as the negative-control lesson in the MagicDNS wildcard gotcha (a check that passes vacuously proves nothing).

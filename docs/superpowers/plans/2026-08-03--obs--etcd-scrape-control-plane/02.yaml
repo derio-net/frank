@@ -114,26 +114,33 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T10:42:41+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T10:42:52+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T10:43:03+00:00'
       note: null
     P2.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-08-03T10:43:14+00:00'
+      note: 'Skipped as the step permits. The two loaders are not near-duplicates:
+        phase 1 reads an Omni ConfigPatch''s spec.data (a machine-config document)
+        and phase 2 reads a ConfigMap''s data[''alert-rules.yaml''] (a Grafana provisioning
+        document). They share only the double-yaml-load idiom, which is four lines;
+        what differs is every assertion message, and those messages are the point
+        (each names WHICH file has moved and why that matters). A shared helper would
+        have to be parameterised by path, key and three messages to say anything useful,
+        which is more indirection than the duplication it removes.'
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T10:43:25+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-08-03T10:52:24+00:00'
     note: null
     observed_prs: []

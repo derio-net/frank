@@ -44,3 +44,12 @@ Finding, fixed by disclosure. Test Plan step 1 tells the operator to assert quor
 ### r5-configpatch-id · review · ConfigPatch id 160 verified free against all 30 patches in the repo
 
 Verified, no change. Enumerated every metadata.id under patches/: the numbering is semantic rather than phase-derived (1xx cluster-wide, 2xx labels, 3xx node runtime, 4xx/5xx extensions and disks; phase13-auth uses 150). 160-etcd-metrics-listener sits in the cluster-wide band and collides with nothing. Also confirmed phase13-auth/omni-configpatch.yaml is the only existing machine-set-scoped patch, so it is the correct and only precedent for scoping to frank-control-planes.
+
+<!-- fr:journal kind=review scope=spec id=r6-upstream-dashboard-already-live created=2026-08-03T12:12:24 -->
+### r6-upstream-dashboard-already-live · review · d3-dashboard's premise was wrong — the chart's etcd board is already live and undisableable
+
+Finding, spec corrected, decision NOT reversed. The batched Q&A offered 'reuse the chart's built-in etcd dashboard' as an alternative to enable; measurement afterwards showed it is already enabled and running. 15 grafana_dashboard-labelled ConfigMaps exist in monitoring, one of them the chart's etcd board, and Grafana runs a grafana-sc-dashboard sidecar. It has rendered nothing for 148 days for the same reason the alerts could not exist.
+
+It cannot be disabled independently (defaultDashboards.dashboards has three toggles, none of them etcd; the board follows kubeEtcd.enabled) and the Application is prune: false, so even a values-level disable would orphan the live ConfigMap.
+
+Judged NOT to warrant re-opening the operator Q&A: d3's intent was a Frank-curated board holding the acceptance evidence, and that intent is unaffected by the upstream board also existing. Proceeding means two etcd dashboards rather than one, which is cheap to reverse if the operator disagrees. Mitigations required of phase 3: distinct title + uid, a header comment naming the upstream board, and a gotchas entry saying which is which — so the duplicate is not resolved later by deleting the curated one.
