@@ -1,0 +1,244 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Apply the ConfigPatch (pre-merge gate) and produce the acceptance evidence'
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+  acceptance:
+  - obs-etcd-server-metrics-scraped
+  - obs-etcd-blindness-is-tracked
+tasks:
+- number: 1
+  title: '[PRE-MERGE GATE] Apply the Talos ConfigPatch to the control-plane machine set'
+  steps:
+  - id: P5.T1.S1
+    text: |
+      OPERATOR. **This task is a PRE-MERGE GATE. Task 1 (both steps) must be
+      done, and the listener confirmed, BEFORE this PR is merged.** Tasks 2
+      and 3 are post-merge.
+
+      Why the order inverts — an earlier draft of this plan had it backwards.
+      `up` is not a series etcd exports: the scraper SYNTHESISES one per
+      configured target, 1 on a successful scrape and 0 on a failed one, and
+      it is never ABSENT while the target is configured. Supplying
+      `kubeEtcd.endpoints` is exactly what creates targets (the chart drops
+      its pod selector for a static `Endpoints` object), so merging first
+      hands vmagent three targets dialling a refused port. They sit at
+      `up=0`, NOT NoData — and `layer-2-etcd-member-down` (`up lt 1`,
+      `for: 10m`, critical, no `health_bridge_only`) fires ten minutes later
+      and repeats to Telegram every 3 minutes, against a perfectly healthy
+      quorum, until this patch is applied.
+
+      Frank already contains a live instance of that shape:
+      `count(up==0) by (job)` returns `{job="kube-scheduler"} 3`, and
+      `max_over_time(up{job="kube-scheduler"}[90d])` is 0 on all three —
+      populated Endpoints, failing scrape, `up=0` rather than NoData, for the
+      whole retention window. Applying this patch first costs nothing: it
+      opens a read-only metrics port nothing is yet scraping.
+
+      Requires `source .env` (repo root — KUBECONFIG/TALOSCONFIG
+      are RELATIVE paths) and `source .env_devops` (Omni service account).
+
+      ```
+      omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
+      ```
+
+      This restarts etcd on each control-plane node in turn. Assert quorum
+      BETWEEN nodes, not after all three:
+
+      ```
+      talosctl -n 192.168.55.21 etcd status   # 3 members, exactly one leader
+      ```
+
+      Do not proceed to the next node until the previous one is back in the
+      member list with a leader elected.
+
+      Omni is known to wedge silently on a cold-boot clock jump — the UI
+      keeps serving cached reads while the reconcile runtime is stopped, so
+      an applied patch never reaches its node. If nothing changes on the
+      first node within a few minutes, `docker restart omni` on the Omni
+      host and refresh the stored talosconfig.
+
+      The runbook block for this apply follows. It is byte-identical to the
+      copy in `patches/phase08-obs/README.md` (asserted by
+      `scripts/tests/test_etcd_scrape.py`), and it lives here as well
+      because `/sync-runbook` scans only `docs/superpowers/plans/` — a block
+      written only in the patches README would never reach
+      `docs/runbooks/manual-operations.yaml`.
+
+      ```yaml
+      # manual-operation
+      id: obs-etcd-metrics-listener-apply
+      layer: obs
+      app: victoria-metrics
+      plan: docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane
+      when: "BEFORE the PR carrying the kubeEtcd block in apps/victoria-metrics/values.yaml is merged. This is a pre-merge gate, not a post-merge follow-up. `up` is synthesised by the scraper for every configured target and reads 0 on a failed scrape, never absent — so merging first hands vmagent three targets dialling a refused port, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no health_bridge_only) pages Telegram every 3 minutes against a perfectly healthy quorum. Rollback reverts BOTH halves for the same reason."
+      why_manual: "Omni lives outside the cluster and the apply needs the Omni service-account credential, so it cannot be driven by ArgoCD. It also restarts etcd on each control-plane node in turn, which must be watched one node at a time with quorum asserted between nodes — a rolling restart of the quorum is not something to fire and forget."
+      commands:
+        - source .env && source .env_devops
+        - omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
+        - "# Watch the roll ONE NODE AT A TIME. Do not proceed to the next node until"
+        - "# the previous one is back in the member list with a leader elected."
+        - talosctl -n 192.168.55.21 etcd status
+        - talosctl -n 192.168.55.22 etcd status
+        - talosctl -n 192.168.55.23 etcd status
+        - "# If nothing changes on the first node within a few minutes, Omni may have"
+        - "# wedged on a cold-boot clock jump: it keeps serving cached reads while its"
+        - "# reconcile runtime is stopped. Recovery is `docker restart omni` on the Omni"
+        - "# host, then refresh the stored talosconfig."
+      verify:
+        - "# 1. The listener responds on ALL THREE minis. Ask from inside the cluster."
+        - "VMAGENT=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o name | head -1)"
+        - "for ip in 192.168.55.21 192.168.55.22 192.168.55.23; do kubectl -n monitoring exec \"$VMAGENT\" -c vmagent -- wget -qO- \"http://$ip:2381/metrics\" | head -1; done"
+        - "# Expect etcd metrics from each. Before the patch all three returned Connection refused."
+        - "# 2. The scrape target came UP: up{job=\"kube-etcd\"} returns 3 series, all 1."
+        - "kubectl -n monitoring port-forward svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8428:8428 &"
+        - "curl -s 'http://localhost:8428/api/v1/query?query=up%7Bjob%3D%22kube-etcd%22%7D' | jq '.data.result[] | {instance: .metric.instance, up: .value[1]}'"
+        - "# 3. The etcd-side metric families exist — NOT just the apiserver storage client."
+        - "#    Required: etcd_server_has_leader, etcd_disk_wal_fsync_duration_seconds_bucket, etcd_mvcc_db_total_size_in_bytes"
+        - "#    NOT evidence: etcd_request_*, etcd_requests_*, etcd_lease_*, etcd_bookmark_* — those existed throughout the 148 blind days."
+        - "# omnictl exiting 0 proves the patch was ACCEPTED, not that etcd restarted with it. Assert on the series, not the exit status."
+        - "# 4. All six layer-2-etcd-* rules read Normal in Grafana — not NoData, not Error."
+      status: pending
+      ```
+  - id: P5.T1.S2
+    text: |
+      OPERATOR. **Still pre-merge — this step is the gate's evidence.** It
+      needs nothing from the merge (it is a wget from the vmagent pod), and
+      it is what turns "omnictl exited 0" into proof that etcd actually
+      restarted with the new argument.
+
+      Confirm the listener, from inside the cluster:
+
+      ```
+      kubectl -n monitoring exec deploy/vmagent-... -c vmagent -- \
+        wget -qO- http://192.168.55.21:2381/metrics | head
+      ```
+
+      Repeat for .22 and .23. All three must return etcd metrics. Before
+      the patch, all three returned `Connection refused` — that is the
+      recorded before-state.
+- number: 2
+  title: '[post-merge] Confirm the scrape, the rules, and the dashboard are live'
+  steps:
+  - id: P5.T2.S1
+    text: |
+      OPERATOR. POST-MERGE, once ArgoCD has synced the kubeEtcd block. In
+      VMUI or via the vmsingle pod:
+
+        - `up{job="kube-etcd"}` returns **3 series, all 1**
+        - `etcd_server_has_leader`, `etcd_disk_wal_fsync_duration_seconds_bucket`
+          and `etcd_mvcc_db_total_size_in_bytes` all return data
+
+      Then in Grafana: all six rules are `Normal` — not `NoData`, not
+      `Error` — and the etcd dashboard renders data in all five panels.
+
+      A rule sitting at NoData here means the scrape did not land; do not
+      record the phase complete on a green ArgoCD status. ArgoCD reports
+      sync, not evidence, and on this repo `Synced` has twice meant
+      "synced to a stale revision".
+  - id: P5.T2.S2
+    text: |
+      OPERATOR. Prove the blindness watchdog actually works, which is the
+      only way `obs-etcd-blindness-is-tracked` can be evidenced.
+
+      Deliberately pause the scrape — the least invasive way is to
+      temporarily empty `kubeEtcd.endpoints` on the LIVE VMServiceScrape's
+      Endpoints object (suspend the app's selfHeal first; see
+      `agents/rules/frank-argocd.md` for the full suspend/restore recipe,
+      including passing the WHOLE `automated` map so `prune: false` is not
+      silently dropped).
+
+      Wait out `for: 15m`. Confirm the `absent()` watchdog fires, reaches
+      health-bridge, and does NOT reach Telegram. Then restore and confirm
+      it clears.
+
+      Restore selfHeal AND force a sync in the same session. End with the
+      app `Synced`, not merely `Healthy`.
+- number: 3
+  title: '[post-merge] Re-run the soak and rewrite the acceptance evidence'
+  steps:
+  - id: P5.T3.S1
+    text: |
+      OPERATOR. Baseline, 60s idle: record
+      `etcd_server_leader_changes_seen_total`, `etcd_server_has_leader`,
+      WAL fsync p99, and apiserver p99.
+
+      The apiserver query MUST exclude `verb=~"WATCH|CONNECT"`. Unfiltered
+      it reads a flat 60s — that is the apiserver's long-poll timeout, not
+      latency, and it swamps the quantile. Excluded, it is ~22ms.
+  - id: P5.T3.S2
+    text: |
+      OPERATOR. Re-run the soak: 7500 rerank requests over 240s (~31/s)
+      from mini-1, matching the 2026-08-03 measurement so the numbers are
+      comparable rather than merely new.
+
+      Capture the same four signals under load.
+  - id: P5.T3.S3
+    text: |
+      OPERATOR. Rewrite the `infer-igpu-workload-preserves-quorum` notes in
+      `docs/acceptance/matrix.yaml` with the before/under-load numbers,
+      deleting the sentence "NOT VERIFIABLE: etcd leader changes and WAL
+      fsync -- Frank does not scrape etcd".
+
+      The status stays `skipped` — that is this repo's convention for a row
+      proved by live operator measurement (see
+      `gpu1-usb-25g-node-ip-stable`), and `fr acceptance` has no `manual`
+      status. Deleting that sentence, not flipping a status, is the
+      deliverable.
+
+      Also update the notes on the three new `obs-etcd-*` rows with what
+      was actually observed.
+
+      Then `fr acceptance report --deterministic` — `add` is append-only
+      and there is no `set`, so status edits are hand-edits followed by a
+      regenerate.
+
+      If the soak shows quorum WAS disturbed, record that. A row that
+      reports the workload is unsafe is a successful measurement, not a
+      failed one.
+  - id: P5.T3.S4
+    text: |
+      OPERATOR. Close-out: run `/sync-runbook` now that the manual op has
+      actually been performed, add the measured numbers to the operating
+      post's new section, and set the plan status to `Deployed`.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

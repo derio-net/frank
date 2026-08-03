@@ -5,16 +5,18 @@ layer: obs
 date: 2026-03-08
 draft: false
 tags: ["observability", "victoriametrics", "grafana", "fluent-bit", "victoria-logs"]
-summary: "Deploying a resource-efficient observability stack with VictoriaMetrics, VictoriaLogs, and Grafana — and the three gotchas that made it interesting."
+summary: "Deploying a resource-efficient observability stack with VictoriaMetrics, VictoriaLogs, and Grafana — and the four gotchas that made it interesting, including a scrape that was configured and inert for 148 days."
 weight: 8
-reader_goal: "Deploy VictoriaMetrics, VictoriaLogs, and Fluent Bit on a Talos cluster and troubleshoot the three most common deployment pitfalls"
+reader_goal: "Deploy VictoriaMetrics, VictoriaLogs, and Fluent Bit on a Talos cluster and troubleshoot the four most common deployment pitfalls"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-08-03
 ---
 
 A cluster without observability is a box of mystery. Pods crash silently. Memory leaks hide behind restart counts. Network blips become finger-pointing exercises. Layer 7 fixes that: a full metrics and logging stack built around VictoriaMetrics, VictoriaLogs, and Grafana, managed by ArgoCD, backed by Longhorn storage.
 
 But three things went wrong during the deployment. A stale webhook from a reinstall completely broke resource reconciliation — objects existed but nothing happened to them. A wrong service hostname had Fluent Bit retrying silently, producing zero log data with no errors. And a Helm chart composition issue made `additionalDataSources` silently ignored. Each of these cost about an hour to diagnose. Documenting them here so you do not lose that hour.
+
+A fourth turned up five months later, and it is the only one that never produced a symptom at all: the etcd scrape had been configured — by chart default, never touched — and inert since the day the cluster was built, with an `Endpoints` object that had been empty for 148 days behind a Service that looked entirely correct. That one is Gotcha 4, and it is the one worth reading if you run this chart on Talos.
 
 ```mermaid
 flowchart LR
@@ -296,6 +298,145 @@ grafana:
 
 The lesson: Helm chart composition is leaky. When chart A embeds chart B as a subchart, chart A can intercept anything chart B would have done. The escape hatch is `extraConfigmapMounts` — it operates at the Pod level and is independent of the chart's own provisioning logic.
 
+## Gotcha 4: The Scrape That Was Configured, and Inert, for 148 Days
+
+Added retroactively in August 2026, five months after this layer went in. It is the most interesting of the four, because unlike the other three it produced no symptom at all — not a retry loop, not a degraded Application, not a stalled rollout. Just an absence, sitting behind a green dashboard.
+
+### Symptom
+
+There wasn't one. It surfaced sideways: closing out an unrelated piece of work — a retrieval tier pinned to one of the control-plane minis — I wanted to answer "does that workload disturb the etcd quorum?" and discovered the question could not be asked. There was no etcd data. There never had been.
+
+### Diagnosis
+
+`kubeEtcd.enabled` is **`true` by default** in `victoria-metrics-k8s-stack`, and the values above never disabled it. So the objects had existed since the cluster was built:
+
+```text
+service/…-kube-etcd     ClusterIP   None   2379/TCP   148d
+endpoints/…-kube-etcd   <none>                        148d
+vmservicescrape.operator.victoriametrics.com/…-kube-etcd
+```
+
+A headless Service, a `VMServiceScrape` aimed at it, and an `Endpoints` object that had been **empty for 148 days**.
+
+The chart's Service selects pods labelled `component: etcd` — the kubeadm layout, where etcd runs as a labelled static pod. **Talos runs etcd as a host system service, not a pod.** The selector can never match. Zero endpoints, zero targets, zero series, and no error anywhere, because nothing failed: every object the chart was asked to create existed and was correct.
+
+This is the reusable shape, and it is not specific to etcd. Any chart component that discovers its target by **pod selector** — `kubeEtcd`, `kubeControllerManager`, `kubeScheduler` — assumes a distribution whose control plane runs as labelled pods.
+
+On Talos, exactly one of those assumptions is wrong. Talos runs kube-apiserver, kube-controller-manager and kube-scheduler as **static pods** carrying the very `component:` labels the chart expects, so the selector finds them and their `Endpoints` objects fill. **etcd is the sole component Talos runs as a host system service** — which is why it is the only one whose `Endpoints` object is empty.
+
+I nearly wrote the opposite. Rendering the chart shows a selector-based Service for the scheduler and no `Endpoints` object beside it, which looks like the identical failure. It isn't: **a template render can never show `Endpoints`**, because Kubernetes creates and fills them at runtime from whatever pods match. Every selector-based component looks endpoint-less in a render, the healthy ones included. That is a second silent-absence trap stacked on the first — reasoning about presence from an artifact that structurally cannot contain the thing you're looking for — and the only cure is to check the live cluster.
+
+**The diagnosis is to read `ENDPOINTS`, not the Service and not the scrape config:**
+
+```bash
+kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manager'
+```
+
+An empty `ENDPOINTS` column is the whole signal. `kubectl get svc` and `kubectl get vmservicescrape` both look entirely correct while it is true, which is why five months of looking at this stack never caught it.
+
+#### And then the cluster handed me a second one
+
+Checking that live turned up something I was not looking for. `kube-scheduler` has three populated endpoints — and no data either:
+
+```text
+count(up==0) by (job)                          ->  {job="kube-scheduler"}  3
+max_over_time(up{job="kube-scheduler"}[90d])   ->  0, 0, 0
+{__name__=~"scheduler_.*"}                     ->  []      (zero series)
+```
+
+Three targets, three failing scrapes, zero scheduler metrics for exactly as long as etcd went unwatched. Talos binds 10259 with TLS and authentication that the chart's default endpoint — HTTPS with the ServiceAccount bearer token and the in-cluster CA — does not satisfy. Different mechanism, same outcome.
+
+So "the scheduler reports into `up` like any other job" is literally true and about as misleading as a true sentence gets. It reports `up=0`.
+
+The two failures are worth separating, because **neither diagnostic finds the other**:
+
+| | `kube-etcd` | `kube-scheduler` |
+|---|---|---|
+| Endpoints | empty — the selector matches nothing | populated, three addresses |
+| Targets | zero | three |
+| `up` | the series does not exist | `0` |
+| Found by | `kubectl get endpoints` | `up < 1` |
+
+Reading `ENDPOINTS` catches a scrape with no targets. `count(up==0) by (job)` catches a scrape whose targets never answer. I had built the first check, congratulated myself, and would have missed the second one — using, as it happens, the exact query idiom this layer's own alert rules are written in.
+
+I have not fixed the scheduler here. It needs a decision about how to authenticate against Talos's static-pod control plane, which is a different piece of work from a values block. It is written down instead, which is the honest state: a known gap beats an unknown one, and an unknown one is what the last five months were.
+
+#### Why nobody noticed: the metrics that lie
+
+The reason this survived so long is worth its own paragraph. `etcd_*` series **do** exist in VictoriaMetrics, and always did:
+
+| Present the whole 148 days | Actually missing |
+|---|---|
+| `etcd_request_duration_seconds` | `etcd_server_has_leader` |
+| `etcd_request_errors_total` | `etcd_server_leader_changes_seen_total` |
+| `etcd_requests_total` | `etcd_disk_wal_fsync_duration_seconds_bucket` |
+| `etcd_lease_object_counts` | `etcd_mvcc_db_total_size_in_bytes` |
+
+The left column is the **apiserver's storage client** — metrics the apiserver exports about its own calls into etcd, from inside the apiserver's process, entirely available when etcd is not scraped at all. Grep `etcd` in the query UI, get hits, conclude etcd is monitored. Those series tell you the apiserver's storage calls are slow. They cannot tell you whether the quorum has a leader.
+
+That distinction is also the shape of the most plausible *future* mistake. When one of the new etcd alert rules eventually breaks, the fastest-looking repair is to repoint it at a metric that demonstrably has data — and every such metric is in the left column. The rule would go green while measuring the wrong process.
+
+### Fix
+
+Two halves, in two different worlds, connected by nothing but a port number.
+
+**GitOps half** — supplying `endpoints:` switches the chart off pod discovery and onto a **static** `Endpoints` object, which is what a host system service requires:
+
+```yaml
+# apps/victoria-metrics/values.yaml
+kubeEtcd:
+  enabled: true
+  endpoints:
+    - 192.168.55.21   # mini-1
+    - 192.168.55.22   # mini-2
+    - 192.168.55.23   # mini-3
+  service:
+    port: 2381
+    targetPort: 2381
+  vmScrape:
+    spec:
+      endpoints:
+        - port: http-metrics
+          scheme: http
+```
+
+That `vmScrape` override replaces the chart default wholesale, deliberately: the default is `scheme: https` plus a ServiceAccount bearer token aimed at 2379, all three of which are wrong for what we are about to open.
+
+**Talos half** — an Omni `ConfigPatch`, scoped to the control-plane machine set, opening etcd's dedicated metrics listener:
+
+```yaml
+cluster:
+  etcd:
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
+```
+
+Port 2381 rather than 2379 is the security decision. etcd serves `/metrics` on its client port behind mutual TLS, so scraping there means handing a scraper an etcd **client certificate** — a credential that also grants full read/write to every object in the cluster. The blast radius of that credential dwarfs the value of a latency histogram, and rotating it would become a new silent-failure surface. `listen-metrics-urls` is etcd's supported alternative: plain HTTP, read-only, serving `/metrics` and `/health` only, carrying no key material. Binding `0.0.0.0` is a deliberate trade — the LAN is already this cluster's trust boundary, and the LAN NIC is the exposed interface either way.
+
+Those two files are applied by different tools — `omnictl` by hand, ArgoCD from `main` — and nothing else in the repo connects them. A port typo in either reproduces exactly the silent empty-target failure being fixed, so a CI tripwire parses the port out of the ConfigPatch URL, compares it against `kubeEtcd.service.targetPort`, and derives the three control-plane addresses from the repo's own machine table rather than restating them.
+
+Six Grafana rules watch the result, of which only two page: quorum has no leader, and a member is down. The other four — leader-change churn, {{< abbr "WAL" >}} fsync latency, database size against quota, and an `absent()` watchdog — go to the health bridge and stay off the phone. The watchdog exists because every one of these rules uses `noDataState: OK`, so if the `Endpoints` object ever empties again the rules would all go quiet and read as healthy. `absent()` is the only expression that fires when a series *disappears*.
+
+#### The order between the two halves is not free, and I had it backwards
+
+The plan said, in seven places, that the two halves could land in either order: merge the values first and the target is simply down, every rule sits at `NoData`, `noDataState: OK`, nothing fires. Code review took that apart, and the scheduler numbers above are the proof.
+
+**`up` is not a series etcd exports.** The scraper *synthesises* it — one series per **configured** target, every interval, `1` on a successful scrape and `0` on a failed one. It is never absent while the target is configured. And supplying `kubeEtcd.endpoints` is precisely what configures targets. So merging the GitOps half first does not produce a quiet `NoData` window; it produces three targets dialling a refused port, sitting at `up=0`, and `up < 1` at `for: 10m` is one of the two rules that *pages*. With the notification policy repeating every three minutes, that is Telegram going off around the clock against a perfectly healthy quorum, until someone applies a patch the plan had deliberately scheduled for afterwards.
+
+An absent series and a series reading zero are different states, and only the first one is `NoData`. That one word carried the whole ordering argument.
+
+The fix is the ordering, not the alert: the ConfigPatch is harmless on its own — it opens a read-only port nothing is scraping yet — so it becomes a **pre-merge gate**. Loosening the rule instead would have bought the same quiet by discarding the signal the layer exists to add. The same asymmetry runs backwards, too: deleting the ConfigPatch alone is not a rollback, it is a pager, because the `Endpoints` object survives and `up` goes to zero rather than away. A real rollback reverts both halves.
+
+There is no results paragraph here yet, on purpose. The soak re-run that this unblocks — the same request volume as the original measurement, captured before and under load — has not been performed at the time of writing. When it has, the numbers belong on the curated dashboard, not in a sentence here.
+
+### One more thing: there are now two of everything
+
+Closing this gap leaves the cluster with a duplicate etcd dashboard *and* a duplicate set of etcd alert rules, and in both cases the copy that looks canonical is the dead one.
+
+The chart renders its own etcd dashboard and its own 15-alert `VMRule`, both of which follow `kubeEtcd.enabled` and neither of which can be disabled independently. The `VMRule` is inert because `vmalert` is disabled here — alerting is Grafana-managed — and the upstream dashboard has been sitting in Grafana rendering nothing for the same 148 days. The curated board carries a deliberately distinct title and uid so the two are never confused.
+
+The risk is not that the duplicates fire. It is that someone later discovers "duplicate etcd monitoring", assumes the upstream artefact is the real one and the local one is an accretion, and deletes the half that works.
+
 ## What Is Visible Now
 
 **Grafana at `http://192.55.203`** ships dashboards:
@@ -328,6 +469,7 @@ The lesson: Helm chart composition is leaky. When chart A embeds chart B as a su
 | **`grafana.additionalDataSources` silently ignored** — the victoria-metrics chart overrides Grafana's datasource provisioning with its own ConfigMap, making the subchart value a no-op | Helm chart composition is leaky; the parent chart intercepts the subchart's provisioning mechanism | Used `extraConfigmapMounts` to mount a standalone provisioning ConfigMap at the Pod level | `bbc93d3b` |
 | **High-cardinality node-meta labels flooded VictoriaMetrics** — Cilium's default pod metadata labels exploded metric cardinality, causing {{< abbr "OOM" "OOMs" >}} | `node-meta` labels include pod IPs and container IDs — billions of unique series | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
 | **Grafana deployment strategy defaulted to RollingUpdate** — persistent PVC sometimes stuck during rolling updates due to ReadWriteOnce access mode | Grafana's PVC is {{< abbr "RWO" >}}; a rolling update can leave the old pod terminating while the new pod is pending, neither able to mount | Set `Grafana.deploymentStrategy` to `Recreate` | `e40c952d` |
+| **The etcd scrape was enabled by chart default and inert for 148 days** — a Service, a `VMServiceScrape` and a permanently empty `Endpoints` object, because the chart selects pods labelled `component: etcd` and Talos runs etcd as a host system service | Not a missing config — a config that was present, correct-looking and matched nothing. Nothing reports an empty `Endpoints` object as a fault, and the `etcd_request_*` series that *do* exist are the apiserver's storage client, so grepping `etcd` read as coverage | Static `Endpoints` via `kubeEtcd.endpoints`, plus a Talos ConfigPatch opening `listen-metrics-urls` on 2381; CI tripwire asserts the two files agree | 2026-08 |
 
 ## References
 

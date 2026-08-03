@@ -1,0 +1,146 @@
+schema_version: 2
+phase:
+  number: 2
+  title: The signals — six alert rules, only quorum pages
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - obs-etcd-quorum-loss-pages
+  - obs-etcd-blindness-is-tracked
+tasks:
+- number: 1
+  title: Tripwire — the rules exist, in the right folder, in the right shape
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED. Add rule assertions to `scripts/tests/test_etcd_scrape.py`.
+
+      Reuse the existing loader in
+      `scripts/tests/test_feature_health_workload_metrics.py` as the model
+      for reading `apps/grafana-alerting/manifests/alert-rules-cm.yaml`:
+      it is a ConfigMap whose `data` holds the Grafana provisioning
+      document as a YAML string (double load).
+
+      Assert, for the six new uids:
+
+        - all six exist, all in folder `feature-health`
+        - every uid is globally unique across the whole file (a collision
+          stops a rule evaluating at all)
+        - each has the 3-step A -> B -> C shape: a datasource query at
+          refId A, a `reduce` at B, a `threshold` at C, and
+          `condition: C`. A classic-condition rule fails with
+          `sse.parseError` on Grafana 12.x.
+        - `noDataState: OK` and `execErrState: Error` on all six
+
+      Confirm FAIL — none of the six exists yet.
+  - id: P2.T1.S2
+    text: |
+      RED (second assertion set, still failing — write before implementing).
+
+      Assert the semantics that make these rules correct rather than merely
+      present:
+
+        - every rule's query references a metric matching
+          `^etcd_(server|disk|mvcc|network)_` or is the
+          `up{job="kube-etcd"}` / `absent(...)` form. Explicitly assert NO
+          rule references an `etcd_request_*` or `etcd_lease_*` metric.
+
+          *This is the assertion that carries the whole insight.* Those
+          series already exist in VMSingle — they are the apiserver's
+          storage CLIENT — and they are why nobody noticed for 148 days
+          that etcd itself was unmonitored. A future "fix" that repoints a
+          broken rule at one of them would look green and measure the
+          wrong process.
+
+        - the two paging rules (`has-leader`, `member-down`) carry
+          `severity: critical`, `for:` >= 10m, and do NOT carry
+          `health_bridge_only`
+        - the other four carry `health_bridge_only: "true"`
+        - no annotation on any of the six contains `<`, `>` or `&`
+          (Grafana's Telegram contact point uses HTML parse_mode; a bare
+          angle bracket makes Telegram 400 and the alert fires but never
+          delivers)
+
+      Confirm FAIL.
+  - id: P2.T1.S3
+    text: |
+      GREEN. Add the six rules to `alert-rules-cm.yaml` in a
+      `layer-2-etcd-*` group block, placed with the other Layer 2
+      control-plane rules. Copy the 3-step scaffolding from
+      `layer-1-nic-link-flap` (a counter-over-window rule) and
+      `layer-2-os-down` (a gauge-threshold rule).
+
+      Datasource uid is `P4169E866C3094E38`. Use the exact queries,
+      thresholds, `for:` values and severities from the spec's rules table.
+
+      Give each rule a `summary` naming the node and a `runbook` annotation
+      pointing at `talosctl -n NODE_IP etcd status` and the gotchas file —
+      and remember the annotations cannot contain angle brackets, so write
+      `NODE_IP`, not a bracketed placeholder.
+
+      Re-run. Confirm all rule tests PASS.
+  - id: P2.T1.S4
+    text: |
+      REFACTOR (optional, do only if warranted). Phase 1 and phase 2 both
+      load YAML-in-a-ConfigMap. If the two loaders have diverged into
+      near-duplicates, extract one helper. Stay green; add no assertions.
+
+      Skip this step outright if the file reads cleanly — an extracted
+      helper used twice is not obviously better than two four-line loads.
+- number: 2
+  title: The watchdog must watch the right name
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add `test_absent_watchdog_selects_the_job_the_chart_renders`.
+
+      Assert the `job` value inside the `absent(...)` expression equals the
+      `jobLabel` the chart puts on the kube-etcd Service — the value
+      recorded in the journal at P1.T3.S2, re-derived here from the chart
+      render rather than pasted.
+
+      A watchdog whose selector names a job that never exists returns
+      `absent() == 1` forever — it would fire immediately and permanently,
+      which reads as a broken rule and gets muted. A watchdog naming a
+      typo'd job that ALSO never exists after a rename returns the same
+      thing. Either way the guard against silent absence is itself silently
+      wrong, which is the failure this whole plan exists to stop
+      re-occurring.
+
+      Mutation-check: change the expression's job to `kube-etcd-x`, confirm
+      the test fails; revert.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-08-03T10:42:41+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-08-03T10:42:52+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-08-03T10:43:03+00:00'
+      note: null
+    P2.T1.S4:
+      state: '-'
+      ticked_at: '2026-08-03T10:43:14+00:00'
+      note: 'Skipped as the step permits. The two loaders are not near-duplicates:
+        phase 1 reads an Omni ConfigPatch''s spec.data (a machine-config document)
+        and phase 2 reads a ConfigMap''s data[''alert-rules.yaml''] (a Grafana provisioning
+        document). They share only the double-yaml-load idiom, which is four lines;
+        what differs is every assertion message, and those messages are the point
+        (each names WHICH file has moved and why that matters). A shared helper would
+        have to be parameterised by path, key and three messages to say anything useful,
+        which is more indirection than the duplication it removes.'
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-08-03T10:43:25+00:00'
+      note: null
+  completion:
+    at: '2026-08-03T10:52:24+00:00'
+    note: null
+    observed_prs: []

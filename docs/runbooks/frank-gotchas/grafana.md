@@ -615,3 +615,337 @@ So the post-deploy check "no feature-health rule is in NoData" needs a carve-out
 for filter-style rules, or it reports a healthy rule as broken. Same PromQL fact
 as the `== 0` / `lt 1` threshold pairing documented above, showing up in a
 second place.
+
+## A chart's control-plane scrape selects PODS — on Talos the Endpoints object is empty and nothing says so (2026-08-03)
+
+**Frank's `kube-etcd` Service had an empty `Endpoints` object for 148 days, and
+every other object in the chain looked correct the entire time.** This is not
+"we forgot to configure an etcd scrape". The scrape *was* configured — from the
+day the cluster was built — and it was inert, and nothing anywhere reported it.
+
+### The reusable shape
+
+`victoria-metrics-k8s-stack` (and `kube-prometheus-stack`, which it is modelled
+on) ships scrape blocks for the control-plane components: `kubeEtcd`,
+`kubeControllerManager`, `kubeScheduler`. Each renders a headless Service whose
+**selector matches pods by label** — `component: etcd`, `component:
+kube-scheduler` — because both charts assume the **kubeadm** layout, where those
+components run as labelled static pods.
+
+**Talos does not run etcd as a pod at all.** It is a host system service,
+managed by the machine config, invisible to any pod selector. So:
+
+- the Service exists, and `kubectl get svc` shows it, correctly;
+- the `VMServiceScrape` exists, and points at that Service, correctly;
+- the `Endpoints` object exists and is **empty**, forever;
+- vmagent therefore has **zero targets**, produces **zero series**, and logs
+  nothing, because there is nothing to fail at;
+- ArgoCD reports `Synced/Healthy`, because every object it was asked to create
+  exists.
+
+`kubeEtcd.enabled` is **`true` by chart default**, so this state is what you get
+by *not* configuring anything. Frank's `apps/victoria-metrics/values.yaml` never
+mentioned `kubeEtcd`, and the live objects had been sitting there since day one:
+
+```text
+service/…-kube-etcd     ClusterIP   None   2379/TCP   148d
+endpoints/…-kube-etcd   <none>                        148d
+vmservicescrape.operator.victoriametrics.com/…-kube-etcd
+```
+
+Same family as the `maxScrapeSize` whole-response drop above: **a selector or a
+limit silently yields nothing, and the only symptom is an absence.** An etcd
+problem on this cluster was invisible until it became an apiserver problem.
+
+#### etcd is the only ENDPOINTS failure — but kube-scheduler is a second blind spot of a different species
+
+Two distinct claims live here and they are easy to collapse into one wrong one.
+
+**1. The selector failure is etcd's alone.** The obvious generalisation ("pod
+selectors are wrong on Talos, so check the scheduler and controller-manager
+too") is **false** as a statement about *Endpoints*. Talos runs kube-apiserver,
+kube-controller-manager and kube-scheduler as **static pods** carrying exactly
+the `component:` labels the chart expects, so the selector finds them and the
+`Endpoints` object populates. Only **etcd** is a host system service, which is
+why it is the only component whose Endpoints object is empty.
+
+```text
+endpoints/…-kube-etcd        <none>                                                   148d
+endpoints/…-kube-scheduler   192.168.55.21:10259,192.168.55.22:10259,…:10259          148d
+```
+
+**2. `kube-scheduler` is nonetheless unmonitored — its scrape RESOLVES and then
+FAILS.** Populated Endpoints is not coverage. Measured live 2026-08-03:
+
+```text
+count(up==0) by (job)                          ->  {job="kube-scheduler"}  3
+max_over_time(up{job="kube-scheduler"}[90d])   ->  0, 0, 0
+{__name__=~"scheduler_.*"}                     ->  []      (zero series, 148 days)
+```
+
+Three targets, three failing scrapes, **zero** scheduler metrics on the cluster
+for as long as etcd went unscraped. Talos binds 10259 with TLS/auth that the
+chart's default endpoint (`scheme: https` + the ServiceAccount bearer token +
+the in-cluster CA) does not satisfy — a different mechanism from etcd's, with
+the same outcome. So "`kube-scheduler` reports into `up` like any other job" is
+literally true and maximally misleading: it reports `up=0`.
+
+The two failures are worth telling apart because they are diagnosed differently
+and fixed differently:
+
+| | `kube-etcd` (fixed here) | `kube-scheduler` (NOT fixed here) |
+|---|---|---|
+| Endpoints | **empty** — pod selector matches nothing | populated, 3 addresses |
+| Targets | zero | three |
+| `up` | **series absent entirely** | `0` |
+| Cause | Talos runs etcd as a host system service | Talos binds 10259 with TLS/auth the chart default does not satisfy |
+| Find it with | `kubectl get endpoints` | `up < 1` — this layer's own idiom |
+
+That second row is the one that matters when reading these numbers: an *absent*
+series and a series at `0` are different states, and only the first is NoData.
+The consequence is written up under "Ordering" in
+`patches/phase08-obs/README.md`: `up` is synthesised by the scraper for every
+*configured* target, so a rule reading `up < 1` fires on a resolved-but-failing
+scrape and stays silent on one that produces no targets at all.
+
+`kube-scheduler` is left as a known, now-*documented* gap rather than fixed in
+passing — the fix is a separate decision about scraping Talos's static-pod
+control plane (client cert, or a metrics-bind-address change), not a values typo.
+
+(`kubeControllerManager` is disabled on Frank for an unrelated reason: the
+generated Service name is 65 characters and Kubernetes allows 63. It is exposed
+to neither failure because it is not scraped at all.)
+
+**The near-miss worth recording:** the first draft of this entry claimed the
+scheduler had the same empty-Endpoints shape, on the strength of a
+`helm template` render showing a selector-based Service and no `Endpoints`
+object. That inference is invalid. **A template render can never show
+`Endpoints`** — the API server creates and populates them at *runtime* from
+pods matching the selector — so *every* selector-based component looks
+endpoint-less in a render, healthy ones included. Confusing render-time with
+runtime is a second silent-absence trap sitting directly on top of the first,
+and it is why the diagnosis below is deliberately a **live** check and not a
+render.
+
+### The diagnosis: TWO checks, because there are two failures
+
+```bash
+# 1. Did the scrape resolve any targets at all? An empty ENDPOINTS column is
+#    the whole signal for the etcd-shaped failure.
+#    NOTE: list them bare, without a label selector. The `-l k8s-app=kube-etcd`
+#    form below is correct only AFTER the static-Endpoints change lands — see
+#    the label trap further down.
+kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manager'
+
+# These two look CORRECT while the scrape is dead. Do not stop here.
+kubectl -n kube-system get svc | grep kube-etcd
+kubectl get vmservicescrape -A | grep kube-etcd
+```
+
+```promql
+# 2. Did the targets it DID resolve actually answer? Populated Endpoints is
+#    not coverage — this is what catches kube-scheduler, which has three
+#    healthy-looking Endpoints and three failing scrapes.
+count(up == 0) by (job)
+up{job="kube-scheduler"}      # 0 on all three, since the cluster was built
+up{job="kube-etcd"}           # 3 series at 1 once this layer is deployed
+```
+
+The second check is this layer's own `up < 1` idiom, pointed at the rest of the
+control plane. Run both: check 1 finds a scrape with no targets, check 2 finds a
+scrape whose targets never answer, and neither check finds the other's failure.
+
+### What made it survive 148 days: the apiserver's storage client
+
+A reasonable person greps `etcd` in VMUI, finds series, and concludes etcd is
+monitored. Those series exist **whether or not etcd is scraped**, because they
+are exported by the **apiserver**, describing its own client calls into etcd:
+
+| Present the whole 148 blind days (apiserver storage client) | Actually missing (etcd itself) |
+|---|---|
+| `etcd_request_duration_seconds` | `etcd_server_has_leader` |
+| `etcd_request_errors_total` | `etcd_server_leader_changes_seen_total` |
+| `etcd_requests_total` | `etcd_server_quota_backend_bytes` |
+| `etcd_lease_object_counts` | `etcd_disk_wal_fsync_duration_seconds_bucket` |
+| `etcd_bookmark_counts` | `etcd_mvcc_db_total_size_in_bytes` |
+
+The left column tells you the apiserver's storage calls are slow. It cannot tell
+you whether the quorum has a leader, how often it re-elected one, how long a WAL
+fsync takes, or how close the backend is to its quota.
+
+**This is also the shape of the most plausible future *repair*.** When one of the
+etcd rules breaks — a chart bump, a metric rename, a scrape that stops — the
+fastest-looking fix is to repoint it at a metric that demonstrably has data, and
+every such metric is in the left column. The rule goes green, the dashboard fills
+in, and Frank measures the wrong process while believing the gap is closed. That
+is why `scripts/tests/test_etcd_scrape.py` asserts the *forbidden* families
+(`etcd_request_*`, `etcd_requests_*`, `etcd_lease_*`, `etcd_bookmark_*`) as well
+as the allowed ones, for both the alert rules and the dashboard panels.
+
+### The fix, in two files applied by two different tools
+
+```yaml
+# apps/victoria-metrics/values.yaml — ArgoCD
+kubeEtcd:
+  enabled: true
+  endpoints:            # supplying this switches the chart OFF pod discovery
+    - 192.168.55.21     # and onto a STATIC Endpoints object
+    - 192.168.55.22
+    - 192.168.55.23
+  service:
+    port: 2381
+    targetPort: 2381
+  vmScrape:
+    spec:
+      endpoints:        # REPLACES the chart default wholesale; the default is
+        - port: http-metrics   # scheme: https + a ServiceAccount bearer token
+          scheme: http         # aimed at 2379, all wrong for 2381
+```
+
+```yaml
+# patches/phase08-obs/omni-configpatch-etcd-metrics.yaml — omnictl, by hand
+cluster:
+  etcd:
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381
+```
+
+Port 2381 is etcd's **dedicated metrics listener**: plain HTTP, read-only,
+serving `/metrics` and `/health` only, carrying no key material. Scraping 2379
+instead would mean handing a scraper an etcd **client certificate**, which also
+grants full read/write to all cluster state — a credential whose blast radius
+dwarfs the value of a latency histogram.
+
+**Nothing in the repo connects those two files but the port number**, and they
+are applied by different tools (`omnictl` out of band, ArgoCD from `main`), so a
+typo in either reproduces exactly the silent empty-target failure being fixed.
+`scripts/tests/test_etcd_scrape.py` derives the port out of the ConfigPatch URL
+and compares it against `kubeEtcd.service.targetPort`, and derives the three
+control-plane IPs out of the machine table in
+`agents/rules/frank-infrastructure.md` rather than restating them.
+
+**And the order between them is NOT free — apply the ConfigPatch first.** The
+plan originally said either order was safe, on the reasoning that before the
+patch "the target is simply down and every rule sits at `NoData` with
+`noDataState: OK`". That is wrong, for the reason the `kube-scheduler` numbers
+above already demonstrate: **`up` is synthesised by the scraper for every
+configured target** — `1` on a successful scrape, `0` on a failed one — and is
+never absent while the target is configured. Supplying `kubeEtcd.endpoints` is
+what creates targets, so merging the values half first hands vmagent three
+targets dialling a refused port. They sit at `up=0`, `layer-2-etcd-member-down`
+(`up < 1`, `for: 10m`, critical, no `health_bridge_only`) fires ten minutes
+later, and the notification policy's root `repeat_interval: 3m` pages Telegram
+every three minutes against a healthy quorum. The ConfigPatch is harmless
+standalone — a read-only metrics port nothing is scraping yet — so it goes
+first. The same asymmetry governs rollback (see the recovery block below).
+
+### Trap: the label on the Endpoints object CHANGES when this layer deploys
+
+The three objects carry the name differently, and the difference is invisible
+unless you look at a render:
+
+```text
+Service          metadata.labels: {…, jobLabel: kube-etcd}   <- jobLabel lives HERE
+Endpoints        metadata.labels: {…, k8s-app:  kube-etcd}   <- and NOT here (chart-rendered)
+VMServiceScrape  spec.jobLabel:   jobLabel                   <- names the Service label KEY
+```
+
+So once the static Endpoints object ships,
+`kubectl -n kube-system get endpoints -l jobLabel=kube-etcd` matches
+**nothing** — and it returns empty at exactly the moment you are asking whether
+the Endpoints object is empty, which reads as confirmation that the object is
+gone. Use `-l k8s-app=kube-etcd`.
+
+**But only after this layer deploys.** Before it, the Endpoints object is not
+rendered by the chart at all — it is created by the **endpoint controller**,
+which copies the *Service's* labels onto it. Verified live 2026-08-03, with the
+chart-rendered static Endpoints not yet applied:
+
+```text
+endpoints/…-kube-etcd  labels: {…, jobLabel: kube-etcd,
+                                endpoints.kubernetes.io/managed-by: endpoint-controller}
+```
+
+`jobLabel` there, no `k8s-app`. So each selector works in exactly one era and
+returns a confusing empty set in the other. When in doubt, list without a
+selector.
+
+The job name reaching series is a two-hop derivation (`VMServiceScrape.spec.jobLabel`
+names a Service label key; that label's *value* is the job), which is why the
+tripwire renders the chart rather than comparing the rules against a constant.
+A selector naming a job that does not exist yields no series — for the `absent()`
+watchdog that means firing permanently against a healthy scrape, and for every
+other rule it means NoData, which `noDataState: OK` reads as health.
+
+### Recovery / verification commands
+
+```bash
+# Is the listener actually open? Ask from INSIDE the cluster, not the laptop.
+kubectl -n monitoring exec \
+  "$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o name | head -1)" \
+  -- wget -qO- http://192.168.55.21:2381/metrics | head
+# Repeat for .22 and .23. Before the ConfigPatch, all three: Connection refused.
+
+# Is the Endpoints object populated? The label key is k8s-app ONCE the static
+# Endpoints object is deployed; before that the endpoint controller copies the
+# Service's labels and the key is jobLabel. Listing bare works in both eras.
+kubectl -n kube-system get endpoints | grep kube-etcd
+kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml
+# No `subsets` means the chart reverted to pod-selector discovery.
+
+# Did the scrape land? 3 series, all 1, on a healthy cluster.
+#   up{job="kube-etcd"}
+# And the etcd-side families must exist, not just the apiserver-client ones:
+#   etcd_server_has_leader
+#   etcd_disk_wal_fsync_duration_seconds_bucket
+#   etcd_mvcc_db_total_size_in_bytes
+
+# Is anything ELSE resolving targets and then failing them? (this is what finds
+# kube-scheduler: 3 populated Endpoints, 3 failing scrapes, 0 series)
+#   count(up == 0) by (job)
+
+# Rollback: revert BOTH halves — the kubeEtcd values block FIRST, then delete
+# the Omni ConfigPatch. Deleting the patch alone leaves the Endpoints object in
+# place, so `up` reads 0 rather than disappearing: layer-2-etcd-member-down
+# PAGES (critical, for: 10m, repeats every 3m) while absent(up{job="kube-etcd"})
+# stays empty and the blindness watchdog never fires. See
+# patches/phase08-obs/README.md.
+```
+
+### Two etcd dashboards and two sets of etcd alerts — resolve neither by deletion
+
+Closing this gap leaves Frank with a **duplicate of each**, on purpose, and in
+both cases the copy that looks canonical is the dead one.
+
+**Dashboards.** The chart renders its own etcd board as a ConfigMap
+(`victoria-metrics-victoria-metrics-k8s-stack-etcd`, labelled
+`grafana_dashboard: "1"`), and Grafana's `grafana-sc-dashboard` sidecar has been
+serving it — empty — for the same 148 days. It **cannot be disabled
+independently**: `defaultDashboards.dashboards` exposes exactly three toggles
+(`victoriametrics-vmalert`, `victoriametrics-operator`, `node-exporter-full`),
+none of them etcd, and the board follows `kubeEtcd.enabled`. The only levers are
+`defaultDashboards.enabled: false` (removes all 15 boards) or
+`kubeEtcd.enabled: false` (removes the scrape) — and with the Application at
+`prune: false`, a values-level disable would leave the live ConfigMap orphaned
+anyway.
+
+| | Title | uid | Source |
+|---|---|---|---|
+| **Curated — this is the live one** | `Frank Layer 2 — etcd (curated)` | `frank-l2-etcd` | `apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml` |
+| Upstream — cannot be removed | `etcd` | `c2f4e12cdf69feb95caa41a5a1b423d9` | chart-rendered, follows `kubeEtcd.enabled` |
+
+**Alerts.** The chart also renders a `VMRule`
+(`victoria-metrics-victoria-metrics-k8s-stack-etcd`) carrying **15 upstream etcd
+alerts** — `etcdNoLeader`, `etcdInsufficientMembers`, `etcdMembersDown`,
+`etcdHighFsyncDurations`, `etcdDatabaseQuotaLowSpace` and more — every one
+selecting `job=~".*etcd.*"`, which *matches* `kube-etcd`, and four of them
+overlapping Frank's rules at looser thresholds. They are **inert**: a `VMRule` is
+evaluated by vmalert, and `apps/victoria-metrics/values.yaml` sets
+`vmalert.enabled: false`, because alerting on Frank is Grafana-managed. The six
+live rules are the `layer-2-etcd-*` group in
+`apps/grafana-alerting/manifests/alert-rules-cm.yaml`.
+
+In both cases the risk is not that the duplicate fires — it is that a future
+reader discovers "duplicate etcd monitoring", assumes the upstream artefact is
+canonical and the Frank one is a local accretion, and deletes the half that
+actually works.

@@ -787,6 +787,39 @@ FIFTEEN_MINUTE_EXEMPTIONS: dict[str, str] = {
         "watches is binary (replicas are 0 or they are not), so 15m buys "
         "tolerance for a transition rather than blunting a threshold."
     ),
+    "layer-2-etcd-scrape-absent": (
+        "The watchdog against the etcd scrape silently disappearing, which is "
+        "the failure the whole etcd layer exists to stop recurring (the chart's "
+        "Endpoints object was empty for 148 days and nothing reported it). Its "
+        "window absorbs the two legitimate ways the series pause: a vmagent "
+        "restart, and the rolling etcd restart the Talos ConfigPatch causes on "
+        "each control-plane node in turn. Both are minutes, not seconds, and "
+        "neither is a real blindness event — but absent() has no `for`-like "
+        "tolerance of its own, so the window IS the tolerance. It is not a "
+        "sensitivity dial: the condition is binary (the series exist or they "
+        "do not) and 15m does not blunt it, it only waits."
+    ),
+    "layer-2-etcd-wal-fsync-slow": (
+        "A p99 disk-latency quantile is spiky by nature: a single etcd "
+        "compaction, a Longhorn replica rebuild on the same mini, or a backup "
+        "window can put one 5m sample over 50ms without the quorum being at "
+        "any risk. 15m requires the elevation to persist across three "
+        "evaluation windows before it is called, which is what distinguishes "
+        "sustained disk pressure (the thing that actually causes leader "
+        "elections) from a transient. The THRESHOLD carries the sensitivity "
+        "here and is documented provisional in the spec pending a baseline; "
+        "the window is only there to reject spikes."
+    ),
+    "layer-2-etcd-db-quota": (
+        "The etcd backend database grows over hours and days, never in "
+        "seconds, so detection latency is irrelevant to this signal — at 80 "
+        "percent of quota there is a long runway before the cluster hits the "
+        "NOSPACE alarm and goes read-only. The window exists to reject the "
+        "transient ratio spikes seen around compaction and defragmentation, "
+        "when db_total_size briefly moves while the quota does not. A shorter "
+        "window would buy no useful warning time and would report those "
+        "compaction artefacts as incidents."
+    ),
 }
 
 
