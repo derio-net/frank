@@ -102,7 +102,11 @@ def test_feature_health_folder_is_populated():
     nothing, and the double-load shape is exactly the kind of thing a future
     refactor breaks silently."""
     rules = _feature_health_rules()
-    assert len(rules) >= 30, (
+    # Tightened at code review: `>= 30` against 39 actual meant nine rules
+    # could vanish silently from the guard whose stated job is guarding the
+    # guards. A floor one below the real count still tolerates deliberate
+    # additions without tolerating deletions.
+    assert len(rules) >= 38, (
         "expected the feature-health folder to hold the full layer-tracker "
         f"set; parsed only {len(rules)} rule(s) — the ConfigMap shape or the "
         f"`data.{PROVISIONING_KEY}` key probably changed"
@@ -158,13 +162,24 @@ def test_no_feature_health_rule_uses_pod_readiness():
 # that untouched.
 # ---------------------------------------------------------------------------
 
-# The eleven rules phases 2-3 migrate, with the routing-relevant fields they
+# The twelve rules phases 2-3 migrate, with the routing-relevant fields they
 # must still carry afterwards. Captured from the file before any edit. A
 # rewrite that silently downgrades a severity or drops a tracker reference
 # fails here rather than in production, where the symptom would be an alert
 # quietly routing somewhere else (or nowhere).
+#
+# `layer-8-observability-down` was missing from this map until code review
+# caught it — the twelfth migrated rule, the folder's only `critical`
+# alerting-stack rule, and the one this change repeatedly calls the sharpest
+# signal in the folder. It was pinned for `for:`, severity, threshold and expr
+# shape by its own dedicated tests, but nothing pinned its **folder** or its
+# **tracker**: mutating `folder: feature-health` to `feature-heath`, or
+# `frank-ops#8` to `frank-ops#99`, both passed the whole suite. A folder typo
+# there drops it off the Health Bridge silently — it still pages Telegram via
+# the severity route, so the loss is the bug-issue lifecycle, invisibly.
 MIGRATED_RULES: dict[str, dict[str, str]] = {
     "layer-3-networking-down": {"severity": "warning", "github_issue": "frank-ops#3"},
+    "layer-8-observability-down": {"severity": "critical", "github_issue": "frank-ops#8"},
     "layer-4-storage-down": {"severity": "warning", "github_issue": "frank-ops#4"},
     "layer-5-gpu-down": {"severity": "warning", "github_issue": "frank-ops#5"},
     "layer-6-gitops-down": {"severity": "critical", "github_issue": "frank-ops#6"},
@@ -733,8 +748,10 @@ def test_rules_that_watch_daemonsets_tolerate_a_node_drain():
     Deliberately one-directional. The plan's first draft also asserted the
     converse as "every other feature-health rule has for: 5m", which is simply
     false: the folder holds rules at 0m, 1m, 2m, 10m, 30m, 1h, 2h and 3h, and
-    six of them sit at 10m on purpose (`layer-25-cicd-down`, the in-repo
-    precedent for this whole migration, among them). Asserting it would have
+    five of them sit at 10m on purpose (`layer-25-cicd-down`, the in-repo
+    precedent for this whole migration, among them). It was six before this
+    change — `layer-4-storage-down` moved 10m -> 15m because it queries a
+    DaemonSet metric. Asserting it would have
     forced a mass re-tune under cover of a query rewrite — the exact mistake
     phase 2 caught and reverted.
     """
@@ -1538,4 +1555,73 @@ def test_the_collectors_rule_names_the_workload_with_a_lowercase_kind():
         "renders as `[ var='B' labels={...} value=1 ]`. Use "
         '`{{ $values.B.Value | printf "%.0f" }}` — the convention every other '
         "migrated rule in this folder follows."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Notification routing: this folder is NOT Health-Bridge-only.
+#
+# Believed otherwise for most of this migration and corrected at code review.
+# `notification-policy-cm.yaml` evaluates `severity=critical -> Telegram
+# (continue: true)` and `severity=warning -> Telegram (continue: true)` BEFORE
+# the `grafana_folder=feature-health -> Health Bridge` route, so a rule carrying
+# none of the escape-hatch labels delivers to BOTH. The escape hatches
+# (`gpu_timeshare`, `health_bridge_only`, `canary*`, `telegram_direct`) sit above
+# the severity routes precisely because that is how a rule opts out.
+#
+# Practical consequence: adding a warning-level rule to this folder adds a
+# PAGER, not a dashboard tile.
+# ---------------------------------------------------------------------------
+
+_TELEGRAM_ESCAPE_HATCHES = ("gpu_timeshare", "health_bridge_only", "canary",
+                            "canary_watchdog", "telegram_direct")
+
+
+def test_scale_to_zero_stays_off_telegram():
+    """`workload-unexpectedly-scaled-to-zero` must keep `health_bridge_only`.
+
+    It watches every non-excluded Deployment in the cluster (~73) on a 15m
+    window, and two procedures this repo documents deliberately park a
+    Deployment at 0 for far longer than that: the Longhorn instance-manager
+    retirement in `storage-secrets-ssa.md` ("scale workloads to 0 and wait for
+    natural detach") and the durable scale-to-0 recipe in `frank-argocd.md`.
+
+    Without the label it matches the `severity=warning -> Telegram` route and
+    turns both of those correct operator actions into a page. Dropping the label
+    is a one-line edit with no visible effect in the diff, which is exactly why
+    it is asserted here rather than left to the comment beside it.
+    """
+    by_uid = {rule["uid"]: rule for rule in _feature_health_rules()}
+    rule = by_uid.get(SCALE_TO_ZERO)
+    assert rule is not None, f"{SCALE_TO_ZERO} is missing from the feature-health folder"
+    labels = rule.get("labels", {})
+    assert labels.get("health_bridge_only") == "true", (
+        f"{SCALE_TO_ZERO} lost its `health_bridge_only: \"true\"` label, so it now "
+        "matches the severity=warning -> Telegram route in "
+        "notification-policy-cm.yaml. It watches ~73 Deployments cluster-wide and "
+        "fires on deliberate operator scale-downs (Longhorn IM retirement, the "
+        f"ArgoCD scale-to-0 recipe). Current labels: {labels}"
+    )
+
+
+def test_collectors_rule_deliberately_does_page():
+    """The converse, asserted so the two rules cannot drift into each other.
+
+    `layer-8-observability-collectors-down` fires when `fluent-bit` or
+    `node-exporter` is unavailable — a real degradation worth a page, and
+    consistent with how every other warning-level rule in this folder already
+    behaves. If someone copies the scale-to-zero rule's label across "for
+    consistency", log-shipping and node-metric loss go silent.
+    """
+    by_uid = {rule["uid"]: rule for rule in _feature_health_rules()}
+    rule = by_uid.get(COLLECTORS_DOWN)
+    assert rule is not None, f"{COLLECTORS_DOWN} is missing from the feature-health folder"
+    present = sorted(
+        hatch for hatch in _TELEGRAM_ESCAPE_HATCHES
+        if rule.get("labels", {}).get(hatch) == "true"
+    )
+    assert not present, (
+        f"{COLLECTORS_DOWN} carries Telegram escape-hatch label(s) {present}, so a "
+        "collector dying would no longer page. That is a deliberate difference "
+        f"from {SCALE_TO_ZERO}, not an inconsistency to tidy away."
     )

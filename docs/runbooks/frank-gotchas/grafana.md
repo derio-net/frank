@@ -525,6 +525,60 @@ rewrite:
   in would drag a critical 5m rule to 15m, so they get their own warning-level
   `layer-8-observability-collectors-down` at 15m instead, scoped to the whole
   namespace with no name selector so a third collector is covered automatically.
+- **`layer-12-agents-down` no longer watches the replicas that actually serve
+  Sympozium.** `sympozium-system` runs `sympozium-apiserver` twice: once from the
+  Deployment and once from a blue/green **Argo Rollout** whose `workloadRef` has
+  no `scaleDown` (so the default `never` applies and both run). The old pod regex
+  matched both sets of pods; `kube_deployment_status_replicas_unavailable{deployment="sympozium-apiserver"}`
+  sees only the Deployment's. The Rollout's ReplicaSet — which is what the
+  blue/green Service actually fronts — is now **unwatched**, and there is no
+  `rollout_*` / `argo_rollouts_*` metric anywhere in `alert-rules-cm.yaml`.
+  Unlike `litellm` (covered end-to-end by the Layer 11 probe), Sympozium has no
+  compensating probe. This is a genuine narrowing introduced by the migration,
+  found in code review; closing it means either a Rollouts-aware metric or an
+  end-to-end probe, and either is its own change.
+
+### feature-health alerts DO page Telegram — the folder is not Health-Bridge-only
+
+Believed otherwise throughout this work and corrected at code review, because it
+changes what adding a rule here costs. `notification-policy-cm.yaml` evaluates,
+in order:
+
+```
+canary_watchdog → HB          (continue: false)
+canary          → Telegram    (perma-muted, continue: false)
+telegram_direct → Telegram    (continue: false)
+blog-edge       → AI Helper   (continue: false)
+gpu_timeshare   → HB          (continue: false)
+health_bridge_only → HB       (continue: false)
+severity=critical → Telegram  (continue: TRUE)     ← both of these
+severity=warning  → Telegram  (continue: TRUE)     ← precede the folder route
+grafana_folder=feature-health → HB (continue: false)
+```
+
+So a feature-health rule carrying none of the escape-hatch labels delivers to
+**Telegram *and* Health Bridge**. The escape hatches sit above the severity
+routes precisely because that is how you opt out — `gpu_timeshare` is the
+existing example, keeping the by-design GPU switch off the phone.
+
+Two consequences:
+
+- **The 2026-08-02 flood was noticed because these alerts page.** If the folder
+  were Health-Bridge-only, 25 permanently-firing alerts would have sat unseen
+  indefinitely.
+- **Adding a warning-level rule here adds a pager**, not a dashboard tile. That
+  is why `workload-unexpectedly-scaled-to-zero` carries
+  `health_bridge_only: "true"`: it watches ~73 Deployments cluster-wide, and two
+  procedures this repo documents park a Deployment at 0 for far longer than its
+  15m window — the Longhorn instance-manager retirement in
+  `storage-secrets-ssa.md` ("scale workloads to 0 and wait for natural detach")
+  and the durable scale-to-0 recipe in `frank-argocd.md`. Both are correct
+  operator actions. "Someone left a Deployment at 0" is a dashboard fact, not a
+  3 a.m. page.
+
+`layer-8-observability-collectors-down` deliberately does **not** carry the
+label: a collector dying is worth a page, and it matches how every other
+warning-level rule in the folder already behaves.
 
 All of the above is guarded by
 `scripts/tests/test_feature_health_workload_metrics.py`, which runs on every PR

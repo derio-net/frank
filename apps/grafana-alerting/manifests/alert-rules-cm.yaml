@@ -785,9 +785,28 @@ data:
             labels:
               severity: warning
               github_issue: "frank-ops#8"
+              # Health Bridge ONLY — deliberately not a Telegram pager.
+              #
+              # Without this label a severity=warning alert matches the
+              # `severity=warning -> Telegram (continue:true)` route in
+              # notification-policy-cm.yaml, which sits ABOVE the
+              # feature-health -> Health Bridge route. This rule watches all ~73
+              # non-excluded Deployments cluster-wide, and two procedures this
+              # repo documents park a Deployment at 0 for far longer than 15m:
+              # the Longhorn instance-manager retirement in
+              # storage-secrets-ssa.md ("scale workloads to 0 and wait for
+              # natural detach") and the durable scale-to-0 recipe in
+              # frank-argocd.md. Both are correct operator actions, and neither
+              # should buzz a phone at 03:00.
+              #
+              # "Someone left a Deployment at 0" is a dashboard fact, not a
+              # page. health_bridge_only is the documented escape hatch for
+              # exactly that (its route precedes the severity routes, same
+              # mechanism gpu_timeshare uses for the by-design GPU switch).
+              health_bridge_only: "true"
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.deployment }} is scaled to 0 replicas and is not a known scale-to-0 workload"
-              runbook: "kubectl -n {{ $labels.namespace }} get deploy {{ $labels.deployment }} -o yaml; check for an Argo Rollout owning it: kubectl -n {{ $labels.namespace }} get rollouts.argoproj.io"
+              runbook: "kubectl -n {{ $labels.namespace }} get deploy {{ $labels.deployment }} -o yaml; check for an Argo Rollout owning it: kubectl -n {{ $labels.namespace }} get rollouts.argoproj.io. If this is a deliberate scale-down (Longhorn IM retirement, ArgoCD scale-to-0), it is expected and will resolve when replicas return."
 
       # --- Layer 18 — Persistent Agent (frank-ops#18) ---
       # Per-job heartbeat check — fires ONE alert instance per stale cron, all

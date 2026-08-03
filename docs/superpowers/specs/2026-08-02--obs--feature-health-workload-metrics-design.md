@@ -322,19 +322,42 @@ log shipping and losing `node-exporter` stops node metrics, both real
 degradations, but `vmagent`/`vmsingle`/`grafana` are Deployments still covered at
 `critical`/5m by layer-8 proper, so the alerting stack itself is not blind.
 
-Its `probe_success` clause for `health-bridge/healthz` is preserved **verbatim**
-— that is an end-to-end probe, the sharpest signal in the folder, and entirely
-unaffected by this migration. Its `component` label convention
-(`pod/<name>` → now `<kind>/<name>`) carries over so the summary still reads
-naturally.
+Its `probe_success` clause for `health-bridge/healthz` keeps its **selector**
+untouched — that is an end-to-end probe and the sharpest signal in the folder.
+Its `component` label convention (`pod/<name>` → now `<kind>/<name>`) carries
+over so the summary still reads naturally.
+
+**Correction (phase 3): "preserved verbatim" was wrong, and following it would
+have inverted the alert.** This paragraph originally said the clause was
+preserved verbatim and "entirely unaffected by this migration". It is not
+unaffected. `probe_success` is **1 on success** — the opposite polarity to every
+unavailability counter beside it. Carried through unchanged under the new `gt 0`
+threshold, it fires **continuously while health-bridge is healthy** and goes
+**silent when it dies**: the alert exactly backwards, on the one signal this
+section calls the sharpest in the folder. Shipped as
+`probe_success{...} == bool 0`. Measured live: raw `1`, inverted `0` while
+healthy, `1` when the probe fails.
 
 The `unless ... kube_pod_status_phase` join is **deleted**, not ported: workload
 availability metrics have no tombstones to filter.
 
-The existing pod-name regexes (`cilium-.*`, `longhorn-manager-.*`,
-`authentik-(server|worker).*`, …) carry over as workload-name regexes. They get
-*simpler*: a pod regex has to tolerate the ReplicaSet-hash suffix, a workload
-regex matches the workload name exactly.
+**Correction (phase 3): the pod-name regexes must NOT be carried over
+unchanged.** This section originally said the existing regexes (`cilium-.*`,
+`longhorn-manager-.*`, `authentik-(server|worker).*`, …) "carry over as
+workload-name regexes" and "get *simpler*". The second half is right; the first
+is a trap, because **a pod regex is not a workload regex**:
+
+| old pod regex | as a workload regex | consequence |
+|---|---|---|
+| `cilium-.*` | matches `cilium-operator`, **not** the `cilium` DaemonSet | the Cilium **agent** silently unwatched — 1 series where 2 are due |
+| `longhorn-manager-.*` | matches **nothing** (the DaemonSet is `longhorn-manager`, no suffix) | rule permanently dead |
+
+Both still return data (or plausibly none) and pass every structural assertion,
+which is what makes this class of error invisible. Shipped as
+`daemonset=~"cilium.*"` + `deployment=~"cilium.*"` (3 workloads, covering the
+same 16 pods the old regex matched) and `daemonset="longhorn-manager"`. Every
+one of the twelve selectors was checked against live series counts rather than
+reasoned about.
 
 `layer-14-vcluster-down`'s `pod=~".*-[0-9]+$"` was a hand-rolled "match
 StatefulSet pods only" filter. It disappears entirely — querying

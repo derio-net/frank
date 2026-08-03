@@ -1109,3 +1109,120 @@ the brief warned about exactly one over-broad sentence, and the corrected draft
 introduced a second over-broad sentence one line later. A documentation phase
 whose whole premise is 'verify every claim' has to apply that to its own
 corrections, not just to the material it inherited. The census took one query.
+
+<!-- fr:journal kind=finding scope=plan id=5b55a02a1b89 created=2026-08-03T02:05:44 phase=5 state=fixed -->
+### 5b55a02a1b89 · finding [fixed] · This folder is NOT Health-Bridge-only — every rule here pages Telegram (phase 5)
+
+Believed and repeated throughout this work — in the spec, in the acceptance
+matrix, and to the operator — that feature-health alerts route to the Health
+Bridge only. **False.** Found in code review, confirmed by reading
+`apps/grafana-alerting/manifests/notification-policy-cm.yaml` end to end.
+
+Route order (first match wins unless `continue: true`):
+
+    canary_watchdog     -> HB        continue: false
+    canary              -> Telegram  perma-muted, continue: false
+    telegram_direct     -> Telegram  continue: false
+    blog-edge           -> AI Helper continue: false
+    gpu_timeshare       -> HB        continue: false
+    health_bridge_only  -> HB        continue: false
+    severity=critical   -> Telegram  continue: TRUE     <-- both precede
+    severity=warning    -> Telegram  continue: TRUE     <-- the folder route
+    grafana_folder=feature-health -> HB  continue: false
+
+None of the 14 rules carries an escape-hatch label, so every one delivers to
+**Telegram AND Health Bridge** — and did so before this change too. Routing is
+genuinely unchanged; only the claim about it was wrong.
+
+The corroboration was in the operator report that started this work: "Grafana is
+sending a bunch of alerts." They were noticed. A Health-Bridge-only folder would
+have accumulated 25 permanently-firing alerts unseen.
+
+**Why it mattered rather than being a wording slip:**
+
+1. The acceptance row `feature-health-routing-preserved` asserted "Health Bridge
+   webhook only, never to Telegram" at `status: ci` — CI appeared to prove a
+   false statement, and its notes committed to a phase-6 live verification that
+   could only fail. Rewritten to the provable claim (routing INPUTS — folder,
+   uid, severity, tracker — are unchanged).
+2. The two NEW rules are therefore new pagers. `workload-unexpectedly-scaled-to-zero`
+   watches ~73 Deployments cluster-wide on a 15m window, and two procedures this
+   repo documents park a Deployment at 0 for far longer: the Longhorn
+   instance-manager retirement (`storage-secrets-ssa.md`) and the durable
+   scale-to-0 recipe (`frank-argocd.md`). It would have paged on correct
+   operator actions — adding noise, in a change whose entire purpose is removing
+   it.
+
+**Fixed:** the scale-to-0 rule carries `health_bridge_only: "true"` (the
+documented escape hatch, same mechanism `gpu_timeshare` uses), guarded by
+`test_scale_to_zero_stays_off_telegram`.
+`layer-8-observability-collectors-down` deliberately does NOT carry it — a
+collector dying is worth a page — guarded in the opposite direction by
+`test_collectors_rule_deliberately_does_page`, so the two cannot drift into each
+other. Routing reality documented in `grafana.md`.
+
+<!-- fr:journal kind=finding scope=plan id=73a01ad92e11 created=2026-08-03T02:05:45 phase=5 state=fixed -->
+### 73a01ad92e11 · finding [fixed] · layer-8 was the only migrated rule with no folder/tracker guard (phase 5)
+
+Code review mutation-tested the guards and found `layer-8-observability-down`
+missing from `MIGRATED_RULES` — the twelfth migrated rule, the folder`s only
+`critical` alerting-stack rule, and the one this change repeatedly calls the
+sharpest signal in the folder.
+
+Measured before the fix: mutating its group `folder: feature-health` to
+`feature-heath`, and its `github_issue` from `frank-ops#8` to `frank-ops#99`,
+BOTH passed the entire suite. Its dedicated tests pinned `for:`, severity,
+threshold and expr shape — but never folder, never tracker.
+
+A folder typo there drops it off the Health Bridge silently. It would still page
+Telegram via the severity route (see the routing finding above), so the loss is
+the bug-issue lifecycle — invisible in exactly the way this whole change is
+about.
+
+Fixed by adding it to `MIGRATED_RULES`. Re-mutation-checked after the fix: the
+tracker mutation now fails `test_migrated_rules_keep_folder_uid_severity_and_tracker`,
+the folder mutation fails `test_every_feature_health_rule_lives_in_the_feature_health_folder`.
+
+<!-- fr:journal kind=finding scope=plan id=1a389850aee9 created=2026-08-03T02:05:47 phase=5 state=open -->
+### 1a389850aee9 · finding [open] · layer-12 no longer watches the Rollout-managed Sympozium replicas (phase 5)
+
+A genuine coverage narrowing introduced by this migration, found in code review
+and recorded rather than fixed — closing it is its own change.
+
+`sympozium-system` runs `sympozium-apiserver` TWICE: once from the Deployment
+and once from a blue/green Argo Rollout whose `workloadRef` has no `scaleDown`
+(default `never`, so both run). The old pod regex matched both sets of pods.
+`kube_deployment_status_replicas_unavailable{deployment="sympozium-apiserver"}`
+sees only the Deployment`s.
+
+So the Rollout`s ReplicaSet — which is what the blue/green Service actually
+fronts — is now unwatched, and there is no `rollout_*` / `argo_rollouts_*` metric
+anywhere in `alert-rules-cm.yaml`. Unlike `litellm`, which is Rollout-managed but
+covered end-to-end by the Layer 11 probe, Sympozium has no compensating probe.
+
+Recorded in `grafana.md` under "Known coverage limits". Closing it means either a
+Rollouts-aware metric source or an end-to-end Sympozium probe.
+
+<!-- fr:journal kind=discovery scope=plan id=85587b1340bf created=2026-08-03T02:05:48 phase=5 -->
+### 85587b1340bf · discovery · A mutation test that does not verify its own mutation proves nothing (phase 5)
+
+While adding `test_scale_to_zero_stays_off_telegram` I mutation-checked it by
+deleting the `health_bridge_only` label and re-running. The suite stayed GREEN,
+which read as "the new guard is vacuous".
+
+It was not. The mutation had removed the WRONG rule`s label:
+`vk-executor-pool-wedged` already carries `health_bridge_only: "true"` earlier in
+the same file (it is named in the notification-policy comment as the escape
+hatch`s first user), so a `count=1` substitution hit that instead — and nothing
+guards that rule`s label, so the suite was correctly green about a mutation that
+never touched the rule under test.
+
+Anchoring the substitution on `uid: workload-unexpectedly-scaled-to-zero` before
+searching made it fail as intended.
+
+The general shape: a mutation test has TWO assertions, and only one of them is
+usually written down. "The guard fails" is worthless without "the mutation
+applied where I meant it to". Re-parse the artifact and assert the mutated value
+before running the suite — a green result from an unapplied mutation is
+indistinguishable from a vacuous guard, and the wrong conclusion is the
+comfortable one.

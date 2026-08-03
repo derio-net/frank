@@ -819,10 +819,11 @@ rows:
   status: not-implemented
   notes: 'The defect this migration removes: 48 alerts fired on 2026-08-02 for NodeShutdown tombstones
     against a healthy cluster. Pinned in CI by the no-kube_pod_status_ready tripwire; full proof arrives
-    at the next reboot. Phase 2 (2026-08-02) migrated 8 of the 12 offending rules; layer-3/4/5 and
-    layer-8 still query per-pod readiness, so this stays not-implemented until phase 3 lands AND a
-    control-plane roll is observed. Deliberately not flipped on partial coverage: a reboot exercises
-    whichever rule is still wrong, not the ones already fixed.'
+    at the next reboot. All 12 offending rules are migrated as of phase 3 and the folder-wide
+    no-kube_pod_status_ready tripwire is live (it carried xfail(strict=True) through phases 1-2 and was
+    retired when the twelfth rule landed). Stays not-implemented because the claim is about observed
+    behaviour during a control-plane roll, and no roll has happened since: CI proves the defect class is
+    absent from the manifests, not that a reboot passes quietly. Flips at the next node reboot.'
 - id: feature-health-detects-real-outage
   capability: Feature-health alerting
   acceptance: A workload that loses all available replicas still raises its layer's feature-health alert.
@@ -832,32 +833,41 @@ rows:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
-  notes: 'The coverage claim the migration must not regress. Verified post-merge by each rewritten rule
-    returning series in VMUI (Test Plan row 3). Phase 2 (2026-08-02) ran that check against live
-    VictoriaMetrics for its 8 rules — all returned series (1-7 each), every series carrying workload +
-    kind, every value 0 on a healthy cluster, which is the correct quiet state for the new gt 0
-    threshold. Still not-implemented: that proves the queries resolve, not that a real outage raises the
-    alert, and 4 rules are unmigrated. Flips when phase 3 completes and Grafana has reloaded the
-    provisioning file (read at boot, not watched).'
+  notes: 'The coverage claim the migration must not regress. All 14 shipped expressions were extracted
+    from the ConfigMap (never retyped) and run against live VictoriaMetrics, each top-level `or` branch
+    separately: every branch returns series independently, every series carries workload + lowercase kind,
+    and every value is 0 — the correct quiet state under gt 0, and the permanently-firing state under the
+    old lt 1, which is the per-rule polarity proof. The StatefulSet subtraction joins 13 = 13 cluster-wide.
+    Still not-implemented: that proves the queries resolve and are correctly polarised, not that a real
+    outage raises the alert. Flips when Grafana has reloaded the provisioning file (read at boot, not
+    watched) and an outage or injected failure is observed. Known narrowing recorded in grafana.md:
+    layer-12 no longer watches the Rollout-managed sympozium-apiserver replicas.'
 - id: feature-health-routing-preserved
   capability: Feature-health alerting
-  acceptance: Every migrated feature-health alert continues to route to the Health Bridge webhook only,
-    never to Telegram.
+  acceptance: The routing-relevant fields of every migrated feature-health alert — folder, uid, severity
+    and github_issue — are unchanged by the rewrite, so each alert reaches exactly the receivers it
+    reached before.
   origin:
   - frank:docs/superpowers/specs/2026-08-02--obs--feature-health-workload-metrics-design.md
   levels:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: ci
-  notes: 'Routing keys on grafana_folder=feature-health in notification-policy-cm.yaml, so a folder typo
-    does not error — it silently reroutes a layer to Telegram. Enforced on every PR by
-    .github/workflows/repo-tripwires.yml (pytest scripts/tests/ -q, no paths filter):
-    test_migrated_rules_keep_folder_uid_severity_and_tracker pins folder + severity + github_issue for all
-    eleven migrated uids against a captured expected-dict,
+  notes: 'CORRECTED at code review. This row previously claimed these alerts route to the Health Bridge
+    "only, never to Telegram" — that is FALSE, and it was marked status:ci, so CI appeared to prove it.
+    notification-policy-cm.yaml evaluates severity=critical -> Telegram (continue:true) and
+    severity=warning -> Telegram (continue:true) BEFORE the grafana_folder=feature-health -> Health Bridge
+    route, and none of these rules carries an escape-hatch label (gpu_timeshare, health_bridge_only,
+    canary, telegram_direct — all of whose routes deliberately sit above the severity routes). So every
+    one of them delivers to Telegram AND Health Bridge, and did so before this change too. That is why the
+    2026-08-02 flood was noticed at all. The provable claim is the one now stated: routing INPUTS are
+    unchanged. Enforced on every PR by .github/workflows/repo-tripwires.yml (pytest scripts/tests/ -q, no
+    paths filter): test_migrated_rules_keep_folder_uid_severity_and_tracker pins folder + severity +
+    github_issue for all twelve migrated uids against a captured expected-dict (layer-8 was missing from
+    that map until code review — its folder and tracker were unpinned),
     test_every_feature_health_rule_lives_in_the_feature_health_folder catches a group-header typo, and
     test_every_rule_has_a_non_empty_uid_and_uids_are_globally_unique catches a uid collision that would
-    stop a rule evaluating at all. Each assertion was mutation-checked against a doctored ConfigMap before
-    landing. Live confirmation that nothing reaches Telegram is the phase 6 post-merge step.'
+    stop a rule evaluating at all. Each assertion was mutation-checked against a doctored ConfigMap.'
 - id: feature-health-scale-to-zero-guarded
   capability: Feature-health alerting
   acceptance: An unexpectedly scaled-to-0 Deployment raises an alert, while the GPU-timeshared and Rollout-managed
