@@ -125,12 +125,19 @@ tasks:
       the acceptance notes, and in whatever is reported to the external client.
   - id: P5.T3.S2
     text: |
-      Retroactively extend the existing Layer 11 posts
-      (`blog/content/docs/building/10-local-inference`,
-      `blog/content/docs/operating/07-inference`) with the measured results — an
-      extension, so no new posts. Describe the consumer ONLY as an external
-      client: no repo name, no corpus details, no benchmark queries. Run
-      `/update-readme`. Set the plan Status to Deployed.
+      DEVIATION, operator-approved 2026-08-03: this shipped as a NEW building
+      post rather than an extension. The plan originally said "an extension, so
+      no new posts", on the fix/extension rule. The operator judged the material
+      substantial enough for its own narrative — first DRA consumer, a disproven
+      design, and a measured 20.9x result — and building layers routinely carry
+      several posts (`agents` has 6, `obs` 5), so a second `infer` post is
+      consistent with the series.
+      Delivered: `blog/content/docs/building/37-igpu-retrieval-tier` (new), plus
+      a retrieval section, recovery table and quick-reference rows appended to
+      the existing `blog/content/docs/operating/07-inference`. The consumer is
+      described ONLY as an external client: no repo name, product, corpus
+      details, benchmark queries or figures. Run `/update-readme`. Set the plan
+      Status to Deployed.
   - id: P5.T3.S3
     text: |
       Report the measured rerank latency and embedding dimension back to the
@@ -139,42 +146,68 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:23+00:00'
+      note: GHCR published PUBLIC on first push; anonymous manifest pull returned
+        HTTP 200. The predicted private-package blocker did not occur.
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:25+00:00'
+      note: 'GET /v1/config shows BOTH servables AVAILABLE. Also resolved the carried
+        unknown: /v2/models/<name>/ready DOES gate on real model state for MediaPipe-graph
+        servables (pod Running at 28s, 1/1 only at 95s).'
     P5.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:28+00:00'
+      note: 'OVMS logs ''Available devices for Open VINO: CPU, GPU'' on mini-1; servables
+        loaded from the GPU repository.'
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:30+00:00'
+      note: 'GPU arm: rerank 20 candidates p50 77.3ms / p95 87.1ms / max 91.1ms. Embedding
+        dim 1024. Single p50 28.4ms, batch-32 p50 93.2ms, throughput 35.2/343.5 items
+        per s. degenerate_scores=false; live scores 0.0395 vs 1.6e-5 (~2400x separation).'
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:32+00:00'
+      note: 'CPU arm: rerank p50 1612.9ms / p95 1702.6ms. Batch-32 p50 1928.0ms, throughput
+        16.6 items per s. Single-item 32.2ms. VERDICT: iGPU wins 20.9x on rerank and
+        20.7x on batched embeddings, but only 1.1x single-item -- request overhead
+        dominates at batch 1. The DRA plumbing is justified for batched work. Note
+        the original 1-5s/query estimate was effectively a CPU estimate (CPU arm lands
+        at 1.6s).'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:35+00:00'
+      note: '7500 rerank requests over 240s (~31/s) from mini-1. apiserver p99 (WATCH/CONNECT
+        excluded) 23.4ms before vs 22.1ms under load. All three minis Ready, no Memory/DiskPressure.
+        ovms working set 2254Mi of 6Gi. GAP: etcd leader changes and WAL fsync NOT
+        measurable -- Frank does not scrape etcd (verified: no etcd scrape job; the
+        etcd_* series present are the apiserver''s etcd CLIENT metrics).'
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:46:54+00:00'
+      note: 'Four rows updated with measured evidence. infer-igpu-rerank-endpoint
+        and infer-igpu-embeddings-endpoint are ''skipped'' (live proof) NOT ''ci''
+        -- CI guards the manifest shape, not the serving behaviour; the test_acceptance_status_matches_notes
+        guard caught the overstatement. infer-igpu-workload-preserves-quorum records
+        PARTIAL: apiserver/node evidence clean, etcd unmeasurable (not scraped).'
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:32:57+00:00'
+      note: Shipped as building post 37 + an operating/07-inference section (operator-approved
+        deviation from 'no new posts'). Gate passes; blog builds clean.
     P5.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-02T23:46:56+00:00'
+      note: Latency and dimension reported back to the requesting repo's issue; the
+        recall benchmark stays with that repo (Test Plan row 9), unverifiable here.
   completion:
-    at: null
-    note: null
+    at: '2026-08-02T23:47:14+00:00'
+    note: 'Manual phase executed 2026-08-02/03. Deployed and measured live: both servables
+      AVAILABLE, iGPU enumerated, rerank 20 candidates p50 77.3ms vs CPU control arm
+      1612.9ms (20.9x). Control-plane impact clean on every signal Frank can see;
+      etcd itself is not scraped, recorded as a gap rather than a pass. Blog shipped
+      as building post 37 + an operating/07-inference section (operator-approved deviation
+      from the plan''s ''no new posts'').'
     observed_prs: []

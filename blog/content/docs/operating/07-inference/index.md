@@ -9,8 +9,8 @@ summary: "Day-to-day commands for managing local LLM inference, checking model s
 weight: 8
 reader_goal: "Manage Ollama models, route inference through LiteLLM, and correctly diagnose the two different OOM patterns that look identical."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
-last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+last_updated: 2026-08-03
+last_updated_commit: https://github.com/derio-net/frank/commit/e0089963
 ---
 
 {{< last-updated >}}
@@ -128,6 +128,39 @@ kubectl get configmap -n litellm litellm-config -o yaml | grep -A 5 'model_name'
 
 The cluster no longer routes to OpenRouter free models (commit `46f19ca2`). The policy is local Ollama or a paid frontier key only. If your config still lists `openrouter/*:free` models, remove them.
 
+### Retrieval Endpoints (embeddings + rerank)
+
+The retrieval pair runs separately from Ollama, on a mini's Arc iGPU, and is
+deliberately **not** behind LiteLLM. Callers use the service directly.
+
+```bash
+# Both servables must read AVAILABLE. This is the diagnostic of record --
+# /v2/health/ready is SERVER-level and answers 200 with a dead model.
+kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- \
+  curl -s http://127.0.0.1:8000/v1/config | grep -c AVAILABLE     # expect 2
+
+# Confirm the iGPU is enumerated, not just present
+kubectl -n retrieval logs deploy/ovms-retrieval -c ovms | grep "Available devices"
+# -> Available devices for Open VINO: CPU, GPU
+
+# Who holds the iGPU right now
+kubectl get resourceclaims -A
+```
+
+```bash
+# Rerank: scores must be well separated. Clustered values around 1e-9..1e-12
+# mean the wrong model class is being served, and nothing will error.
+kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- curl -s \
+  -X POST http://127.0.0.1:8000/v3/rerank -H 'Content-Type: application/json' \
+  -d '{"model":"bge-reranker-v2-m3","query":"pruning fruit trees",
+       "documents":["Prune apple trees while dormant.","Lima is the capital of Peru."]}'
+```
+
+Measured on the iGPU: rerank of 20 candidates runs ~77 ms p50, ~87 ms p95.
+Embeddings are 1024-dimensional. A CPU-only arm of the same models on the same
+node runs ~1613 ms p50, so a sudden jump into the 1.5-2 s range is the signature
+of the GPU repository not being the one that loaded.
+
 ## Recover
 
 ### Ollama Not Responding
@@ -199,6 +232,16 @@ kubectl exec -n litellm deploy/litellm -- curl -s http://ollama.ollama.svc:11434
 
 Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memory being allocated, the model is falling back to CPU — extremely slow. Check Ollama logs for "no compatible {{< abbr "CUDA" >}} device" or similar.
 
+### Retrieval Model Not Serving
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Pod `Ready`, every retrieval request fails | Readiness was pointed at `/v2/health/ready`, which reports server not model | Check `GET /v1/config`; probes belong on `/v2/models/<name>/ready` |
+| `seed-models` initContainer exit 137 in seconds | Dirty-page pressure copying the repository to Longhorn | Per-file `cp` with a bare `sync`; limit above the largest single file |
+| Pod stuck `Pending`, no events | The `ResourceClaimTemplate` filters on capacity; the iGPU reports `memory: "0"` | Remove any capacity or CEL memory selector |
+| Stale weights after a model bump | Seed marker still matches an unchanged `MODELS_REV` | Bump `MODELS_REV` so tag and marker both move |
+| Rerank scores all ~1e-9, no error | Wrong model class being served | Confirm the reranker is a cross-encoder, not an LLM-style reranker |
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
@@ -221,9 +264,13 @@ Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memo
 | `curl http://192.168.55.206:4000/v1/models` | List available models |
 | `kubectl logs -n litellm deploy/litellm` | LiteLLM proxy logs |
 | `kubectl logs -n ollama deploy/ollama` | Ollama server logs |
+| `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- curl -s http://127.0.0.1:8000/v1/config` | Per-servable state of the retrieval models |
+| `kubectl get resourceclaims -A` | Who currently holds a DRA-claimed device |
+| `kubectl -n retrieval logs deploy/ovms-retrieval -c seed-models` | Model-repository seed log (skip vs reseed) |
 
 ## References
 
 - [Ollama API Reference](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [LiteLLM Documentation](https://docs.litellm.ai/)
 - [Building Post — Local Inference]({{< relref "/docs/building/10-local-inference" >}})
+- [Building Post — Retrieval on the Idle iGPUs]({{< relref "/docs/building/37-igpu-retrieval-tier" >}})

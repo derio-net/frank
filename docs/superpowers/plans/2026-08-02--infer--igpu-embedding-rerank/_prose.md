@@ -1,6 +1,7 @@
 # Retrieval models on the mini iGPUs — implementation
 
 **Spec:** `docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md`
+**Status:** Deployed
 
 Serve `bge-m3` (embeddings) and `bge-reranker-v2-m3` (rerank) on the Intel Arc
 iGPU of a control-plane mini via the DRA resource driver, exposed in-cluster
