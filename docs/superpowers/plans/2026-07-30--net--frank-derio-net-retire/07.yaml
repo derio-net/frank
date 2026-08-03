@@ -33,22 +33,91 @@ tasks:
 state:
   steps:
     P7.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T10:30:23+00:00'
+      note: 'Levels were already correct: net-cluster-domain-canonical, net-legacy-domain-retired
+        and net-omni-domain-preserved each cite frank:scripts/tests/test_frank_domain_retirement.py
+        at levels.unit (in CI via repo-tripwires.yml), while net-oidc-cutover-continuity
+        keeps EMPTY levels because nothing about it is automatable - it needs a live
+        cluster, the Authentik client secret and TokenReview. All four stay skipped
+        rather than ci: the unit guard proves only the repository half, never live
+        reachability, login or DNS, and inflating them to ci would claim per-PR protection
+        that does not exist. Live evidence is recorded credential-free across the
+        four notes: TokenReview outcomes and T0=2026-08-01T17:56:02Z with the measured
+        hours=8 TTL, 60/60 NXDOMAIN over 20 retired names x 3 resolvers including
+        the Headscale mesh, Omni UI/discovery/:8100 with a genuine Let''s Encrypt
+        cert to 2026-10-08, and service logins. Added this phase: the canonical row
+        claimed EVERY service but cited a one-host spot-check, so it now carries a
+        ten-host sweep over valid TLS - argocd and vk 200, grafana/longhorn/hubble/infisical/paperclip/auth/n8n/tekton
+        302 to Authentik - taken after the legacy fallback was already NXDOMAIN and
+        so unable to mask a failure.'
     P7.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T10:30:47+00:00'
+      note: 'fr acceptance report --deterministic regenerated all three report files.
+        fr acceptance check exits 1 with 13 ERRORs - ALL pre-existing staleness (specs
+        carrying a Test Plan that no matrix row cites), none naming any of the four
+        migration rows and no report drift; the count is unchanged from before this
+        plan, so it adds no new failing row. Recorded separately as unrelated repo
+        debt, and no CI workflow runs this gate today. Focused guard: 9 passed. git
+        diff --check clean. scripts/validate-plans.sh runs only its minimal checks
+        inside the devcontainer - the super-fr validator is not installed there, a
+        profile gap of the same family as the missing rg and kubectl noted in Phases
+        5 and 6.'
     P7.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T10:56:19+00:00'
+      note: 'Both posts retroactively updated (normal markdown edits, not a new post).
+        building/24-in-cluster-ingress gains a Retiring *.frank.derio.net section
+        covering the structured-authentication mechanism (a LIST of authenticators
+        replacing the single --oidc-* flag, which is what made this a cutover rather
+        than an outage), the eight-hour overlap derived from the measured access_token_validity
+        with T0 and the T0+8h boundary, the rollback path (the overlap IS the rollback;
+        the irreversible moment is the omnictl apply, not the merge), and the Omni
+        exception including why an explicit CNAME outlives the wildcard above it.
+        Plus two Missteps rows and two Recovery rows. operating/17-ingress gains verification
+        commands for the retired domain and single-issuer state, two Recover sections,
+        four Missteps rows and three Quick Reference rows; its healthy-state list
+        now asserts no -frank routes, NXDOMAIN, and exactly one issuer. Gotchas: the
+        authentik forward-auth entry de-scoped from the retired .frank example to
+        the general Host mechanism, a NEW entry recorded for the persisted embedded-outpost
+        authentik_host (env does not govern browser redirects), the networking re-front
+        playbook marked retired-but-reusable, and a new entry on removing rather than
+        repointing DNS records. Spec 2026-03-29--net--in-cluster-ingress-design.md:
+        Phase 2 future work marked COMPLETE with what actually shipped, which went
+        beyond the original scope - the record was removed rather than repointed and
+        raspi-omni fronts nothing at all. Verification: full tripwire suite 576 passed
+        1 xfailed; no hugo/go.mod side effects.'
     P7.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-08-03T11:01:12+00:00'
+      note: 'README: the domain retirement needed no URL changes (zero frank.derio.net
+        references), but it surfaced a stale Physical Zones row - Zone A still claimed
+        Sidero Omni, Authentik and Traefik on raspi-omni at 192.168.55.1. Authentik
+        and Traefik moved in-cluster; that Pi died 2026-06-20; Omni was rebuilt on
+        the gondor VM. Corrected to the gondor VM at 192.168.10.30, which my own dig
+        confirms (omni.frank.derio.net -> omni.frank.lan -> 192.168.10.30, a different
+        subnet from the one documented), plus a note recording both changes. Runbook:
+        all three manual ops were present but status pending and are now done. Both
+        sides were updated - the plan blocks AND manual-operations.yaml - because
+        the sync PRESERVES existing statuses, so editing only one leaves them disagreeing.
+        net-frank-domain-final-retirement also carries a deviation note: its raspi-omni
+        Ansible step never ran, since Omni moved to a host with no reverse proxy,
+        and its commands now warn that omnictl apply reads a LOCAL file and that the
+        nine IngressRoutes need a manual delete. Plan marked Deployed with links to
+        all three deployment PRs plus the corrective ones and the homelab-side PRs.
+        NOTE: a PostToolUse hook claims this plan lacks a Post-Deploy Checklist -
+        false positive, Phase 7 IS that checklist.'
   completion:
-    at: null
-    note: null
+    at: '2026-08-03T11:01:24+00:00'
+    note: 'Phase 7 complete 2026-08-03; the plan is Deployed. Acceptance: all four
+      rows stay skipped with live evidence and no PARTIAL qualifier - none was promoted
+      to ci, because the unit guard proves only the repository half and per-PR automation
+      cannot reach live reachability, login or DNS. fr acceptance check exits 1 on
+      13 PRE-EXISTING staleness errors, none of them this plan''s; no new failing
+      row was added. Full tripwire suite 576 passed, 1 xfailed. Two devcontainer profile
+      gaps recorded across this plan and worth fixing before the next one: the dev
+      profile has no rg, no kubectl and no node modules for the mermaid validator,
+      so three of the plan''s literal verification commands cannot run inside isolation
+      - the same class as the kustomize/helm gap already documented in fr-profiles.yaml.'
     observed_prs: []

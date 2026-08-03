@@ -647,7 +647,13 @@ rows:
     Bearer key — so ''canonical'' is per-consumer, not per-name. Machine clients use
     litellm-api.cluster.derio.net (no forward-auth, added in frank#749), verified returning LiteLLM''s own 401
     on /v1/models and resolving via the mesh resolver; kid-laptops and the operator .env files moved to it in
-    derio-homelab/kid-laptops#81, with a tripwire against regression.'
+    derio-homelab/kid-laptops#81, with a tripwire against regression. BREADTH (2026-08-03, independent
+    re-check): the row claims EVERY service, so the single-host spot-check above was widened to a ten-host
+    sweep, all over valid TLS (curl ssl_verify_result=0) with the legacy fallback already NXDOMAIN and
+    therefore unable to mask a failure — argocd and vk returned HTTP 200; grafana, longhorn, hubble,
+    infisical, paperclip, auth, n8n and tekton returned HTTP 302 to Authentik, which is the correct
+    forward-auth answer for a browserless client and, per the litellm correction above, is a pass for a
+    human consumer rather than a machine one.'
 - id: net-oidc-cutover-continuity
   capability: Canonical cluster service access
   acceptance: Existing Kubernetes OIDC credentials continue to authenticate during the issuer migration

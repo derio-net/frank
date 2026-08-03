@@ -12,11 +12,19 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 
 | Zone | Hardware | Role | Hostname(s) | IP(s) |
 |------|----------|------|-------------|-------|
-| A — Management | Raspberry Pi 5 (8GB) | Sidero Omni, Authentik, Traefik | raspi-omni | 192.168.55.1 |
+| A — Management | Proxmox VM (`gondor`) | Sidero Omni — cluster lifecycle only | omni.frank.lan | 192.168.10.30 |
 | B — Core HA | 3x ASUS NUC (Intel Ultra 5, 64GB, 1TB NVMe, Arc iGPU) | Control-plane + worker | mini-1/2/3 | 192.168.55.21-23 |
 | C — AI Compute | Desktop (i9, 128GB, RTX 5070 Ti 16GB, 2x4TB SSD) | GPU worker | gpu-1 | 192.168.55.31 |
 | D — Edge | 2x RPi 4 + 1x legacy desktop | General workers | raspi-1/2, pc-1 | 192.168.55.41-42, .71 |
 | E — Public Edge | Hetzner CX23 (2 vCPU, 4GB) | Hop cluster (standalone talosctl) | hop-1 | Hetzner public IP |
+
+> **Zone A changed twice in 2026.** The original `raspi-omni` Pi 5 fronted Omni,
+> Authentik and Traefik for `*.frank.derio.net`; it died in June. Authentik and
+> Traefik had already moved in-cluster behind `*.cluster.derio.net`, and Omni was
+> rebuilt on the `gondor` VM with no reverse proxy at all. The `frank.derio.net`
+> domain was retired in August 2026 — every non-Omni name now returns `NXDOMAIN`.
+> `omni.frank.derio.net` is the sole survivor, plus Headscale's split-DNS entry
+> for the bare zone. See [Retiring `*.frank.derio.net`](blog/content/docs/building/24-in-cluster-ingress/index.md#retiring-frankderionet-2026-08).
 
 ### Technology Stack
 

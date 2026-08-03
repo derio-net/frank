@@ -2091,7 +2091,7 @@ operations:
   - Only --authentication-config is present; no --oidc-* flag remains.
   - Old-token TokenReview returns authentik:<preferred_username> and the same groups as before rollout.
   - Omni service-account administration still succeeds.
-  status: pending
+  status: done
 - id: net-frank-domain-final-retirement
   layer: net
   app: omni-traefik-dns
@@ -2108,7 +2108,7 @@ operations:
   - Named legacy service hosts return NXDOMAIN or no route from LAN and mesh clients.
   - Omni UI and discovery return 200; unauthenticated :8100 returns 401.
   - raspi-omni Traefik and certificate renewal contain only Omni.
-  status: pending
+  status: done
 - id: net-frank-domain-overlap-gate
   layer: net
   app: authentik
@@ -2124,7 +2124,7 @@ operations:
   - New-token TokenReview succeeds with the expected username and groups.
   - Old-token TokenReview succeeds before T0+8h and fails expired afterward.
   - Omni service-account administration succeeds throughout.
-  status: pending
+  status: done
 - id: net-gpu1-clear-dhcp-drift
   layer: net
   app: talos-machine-config

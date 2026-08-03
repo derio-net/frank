@@ -2,6 +2,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md`
 **Layer:** net · **Repo:** derio-net/frank · **Branch:** `feat/complete-omni-cluster-domain-migration`
+**Status:** Deployed — 2026-08-03. All 7 phases complete; every acceptance row carries live evidence.
+
+Deployment PRs: [#738](https://github.com/derio-net/frank/pull/738) (PR 1, additive dual-issuer) ·
+[#743](https://github.com/derio-net/frank/pull/743) (PR 2, consumer cutover) ·
+[#747](https://github.com/derio-net/frank/pull/747) (PR 3, legacy removal).
+Corrective and evidence PRs: [#741](https://github.com/derio-net/frank/pull/741),
+[#742](https://github.com/derio-net/frank/pull/742),
+[#744](https://github.com/derio-net/frank/pull/744) (persisted embedded-outpost host),
+[#745](https://github.com/derio-net/frank/pull/745),
+[#750](https://github.com/derio-net/frank/pull/750).
+The DNS and edge half shipped in the homelab repos: `derio-homelab/homelab#1-#4`,
+`ansible-pihole#1-#2`, `kid-laptops#78`/`#81`, `gondor-blog#8`.
 
 ## Goal
 
@@ -54,7 +66,7 @@ verify:
   - Only --authentication-config is present; no --oidc-* flag remains.
   - Old-token TokenReview returns `authentik:<preferred_username>` and the same groups as before rollout.
   - Omni service-account administration still succeeds.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -74,7 +86,7 @@ verify:
   - New-token TokenReview succeeds with the expected username and groups.
   - Old-token TokenReview succeeds before T0+8h and fails expired afterward.
   - Omni service-account administration succeeds throughout.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -84,18 +96,23 @@ layer: net
 app: omni-traefik-dns
 plan: docs/superpowers/plans/2026-07-30--net--frank-derio-net-retire
 when: After PR 3 merges and the old test token is proven expired.
-why_manual: Final Omni ConfigPatch application, raspi-omni Ansible configuration, and authoritative DNS changes are outside ArgoCD and can remove the remaining recovery hostname.
+why_manual: Final Omni ConfigPatch application, edge configuration, and authoritative DNS changes are outside ArgoCD and can remove the remaining recovery hostname.
 commands:
-  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml.
-  - Apply the Ansible change that leaves raspi-omni Traefik serving only Omni.
+  - Run git pull FIRST — omnictl apply reads a LOCAL file and will silently re-apply a stale patch, reporting success.
+  - Run omnictl apply -f patches/phase13-auth/omni-configpatch.yaml. This rolls the three control planes one at a time.
+  - Delete the nine compatibility IngressRoutes BY HAND — prune is disabled, so removing them from git does not remove them.
   - Remove every non-Omni frank.derio.net DNS record; retain omni.frank.derio.net.
   - Retain the Headscale frank.derio.net split resolver.
 verify:
   - kube-apiserver trusts only auth.cluster.derio.net and cluster-token authentication succeeds.
-  - Named legacy service hosts return NXDOMAIN or no route from LAN and mesh clients.
+  - A freshly minted LEGACY-issuer token is REJECTED by TokenReview — this is the only direct proof the patch applied.
+  - Named legacy service hosts return NXDOMAIN from LAN and mesh clients, asserted on the dig response STATUS, not on empty output.
   - Omni UI and discovery return 200; unauthenticated :8100 returns 401.
-  - raspi-omni Traefik and certificate renewal contain only Omni.
-status: pending
+status: done
+# Deviation: the raspi-omni Ansible step never ran. That Pi died 2026-06-20, and
+# Omni was rebuilt on the gondor VM with no reverse proxy at all — so its edge
+# needed no reduction and its certificate renewal is owned by a systemd timer on
+# that host rather than by Traefik. The step was satisfied by repo cleanup instead.
 ```
 
 ## Rollback boundaries

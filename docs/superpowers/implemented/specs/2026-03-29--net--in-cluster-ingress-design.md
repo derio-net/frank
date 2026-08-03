@@ -336,10 +336,32 @@ When adding a new outward-facing service with an IngressRoute:
 
 ## Future Work (out of scope)
 
-**Phase 2: Migrate references**
-- Update all in-cluster `frank.derio.net` references to `cluster.derio.net` (Authentik OIDC issuer URLs, Grafana OIDC callbacks, etc.)
-- Optionally point `*.frank.derio.net` Pi-hole record at 192.168.55.220
-- Strip raspi-omni Traefik down to Portainer + Omni only
+**Phase 2: Migrate references — ✅ COMPLETE 2026-08-03**
+
+Delivered by `2026-07-30--net--frank-derio-net-retire`, which went further than
+this section anticipated: the legacy domain was not just migrated away from but
+fully retired.
+
+- ✅ All in-cluster `frank.derio.net` references moved to `cluster.derio.net` —
+  Authentik OIDC issuer, ArgoCD/Grafana/Infisical callbacks, Paperclip allowed
+  hosts, probes, dashboard tiles (PRs #738, #743, #747).
+- ✅ The Pi-hole record was **removed**, not repointed. The wildcard A record and
+  the `mini-{1,2,3}` CNAMEs are gone; 20 retired names return `NXDOMAIN` across
+  both Pi-holes and the Headscale mesh resolver.
+- ✅ raspi-omni no longer fronts anything. Omni moved to the `gondor` VM with no
+  reverse proxy at all, and its certificate renewal is owned by a systemd timer
+  there rather than by Traefik. Portainer was retired outright.
+
+Two deliberate survivors, both asserted positively by
+`scripts/tests/test_frank_domain_retirement.py` so a future blanket sweep cannot
+remove them: `omni.frank.derio.net` (Omni manages the machines that run the
+cluster — retiring its name from inside the cluster is a circular dependency),
+and the Headscale `frank.derio.net` split-DNS **suffix**, which is a zone key
+rather than a hostname.
+
+The step this section did not foresee: the nine outage-era compatibility
+IngressRoutes had to be deleted **by hand**. Every Application runs
+`prune: false`, so removing them from Git left all nine serving.
 
 **Phase 3: Native OIDC expansion**
 - Configure native OIDC for ArgoCD, Grafana, Gitea, Harbor, Sympozium with `*.cluster.derio.net` callback URLs
