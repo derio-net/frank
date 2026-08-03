@@ -1,0 +1,147 @@
+schema_version: 2
+phase:
+  number: 1
+  title: The retrieval store lands — PVC, initdb ConfigMap, gbrain container (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - orch-hermes-retrieval-store-available
+tasks:
+- number: 1
+  title: Volume + declarative extension (red -> green)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      RED — write the shape contract for the new volume and its init SQL.
+
+      Create `scripts/tests/test_hermes_gbrain_sidecar.py`. Follow the house
+      style of `scripts/tests/test_hermes_ssh_byok_env_snapshot.py`: import
+      `yaml` as a hard dependency (a missing yaml must ERROR, not skip),
+      resolve `REPO = Path(__file__).resolve().parents[2]`, and load the
+      manifests directly.
+
+      Assert, in this task:
+
+      - `apps/hermes-agent-shell/manifests/pvc-gbrain.yaml` defines a PVC
+        named `hermes-agent-shell-gbrain` in namespace `hermes-agent-shell`,
+        `ReadWriteOnce`, `storageClassName: longhorn`, `10Gi`.
+      - `apps/hermes-agent-shell/manifests/configmap-gbrain-initdb.yaml`
+        defines a ConfigMap whose data contains a `.sql` key whose body
+        creates the vector extension (match `CREATE EXTENSION` and `vector`
+        case-insensitively, so formatting is not over-fitted).
+
+      Run: `python -m pytest scripts/tests/test_hermes_gbrain_sidecar.py -q`
+      Expected: FAILS — both files are missing.
+  - id: P1.T1.S2
+    text: |-
+      GREEN — create the two manifests.
+
+      `apps/hermes-agent-shell/manifests/pvc-gbrain.yaml`: PVC
+      `hermes-agent-shell-gbrain`, ns `hermes-agent-shell`, RWO, longhorn,
+      10Gi. Head-comment it in this app's established style, covering: why
+      its own volume rather than Hindsight's (lifecycle decoupling — the
+      point of the 2026-08-03 revision to #759); that 10Gi is headroom, not
+      projection (working set expected in the low hundreds of MB); and that
+      being its own Longhorn volume it inherits the `default` recurring-job
+      group automatically (`daily-nas` retain 7, `weekly-r2` retain 4) with
+      no label needed.
+
+      `apps/hermes-agent-shell/manifests/configmap-gbrain-initdb.yaml`:
+      ConfigMap `hermes-agent-shell-gbrain-initdb`, one key
+      `10-vector.sql` containing `CREATE EXTENSION IF NOT EXISTS vector;`.
+      Comment that `/docker-entrypoint-initdb.d` runs ONLY at `initdb`, so
+      editing this file does nothing to an already-initialised volume — any
+      later change is a `psql` operation, not a ConfigMap edit.
+
+      Run the same pytest. Expected: PASSES.
+- number: 2
+  title: The gbrain container in the Deployment (red -> green)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      RED — extend the test with the container contract.
+
+      In `test_hermes_gbrain_sidecar.py`, load
+      `apps/hermes-agent-shell/manifests/deployment.yaml` and assert the
+      pod has a container named `gbrain` with:
+
+      - image starting `pgvector/pgvector:0.8.6-pg18@sha256:` and pinned to
+        digest `sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62`
+      - `PGDATA=/opt/gbrain/pgdata`, `POSTGRES_DB=gbrain`,
+        `POSTGRES_USER=gbrain`, `POSTGRES_HOST_AUTH_METHOD=trust`
+      - args containing `listen_addresses=127.0.0.1` and `port=5434`
+      - a volumeMount of the `hermes-agent-shell-gbrain` PVC at `/opt/gbrain`,
+        and the initdb ConfigMap mounted under `/docker-entrypoint-initdb.d`
+      - securityContext `runAsUser`/`runAsGroup` 1000, `runAsNonRoot: true`,
+        `allowPrivilegeEscalation: false`, `capabilities.drop == ["ALL"]`
+      - NO `ports:` entry (loopback-only; declaring a containerPort would
+        advertise reachability that does not exist)
+
+      Run pytest. Expected: FAILS — no `gbrain` container.
+  - id: P1.T2.S2
+    text: |-
+      GREEN — add the container and its volume.
+
+      Append the `gbrain` container to `.spec.template.spec.containers` in
+      `deployment.yaml`, after `hindsight`, and add the matching
+      `persistentVolumeClaim` volume plus the ConfigMap volume (with
+      `defaultMode: 0444`) to `.spec.template.spec.volumes`.
+
+      Resources: requests `100m`/`256Mi`, limits `500m`/`1Gi`.
+
+      Probes — all three `exec`, running `pg_isready -h 127.0.0.1 -p 5434
+      -U gbrain -d gbrain` INSIDE the container. Comment WHY: the kubelet
+      probes the POD IP, and this server binds 127.0.0.1 only, so an
+      httpGet/tcpSocket probe would be refused forever. The hindsight
+      sidecar above learned this at the cost of 37 restarts; the comment
+      should point at that precedent rather than restating it. Give the
+      startupProbe a generous budget (periodSeconds 5, failureThreshold 30)
+      — first boot runs initdb.
+
+      Head-comment the container block: stock upstream image (no
+      agent-images build), the digest pin, trust-on-loopback and what it
+      costs (every container in the pod can connect, including the
+      unmodified upstream `hermes` container), and that PGDATA is a
+      SUBDIRECTORY of the mount because the entrypoint creating it is what
+      makes it uid-1000-owned and 0700 — pointing PGDATA at the mount root
+      is how this fails.
+
+      Run pytest. Expected: PASSES.
+  - id: P1.T2.S3
+    text: |-
+      OPTIONAL REFACTOR — only if it earns its place.
+
+      `test_hermes_ssh_byok_env_snapshot.py` already has `_load`,
+      `_containers` and a deployment-path constant. If the new test
+      duplicates them verbatim, extract to a shared helper module under
+      `scripts/tests/`; if the duplication is two trivial lines, leave it
+      alone and say so. Do not restructure the existing test file.
+
+      Run the full `scripts/tests/` suite; stay green, add no behaviour.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

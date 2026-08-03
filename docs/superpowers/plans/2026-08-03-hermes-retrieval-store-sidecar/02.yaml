@@ -1,0 +1,114 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Guards for the four ways this fails silently — each mutation-checked
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - orch-hermes-retrieval-store-isolated
+tasks:
+- number: 1
+  title: PGDATA must be a subdirectory of the mount
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      RED — the trap this guard exists for is invisible in review.
+
+      Add a test asserting `PGDATA` is strictly BELOW the gbrain
+      volumeMount's `mountPath` — i.e. `PGDATA != mountPath` and
+      `PGDATA.startswith(mountPath + "/")`. Assert the relationship, not the
+      literal string, so the guard survives a rename of either.
+
+      Why this matters: fsGroup leaves the mount root at 0775. Postgres
+      refuses a PGDATA wider than 0750, so pointing PGDATA at the root
+      fails at initdb — but ONLY on a real cluster with a real fsGroup
+      re-walk. Nothing in review or in a local `docker run` with a plain
+      volume would catch it.
+
+      MUTATION-CHECK IT: temporarily set `PGDATA` to the mountPath itself,
+      confirm the test FAILS, then restore. A guard that passes against its
+      own doctored input is not a guard. Record the mutation result in the
+      journal (`fr journal add --scope plan`).
+- number: 2
+  title: Probes must ask the process, on loopback
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      RED — lock the probe shape.
+
+      Assert all three gbrain probes are `exec` (no `httpGet`, no
+      `tcpSocket` key present on any of them) and that each command
+      string mentions `127.0.0.1` and the configured port.
+
+      MUTATION-CHECK IT: temporarily swap the readinessProbe for a
+      `tcpSocket` on 5434, confirm FAIL, restore. Journal the result.
+
+      This is the same family as the "config reaches the process" traps
+      already catalogued in this repo: a probe that passes while the
+      process is unreachable is worse than no probe.
+- number: 3
+  title: Hindsight is genuinely untouched
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      RED — turn the issue's headline claim into an assertion.
+
+      #759's whole justification for the revised shape is that Hindsight is
+      untouched. Assert it mechanically:
+
+      - the `hindsight` container and the `gbrain` container share NO
+        volume name, and their mountPaths are disjoint (`/opt/hindsight`
+        vs `/opt/gbrain`)
+      - `pvc-hindsight.yaml` still requests `5Gi` — a guard against a
+        future edit quietly reviving the withdrawn expansion
+      - the `ssh` container's `command`/`args` are unchanged in the
+        specific sense that matters: it still `exec`s
+        `/usr/local/bin/hermes-ssh-sidecar-entrypoint.sh`. (The existing
+        `test_hermes_ssh_byok_env_snapshot.py` owns the full contract —
+        do not duplicate it; assert only the non-regression this plan
+        could plausibly break.)
+
+      MUTATION-CHECK the 5Gi assertion (bump to 10Gi, confirm FAIL,
+      restore). Journal it.
+- number: 4
+  title: Keep the existing config-mount exemption honest
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      `scripts/tests/test_config_reaches_the_process.py` exempts this app
+      (`apps/hermes-agent-shell/manifests:hermes-agent-shell`) with the
+      reason "profile.d shims read per-login; rolling evicts live sessions".
+
+      That reason does not describe an initdb.d mount. Extend the reason
+      string to cover it — an initdb.d script is read once, at database
+      initialisation, so rolling the pod on a change would achieve nothing.
+      Do not add a second exemption entry; the key is app-scoped and one
+      entry is correct.
+
+      Run `python -m pytest scripts/tests/test_config_reaches_the_process.py -q`
+      and confirm still green (in particular
+      `test_exempt_list_has_no_dead_entries`).
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
