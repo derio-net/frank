@@ -224,6 +224,19 @@ grafana:
       subPath: secure-agent-pod.json
       configMap: grafana-secure-agent-pod-dashboard
       readOnly: true
+    # Curated etcd dashboard — obs layer, Layer 2 control-plane quorum.
+    # Distinct from (and does not disable) the chart's own "etcd" board — see
+    # apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml header comment.
+    - name: etcd-dashboard-provider
+      mountPath: /etc/grafana/provisioning/dashboards/etcd-provider.yaml
+      subPath: etcd-dashboard-provider.yaml
+      configMap: grafana-etcd-dashboard
+      readOnly: true
+    - name: etcd-dashboard-json
+      mountPath: /var/lib/grafana/dashboards/etcd/etcd-dashboard.json
+      subPath: etcd-dashboard.json
+      configMap: grafana-etcd-dashboard
+      readOnly: true
   # Authentik OIDC SSO (Phase 13) + Alerting secrets (Telegram, Health Bridge)
   envFromSecrets:
     - name: grafana-oidc-secret

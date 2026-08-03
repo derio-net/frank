@@ -995,3 +995,179 @@ def test_absent_watchdog_selects_the_job_the_chart_renders():
         "reads as health. Both are the guard being silently wrong, which is the "
         "exact defect this layer exists to stop recurring."
     )
+
+
+# ---------------------------------------------------------------------------
+# The dashboard: a curated ConfigMap, provisioned AND mounted.
+#
+# A scrape with rules but no dashboard has nowhere for the acceptance re-run's
+# before/under-load numbers to live. And Frank already has an UPSTREAM etcd
+# dashboard — victoria-metrics-k8s-stack renders one (title "etcd", a
+# chart-generated uid) whether or not this plan exists, because it follows
+# kubeEtcd.enabled, and Grafana's grafana-sc-dashboard sidecar has been serving
+# it, empty, for the same 148 days. It cannot be disabled independently
+# (defaultDashboards.dashboards has no etcd toggle; the only levers remove
+# either all 15 default boards or the scrape itself). So this guard does not
+# assert the curated board is the ONLY etcd dashboard — it asserts it exists,
+# is mounted (both halves — see below), and measures the right metrics; the
+# distinct-identity requirement against the upstream board is enforced by
+# reading the curated title/uid directly, not by comparison to a render.
+#
+# The mount assertion is the one that would otherwise be forgotten. A
+# dashboard ConfigMap that exists but is not mounted into
+# grafana.extraConfigmapMounts syncs green in ArgoCD (the ConfigMap applies
+# fine) and renders nowhere — every provisioned dashboard on Frank needs BOTH
+# a provider-yaml mount and a dashboard-json mount, which is a two-place edit
+# that looks like one.
+# ---------------------------------------------------------------------------
+
+ETCD_DASHBOARD_CM = (
+    REPO / "apps" / "grafana-alerting" / "manifests" / "etcd-dashboard-cm.yaml"
+)
+
+ETCD_DASHBOARD_PROVIDER_KEY = "etcd-dashboard-provider.yaml"
+ETCD_DASHBOARD_JSON_KEY = "etcd-dashboard.json"
+
+EXPECTED_ETCD_DASHBOARD_PANEL_COUNT = 5
+
+
+def _etcd_dashboard_configmap() -> dict[str, Any]:
+    assert ETCD_DASHBOARD_CM.exists(), (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} does not exist — the curated "
+        "etcd dashboard is where the acceptance re-run's before/under-load "
+        "evidence is supposed to live. Without it the promoted acceptance row "
+        "has no durable home beyond a paragraph of prose."
+    )
+    return yaml.safe_load(ETCD_DASHBOARD_CM.read_text(encoding="utf-8"))
+
+
+def _etcd_dashboard_data() -> dict[str, str]:
+    configmap = _etcd_dashboard_configmap()
+    assert configmap.get("kind") == "ConfigMap", (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} is expected to be a ConfigMap "
+        "carrying a Grafana dashboard provider yaml and a dashboard json — the "
+        "same shape as every other curated board on Frank."
+    )
+    data = configmap.get("data") or {}
+    missing = [
+        key
+        for key in (ETCD_DASHBOARD_PROVIDER_KEY, ETCD_DASHBOARD_JSON_KEY)
+        if key not in data
+    ]
+    assert not missing, (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} is missing data key(s) "
+        f"{missing} — a provisioned dashboard needs both a provider yaml (tells "
+        "Grafana where to look) and a dashboard json (what to render). Keys "
+        f"present: {sorted(data)}"
+    )
+    return data
+
+
+def _etcd_dashboard_json() -> dict[str, Any]:
+    data = _etcd_dashboard_data()
+    return yaml.safe_load(data[ETCD_DASHBOARD_JSON_KEY])
+
+
+def test_etcd_dashboard_is_provisioned_and_mounted():
+    """The curated etcd board exists, is mounted twice, and measures etcd.
+
+    Modelled on `secure-agent-pod-dashboard-cm.yaml` (the smallest existing
+    board): a ConfigMap carrying a provider yaml (`type: file`, a folder, a
+    path under /var/lib/grafana/dashboards/<folder>) and a dashboard json with
+    a `uid`. The five panels are the ones the spec names as the acceptance
+    row's evidence: etcd_server_has_leader per node, leader changes/1h, WAL
+    fsync p99, DB size vs quota, peer round-trip p99.
+
+    The negative metric assertion mirrors
+    `test_etcd_rules_measure_etcd_itself_not_the_apiserver_storage_client`: a
+    panel repointed at an `etcd_request_*` metric would render data (that
+    series has existed the whole 148 blind days) and look like a fixed
+    dashboard while measuring the apiserver's storage client instead of etcd.
+    """
+    dashboard = _etcd_dashboard_json()
+
+    uid = dashboard.get("uid")
+    title = dashboard.get("title")
+    assert uid and str(uid).strip(), (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} dashboard json has no `uid`"
+    )
+    assert title and str(title).strip(), (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} dashboard json has no `title`"
+    )
+    # Frank already has an upstream etcd dashboard (chart-rendered, title
+    # "etcd", a chart-generated uid) that cannot be disabled independently —
+    # see the module docstring above this section. A near-collision here is
+    # exactly how a future reader concludes the curated board is the
+    # redundant copy and deletes the wrong one.
+    assert str(title).strip().lower() != "etcd", (
+        f"dashboard title {title!r} collides with the upstream chart-rendered "
+        "etcd board's title (\"etcd\") — give the curated board an "
+        "unmistakably Frank-specific title so the two are never confused."
+    )
+
+    panels = dashboard.get("panels") or []
+    assert len(panels) == EXPECTED_ETCD_DASHBOARD_PANEL_COUNT, (
+        f"expected exactly {EXPECTED_ETCD_DASHBOARD_PANEL_COUNT} panels (per "
+        f"the spec's Half 2c), found {len(panels)}"
+    )
+
+    untitled = [i for i, panel in enumerate(panels) if not str(panel.get("title") or "").strip()]
+    assert not untitled, (
+        f"panel(s) at index {untitled} have no non-empty title — an untitled "
+        "panel in the acceptance-evidence dashboard is useless to whoever "
+        "reads it during the re-run"
+    )
+
+    offenders: dict[str, list[str]] = {}
+    for panel in panels:
+        panel_title = str(panel.get("title") or f"panel {panel.get('id')}")
+        for target in panel.get("targets") or []:
+            expr = str(target.get("expr") or "")
+            if not expr.strip():
+                continue
+            metrics = sorted(set(_ETCD_METRIC_TOKEN.findall(expr)))
+            client_metrics = [m for m in metrics if _APISERVER_CLIENT_METRIC.match(m)]
+            if client_metrics:
+                offenders[panel_title] = [
+                    f"apiserver storage-client metric: {m}" for m in client_metrics
+                ]
+                continue
+            stray = [m for m in metrics if not _ETCD_SERVER_METRIC.match(m)]
+            if stray:
+                offenders[panel_title] = [
+                    f"metric outside the etcd server families: {m}" for m in stray
+                ]
+    assert not offenders, (
+        "etcd dashboard panel(s) do not measure etcd.\n"
+        f"  allowed: metrics matching {_ETCD_SERVER_METRIC.pattern}\n"
+        "  FORBIDDEN: etcd_request_* / etcd_requests_* / etcd_lease_* / "
+        "etcd_bookmark_* — the apiserver's storage client, present in "
+        "VMSingle throughout the 148 days etcd itself was unmonitored. A panel "
+        "repointed at one of them renders data and looks fixed while measuring "
+        f"the wrong process.\n  offenders: {offenders}"
+    )
+
+    # The mount: BOTH the provider mount and the json mount must exist, or
+    # the ConfigMap syncs green in ArgoCD and renders nowhere.
+    configmap_name = (_etcd_dashboard_configmap().get("metadata") or {}).get("name")
+    assert configmap_name, (
+        f"{ETCD_DASHBOARD_CM.relative_to(REPO)} has no metadata.name"
+    )
+
+    values = _vm_values()
+    mounts = ((values.get("grafana") or {}).get("extraConfigmapMounts")) or []
+    matching = [
+        mount
+        for mount in mounts
+        if isinstance(mount, dict) and mount.get("configMap") == configmap_name
+    ]
+    subpaths = sorted(str(m.get("subPath")) for m in matching)
+    assert subpaths == sorted([ETCD_DASHBOARD_PROVIDER_KEY, ETCD_DASHBOARD_JSON_KEY]), (
+        f"{VM_VALUES.relative_to(REPO)} grafana.extraConfigmapMounts must carry "
+        f"exactly two mounts referencing configMap: {configmap_name} — one for "
+        f"{ETCD_DASHBOARD_PROVIDER_KEY} (provider) and one for "
+        f"{ETCD_DASHBOARD_JSON_KEY} (dashboard json). Every other dashboard on "
+        "Frank needs this two-place edit; a ConfigMap that exists but is not "
+        "mounted syncs green in ArgoCD and renders nowhere. Found subPaths: "
+        f"{subpaths}"
+    )
