@@ -874,3 +874,44 @@ rows:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
   notes: 'Two-part claim, one part now proven live. PROVEN (2026-08-03, post-merge): the by-design workloads do NOT alert — comfyui (gpu-switcher timeshare) and litellm (Rollout scaleDown: onsuccess, serving 5/5) both sit at 0 replicas and the shipped expr returns 0 series, while the same query with exclusions stripped returns exactly those 2, so it is quiet for the right reason rather than by matching nothing. NOT PROVEN: that an UNEXPECTED scale-to-0 raises the alert — needs a real one. Note the rule sits in Normal (NoData) in the healthy case by construction: its expr is a PromQL filter, so ''no series'' IS the healthy state (noDataState: OK). The exclusion set is derived in CI from gpu-switcher''s WORKLOADS env var and every Rollout workloadRef with scaleDown: onsuccess, so it cannot drift silently. Rule carries health_bridge_only: ''true'' — verified present on the live ConfigMap.'
+- id: obs-etcd-server-metrics-scraped
+  capability: Control-plane observability
+  acceptance: Frank scrapes its own etcd and the etcd server metric surface is queryable, so an etcd fault is visible
+    before it becomes an API-server fault.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec. Live half: up{job="kube-etcd"} == 1 on all three control-plane nodes and etcd_server_has_leader
+    / etcd_disk_wal_fsync_duration_seconds / etcd_mvcc_db_total_size_in_bytes present in VMSingle (Test Plan step
+    3). CI half: scripts/tests/test_etcd_scrape.py asserts the ConfigPatch port, the static endpoints and the plain-http
+    vmScrape stay coherent -- they live in different files and nothing else connects them.'
+- id: obs-etcd-quorum-loss-pages
+  capability: Control-plane observability
+  acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane maintenance does not.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec. The CI guard covers the wiring that makes this true: the two critical rules exist,
+    carry for: >= 10m, and are NOT labelled health_bridge_only, so the notification policy routes them to Telegram.
+    The live half needs an actual quorum event and is not safely manufacturable on a three-node quorum. The 10m
+    window is defended by the 2026-08-02 control-plane roll, which took ~7 minutes and produced 48 alerts against
+    a healthy cluster under the previous sensitivity.'
+- id: obs-etcd-blindness-is-tracked
+  capability: Control-plane observability
+  acceptance: If Frank stops scraping its own etcd, that silence is itself detected rather than reading as health.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec, and the reason the spec carries a sixth rule. Every etcd rule uses noDataState:
+    OK, so a re-emptied Endpoints object would make all of them read OK -- the exact 148-day failure being fixed,
+    reintroduced one layer up. absent(up{job="kube-etcd"}) is the only expression that fires on a series disappearing.
+    Evidenced by pausing the scrape deliberately and observing the watchdog reach health-bridge without paging Telegram.'
