@@ -377,8 +377,16 @@ because `state=` accepts `open|fixed` and nothing else, and an open finding fail
 delivery gate. The finding is real, was reproduced by running the script, and is still live
 in blog-craft. What is complete is this plan's handling of it: the post publishes the
 correct path instead of the broken one, and it is carried in `_improvements.md` for the
-upstream submission the plan owes at completion. **Filing the blog-craft issue is an
-outward-facing action and is pending operator approval — it has NOT been filed.**
+upstream submission the plan owes at completion.
+
+**FILED 2026-08-03 on operator instruction: [blog-craft#79](https://github.com/derio-net/blog-craft/issues/79).**
+Checked for duplicates first, per the lesson from blog-craft#55/#56 — searched issues
+(none for this script; #61 is the same `site_dir` *family* but a different defect, and is
+closed) and open PRs (#77 closes out #59/#61 and does **not** touch `scaffold-paper.sh`).
+The issue carries the two-line defect, a reproduction, and the inconsistency evidence
+(`glossary_scan.py:323` and `gen-character-sheet.py` both resolve `site_dir`; the paper
+scaffolder does not). The upstream bug remains open — this entry is `fixed` in the sense
+that frank's handling of it is complete.
 
 <!-- fr:journal kind=finding scope=plan id=fe5df5c84da1 created=2026-08-03T09:43:40 phase=5 state=fixed -->
 ### fe5df5c84da1 · finding [fixed] · CI's 'Validate mermaid syntax' step is a no-op (quality.mermaid_syntax: false); mermaid layout gate fails on 10 pre-existing diagrams (phase 5)
