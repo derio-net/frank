@@ -43,7 +43,7 @@ flowchart TD
     GPU[gpu-operator: installed by ArgoCD]
   end
 
-  Git --> Root
+  Chart --> Root
   Root --> Project
   Project -->|multi-source| CiliumCH
   Project -->|multi-source| LonghornCH

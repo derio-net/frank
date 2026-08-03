@@ -49,8 +49,15 @@ flowchart TD
   T --> AC
   T --> MW
   T --> FA
-  T --> Direct
-  T --> SSO
+  T --> A
+  T --> S
+  T --> AK
+  T --> H
+  FA --> G
+  FA --> L
+  FA --> I
+  FA --> N
+  FA --> GI
 ```
 
 ## Why Traefik

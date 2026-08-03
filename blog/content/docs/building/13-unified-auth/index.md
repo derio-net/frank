@@ -38,12 +38,13 @@ flowchart TD
     RBAC[ClusterRoleBinding<br/>groups → roles]
   end
 
-  IdP -->|OIDC| ArgoCD
-  IdP -->|OIDC| Grafana
-  IdP -->|forward-auth| Traefik
-  Traefik --> Proxy
-  IdP -->|OIDC| K8s
-  K8s --> RBAC
+  Server -->|OIDC| ArgoCD
+  Server -->|OIDC| Grafana
+  Outpost -->|forward-auth| Traefik
+  Traefik --> Longhorn
+  Traefik --> Hubble
+  Traefik --> Tekton
+  Server -->|OIDC| RBAC
 ```
 
 ## Why Authentik Over Dex or Keycloak

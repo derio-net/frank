@@ -35,7 +35,9 @@ flowchart TD
     Weekly[Weekly backup<br/>4 week retention]
   end
 
-  Sources --> Recurring
+  VM --> Recurring
+  Grafana --> Recurring
+  Apps --> Recurring
   Recurring --> Snap
   Snap --> BT
   BT --> Daily

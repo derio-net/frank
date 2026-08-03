@@ -66,7 +66,9 @@ graph TB
     user -->|https://blog.derio.net| caddy
     attacker -->|scan| caddy
     cs -->|block| attacker
-    hs --- mesh
+    hs --- laptop
+    hs --- raspi
+    hs --- phone
 ```
 
 Before any commands, source the Hop environment:

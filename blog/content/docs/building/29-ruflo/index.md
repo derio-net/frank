@@ -40,10 +40,10 @@ flowchart TD
     LLM[litellm.litellm.svc:4000<br/>LiteLLM gateway]
   end
 
-  Shell -->|OPENAI_BASE_URL| LLM
-  Server -->|OPENAI_BASE_URL| LLM
-  WEB --> Server
-  SSH --> Shell
+  CF -->|OPENAI_BASE_URL| LLM
+  RUV -->|OPENAI_BASE_URL| LLM
+  WEB --> RUV
+  SSH --> SSHD
 ```
 
 Two ArgoCD apps: `apps/ruflo-db/` and `apps/ruflo/`. Zero frontier-{{< abbr "LLM" >}} provider keys in the pod — every LLM call exits through the in-cluster LiteLLM gateway.

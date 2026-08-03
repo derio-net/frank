@@ -58,7 +58,7 @@ flowchart LR
     LB[LoadBalancer<br/>192.168.55.212:3100]
   end
 
-  Wave0 --> Wave1
+  DB -->|wave 0 healthy first| P
 ```
 
 | App | Chart | Purpose |

@@ -32,12 +32,12 @@ flowchart TD
     BUMP[Lockstep bumper<br/>dispatch handler]
     DEPLOY[ArgoCD syncs]
   end
-  VK -->|repository_dispatch| AI
+  CI1 -->|repository_dispatch| BASE
   BASE -->|build-children| KALI
   BASE --> VKL
-  AI -->|repository_dispatch| BUMP
-  BUMP -->|opens PR| Frank
-  Frank --> DEPLOY
+  KALI -->|repository_dispatch| BUMP
+  VKL -->|repository_dispatch| BUMP
+  BUMP -->|opens PR, merged| DEPLOY
 ```
 
 Three repos, three CI loops, two `repository_dispatch` hops. Any push to the fork eventually produces a reviewable PR in `frank`.

@@ -33,7 +33,7 @@ flowchart LR
     Metrics[Prometheus /metrics<br/>scraped by VMAgent → Grafana]
   end
 
-  Authentik -->|forward-auth| n8n
+  BP -->|forward-auth| n8n
   n8n -->|DATABASE_URL| DB
   n8n --> Metrics
   LB --> n8n

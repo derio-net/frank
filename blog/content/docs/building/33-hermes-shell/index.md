@@ -41,8 +41,8 @@ flowchart TD
     LLM[litellm.litellm.svc:4000<br/>BYOK inference]
   end
 
-  Main -->|OPENAI_BASE_URL| LLM
-  Main <-->|127.0.0.1:8888<br/>local_external mode| HA
+  GW -->|OPENAI_BASE_URL| LLM
+  GW <-->|127.0.0.1:8888<br/>local_external mode| HA
   HA --> PG
   PG --> MEM
 ```

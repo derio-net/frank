@@ -34,7 +34,9 @@ flowchart TD
     Models[mistral-small3.2:24b<br/>gemma4:12b<br/>qwen3.6:35b-a3b<br/>qwen2.5-coder:14b-instruct-q6_K<br/>qwen3:14b<br/>qwen2.5vl:7b]
   end
 
-  Consumers -->|OpenAI-compatible| Router
+  AGI -->|OpenAI-compatible| Router
+  Agent -->|OpenAI-compatible| Router
+  Doc -->|OpenAI-compatible| Router
   Router -->|local aliases| Ollama
   Ollama --> Models
   Router --> PG

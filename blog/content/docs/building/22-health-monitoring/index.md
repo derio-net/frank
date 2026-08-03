@@ -38,15 +38,18 @@ flowchart TD
     ER[exercise-reminder]
   end
   subgraph Targets[Feature endpoints]
-    N8N
-    PF[paperclip.frank.derio.net]
-    GF[grafana.frank.derio.net]
-    BL[blog.derio.net]
+    N8N[n8n]
+    PF[paperclip]
+    GF[grafana]
+    BL[blog]
   end
   SM -->|push heartbeat| PW
   ER -->|push heartbeat| PW
   PW -->|scrape| VM
-  BB -->|probe| Targets
+  BB -->|probe| N8N
+  BB -->|probe| PF
+  BB -->|probe| GF
+  BB -->|probe| BL
   BB -->|scrape metrics| VM
   VM --> G
   G -->|alert| TG[Telegram]

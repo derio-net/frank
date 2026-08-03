@@ -34,8 +34,11 @@ flowchart TD
     PG[awx-postgres-15 StatefulSet]
     MIG[migration Job]
   end
-  ArgoCD -->|installs| CHART
-  CR -->|reconciles| Operator
+  CHART -->|operator watches| CR
+  CR -->|reconciles| WEB
+  CR -->|reconciles| TASK
+  CR -->|reconciles| PG
+  CR -->|reconciles| MIG
 ```
 
 **Synced and Healthy on ArgoCD proves the CR exists. It proves nothing about whether AWX works.** The truth lives one layer down, and the only way to know is to look at pods ArgoCD never sees.

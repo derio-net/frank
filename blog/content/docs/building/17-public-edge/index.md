@@ -34,13 +34,15 @@ flowchart LR
     Phone[phone<br/>100.64.0.x]
   end
 
-  Internet --> CaddyExt
-  Internet --> STUN
+  CaddyExt --> Caddy
+  STUN --> Headscale
   Caddy --> Headscale
   Caddy --> HP
   Caddy --> Blog
-  Caddy -->|forward-auth| Mesh
-  Tailscale --> Mesh
+  Caddy -->|forward-auth| Laptop
+  Caddy -->|forward-auth| Phone
+  Tailscale --> Laptop
+  Tailscale --> Phone
 ```
 
 ## Why a Separate Cluster

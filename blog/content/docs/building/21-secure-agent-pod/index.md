@@ -39,8 +39,8 @@ flowchart LR
 
   SSHLB --> SSHD
   VKLB --> VK
-  Kali --> PVC
-  Sidecar --> PVC
+  Claude --> PVC
+  VK --> PVC
 ```
 
 ## The Threat Model

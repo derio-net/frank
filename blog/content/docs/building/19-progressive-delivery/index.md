@@ -48,16 +48,19 @@ flowchart TD
   end
   subgraph LiteLLMNS[litellm namespace]
     ROL[Rollout/litellm<br/>workloadRef → Deployment]
-    StableSVC[Service/litellm<br/>LB 192.168.55.206<br/>selects all pods by app label]
+    StableSVC[Service/litellm<br/>LB .206<br/>selects all pods]
   end
   subgraph SympoziumNS[sympozium-system namespace]
     ROSS[Rollout/sympozium-apiserver<br/>blueGreen]
-    ActiveSVC[Service/sympozium-apiserver-lb<br/>LB 192.168.55.207]
-    PreviewSVC[Service/sympozium-apiserver-preview]
+    ActiveSVC[Service/…-lb<br/>LB .207]
+    PreviewSVC[Service/…-preview]
   end
 
-  ArgoRollouts -->|replica-weight| LiteLLMNS
-  ArgoRollouts -->|blue-green| SympoziumNS
+  Controller -->|replica-weight| ROL
+  Controller -->|blue-green| ROSS
+  ROL --> StableSVC
+  ROSS --> ActiveSVC
+  ROSS --> PreviewSVC
 ```
 
 ## Phase 1: Controller Install

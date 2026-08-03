@@ -35,11 +35,11 @@ flowchart TD
     TR[Traefik — Authentik forward-auth]
   end
 
-  Agent -->|VK_SHARED_API_BASE| API
+  VK -->|VK_SHARED_API_BASE| API
   API -->|issue/project data| PG
   ES -->|logical replication| PG
   ES -->|real-time sync| API
-  Browser --> TR --> API
+  UI --> TR --> API
 ```
 
 Three components, one namespace, zero cloud dependencies:

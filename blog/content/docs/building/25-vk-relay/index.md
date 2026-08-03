@@ -38,10 +38,10 @@ flowchart TD
   UI -->|/v1/relay/*| TR
   TR --> RELAY
   RELAY <-->|WSS + yamux| VK
-  Browser -->|/*| TR
+  UI -->|/*| TR
   TR -->|Authentik forward-auth| MAIN
 
-  Browser <-->|SPAKE2 pairing| VK
+  UI <-->|SPAKE2 pairing| VK
 ```
 
 The relay runs as a **sidecar container** in the existing vk-remote pod — same image, different entrypoint. It shares the PostgreSQL database and {{< abbr "JWT" >}} secret with the main container: no new secrets, no new database, no new pod.

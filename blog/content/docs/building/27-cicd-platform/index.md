@@ -46,10 +46,11 @@ flowchart TD
     CAD[Caddy relay]
   end
 
-  GitHub -->|pull mirror 10m| GM
-  GitHub -->|webhook PR/push| CAD
+  FR -->|pull mirror 10m| GM
+  AS -->|pull mirror 10m| GM
+  AS -->|webhook PR/push| CAD
   CAD -->|Tailscale mesh| ELGH
-  Gitea -->|webhook push| EL
+  WH -->|webhook push| EL
   EL --> PIPE
   ELGH --> PIPE2
   PIPE -->|Kaniko build| REG
@@ -276,7 +277,7 @@ flowchart TD
   PIPE -->|force-push| REPO
   REPO --> CIPE
   CIPE -->|mandatory| CS
-  CIPE -->|best-effort| Gitea
+  CIPE -->|best-effort| REPO
 ```
 
 Two webhook events drive the chain:
