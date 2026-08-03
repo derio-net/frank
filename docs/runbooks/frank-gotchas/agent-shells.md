@@ -420,6 +420,81 @@ The Hindsight sidecar runs Postgres on its own Longhorn PVC at `/opt/hindsight/p
 
 Fixed image-side: the sidecar runs `chmod 700 $PGDATA` on every boot before Postgres starts (do the same on an old data dir before a migration `pg_dump`). Belt-and-braces on the pod securityContext: `fsGroupChangePolicy: OnRootMismatch` skips the re-walk once the volume root already matches. Supersedes the old single-container `~/.local/pgsql` form (frank#601).
 
+## A stock Postgres image under strict non-root: `PGDATA` must be a SUBDIRECTORY of the mount (gbrain sidecar, 2026-08-03)
+
+frank#759 added a fourth container to `hermes-agent-shell` — `gbrain`, a
+retrieval store on stock `pgvector/pgvector:0.8.6-pg18` — under the same strict
+posture the `ssh` and `hindsight` sidecars run: `runAsUser`/`runAsGroup` 1000,
+`runAsNonRoot: true`, `allowPrivilegeEscalation: false`,
+`capabilities.drop: [ALL]`, on a Longhorn PVC under a pod-level `fsGroup: 1000`.
+
+**It works — and the single reason it works is one line of env.** `PGDATA` is
+`/opt/gbrain/pgdata`, a *subdirectory* of the `/opt/gbrain` mount, never the
+mount root. The mechanism, because the failure mode is invisible until first
+boot against a real kubelet:
+
+- `fsGroup` applies to the volume **root**, leaving it `root:1000 0775`.
+- Postgres refuses any data directory wider than `0750`
+  (`data directory "…" has group or world access`).
+- So `PGDATA=/opt/gbrain` can never start, while `PGDATA=/opt/gbrain/pgdata`
+  always can — because the **entrypoint creates that directory itself**, as the
+  container's own uid, `drwx------`. Its ownership and mode are a side effect of
+  *who made it*, not of anything the manifest sets. There is no `chown`, no
+  `supplementalGroups` hunt and no init container in the working version; get
+  the path right and the strict posture is simply not a problem.
+
+Gated live during design rather than asserted: `docker run --user 1000:1000
+--cap-drop ALL` against a volume root `chown 0:1000 && chmod 0775`, `trust`
+auth, `-c listen_addresses=127.0.0.1 -c port=5434` and an initdb.d script.
+`initdb` succeeded, created `PGDATA` as `drwx------ 1000:1000`, built an `hnsw`
+index, and came back healthy on the populated volume after a restart. Both
+`apps/vk-remote` and the `hindsight` sidecar had used the subdirectory form for
+a long time with no recorded reason; this is the reason.
+
+**No `-k /tmp` needed — do not copy that flag forward.** The
+`hermes-agent-shell-hindsight` image passes a socket-directory flag, and it is
+tempting to inherit it into any new Postgres sidecar. The official Postgres
+image (which `pgvector/pgvector` is built on) ships `/var/run/postgresql` at
+mode `3777` for exactly the arbitrary-uid case, so an unprivileged uid can
+create its socket there unaided. Verified in the same gate; one fewer flag.
+
+**On the SECOND boot, the only thing protecting `gbrain` is
+`fsGroupChangePolicy: OnRootMismatch`.** The Hindsight entry above describes the
+re-walk that re-loosens a *populated* `PGDATA` on every remount; its primary fix
+is image-side (`chmod 700 $PGDATA` at boot). A **stock** image has no such
+hook — and there is nowhere to add one without building an image, which is the
+whole thing this sidecar exists to avoid. So the pod-level
+`fsGroupChangePolicy: OnRootMismatch` in `deployment.yaml` (added for
+Hindsight's sake, where it is merely the belt to the image's braces) is
+**load-bearing** for `gbrain`: remove it and the store starts once and then
+refuses on the first pod recreate. If `gbrain` ever comes back from a restart
+logging `data directory … has group or world access`, check that policy before
+anything else; the one-shot recovery is
+`kubectl -n hermes-agent-shell exec deploy/hermes-agent-shell -c gbrain -- chmod 700 /opt/gbrain/pgdata`
+(the container runs as the directory's owning uid, so it can).
+
+Two more things that travel with this shape:
+
+- **Probes are `exec` + `pg_isready`, never `tcpSocket`/`httpGet`.** The server
+  binds `127.0.0.1` only and the kubelet dials the *pod IP*; the `hindsight`
+  container spent 37 restarts proving that. Port is 5434 because 5433 is
+  Hindsight's Postgres and all four containers share one network namespace.
+  There is no `containerPort` either — nothing off-pod can reach this.
+- **`/docker-entrypoint-initdb.d` is first-boot-only.** The
+  `CREATE EXTENSION vector` ConfigMap is read *only* when the entrypoint has to
+  initialise an empty `PGDATA`; on an initialised volume, editing it changes
+  nothing while ArgoCD reports Synced and the new SQL sits visibly on disk
+  inside the pod. Later extension/schema changes are `psql` work. That is also
+  why the app's exemption in `scripts/tests/test_config_reaches_the_process.py`
+  is *correct* for this mount rather than merely tolerated: no rolling mechanism
+  could deliver a change to a file the process never re-reads.
+
+Guard: `scripts/tests/test_hermes_gbrain_sidecar.py`. It asserts the
+PGDATA/mount **relationship** read back off the manifest (rename the mount and
+the test follows; point PGDATA at the root or off the volume and it fails) and
+derives the probe port from the server's own `-c port=` arg, so a probe/server
+drift fails whichever side moved.
+
 ## Agent GitHub auth: rotating App installation token — git helper + gh wrapper, not a PAT (2026-06-08)
 
 The secure-agent-pod authenticates to GitHub with a short-lived **GitHub App

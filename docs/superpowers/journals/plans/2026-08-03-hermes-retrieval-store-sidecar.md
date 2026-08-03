@@ -181,3 +181,106 @@ two — the key is app-scoped and a second would be a dead entry by construction
 have also legitimately edited silently discards your own work. It ate the Task 4
 reason edit; caught and re-applied. Mutate manifests where possible, and check
 `git diff` after restoring rather than assuming.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-onrootmismatch-load-bearing created=2026-08-03T18:05:14 phase=3 -->
+### p3-onrootmismatch-load-bearing · discovery · fsGroupChangePolicy: OnRootMismatch is LOAD-BEARING for gbrain, not belt-and-braces — a stock image has no chmod hook (phase 3)
+
+Writing the gotcha surfaced an asymmetry the spec states only implicitly (Test
+Plan row 4, "the fsGroup re-walk did not re-loosen it").
+
+The existing `hindsight` gotcha records that the pod-level `fsGroup` re-walk
+re-loosens a POPULATED `PGDATA` to group-rwx on every remount, and that Postgres
+then refuses to start. Its fix is primarily IMAGE-side — the hindsight image
+runs `chmod 700 $PGDATA` at boot — with `fsGroupChangePolicy: OnRootMismatch` on
+the pod as "the belt to its braces" (deployment.yaml:57-68 says exactly that).
+
+`gbrain` is a STOCK image. There is no boot hook, and adding one means building
+an image, which is the entire thing decision 3 avoids. So for this container
+`OnRootMismatch` is not defence-in-depth — it is the ONLY thing standing between
+the second boot and a refusing Postgres. The first boot would look fine either
+way (`fsGroup` runs on an empty volume, then `initdb` creates PGDATA at 0700),
+which is the same delayed-failure shape the hindsight entry warns about.
+
+Consequence for a future reader: a "tidy-up" that drops `fsGroupChangePolicy`
+from the pod securityContext now breaks a container that has no local defence,
+and it breaks it one recreate later, not on the change. Documented in all three
+deliverables (README, one-liner, prose) with the recovery
+(`kubectl exec … -c gbrain -- chmod 700 /opt/gbrain/pgdata` — the container runs
+as the owning uid, so it can fix itself).
+
+Not a defect in the spec or the manifest: the shipped manifest already carries
+`OnRootMismatch`, and the deployment comment already explains the mechanism. It
+is the WEIGHT that differs between the two containers, and nothing said so.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-runbook-parity-checked created=2026-08-03T18:05:39 phase=3 -->
+### p3-runbook-parity-checked · discovery · The runbook is generated, so plan block and runbook entry must match EXACTLY — checked by parsing both, and it caught a drift I introduced by eye (phase 3)
+
+P3.T2.S1 warns that `docs/runbooks/manual-operations.yaml` is generated and a
+later fix must edit the plan block or the next `/sync-runbook` reverts it. The
+same trap applies at WRITE time, and it bit immediately.
+
+`/sync-runbook` was performed as the skill prescribes but by hand rather than by
+tool: the file is 2223 lines of hand-formatted YAML with folded scalars, and a
+PyYAML round-trip would reflow all 142 existing entries into a diff nobody can
+review. The two new entries were therefore inserted in place, at the correct
+sorted position (both are `layer: orch`; ids sort between `default-qwen64k` and
+`litellm-virtual-key`, and after `soul-fetch-text` respectively).
+
+Then verified mechanically rather than by reading: parse the runbook, parse the
+two fenced blocks out of `_prose.md` (dedented), and compare every required
+field except `status`. **The first run FAILED** — the third `commands:` entry of
+`orch-hermes-ssh-bun-repin` had drifted while I was editing the runbook copy
+("see the rollout note below", which is meaningless outside the plan, vs the
+fuller Recreate sentence). Invisible in review, and the next `/sync-runbook`
+would have silently rewritten it. Plan block corrected to match; second run
+green on both entries.
+
+Also asserted: no duplicate ids, all nine required fields present and non-empty
+on both, `status: pending` on both, and the `orch` block still id-sorted
+(142 -> 144 operations). Global `(layer, id)` ordering is False both BEFORE and
+AFTER the change — a pre-existing out-of-order id in some other layer, not
+something this phase introduced. Worth knowing before someone "fixes" the sort
+and produces a 2000-line diff.
+
+Reusable check:
+`/Users/derio/.claude-tmp/.../scratchpad/check_runbook.py` (scratch, not
+committed) — parse both sides, diff the fields, exit non-zero. There is no test
+in `scripts/tests/` covering `manual-operations.yaml` at all, so nothing else
+would have caught this.
+
+<!-- fr:journal kind=decision scope=plan id=p3-readme-scope-and-postdeploy-hook created=2026-08-03T18:06:04 phase=3 -->
+### p3-readme-scope-and-postdeploy-hook · decision · Two judgement calls in phase 3: the README needed its topology tables edited too, and the Post-Deploy Checklist hook was declined on purpose (phase 3)
+
+Both are places where I did more (or less) than the step literally says.
+
+**1. The README got more than "a short section."** The file opens
+"running as a three-container pod", tables "Four RWO Longhorn PVCs", and closes
+with "The pod has three containers, so `kubectl exec` needs an explicit `-c`".
+Adding a section about a fourth container while leaving those three claims
+standing produces a document that contradicts itself on its own first line — and
+the `-c` note is the one an operator actually reads under pressure. So the
+container table gained a `gbrain` row, the PVC table gained
+`hermes-agent-shell-gbrain`, the counts moved 3 -> 4 and 4 -> 5, and the exec
+note now names all four containers. No manifest was touched; this is prose about
+prose.
+
+**2. The `plan-post-deploy-checklist` PostToolUse hook fires on every edit to
+this plan and was deliberately not obeyed.** It says "This standard layer plan is
+missing the Post-Deploy Checklist (blog post, README update, runbook sync)". The
+rule it cites (`agents/rules/plan-post-deploy-checklist.md`) exempts exactly this
+case: "Fix/extension plans: skip blog posts (update the existing layer post
+instead)". `orch` is a deployed layer with both posts already written
+(`building/33-hermes-shell`, `operating/28-hermes-shell`), and this plan adds a
+sidecar to an existing pod. The other two items it asks for are already covered
+by this very phase (app README, `/sync-runbook`) and by phase 4 (deploy
+verification, plan status). Adding a fifth phase to satisfy a heuristic would
+also mean re-cutting an approved plan mid-execution.
+
+The hook has no way to tell an extension from a new layer, so it fires on both.
+Recording the reasoning here rather than leaving the next executor to re-derive
+it — the hook will fire again on phase 4.
+
+Not decided here: whether the building/operating posts should gain a paragraph
+about the retrieval store. That is a phase-4-or-later call, once the thing has
+actually run on the cluster, and it is post-deploy work by the rule s own
+sequencing.
