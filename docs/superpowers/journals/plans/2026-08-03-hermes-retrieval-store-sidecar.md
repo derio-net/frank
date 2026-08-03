@@ -284,3 +284,264 @@ Not decided here: whether the building/operating posts should gain a paragraph
 about the retrieval store. That is a phase-4-or-later call, once the thing has
 actually run on the cluster, and it is post-deploy work by the rule s own
 sequencing.
+
+<!-- fr:journal kind=finding scope=plan id=r-f1-onrootmismatch-corrected created=2026-08-03T18:39:16 state=fixed -->
+### r-f1-onrootmismatch-corrected · finding [fixed] · CORRECTION to p3-onrootmismatch-load-bearing: the stock entrypoint DOES chmod PGDATA on every boot — reproduced
+
+The phase-3 entry `p3-onrootmismatch-load-bearing` is **wrong**, and the claim it
+made was propagated into four places (`agents/rules/frank-gotchas.md`,
+`docs/runbooks/frank-gotchas/agent-shells.md`, `apps/hermes-agent-shell/README.md`,
+and implicitly the spec). It said a stock Postgres image "has no boot-time chmod
+hook", making `fsGroupChangePolicy: OnRootMismatch` load-bearing for gbrain.
+
+**It has one, upstream.** `docker-entrypoint.sh` calls
+`docker_create_db_directories` at `_main` line 340 — BEFORE the
+`DATABASE_ALREADY_EXISTS` branch at line 347, i.e. on every start — and it runs:
+
+    mkdir -p "$PGDATA"
+    chmod 00700 "$PGDATA" || :
+
+**Reproduced locally 2026-08-03**, docker, the pinned digest
+`pgvector/pgvector:0.8.6-pg18@sha256:691673…`, `--user 1000:1000 --cap-drop ALL`,
+volume root `chown 0:1000 && chmod 2775`, `PGDATA=/vol/pgdata`, trust auth,
+`-c listen_addresses=127.0.0.1 -c port=5434`:
+
+- first boot: `pg_isready` OK after 3 s; `/vol/pgdata` = `drwx------ 1000 1000`
+- stop, then `chgrp 1000 + chmod 2770 /vol/pgdata` (simulating the fsGroup
+  re-walk): `drwxrws--- 19 1000 1000`
+- `docker start` the SAME container: **`pg_isready` OK after 1 s, and
+  `/vol/pgdata` is back to `drwx------`**. Log shows the normal
+  "PostgreSQL Database directory appears to contain a database; Skipping
+  initialization" path — the chmod ran anyway, because it is upstream of that
+  branch.
+
+So the entrypoint is the primary fix for gbrain exactly as the image-side
+`chmod 700 $PGDATA` is for hindsight. `OnRootMismatch` is kept (correct, free,
+and it does spare a recursive re-walk of a growing DB dir) but is **no longer
+described as load-bearing** anywhere.
+
+**The correct mechanism is strictly more useful, because ONE fact explains BOTH
+observations.** Reproduced the mount-root form too, same posture, `PGDATA=/vol`:
+exit 1, and the logs show the swallow happening —
+
+    chmod: changing permissions of /vol: Operation not permitted
+    …
+    initdb: error: could not change permissions of directory "/vol": Operation not permitted
+
+The entrypoint chmod EPERMs on the root-owned mount root, `|| :` discards it
+silently, and the failure surfaces one step later in initdb, which does its own
+chmod and treats EPERM as fatal. (A stray observation from the same logs: the
+entrypoint`s `chmod 03775 /var/run/postgresql` EPERMs and is swallowed on every
+boot too — harmless, since the image already ships that path at 3777, but it is
+the same `|| :` in action.)
+
+**Also corrected: the volume root is `2775`, not `0775`** — kubelet
+`SetVolumeOwnership` does `Lchown(-1, fsGroup)` (group only, owner stays root)
+then `Chmod(mode | 0660 | 0110 | ModeSetgid)` for directories.
+
+**PARTIAL REFUTATION of the review on that point.** The review said the setgid
+bit "is WHY the entrypoint`s `mkdir pgdata` inherits gid 1000". Measured both
+parent modes as uid 1000: parent `2775` -> child `drwxr-sr-x 1000 1000`; parent
+`0775` -> child `drwxr-xr-x 1000 1000`. **The gid is 1000 either way**, because
+the container`s own `runAsGroup: 1000` already makes its egid 1000; the setgid
+bit only propagates the setgid bit itself. It would be load-bearing for a
+container whose PRIMARY gid differed and which received 1000 as a supplemental
+group via fsGroup — not this one. The mode number is fixed as asked; the causal
+claim is written accurately instead of as given.
+
+Not verifiable from this workspace: the live `2775` on the actual Longhorn mount
+root (no kubeconfig in the fr worktree). Test Plan row 4 was widened to read
+`/opt/gbrain` as well as `/opt/gbrain/pgdata` so the mode gets observed rather
+than only derived.
+
+<!-- fr:journal kind=finding scope=plan id=r-f2-f4-vacuous-guards created=2026-08-03T18:54:38 state=fixed -->
+### r-f2-f4-vacuous-guards · finding [fixed] · Three phase-2 guards were vacuous to an edit that never touched what they read — all three now parse, all three mutation-checked
+
+The phase-2 guards were mutation-checked against the mutations their AUTHOR
+thought of. Review found three that pass while the property they name is false.
+
+**F2 — the loopback guard was a substring test.**
+`assert "listen_addresses=127.0.0.1" in " ".join(args)`. PostgreSQL applies `-c`
+settings LEFT TO RIGHT, so APPENDING `-c listen_addresses=0.0.0.0` leaves the
+substring intact while the server binds every interface — and with
+`POSTGRES_HOST_AUTH_METHOD=trust` that is `host all all all trust`, i.e.
+unauthenticated superuser Postgres on the pod IP. The spec calls
+`listen_addresses` "the only thing standing between this database and anything
+that can route to the pod", so it was the single worst place in the file for a
+substring assertion. Now parsed by `_server_settings()` into a dict with
+last-wins semantics; asserted `== "127.0.0.1"`. `_configured_port` had the
+identical blind spot and shares the parser.
+
+- **R2** append `-c listen_addresses=0.0.0.0`: FAILED as it should
+  (`effective (last-wins) listen_addresses is 0.0.0.0`).
+- **R2b** append `-c port=5433`: FAILED as it should, in TWO guards — the
+  loopback/collision check and the probe/server port agreement. Worth doing
+  separately because the port helper is used by a different test than the one
+  F2 named.
+
+**F3 — "share no storage" compared names and paths, never claimName.**
+Repointing the `hindsight-data` volume at `claimName:
+hermes-agent-shell-gbrain` leaves every volume NAME distinct and every
+mountPath distinct, and puts two Postgres instances on one RWO Longhorn
+volume — precisely the coupling the revised issue exists to prevent, reached by
+a one-word edit in a field no assertion read. Now resolves each container
+mounts through the volume list via `_claim_names()` and asserts the two claim
+SETS are disjoint (plus a non-empty check on each, so the assertion cannot pass
+by resolving nothing).
+
+- **R3** repoint the claimName: FAILED as it should
+  (`must resolve to DISJOINT PVCs, found [hermes-agent-shell-gbrain]`).
+
+**F4 — the initdb ConfigMap name was anchored on one side only.**
+The ConfigMap test never asserted `metadata.name`; the deployment test asserted
+a hardcoded literal. A rename therefore passed green — and the failure it
+produces is not cosmetic: that volume is NOT `optional: true`, so an
+unresolvable ConfigMap leaves the WHOLE POD in ContainerCreating, taking hermes,
+ssh and hindsight down with it on a `Recreate` deployment. Both sides now assert
+against one `INITDB_CM_NAME` constant, the way the PVC name already was.
+
+- **R4** rename `metadata.name` only: FAILED as it should.
+
+All restored byte-identical (backup-copy harness, never `git checkout` — the
+phase-2 journal records that trap and I had legitimate edits in both mutated
+files). `git diff -- apps/` afterwards contains comment/prose corrections only.
+
+<!-- fr:journal kind=finding scope=plan id=r-f5-npm-squat-runbook created=2026-08-03T18:54:56 state=fixed -->
+### r-f5-npm-squat-runbook · finding [fixed] · The runbook told the operator to bun install from npm, which the issue says is SQUATTED — onto a PVC holding gh + claude credentials
+
+The manual op `orch-hermes-gbrain-cli-install` said:
+
+    bun install -g <client CLI package>
+
+frank#759 is explicit that the CLI is installed **from a pinned git ref, not
+from the npm registry — an unrelated package squats the name there.** That
+sentence was lost between the issue and the plan, and the plan is what an
+operator actually types.
+
+The blast radius is why this is not a documentation nit. The install target is
+`$HOME=/opt/data/home`, the SAME Longhorn PVC that holds this pod `gh` and
+`claude` credentials, in a pod with cluster access. A squatted package
+postinstall script runs there, as the shell own user, and nothing in this repo
+would notice.
+
+Fixed in `_prose.md` (the source of truth) as
+`bun install -g "git+<client CLI repo URL>#<pinned ref>"` plus an explicit
+"NOT from npm — the name is SQUATTED there" warning in both the command and
+`why_manual`, then re-synced into `docs/runbooks/manual-operations.yaml`
+preserving `status: pending`. Editing the runbook alone would have been
+silently reverted by the next `/sync-runbook`. The same correction went into
+`apps/hermes-agent-shell/README.md` and into the spec (decision 2 now says
+"from a PINNED GIT REF (never npm — the name is squatted)", with a new
+"The npm name is squatted" section carrying the reasoning).
+
+Neither the package nor the repo is named anywhere — discretion rule holds.
+
+**Parity verified mechanically after the re-sync**, the way the phase-3 executor
+did: parse every `# manual-operation` block out of `_prose.md`, parse
+`manual-operations.yaml`, compare every field except `status`. 2 blocks, 2
+matched, `PARITY OK`. The checker lives in the gitignored `scripts/tmp/` so it
+is not committed.
+
+<!-- fr:journal kind=finding scope=plan id=r-f6-discretion-scan-had-rotted created=2026-08-03T18:55:20 state=fixed -->
+### r-f6-discretion-scan-had-rotted · finding [fixed] · F6 went deeper than reported: FOUR of the discretion scan twelve paths had pointed at nothing since the plan was archived
+
+The review said `test_third_party_discretion.py` has a hardcoded `SCANNED_PATHS`
+that includes no file this branch adds, so its "6 passed" is evidence about a
+different piece of work. True, and fixed — this plan spec, plan folder, both
+journals, the README, three manifests and the gbrain test file are now scanned.
+
+**But the list had already rotted, and nothing said so.** `_files()` skipped
+any entry that did not exist. When the #748 plan was archived (frank#757) its
+spec, plan folder and BOTH journals moved under
+`docs/superpowers/implemented/`, so four of the twelve entries — the four most
+PROSE-HEAVY artefacts, i.e. exactly where a discretion leak lives — silently
+dropped out of the scan while the file kept reporting green. Verified by
+existence-checking each entry: 4 MISSING, 8 EXISTS. Repointed at
+`implemented/`; they scan clean.
+
+The blanket `assert out, "the path list has rotted"` at the end of `_files()`
+could not catch this — it only fires when EVERY entry has rotted. Coverage that
+degrades one path at a time needs a per-path assertion, so
+`test_every_scanned_path_exists` now fails on any missing entry.
+
+- **R6a** plant an unaccounted-for issue reference (a four-digit hash-number,
+  written literally in the mutation and deliberately not reproduced here) next
+  to "external client" in the NEWLY-scanned `deployment.yaml`: FAILED as it
+  should. This is the positive control for the widening — it proves the added
+  paths are genuinely read, not merely listed.
+
+  Reproducing the literal in THIS entry tripped the same guard on the next full
+  run, because the journal is itself one of the newly-scanned paths. That is the
+  guard working, and it is a second positive control I did not plan; the file
+  own instruction for a benign match is to rephrase rather than widen the
+  allowlist, which is what this bullet now does.
+- **R6b** rot one `SCANNED_PATHS` entry (rename `pvc-gbrain.yaml`): FAILED as it
+  should, naming the missing path.
+
+**A DELIBERATE NARROWING, flagged because it is a judgement call.** Widening the
+paths produced 8 hits on `test_no_issue_number_is_correlatable_with_the_requester`
+— and every one was a reference to **frank OWN public issues** (`frank#759` in a
+manifest provenance comment; "the iGPU retrieval tier from #748" in the spec).
+The rule targets the PRIVATE repo issue number, which is a correlatable
+identifier; `#\d+` cannot tell the two apart. Scrubbing them would have
+satisfied the regex while changing the actual risk not at all, and would have
+stripped provenance that every other comment in the same file carries
+(`frank#496`, `frank#688`, `frank#715`…). So the rule now exempts an explicit,
+reasoned `_PUBLIC_FRANK_ISSUES = {748, 751, 759}` — same shape as the existing
+`_PUBLIC_ORGS` allowlist — and still fails on any OTHER number next to
+requester-words, which is the shape a private-repo number would have. R6a is the
+proof it still bites. If a reviewer prefers the strict reading, the alternative
+is rewriting three prose passages and one manifest comment to drop the numbers;
+I judged that worse and am recording the choice rather than burying it.
+
+<!-- fr:journal kind=finding scope=plan id=r-f7-f10-minors created=2026-08-03T18:55:45 state=fixed -->
+### r-f7-f10-minors · finding [fixed] · Minors: two unasserted properties that break the container while staying green, a premature tense, a shm gap, an over-claiming docstring
+
+**F7a — no guard against a `command:` override.** Adding
+`command: ["postgres"]` to the gbrain container reads as harmless explicitness
+and bypasses `docker-entrypoint.sh` entirely: no initdb, no
+`/docker-entrypoint-initdb.d` (so `CREATE EXTENSION vector` never runs and the
+ConfigMap becomes decorative), and — per the F1 correction — no per-boot
+`chmod 00700 "$PGDATA"`, which is the thing that actually protects a populated
+PGDATA from the fsGroup re-walk. That makes this guard the practical
+replacement for the "OnRootMismatch is load-bearing" advice the F1 fix removed.
+New `test_gbrain_does_not_override_the_image_entrypoint`.
+
+- **R7a** add `command: ["postgres"]`: FAILED as it should.
+
+**F7b — the startup budget was deliberate everywhere except in a test.** Both
+the manifest comment and the spec call the 150 s generous on purpose (first boot
+runs initdb on a freshly-provisioned Longhorn volume before `pg_isready` can
+answer), and nothing asserted it. A `failureThreshold: 1` would kill the
+container mid-initdb and restart it onto a half-written PGDATA. New
+`test_gbrain_startup_probe_allows_time_for_initdb` asserts both
+`failureThreshold > 1` and `periodSeconds * failureThreshold >= 150`.
+
+- **R7b** `failureThreshold: 30 -> 1`: FAILED as it should.
+
+**F8 — the README described the ssh sidecar as ALREADY carrying Bun**, in a file
+whose header says it documents the DEPLOYED state. It does not: this branch does
+not change the ssh image pin at all (that is the sibling agent-images plan, and
+`orch-hermes-ssh-bun-repin` is a back-loaded manual op). Now a blockquote marked
+"NOT YET DEPLOYED" naming both manual ops, plus future tense in the paragraph,
+plus an explicit note that `gbrain` itself does NOT wait for either.
+
+**F9 — `/dev/shm` is 64 MiB and pgvector builds HNSW indexes in parallel through
+it** (DSM segments; classic symptom `could not resize shared memory segment`).
+Added to the spec Named gaps WITH its fix rather than acted on: the `hindsight`
+sidecar in the same pod has the identical 64 MiB and has run that way since the
+2026-07-09 cutover, so this is a pre-existing family posture, not a regression
+this work introduces — and pre-emptively changing only gbrain would ship an
+unexercised difference between two Postgres sidecars in one pod. Fix when it
+bites: an `emptyDir` `medium: Memory` at `/dev/shm` (counts against the 1 Gi
+limit), or `-c max_parallel_maintenance_workers=0`.
+
+**F10 — the module docstring claimed more than the file asserts.** It said
+Hindsight "same image, same env, same mount" is "asserted here mechanically";
+only the PVC size and storage disjointness are. Corrected the docstring rather
+than adding the assertions, per the review preference and for a concrete reason
+now written down: pinning hindsight image tag would fight the agent-images bump
+workflow every month. The docstring now states the scope precisely and says why
+image/env are deliberately out of it. Also documented the two vacuity classes
+(last-wins parse, claimName indirection) at the top, so the next author does not
+re-introduce them.

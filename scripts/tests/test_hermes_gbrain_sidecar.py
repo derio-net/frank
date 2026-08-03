@@ -26,16 +26,30 @@ wrong. The five things that actually break:
      cap-drop:ALL stance is what the design gate was run under; if the container
      quietly needs root, the gate no longer describes what is deployed.
   5. Hindsight stops being untouched. #759's whole justification for the revised
-     shape is that the memory layer next door does not move: same image, same
-     PVC, same 5 Gi, same env, same mount. The withdrawn shape — share Hindsight's
-     Postgres, expand its volume — is one edited number away at any time, and
-     that edit reads as housekeeping. It is asserted here mechanically rather
-     than left to the reviewer noticing what the diff does NOT say.
+     shape is that the memory layer next door does not move. The withdrawn shape
+     — share Hindsight's Postgres, expand its volume — is one edited number away
+     at any time, and that edit reads as housekeeping.
+
+     SCOPE, precisely: what is asserted here is that Hindsight's PVC still
+     requests its original 5 Gi, and that the two containers share no volume,
+     no mount path and NO PVC `claimName`. Hindsight's image and env are NOT
+     asserted — deliberately, because its image tag is moved by the agent-images
+     bump workflow and a guard pinning it would fight a scheduled robot every
+     month. "Same image, same env" is a statement about what this plan does, not
+     a property this file mechanically enforces.
 
 Where a relationship can be asserted, it is asserted as one: PGDATA against the
 mountPath the manifest itself declares, the probe commands against the port the
 server args themselves configure. A guard that restates the YAML passes for any
 YAML, and breaks on a rename that changed nothing.
+
+And where a property is a SET rather than a substring, it is parsed rather than
+grepped. Two guards here were vacuous to a last-wins override or an indirection
+before the 2026-08-03 review: `-c` server flags are parsed into a dict (Postgres
+applies them left-to-right, so APPENDING `-c listen_addresses=0.0.0.0` beat an
+`in`-the-joined-args check while binding every interface), and the storage
+disjointness runs on resolved `claimName`s (comparing volume NAMES let two
+distinct names point at one PVC).
 """
 
 from pathlib import Path
@@ -52,6 +66,13 @@ HINDSIGHT_PVC = MANIFESTS / "pvc-hindsight.yaml"
 PVC_NAME = "hermes-agent-shell-gbrain"
 HINDSIGHT_PVC_NAME = "hermes-agent-shell-hindsight"
 NAMESPACE = "hermes-agent-shell"
+
+# ONE constant, asserted on BOTH sides — the ConfigMap's own metadata.name and
+# the deployment volume that references it. Anchored on one side only, a rename
+# passes green and then fails the KUBELET: the volume is not `optional: true`,
+# so an unresolvable ConfigMap leaves the WHOLE POD in ContainerCreating, taking
+# hermes, ssh and hindsight down with it on a `Recreate` deployment.
+INITDB_CM_NAME = "hermes-agent-shell-gbrain-initdb"
 
 # Hindsight's size BEFORE this work and AFTER it. #759's original shape expanded
 # this 5Gi -> 10Gi to host the retrieval store; that shape was withdrawn
@@ -120,6 +141,12 @@ def test_gbrain_initdb_configmap_creates_the_vector_extension():
 
     assert cm["kind"] == "ConfigMap"
     assert cm["metadata"]["namespace"] == NAMESPACE
+    assert cm["metadata"]["name"] == INITDB_CM_NAME, (
+        f"the initdb ConfigMap must be named {INITDB_CM_NAME!r} — the deployment "
+        "references it by that name in a volume that is NOT optional, so a "
+        "rename here does not fail this test, it fails the KUBELET: the whole "
+        "pod sticks in ContainerCreating and hermes/ssh/hindsight go down with it"
+    )
 
     sql_keys = [k for k in cm["data"] if k.endswith(".sql")]
     assert sql_keys, "the initdb ConfigMap must carry a .sql key"
@@ -169,20 +196,81 @@ def _pvc_mount_path(container: dict, claim_name: str) -> str:
     )
 
 
+def _claim_names(container: dict) -> set:
+    """The PVC `claimName`s this container actually mounts, resolved through the
+    pod's volume list.
+
+    The indirection is the whole point. Two volumes with entirely different
+    NAMES and different mountPaths can name the SAME `claimName`, which is one
+    RWO Longhorn volume with two Postgres instances on it — precisely the
+    coupling #759's revision exists to prevent, arrived at by an edit that
+    touches neither a name nor a path.
+    """
+    volumes = _volumes()
+    claims = set()
+    for mount in container.get("volumeMounts", []):
+        claim = (
+            volumes.get(mount["name"], {})
+            .get("persistentVolumeClaim", {})
+            .get("claimName")
+        )
+        if claim:
+            claims.add(claim)
+    return claims
+
+
+def _server_settings(container: dict) -> dict:
+    """Every `-c key=value` server flag, parsed, with LAST-WINS semantics.
+
+    PostgreSQL applies `-c` settings left to right, so a later flag silently
+    overrides an earlier one. That makes any substring check over the joined
+    args VACUOUS to an append: adding `-c listen_addresses=0.0.0.0` to the end
+    leaves `listen_addresses=127.0.0.1` present in the string while the server
+    binds every interface — and with `POSTGRES_HOST_AUTH_METHOD=trust` that is
+    `host all all all trust`, i.e. unauthenticated superuser Postgres reachable
+    from anything that can route to the pod IP.
+
+    `listen_addresses` is described in the spec as "the only thing standing
+    between this database and anything that can route to the pod", so it is the
+    one setting that must not be assertable by substring. Parse, do not grep.
+    """
+    settings: dict = {}
+    args = list(container.get("args", []))
+    i = 0
+    while i < len(args):
+        arg, consumed = args[i], 1
+        if arg == "-c" and i + 1 < len(args):
+            arg, consumed = args[i + 1], 2
+        elif arg.startswith("-c") and len(arg) > 2:
+            arg = arg[2:]
+        elif arg.startswith("--") and "=" in arg:
+            arg = arg[2:]
+        else:
+            i += 1
+            continue
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            settings[key.strip()] = value.strip()  # LAST wins, as postgres does
+        i += consumed
+    return settings
+
+
 def _configured_port(container: dict) -> str:
     """The port the server is actually told to listen on, parsed from its args.
 
     The probes are checked against THIS rather than against a literal, so the
     guard fails on the shape that really breaks — a probe and a server that
-    disagree about the port — instead of merely restating the manifest.
+    disagree about the port — instead of merely restating the manifest. Uses the
+    same last-wins parse as everything else: an appended `-c port=…` moves the
+    server, and the probes have to move with it.
     """
-    for arg in container.get("args", []):
-        if arg.startswith("port="):
-            return arg.split("=", 1)[1]
-    raise AssertionError(
-        f"container {container['name']!r} declares no `port=` server arg — the "
-        "probes below have nothing to be checked against"
-    )
+    settings = _server_settings(container)
+    if "port" not in settings:
+        raise AssertionError(
+            f"container {container['name']!r} declares no `port=` server arg — the "
+            "probes below have nothing to be checked against"
+        )
+    return settings["port"]
 
 
 def test_gbrain_image_is_stock_pgvector_pinned_by_digest():
@@ -251,12 +339,21 @@ def test_gbrain_binds_loopback_only_on_its_own_port():
     database and anything that can route to the pod. And the two Postgres servers
     share this pod's single network namespace, so the port must differ from the
     Hindsight sidecar's or the second one to start simply fails to bind.
+
+    Asserted on the PARSED, last-wins value rather than on a substring of the
+    joined args: `-c` settings are applied left to right, so appending
+    `-c listen_addresses=0.0.0.0` satisfies an `in` check while the server binds
+    everything — and `trust` + every interface is unauthenticated superuser
+    Postgres on the pod IP.
     """
     gbrain = _gbrain()
-    args = " ".join(gbrain.get("args", []))
+    settings = _server_settings(gbrain)
 
-    assert "listen_addresses=127.0.0.1" in args, (
-        "gbrain must bind loopback only — `trust` auth has no other boundary"
+    assert settings.get("listen_addresses") == "127.0.0.1", (
+        "gbrain must bind loopback ONLY — `trust` auth has no other boundary. "
+        f"The effective (last-wins) listen_addresses is "
+        f"{settings.get('listen_addresses')!r}; anything but '127.0.0.1' exposes "
+        "an unauthenticated superuser Postgres on the pod IP"
     )
     assert _configured_port(gbrain) != HINDSIGHT_PG_PORT, (
         f"gbrain must not listen on {HINDSIGHT_PG_PORT} — that is the Hindsight "
@@ -285,8 +382,10 @@ def test_gbrain_mounts_its_own_pvc_and_the_initdb_configmap():
         "the image's entrypoint looks"
     )
     initdb_vol = volumes[mounts[INITDB_DIR]["name"]]
-    assert initdb_vol.get("configMap", {}).get("name") == (
-        "hermes-agent-shell-gbrain-initdb"
+    assert initdb_vol.get("configMap", {}).get("name") == INITDB_CM_NAME, (
+        f"the initdb volume must reference the {INITDB_CM_NAME!r} ConfigMap — the "
+        "SAME constant the ConfigMap's own metadata.name is asserted against, so "
+        "a rename cannot pass by moving both sides' literals independently"
     )
 
 
@@ -365,6 +464,13 @@ def test_gbrain_and_hindsight_share_no_storage():
     back with it. Sharing a volume name — or nesting one mount inside the other,
     which is the subtler way to arrive at the same place — reintroduces exactly
     that coupling while looking like a mount tidy-up.
+
+    Three checks, because names and paths are only the surface. The one that
+    actually matters is the last: two volumes with different NAMES mounted at
+    different PATHS can still name the SAME `claimName`, which is one RWO
+    Longhorn volume with two Postgres instances on it. Nothing about that edit
+    looks like a coupling — it is a one-word change in a field neither of the
+    other two assertions reads.
     """
     containers = _containers(HERMES_DEPLOY)
     gbrain, hindsight = containers["gbrain"], containers["hindsight"]
@@ -375,6 +481,18 @@ def test_gbrain_and_hindsight_share_no_storage():
     assert not shared, (
         f"gbrain and hindsight must share no volume, found {sorted(shared)} — a "
         "shared volume is how a Hindsight restore takes the retrieval store with it"
+    )
+
+    gbrain_claims, hindsight_claims = _claim_names(gbrain), _claim_names(hindsight)
+    assert gbrain_claims, "gbrain must mount at least one PVC (its own store)"
+    assert hindsight_claims, "hindsight must mount at least one PVC (its own store)"
+    shared_claims = gbrain_claims & hindsight_claims
+    assert not shared_claims, (
+        f"gbrain and hindsight must resolve to DISJOINT PVCs, found "
+        f"{sorted(shared_claims)}. Distinct volume names and distinct mountPaths "
+        "prove nothing on their own — pointing both at one claimName puts two "
+        "Postgres instances on a single RWO volume, which is exactly the "
+        "coupling #759's revision was written to prevent"
     )
 
     for g_path in sorted(_mounts(gbrain)):
@@ -429,6 +547,68 @@ def test_ssh_container_still_execs_the_image_entrypoint():
     assert f"exec {SSH_IMAGE_ENTRYPOINT}" in script, (
         f"the ssh sidecar must still `exec {SSH_IMAGE_ENTRYPOINT}` — this plan "
         "changes the ssh container's IMAGE pin and nothing else about it"
+    )
+
+
+def test_gbrain_does_not_override_the_image_entrypoint():
+    """No `command:`. Everything this container does correctly, the stock
+    `docker-entrypoint.sh` does — and a `command:` replaces it silently.
+
+    Three things would be lost at once, none of them visible in a diff that
+    merely adds a plausible-looking `command: ["postgres", ...]`:
+
+      * `initdb` never runs, so a fresh volume never becomes a database;
+      * `/docker-entrypoint-initdb.d` is never read, so `CREATE EXTENSION vector`
+        never happens and the ConfigMap becomes decorative;
+      * `chmod 00700 "$PGDATA"` never runs. That chmod is in
+        `docker_create_db_directories`, which the entrypoint calls on EVERY start
+        (before the "already initialised" branch), and it is what puts a
+        populated PGDATA back to 0700 after a kubelet `fsGroup` re-walk has
+        loosened it — reproduced 2026-08-03 on this exact digest. It is the same
+        boot-time hook the `hermes-agent-shell-hindsight` image hand-rolls; here
+        it comes free, and only from the entrypoint.
+
+    `args:` (the `-c` server flags) is the supported way to configure this image:
+    the entrypoint prepends `postgres` itself when the first arg starts with `-`.
+    """
+    gbrain = _gbrain()
+
+    assert "command" not in gbrain, (
+        "gbrain must NOT declare a `command:` — that replaces the image's "
+        "docker-entrypoint.sh, which is what runs initdb, reads "
+        f"{INITDB_DIR}, and chmods PGDATA back to 0700 on every start. Server "
+        "configuration belongs in `args:`; the entrypoint prepends `postgres` "
+        "when the first arg starts with `-`"
+    )
+
+
+def test_gbrain_startup_probe_allows_time_for_initdb():
+    """The startup budget is deliberate, and asserted rather than left in a
+    comment.
+
+    First boot runs `initdb` on a freshly-provisioned Longhorn volume before
+    anything can answer `pg_isready`. A tight budget — `failureThreshold: 1`, or
+    a short period — kills the container MID-INITDB, and the kubelet then
+    restarts it onto a half-written PGDATA, which is a worse state than either
+    failing or succeeding cleanly. The manifest and the spec both call the 150 s
+    generous on purpose; nothing enforced it until the 2026-08-03 review.
+
+    Only the startup probe carries this budget. Readiness and liveness run
+    against an already-initialised database and are deliberately tighter.
+    """
+    startup = _gbrain()["startupProbe"]
+    period = startup["periodSeconds"]
+    threshold = startup["failureThreshold"]
+
+    assert threshold > 1, (
+        f"startupProbe.failureThreshold is {threshold} — a single failed probe "
+        "would kill the container during initdb on first boot"
+    )
+    assert period * threshold >= 150, (
+        f"the startup budget is {period}s x {threshold} = {period * threshold}s, "
+        "below the 150s the manifest and spec both state deliberately. First boot "
+        "runs initdb on a fresh Longhorn volume before pg_isready can answer, and "
+        "a container killed mid-initdb restarts onto a half-written PGDATA"
     )
 
 
