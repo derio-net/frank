@@ -34,10 +34,18 @@ import pathlib
 import yaml
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-PHASE5 = (
-    REPO
-    / "docs/superpowers/plans/2026-08-02--infer--igpu-embedding-rerank/05.yaml"
-)
+
+# Resolve the plan in EITHER location. `fr archive` git-mv's a finished plan from
+# docs/superpowers/plans/ to docs/superpowers/implemented/plans/, which would
+# otherwise turn every assertion in this file red the moment the plan shipped --
+# a guard that breaks on success is worse than no guard.
+_PLAN_REL = "2026-08-02--infer--igpu-embedding-rerank/05.yaml"
+_CANDIDATES = [
+    REPO / "docs/superpowers/plans" / _PLAN_REL,
+    REPO / "docs/superpowers/implemented/plans" / _PLAN_REL,
+    REPO / "docs/superpowers/archived-plans" / _PLAN_REL,
+]
+PHASE5 = next((c for c in _CANDIDATES if c.is_file()), _CANDIDATES[0])
 
 
 def _phase() -> dict:
