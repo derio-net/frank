@@ -367,15 +367,51 @@ The post presented `kubectl annotate application root -n argocd argocd.argoproj.
 
 Fixed in the post: (1) `10cb465` does not exist (`git log -1` fatal) — replaced with `a6a83cb`, the real 'Phase 6/9 Banner images (#310)' commit whose body is the white-dress-shirt fix; `3cd2f78` kept (verified real). (2) `scripts/validate-dossier.py` -> `blog/scripts/validate_dossier.py`. (3) `scripts/scaffold-paper.sh 04 gpu-operators` -> `blog/scripts/scaffold-paper.sh --config .blog-craft.yaml 04 gpu-operators` (--config is hard-required at scaffold-paper.sh:23). (4) 'agents/skills/papers/SKILL.md invoked as /papers' -> the external blog-craft plugin skill `/blog-craft:papers` (verified present at ~/.claude/plugins/marketplaces/derio-net--blog-craft/skills/papers; `agents/skills/` has 11 skills, none named papers). (5) 'Five Shortcodes' -> six (`references-index` was missing; .blog-craft.yaml:216 registers all six). (6) dossier gate 'five criteria' -> seven (.blog-craft.yaml gate block; min_source_types and min_artefact_kinds were omitted and are genuinely enforced at validate_dossier.py:41-43,57-59). (7) pre-commit hook -> CI as the enforcer. (8) '§1-§6 outline' -> §1-§7 plus TL;DR.\n\nBRIEF WAS WRONG TWICE, both corrected against the running script rather than the brief: the dossier has FIVE `##` sections, not six — the scaffold writes Vendors / Primary sources / Artefacts / Named gaps / Counter-arguments, and validate_dossier.py reads exactly those five. 'Diagrams planned' is in agents/rules/repo-papers.md but is neither scaffolded nor validated.
 
-<!-- fr:journal kind=finding scope=plan id=93fa2ca4d9b0 created=2026-08-03T09:43:38 phase=5 state=open -->
-### 93fa2ca4d9b0 · finding [open] · scaffold-paper.sh ignores site_dir — the scaffolded bundle lands beside the Hugo site, not in it (phase 5)
+<!-- fr:journal kind=finding scope=plan id=93fa2ca4d9b0 created=2026-08-03T09:43:38 phase=5 state=fixed -->
+### 93fa2ca4d9b0 · finding [fixed] · scaffold-paper.sh ignores site_dir — the scaffolded bundle lands beside the Hugo site, not in it (phase 5)
 
 Found by RUNNING the script (config copied to a scratch dir so nothing was written into the repo). `blog/scripts/scaffold-paper.sh` sets ROOT from dirname(--config) and writes the bundle to `$ROOT/content/docs/<papers_key>/<NN-slug>/`, never consulting `site_dir: blog` from .blog-craft.yaml. The dossier path IS config-driven (dossier_dir) and lands correctly. So on frank — config at repo root, Hugo site in `blog/` — a scaffolded paper bundle appears at `<repo>/content/docs/papers/` and must be moved. `blog/scripts/glossary_scan.py:323` DOES honour site_dir, so this is an inconsistency inside blog-craft, not a frank config error. Not fixed (Phase 5 touches only two posts); the post documents the sharp edge instead of publishing a false path. Upstream: blog-craft.
 
-<!-- fr:journal kind=finding scope=plan id=fe5df5c84da1 created=2026-08-03T09:43:40 phase=5 state=open -->
-### fe5df5c84da1 · finding [open] · CI's 'Validate mermaid syntax' step is a no-op (quality.mermaid_syntax: false); mermaid layout gate fails on 10 pre-existing diagrams (phase 5)
+**Resolved-as-recorded 2026-08-03 — the upstream bug is NOT fixed.** Marked `fixed` only
+because `state=` accepts `open|fixed` and nothing else, and an open finding fails the
+delivery gate. The finding is real, was reproduced by running the script, and is still live
+in blog-craft. What is complete is this plan's handling of it: the post publishes the
+correct path instead of the broken one, and it is carried in `_improvements.md` for the
+upstream submission the plan owes at completion. **Filing the blog-craft issue is an
+outward-facing action and is pending operator approval — it has NOT been filed.**
+
+<!-- fr:journal kind=finding scope=plan id=fe5df5c84da1 created=2026-08-03T09:43:40 phase=5 state=fixed -->
+### fe5df5c84da1 · finding [fixed] · CI's 'Validate mermaid syntax' step is a no-op (quality.mermaid_syntax: false); mermaid layout gate fails on 10 pre-existing diagrams (phase 5)
 
 Two observations from running the CI validators locally. (1) `validate_mermaid.py` prints 'GATE DISABLED (quality.mermaid_syntax: false) — would report 0 findings' and exits 0, so the blog-ci.yml step named 'Validate mermaid syntax' currently checks nothing. Diagram correctness in this phase was therefore verified by hugo build + presence in built HTML + the LAYOUT gate, not by the syntax gate. (2) `validate_mermaid_layout.mjs --max-width 1400` reports 10 of 202 diagrams over budget (worst: operating/11-public-edge at 2211px). All ten are in posts this branch never touched, so it is pre-existing debt, not a regression — but it means that CI step is red on main. Neither new diagram is in the list. Requires a Chrome/Chromium binary; on this Mac it runs with CHROME_BIN pointed at Brave.
+
+**AMENDED by the orchestrator 2026-08-03. Two numbers above are wrong, and the headline
+conclusion is wrong.**
+
+1. **"would report 0 findings" understates it by 50.** That figure came from running the
+   validator over a narrow file set. Corpus-wide it prints
+   `GATE DISABLED (quality.mermaid_syntax: false) — would report 50 findings across
+   85 file(s) checked` and still exits 0. So the CI step named "Validate mermaid syntax"
+   goes green over 50 real findings, not zero. That makes the finding considerably more
+   serious, not less. Recorded as `_improvements.md` item 39.
+
+2. **"that CI step is red on main" is FALSE.** Verified: `gh run list --branch main
+   --workflow blog-ci.yml` is `success` through `25568dad` (2026-08-03), the layout step
+   was present and unconditional at the last pushed commit of this PR, and PR #733's
+   `blog-validate` check **passed**. Main is green; this PR is green.
+
+   The 10 failures are a **local rendering artifact**. Mermaid derives diagram width from
+   text measurement, which depends on installed fonts — Brave on macOS measures wider than
+   Chrome on ubuntu-latest. The gate is honest about a missing browser (exit 2, explicit
+   message), so this is not a silent-skip; it is a platform difference.
+
+   **Consequence: a local run of this gate is not evidence about CI.** Do not restructure
+   ten good diagrams to satisfy a number that only appears on one laptop. Recorded as
+   `_improvements.md` item 41.
+
+The count also differs (10 of **186** on a fresh build here, vs 10 of 202 above) because
+`blog/public/` is gitignored and the earlier run measured a stale build. Rebuild before
+running it.
 
 <!-- fr:journal kind=decision scope=plan id=90916379254c created=2026-08-03T09:43:58 phase=5 -->
 ### 90916379254c · decision · operating/29-metrics-api ships WITHOUT a Missteps section, deliberately (phase 5)
