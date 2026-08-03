@@ -557,14 +557,20 @@ spec:
           args: ["-c", "listen_addresses=127.0.0.1", "-c", "port=5434"]
           env:
             # PGDATA IS A SUBDIRECTORY OF THE MOUNT, NOT THE MOUNT ROOT — and
-            # this is the single most load-bearing line in the block. The
-            # entrypoint CREATING this directory is precisely what makes it
-            # uid-1000-owned and 0700. The mount root has already been widened to
-            # 0775 by the pod-level fsGroup above, and Postgres refuses a data dir
-            # wider than 0750, so pointing PGDATA at /opt/gbrain is how this fails
-            # — at first boot, on Longhorn, in a way no local docker run
-            # reproduces. Both apps/vk-remote and the hindsight sidecar use the
-            # subdirectory form; this is the recorded reason why.
+            # this is the single most load-bearing line in the block. The stock
+            # entrypoint runs `chmod 00700 "$PGDATA" || :` on EVERY start (in
+            # docker_create_db_directories, before the "already initialised"
+            # branch). Because the container CREATES and OWNS this directory,
+            # that chmod succeeds — which is both why the strict posture works
+            # and why a populated PGDATA re-loosened by the fsGroup re-walk is
+            # put back to 0700 at the next boot, with no image-side hook needed.
+            # Point PGDATA at /opt/gbrain instead — which the pod-level fsGroup
+            # above leaves at root:1000 2775 — and the identical chmod EPERMs on
+            # a root-owned dir, is SWALLOWED by the `|| :`, and initdb then dies
+            # on its own chmod ("could not change permissions of directory").
+            # Reproduced 2026-08-03 on this exact digest. Both apps/vk-remote and
+            # the hindsight sidecar use the subdirectory form; this is the
+            # recorded reason why.
             - name: PGDATA
               value: /opt/gbrain/pgdata
             - name: POSTGRES_DB
@@ -587,8 +593,9 @@ spec:
             # Strict, like `ssh` and `hindsight`; only the upstream `hermes`
             # container needs root (s6 constraint, see the pod-level comment).
             # initdb-as-non-root is legal, and was gated under exactly this
-            # posture — user 1000, cap-drop ALL, volume root root:1000 0775 —
-            # before the design was committed to.
+            # posture — user 1000, cap-drop ALL, volume root root:1000 2775
+            # (the kubelet ORs the setgid bit in) — before the design was
+            # committed to.
             runAsUser: 1000
             runAsGroup: 1000
             runAsNonRoot: true

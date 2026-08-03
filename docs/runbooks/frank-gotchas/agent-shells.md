@@ -430,26 +430,52 @@ posture the `ssh` and `hindsight` sidecars run: `runAsUser`/`runAsGroup` 1000,
 
 **It works — and the single reason it works is one line of env.** `PGDATA` is
 `/opt/gbrain/pgdata`, a *subdirectory* of the `/opt/gbrain` mount, never the
-mount root. The mechanism, because the failure mode is invisible until first
-boot against a real kubelet:
+mount root.
 
-- `fsGroup` applies to the volume **root**, leaving it `root:1000 0775`.
-- Postgres refuses any data directory wider than `0750`
-  (`data directory "…" has group or world access`).
-- So `PGDATA=/opt/gbrain` can never start, while `PGDATA=/opt/gbrain/pgdata`
-  always can — because the **entrypoint creates that directory itself**, as the
-  container's own uid, `drwx------`. Its ownership and mode are a side effect of
-  *who made it*, not of anything the manifest sets. There is no `chown`, no
-  `supplementalGroups` hunt and no init container in the working version; get
-  the path right and the strict posture is simply not a problem.
+**One mechanism explains both halves: the stock entrypoint chmods `$PGDATA` to
+`0700` on every start.** `docker_create_db_directories` is called *before* the
+`DATABASE_ALREADY_EXISTS` branch — i.e. on every boot, not only the first — and
+its second line is:
 
-Gated live during design rather than asserted: `docker run --user 1000:1000
---cap-drop ALL` against a volume root `chown 0:1000 && chmod 0775`, `trust`
-auth, `-c listen_addresses=127.0.0.1 -c port=5434` and an initdb.d script.
-`initdb` succeeded, created `PGDATA` as `drwx------ 1000:1000`, built an `hnsw`
-index, and came back healthy on the populated volume after a restart. Both
-`apps/vk-remote` and the `hindsight` sidecar had used the subdirectory form for
-a long time with no recorded reason; this is the reason.
+```sh
+mkdir -p "$PGDATA"
+# ignore failure since there are cases where we can't chmod (and PostgreSQL might fail later anyhow …)
+chmod 00700 "$PGDATA" || :
+```
+
+- **Subdirectory form:** the container *creates and owns* `pgdata`, so that
+  `chmod` **succeeds**. The stock image therefore already carries — upstream, for
+  free — the identical boot-time hook the `hermes-agent-shell-hindsight` image
+  hand-rolls (`chmod 700 $PGDATA` before starting Postgres). There is no `chown`,
+  no `supplementalGroups` hunt and no init container in the working version.
+- **Mount-root form:** the same `chmod` hits `EPERM` on a root-owned directory
+  and is **swallowed by the `|| :`** — so nothing stops or even warns, and the
+  entrypoint sails on into `initdb`, which does its own chmod and dies:
+  `initdb: error: could not change permissions of directory "/opt/gbrain": Operation not permitted`.
+  (Had it got past that, the postmaster's own check would have refused a data
+  directory wider than `0750` — `data directory "…" has group or world access`.)
+
+Reproduced 2026-08-03 against the pinned digest, mirroring the pod: `docker run
+--user 1000:1000 --cap-drop ALL` on a volume root `chown 0:1000 && chmod 2775`,
+`trust` auth, `-c listen_addresses=127.0.0.1 -c port=5434`, an initdb.d script.
+First boot created `PGDATA` as `drwx------ 1000:1000` and answered `pg_isready`
+in 3 s; `chmod 2770` on that populated directory (simulating the `fsGroup`
+re-walk) followed by a restart came back **`drwx------` again**, `pg_isready` in
+1 s — the entrypoint had put it back. The mount-root variant exited 1 with the
+error above. The earlier design gate additionally built an `hnsw` index and
+verified the extension. Both `apps/vk-remote` and the `hindsight` sidecar had
+used the subdirectory form for a long time with no recorded reason; this is the
+reason.
+
+**The volume root is `2775`, not `0775`.** The kubelet's `SetVolumeOwnership`
+ORs the setgid bit into directories (`mask |= os.ModeSetgid`) alongside the
+group `rwx`, and changes only the group (`Lchown(-1, fsGroup)`) — so the root
+lands at `root:1000 drwxrwsr-x`. Do **not** attribute the created subdirectory's
+gid to that setgid bit: measured both ways, `mkdir` under a `2775` parent and
+under a `0775` parent both produce a gid-1000 directory here, because the
+container's own `runAsGroup: 1000` already makes its egid 1000. The setgid bit
+would only become load-bearing for a container whose *primary* gid differed and
+which got 1000 as a supplemental group via `fsGroup`.
 
 **No `-k /tmp` needed — do not copy that flag forward.** The
 `hermes-agent-shell-hindsight` image passes a socket-directory flag, and it is
@@ -458,20 +484,26 @@ image (which `pgvector/pgvector` is built on) ships `/var/run/postgresql` at
 mode `3777` for exactly the arbitrary-uid case, so an unprivileged uid can
 create its socket there unaided. Verified in the same gate; one fewer flag.
 
-**On the SECOND boot, the only thing protecting `gbrain` is
-`fsGroupChangePolicy: OnRootMismatch`.** The Hindsight entry above describes the
-re-walk that re-loosens a *populated* `PGDATA` on every remount; its primary fix
-is image-side (`chmod 700 $PGDATA` at boot). A **stock** image has no such
-hook — and there is nowhere to add one without building an image, which is the
-whole thing this sidecar exists to avoid. So the pod-level
-`fsGroupChangePolicy: OnRootMismatch` in `deployment.yaml` (added for
-Hindsight's sake, where it is merely the belt to the image's braces) is
-**load-bearing** for `gbrain`: remove it and the store starts once and then
-refuses on the first pod recreate. If `gbrain` ever comes back from a restart
-logging `data directory … has group or world access`, check that policy before
-anything else; the one-shot recovery is
+**`fsGroupChangePolicy: OnRootMismatch` is NOT what protects `gbrain` on the
+second boot — the entrypoint is.** An earlier version of this entry said the
+opposite, reasoning that a stock image "has no boot-time chmod hook" and that
+the policy was therefore the only thing standing between a re-walk and a
+refusing Postgres. That premise is false, as the reproduction above shows: the
+hook exists upstream and runs on every start. The pod-level policy in
+`deployment.yaml` was added for Hindsight's sake and stays — it is correct, it
+costs nothing, and skipping a recursive re-walk of a growing database directory
+is worth having — but for `gbrain` it is defence-in-depth, exactly as it is for
+Hindsight. Getting this backwards matters practically: it points a future
+debugger at the pod `securityContext` when the thing that would actually break
+`gbrain` is a `command:` override that bypasses `docker-entrypoint.sh`
+(guarded in `scripts/tests/test_hermes_gbrain_sidecar.py`) or a `PGDATA` moved
+to the mount root.
+
+If `gbrain` ever does come back from a restart logging `data directory … has
+group or world access`, the one-shot recovery is
 `kubectl -n hermes-agent-shell exec deploy/hermes-agent-shell -c gbrain -- chmod 700 /opt/gbrain/pgdata`
-(the container runs as the directory's owning uid, so it can).
+(the container runs as the directory's owning uid, so it can) — and the question
+to ask next is what stopped the entrypoint from running.
 
 Two more things that travel with this shape:
 

@@ -100,13 +100,18 @@ listens on.
 
 **It can be a stock image because `PGDATA` is a subdirectory of the mount.**
 The container runs the same strict posture as `ssh` and `hindsight` (uid 1000,
-`runAsNonRoot`, `cap-drop: ALL`) and needs no build layer to do it: `fsGroup`
-leaves the volume *root* at `0775`, Postgres refuses a data directory wider
-than `0750`, and the entrypoint creating `/opt/gbrain/pgdata` itself is what
-makes that directory uid-owned and `0700`. Because a stock image has no boot
-hook, the pod-level `fsGroupChangePolicy: OnRootMismatch` is load-bearing here
-rather than defence-in-depth — it is the only thing stopping the kubelet
-re-loosening a populated `PGDATA` on the next recreate. Full prose:
+`runAsNonRoot`, `cap-drop: ALL`) and needs no build layer to do it. One
+mechanism carries the whole thing: the stock entrypoint runs
+`chmod 00700 "$PGDATA" || :` on **every** start (before the
+"already initialised" branch), and that chmod succeeds only because the
+container creates and owns `pgdata`. So the image already has, upstream, the
+boot-time hook the `hindsight` image hand-rolls — a populated `PGDATA`
+re-loosened by an `fsGroup` re-walk is put back to `0700` at the next boot.
+Point `PGDATA` at the mount root instead — which `fsGroup` leaves at
+`root:1000 2775` — and the same chmod `EPERM`s, is swallowed by the `|| :`, and
+`initdb` dies on its own chmod. The pod-level
+`fsGroupChangePolicy: OnRootMismatch` is defence-in-depth here (as it is for
+Hindsight), **not** the thing keeping this working. Full prose:
 `docs/runbooks/frank-gotchas/agent-shells.md`.
 
 **Loopback plus `trust` means every container in this pod is a superuser of
@@ -138,12 +143,30 @@ kubectl -n hermes-agent-shell exec -it deploy/hermes-agent-shell -c gbrain -- \
 ```
 
 **The client CLI is installed by hand onto the home PVC, and is therefore not
-reproducible from git.** The `ssh` sidecar image carries only a generic Bun
+reproducible from git.** The `ssh` sidecar image will carry only a generic Bun
 runtime plus a `/etc/profile.d/36-hermes-bun-path.sh` shim putting
 `$HOME/.bun/bin` on `PATH` in login shells; the CLI itself is a one-time
 global install by the operator into `$HOME=/opt/data/home`, which is a
 Longhorn PVC — the same persistent-agent pattern this pod already uses for
-`claude` and `gh` auth. **If the home PVC is ever rebuilt, the install must be
+`claude` and `gh` auth.
+
+> **NOT YET DEPLOYED — this file otherwise documents the deployed state.** The
+> `ssh` sidecar's image pin is **unchanged** by the work that added `gbrain`:
+> Bun and the `36-hermes-bun-path.sh` shim live in the sibling `agent-images`
+> plan, and reach this pod only when the pin is bumped. Until then `bun` is not
+> on the sidecar and neither is the CLI. Manual op `orch-hermes-ssh-bun-repin`
+> re-pins; `orch-hermes-gbrain-cli-install` follows it. The `gbrain` container
+> and its volume, above, do not wait for either — the store comes up empty and
+> extension-enabled on merge.
+
+**Install it from a pinned git ref — NOT from npm, where the name is squatted
+by an unrelated package.** `bun install -g 'git+<repo>#<ref>'`, with the repo
+and ref taken from the requesting repo's private issue. This matters more here
+than it would elsewhere: the home PVC also holds this pod's `gh` and `claude`
+credentials, and the shell has cluster access, so a bare `bun install -g <name>`
+would run a stranger's postinstall script in exactly the wrong place.
+
+**If the home PVC is ever rebuilt, the install must be
 repeated.** Nothing reconciles it, nothing alerts when it is missing, and the
 symptom is a `command not found` in a shell that otherwise looks healthy.
 Manual op `orch-hermes-gbrain-cli-install`. Verify it in a **login** shell —

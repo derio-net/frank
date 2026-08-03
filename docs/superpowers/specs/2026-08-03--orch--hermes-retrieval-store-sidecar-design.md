@@ -48,9 +48,23 @@ syncs on merge. There is no separate window to book.
 | # | Decision | Choice | Why |
 |---|---|---|---|
 | 1 | Scope | **Both repos this run** | The Bun half turned out not to depend on the CLI's identity — see decision 2 — so nothing is blocked |
-| 2 | The CLI | **Bun in the image; the CLI installed by hand onto the home PVC** | The image ships a generic runtime that names nothing. `$HOME=/opt/data/home` is a Longhorn PVC, so a one-time global install persists across restarts — the same persistent-agent pattern these shells already use for `claude` and `gh` auth. Keeps a private tool's name out of two public repos, honouring the discretion rule #748 established |
+| 2 | The CLI | **Bun in the image; the CLI installed by hand onto the home PVC, from a PINNED GIT REF (never npm — the name is squatted)** | The image ships a generic runtime that names nothing. `$HOME=/opt/data/home` is a Longhorn PVC, so a one-time global install persists across restarts — the same persistent-agent pattern these shells already use for `claude` and `gh` auth. Keeps a private tool's name out of two public repos, honouring the discretion rule #748 established. See [the squat](#the-npm-name-is-squatted) |
 | 3 | Postgres image | **Stock `pgvector/pgvector:0.8.6-pg18`, digest-pinned** | Nothing to build or bump. Precedent in-repo: `apps/vk-remote` runs stock `postgres:16-alpine`. Verified live — see [the gate](#the-gate-run-during-design) |
 | 4 | DB auth | **`trust` on `127.0.0.1`** | What the Hindsight sidecar already does. No secret to provision means nothing can crashloop the shared pod at first boot. The cost is real and named below |
+
+### The npm name is squatted
+
+#759 is explicit that the CLI is installed **from a pinned git ref, not from the
+npm registry — an unrelated package squats the name there.** That sentence has to
+survive into the runbook, because the runbook is what somebody actually types six
+months from now, and `bun install -g <name>` is the obvious thing to type.
+
+The blast radius is why it is called out here rather than left as a footnote: the
+install target is `$HOME=/opt/data/home`, the same Longhorn PVC that holds this
+pod's `claude` and `gh` credentials, in a pod with cluster access. A squatted
+package's postinstall script would run there, as the shell's own user. So the
+manual op (`orch-hermes-gbrain-cli-install`) spells out `git+<repo>#<ref>` with a
+pinned tag or commit SHA — not a bare name, and not a moving branch.
 
 ### What decision 4 actually costs
 
@@ -79,11 +93,12 @@ plus an `ALTER ROLE … PASSWORD`, not a redesign.
 
 The riskiest assumption in decision 3 is that a stock upstream image tolerates
 this pod's security posture — strict non-root, `cap-drop: ALL`, and a volume root
-that `fsGroup` leaves at `root:1000 0775`. That was tested rather than asserted,
-locally, before the spec was finished.
+that `fsGroup` leaves at `root:1000 2775` (the kubelet ORs the setgid bit into
+directories). That was tested rather than asserted, locally, before the spec was
+finished.
 
 Setup mirrored the pod exactly: `--user 1000:1000`, `--cap-drop ALL`, volume root
-`chown 0:1000` + `chmod 0775`, `PGDATA` a **subdirectory** of the mount, `trust`
+`chown 0:1000` + `chmod 2775`, `PGDATA` a **subdirectory** of the mount, `trust`
 auth, `-c listen_addresses=127.0.0.1 -c port=5434`, and a
 `/docker-entrypoint-initdb.d` script.
 
@@ -98,11 +113,19 @@ auth, `-c listen_addresses=127.0.0.1 -c port=5434`, and a
 
 Two findings changed the design:
 
-1. **`PGDATA` must be a subdirectory of the mount, not the mount root.** The
-   entrypoint creating that directory is precisely what makes it uid-1000-owned
-   and `0700`. Pointing `PGDATA` at the mount root — which `fsGroup` has already
-   set to `0775` — is how this fails. Both `apps/vk-remote` and the Hindsight
-   sidecar use the subdirectory form; now there is a recorded reason.
+1. **`PGDATA` must be a subdirectory of the mount, not the mount root.** One
+   mechanism explains both halves: the entrypoint's
+   `docker_create_db_directories` runs `chmod 00700 "$PGDATA" || :` on *every*
+   start, and it succeeds only because the container creates and owns that
+   subdirectory. Pointing `PGDATA` at the mount root — which `fsGroup` has
+   already set to `2775`, owned by root — makes the same chmod `EPERM`, the
+   `|| :` swallows it, and `initdb` dies on its own chmod. Both
+   `apps/vk-remote` and the Hindsight sidecar use the subdirectory form; now
+   there is a recorded reason. **Corollary, confirmed by re-reproduction on
+   2026-08-03:** that same per-boot chmod restores a populated `PGDATA` that an
+   `fsGroup` re-walk has re-loosened, so a stock image needs no image-side hook
+   and `fsGroupChangePolicy: OnRootMismatch` is defence-in-depth here, not a
+   load-bearing dependency.
 2. **The `-k /tmp` socket-directory flag the Hindsight image carries is not
    needed here.** The official Postgres image ships `/var/run/postgresql` at mode
    `3777` for exactly this arbitrary-uid case. One fewer flag, verified rather
@@ -256,6 +279,26 @@ alongside the one-time CLI install, which is manual by decision 2.
   provisions a working, empty, extension-enabled database and a runtime — no
   more. If the CLI turns out to need a role with different privileges or a second
   database, that is a follow-up.
+- **`/dev/shm` is 64 MiB, and pgvector builds HNSW indexes in parallel through
+  it.** Confirmed on the live pod. Postgres allocates dynamic-shared-memory
+  segments for parallel maintenance workers under `/dev/shm`, and the classic
+  symptom of running out is `could not resize shared memory segment … No space
+  left on device` during a `CREATE INDEX … USING hnsw` on a table large enough
+  to go parallel. Nothing in this design triggers it — the store ships empty and
+  the expected working set is low hundreds of MB — but the CLI owns its own
+  schema and index builds, so it is the CLI's workload that would find it.
+
+  Recorded rather than fixed, deliberately: **the `hindsight` sidecar has the
+  identical 64 MiB `/dev/shm`** and has run this way since the 2026-07-09
+  cutover, so this is a pre-existing family posture, not a regression this work
+  introduces. Pre-emptively changing it would mean shipping an unexercised
+  difference between the two Postgres sidecars in the same pod, which is a worse
+  trade than writing down the symptom. When it does bite, the fix is one of two
+  one-liners: an `emptyDir` with `medium: Memory` mounted at `/dev/shm` (sized
+  against the container's 1 Gi limit, which it counts against), or
+  `-c max_parallel_maintenance_workers=0` to build serially and slowly. Prefer
+  the first; reach for the second if memory is the tighter constraint.
+
 - **gpu-1's memory *limits* are already 119% of capacity** (requests are 25%).
   Adding a 1 Gi limit continues an existing overcommit rather than creating one,
   and the requests — the number the scheduler actually enforces — have ample
@@ -289,7 +332,7 @@ alongside the one-time CLI install, which is manual by decision 2.
 | 1 | After ArgoCD syncs, `kubectl -n hermes-agent-shell get pod` | Pod `4/4 Running`. **Hindsight's PVC still reports `5Gi` and its container is healthy** — the "untouched" claim, asserted on the artifact | Frank |
 | 2 | `psql -h 127.0.0.1 -p 5434 -U gbrain -d gbrain -c 'select extversion from pg_extension where extname = $$vector$$'` from inside the pod | Returns `0.8.6` | Frank |
 | 3 | `df -h /opt/gbrain` in the `gbrain` container | Its **own** volume, ~10 Gi, distinct from Hindsight's mount | Frank |
-| 4 | `kubectl -n hermes-agent-shell exec -c gbrain -- ls -ld /opt/gbrain/pgdata` | `drwx------` and uid 1000 — the `fsGroup` re-walk did not re-loosen it | Frank |
+| 4 | `kubectl -n hermes-agent-shell exec -c gbrain -- ls -ld /opt/gbrain /opt/gbrain/pgdata` | `pgdata` is `drwx------` and uid 1000. Also read the **mount root** here: it should be `root:1000 drwxrwsr-x` (`2775`) — the only live confirmation of the mode this spec quotes, which is otherwise derived from the kubelet's `SetVolumeOwnership` semantics rather than observed | Frank |
 | 5 | Delete the pod, let it come back | `gbrain` returns healthy on the **populated** volume, and a row written before the delete is still there. This is the check the local gate can only approximate | Frank |
 | 6 | Re-pin the ssh sidecar (or wait for the bump), then `bun --version` over **SSH** | Prints a version in a login shell, not just under `kubectl exec` | Frank |
 | 7 | Hand-install the CLI, then `<cli> --version` in a fresh SSH login | Resolves via the `profile.d` PATH shim | Frank |

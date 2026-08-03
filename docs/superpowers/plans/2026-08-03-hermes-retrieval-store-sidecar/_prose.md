@@ -106,10 +106,14 @@ why_manual: >
   public repos. The accepted cost is that the install is NOT reproducible from
   git: nothing reconciles it, nothing alerts when it is missing, and the
   symptom is `command not found` in a shell that otherwise looks healthy. If
-  the home PVC is ever rebuilt, repeat this op.
+  the home PVC is ever rebuilt, repeat this op. INSTALL FROM A PINNED GIT REF,
+  NEVER FROM THE NPM REGISTRY — #759 is explicit that an unrelated package
+  squats the name there, and this shell holds `gh` and `claude` credentials
+  with cluster access, so a mistaken `bun install -g <name>` puts a stranger's
+  postinstall script on that PVC.
 commands:
   - "ssh agent@192.168.55.226 (login shell — the Bun PATH shim is /etc/profile.d/36-hermes-bun-path.sh and only login shells read it)."
-  - "bun install -g <client CLI package>  # the package is named in the requesting repo's private issue, deliberately not written down in this public repo"
+  - "bun install -g 'git+<client CLI repo URL>#<pinned ref>'  # NOT from npm — the name is SQUATTED there by an unrelated package. Install from a PINNED git ref (tag or commit SHA), never a bare package name and never a moving branch. The repo URL and the ref are named in the requesting repo's private issue, deliberately not written down in this public repo."
   - "The global install lands under $HOME/.bun/bin on the hermes-agent-shell-home PVC, which is what makes it survive a pod recreate."
 verify:
   - "ssh agent@192.168.55.226 'bash -lc \"<cli> --version\"' → prints a version. Use `bash -lc`; `ssh host -- cmd` skips /etc/profile.d and would fail even on a correct install."
