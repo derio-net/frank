@@ -1,0 +1,97 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Tripwire harness — assert the defect exists, then lock the contract
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - feature-health-routing-preserved
+tasks:
+- number: 1
+  title: Parse the alert ConfigMap and prove the defect is present
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. Create `scripts/tests/test_feature_health_workload_metrics.py`.
+
+      `apps/grafana-alerting/manifests/alert-rules-cm.yaml` is a ConfigMap whose
+      `data` holds a Grafana provisioning document **as a YAML string** — the same
+      double-load shape as the headscale configmap test: `yaml.safe_load` the
+      ConfigMap, then `yaml.safe_load` the embedded string. Find the right data key
+      first (`kubectl`-free, just read it) rather than hardcoding a guess.
+
+      Write a module-level helper that returns every rule in the `feature-health`
+      folder as a flat list of dicts, each carrying its group name, so later tests
+      read declaratively. Model style on
+      `scripts/tests/test_igpu_dra_docs.py` (`REPO = Path(__file__).resolve().parents[2]`,
+      assertion messages that name the contract).
+
+      First assertion — the regression tripwire:
+
+          no rule in the feature-health folder references `kube_pod_status_ready`
+
+      Run `uv run --frozen pytest scripts/tests/test_feature_health_workload_metrics.py -q`
+      and confirm it FAILS, naming the 11 offending rules. Record the failure text
+      in the journal — that list is the work-list for phases 2 and 3.
+  - id: P1.T1.S2
+    text: |
+      GREEN-for-this-step is deferred: the tripwire above stays RED until phase 3
+      lands. That is intentional and must be visible, not silent.
+
+      Mark it `@pytest.mark.xfail(strict=True, reason="rules migrated in phases 2-3")`
+      so the suite is green now and **fails loudly the moment the migration
+      completes** — forcing whoever finishes phase 3 to remove the xfail rather
+      than leaving a permanently-disabled guard behind.
+
+      `strict=True` is load-bearing: without it an xpass is silently tolerated,
+      which is exactly the "silence a gate then call the area clean" failure the
+      repo has been bitten by before.
+
+      Run the file and confirm 1 xfailed, 0 failed.
+- number: 2
+  title: Lock the properties the rewrite must not break
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED then GREEN — these assert properties the CURRENT file already satisfies,
+      so they pass immediately. That is correct: their job is to fail if phases 2-4
+      break them. Write them now, before any rule is touched, so they are a genuine
+      before/after contract rather than a description of whatever the edit produced.
+
+      For every rule in the `feature-health` folder assert:
+
+      - `folder == "feature-health"` — routing in `notification-policy-cm.yaml`
+        keys on `grafana_folder="feature-health"`; a folder typo silently reroutes
+        a layer to Telegram
+      - a non-empty `uid`, and uids are globally unique across the document
+      - a `severity` label in `{warning, critical}`
+      - a `github_issue` label matching `^frank-ops#\d+$`
+      - `noDataState` and `execErrState` are present
+
+      Capture the current (uid -> severity, github_issue, folder) mapping as an
+      explicit expected-dict in the test for the 11 rules being migrated, so a
+      rewrite that silently changes a severity or drops a tracker fails.
+
+      Run the file: all pass except the xfail. Then run the whole suite
+      (`uv run --frozen pytest scripts/tests/ -q`) and record the baseline
+      pass/fail counts in the journal — 10 pre-existing failures in
+      `test_cnc_staging_*` are expected and unrelated.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T21:07:20+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-08-02T21:07:21+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T21:07:23+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T21:07:25+00:00'
+    note: null
+    observed_prs: []

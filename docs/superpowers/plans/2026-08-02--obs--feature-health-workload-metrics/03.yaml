@@ -1,0 +1,198 @@
+schema_version: 2
+phase:
+  number: 3
+  title: 'Migrate the 3 DaemonSet-bearing rules (for: 15m), plus layer-8, and retire
+    the xfail'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - feature-health-survives-node-reboot
+tasks:
+- number: 1
+  title: Encode the DaemonSet for:-policy, then migrate
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED. Extend the tripwire for the remaining 3 uids — `layer-3-networking-down`,
+      `layer-4-storage-down`, `layer-5-gpu-down` — with the same expr/threshold/
+      annotation assertions as phase 2, EXCEPT:
+
+      - allowed metrics also include `kube_daemonset_status_number_unavailable`
+      - `for` must be `15m`, not `5m`
+
+      Then add the policy guard that makes this durable rather than incidental:
+      derive which rules *may* match a DaemonSet by reading each rule's namespace
+      selector, and assert that any rule whose expr references
+      `kube_daemonset_status_number_unavailable` has `for: 15m` while every other
+      feature-health rule has `for: 5m`. This encodes the decision so a later
+      edit cannot quietly reintroduce reboot noise.
+
+      Confirm RED.
+  - id: P3.T1.S2
+    text: |
+      GREEN. Rewrite the 3 rules, same pattern as phase 2, `for: 15m`, adding the
+      `kind="daemonset"` branch via `label_replace`.
+
+      The rationale comment on these three must state the reason for 15m
+      explicitly: a DaemonSet reports replicas unavailable during ANY node drain,
+      so a 5m window would make every planned Talos rolling reboot produce an
+      alert burst — trading one noise source for another. The 2026-08-02
+      control-plane roll took roughly 7 minutes.
+  - id: P3.T1.S3
+    text: |
+      Retire the `@pytest.mark.xfail(strict=True)` on the no-`kube_pod_status_ready`
+      regression test, once every rule in the folder is migrated.
+
+      SEQUENCING (amended after phase 1 found a twelfth rule): the marker cannot
+      be removed at the end of task 1. `layer-8-observability-down` is still on
+      `kube_pod_status_ready` until task 3, so removing it here turns the suite
+      RED rather than green. The removal therefore happens as the last action of
+      **P3.T3.S3**, and this step is satisfied by that.
+
+      Because the marker is `strict=True`, an eleven-of-twelve migration reports
+      `FAILED [XPASS(strict)]` — there is no way to finish the phase while
+      leaving a rule behind. That is the forcing function working as designed;
+      do not weaken the marker to get past it.
+
+      BASELINE CORRECTION from phase 1: the "10 pre-existing `test_cnc_staging_*`
+      failures" briefed earlier does NOT reproduce. On a clean worktree the suite
+      is `535 passed, 1 xfailed, 0 failed` (the pre-existing xfail is
+      `test_series_index_adoption.py::test_papers_uses_same_layer_name_tag`, not
+      ours). Those cnc-staging tests appear to read live cluster state — a 24s
+      runtime for 13 tests — so their result moves with the cluster. Treat **0
+      failures** as the bar, and if you see any, verify against a clean baseline
+      before assuming you caused it:
+      `git archive origin/main | tar -x -C /tmp/baseline && cd /tmp/baseline && uv run --frozen pytest scripts/tests/ -q`
+- number: 2
+  title: Verify the 3 expressions against live data
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Same live-query check as P2.T2.S1 for the 3 DaemonSet-bearing expressions.
+
+      `layer-4-storage-down` is the one to watch: it targets
+      `longhorn-manager-.*`, which is a DaemonSet only — if the deployment branch
+      of its `or` returns nothing that is correct, but the daemonset branch MUST
+      return series. Assert both branches separately rather than only the union,
+      or a broken half hides behind a working half.
+- number: 3
+  title: Migrate layer-8-observability-down (the twelfth rule, found in phase 1)
+  steps:
+  - id: P3.T3.S1
+    text: |
+      RED. Phase 1's folder-wide tripwire found a TWELFTH rule using
+      `kube_pod_status_ready` that the brainstorm missed:
+      `layer-8-observability-down`. Read phase 1's open journal finding
+      (`fr journal render --scope plan`) and the spec's new
+      "The twelfth rule" section before touching it.
+
+      It is the least-broken of the twelve — it already filters tombstones inside
+      the query with `unless on(namespace,pod) kube_pod_status_phase{phase=~"Succeeded|Failed"}`,
+      which is why it did NOT fire during the 2026-08-02 flood. It is migrated
+      anyway: a second pattern for the same question in one folder is how the next
+      person gets confused, the join doubles series per evaluation, and leaving it
+      means the strict xfail can never xpass.
+
+      Add assertions for uid `layer-8-observability-down`:
+
+      - `expr` references no `kube_pod_status_ready` and no `kube_pod_status_phase`
+      - `expr` references `kube_deployment_status_replicas_unavailable` and the
+        two `kube_statefulset_*` metrics, and does NOT reference
+        `kube_daemonset_status_number_unavailable`
+      - the `probe_success` clause for
+        `http://health-bridge.monitoring.svc.cluster.local:8080/healthz` survives
+        VERBATIM
+      - `for` is `5m` (NOT 15m — see below), `severity` stays `critical`
+      - threshold is `{type: gt, params: [0]}`
+
+      This rule breaks the phase-3 for:-policy guard you wrote in P3.T1.S1, which
+      asserts "DaemonSet metric implies 15m". That guard stays correct as written
+      — layer-8 does not reference the DaemonSet metric — but re-read it and make
+      sure it does not also assert the converse ("monitoring namespace implies
+      15m"). If it does, narrow it to key off the METRIC, not the namespace.
+  - id: P3.T3.S2
+    text: |
+      GREEN. Rewrite layer-8 to query Deployments and StatefulSets in `monitoring`
+      ONLY — deliberately excluding the two DaemonSets (`fluent-bit`,
+      `victoria-metrics-prometheus-node-exporter`).
+
+      Those are node-level collectors: their unavailability during a node drain is
+      exactly the noise this whole change removes, and their real coverage is the
+      Layer 1/2 node alerts. Excluding them is what lets this rule keep `for: 5m`
+      — it is `severity: critical` and covers the alerting stack's own health, so
+      blunting detection to 15m would be a real loss for no gain.
+
+      Keep the `component` label convention so the summary still reads naturally:
+      the old rule produced `pod/<name>`; produce `<kind>/<name>` (e.g.
+      `deployment/vmagent-victoria-metrics-victoria-metrics-k8s-stack`) via
+      `label_replace`, and keep the `probe/health-bridge-healthz` branch exactly
+      as it is.
+
+      DELETE the `unless ... kube_pod_status_phase` join rather than porting it —
+      workload availability metrics have no tombstones to filter, so carrying it
+      forward would be cargo cult.
+
+      Update the rule's comment block: it currently explains the `unless` join.
+      Replace with why the rule is workload-level, why DaemonSets are excluded,
+      and why it stays at 5m while its siblings moved to 15m.
+  - id: P3.T3.S3
+    text: |
+      Verify live (same curl as P2.T2.S1) and confirm BOTH branches return series
+      independently — the workload branch and the `probe_success` branch. A
+      `probe_success` clause that silently stopped matching would remove the
+      sharpest signal in the folder while the rule still looked healthy.
+
+      Then retire the xfail (this is the real completion of P3.T1.S3 — with 12 of
+      12 rules migrated it can finally xpass) and run the full suite.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-08-02T21:54:50+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-08-02T21:54:52+00:00'
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-08-02T21:54:54+00:00'
+      note: satisfied by P3.T3.S3, where the marker was actually removed — it could
+        not be removed at the end of task 1 because layer-8 was still unmigrated and
+        strict=True would have failed the suite on an eleven-of-twelve xpass
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-08-02T21:54:55+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-08-02T22:09:15+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-08-02T22:09:16+00:00'
+      note: null
+    P3.T3.S3:
+      state: x
+      ticked_at: '2026-08-02T22:09:18+00:00'
+      note: null
+  completion:
+    at: '2026-08-02T22:09:20+00:00'
+    note: >-
+      Acceptance row `feature-health-survives-node-reboot` stays
+      `not-implemented`, deliberately. It reads "a control-plane rolling reboot
+      completes without any feature-health alert firing for a terminated pod" —
+      a live-behaviour claim no static test can earn. These rules are not on the
+      cluster yet (ArgoCD syncs from main; this is a PR branch), and settling it
+      needs an actual node reboot observed against the reloaded Grafana. Phase 6
+      is the manual phase that owns flipping the acceptance rows, and this is
+      its work. Phase 3 did what it can toward it: all 12 rules now count
+      replicas instead of pod readiness, so no tombstone can reach them, and the
+      three DaemonSet-bearing rules wait 15m to absorb the drain itself (the
+      2026-08-02 roll took ~7 minutes). Every rewritten expr was queried live and
+      returns series valued 0 on a healthy cluster — the correct quiet state
+      under `gt 0`, where the old `lt 1` readings would have fired all four
+      permanently.
+    observed_prs: []
