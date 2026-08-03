@@ -3,7 +3,7 @@
 **Spec:** `docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md`
 **Issue:** frank#755
 **Layer:** `obs` (8) — Observability
-**Status:** Not Started
+**Status:** In Progress — phases 1-4 complete; phase 5 pending operator apply (task 1 is a PRE-MERGE gate, tasks 2-3 are post-merge evidence)
 
 ## What this fixes
 
@@ -44,13 +44,41 @@ notice if they drift, which is why it is written as a derivation (parse the port
 out of the ConfigPatch URL, parse the IPs out of the machine table) rather than
 as a third hardcoded copy.
 
-## Ordering, and why the manual phase is last
+## Ordering: the manual phase is a PRE-MERGE gate, not a back-loaded one
 
-The GitOps half is inert but harmless before the ConfigPatch lands: the target is
-simply down, and every rule sits at `NoData` with `noDataState: OK`, so nothing
-fires. There is no generic target-down pager on Frank. That is what allows the
-manual work to be back-loaded — the PR ships phase 5 unimplemented and the
-operator pushes the evidence to the same PR.
+This plan was written believing the opposite — that the GitOps half was "inert
+but harmless before the ConfigPatch lands: the target is simply down, and every
+rule sits at `NoData` with `noDataState: OK`, so nothing fires". **That is
+false**, and code review caught it before the PR opened.
+
+`up` is not a series etcd exports. The scraper synthesises one **per configured
+target**, `1` on a successful scrape and `0` on a failed one; it is never
+*absent* while the target is configured. And supplying `kubeEtcd.endpoints` is
+precisely what creates targets — the chart drops its pod selector and renders a
+static `Endpoints` object with three addresses. So the instant ArgoCD syncs the
+values block, vmagent has three targets dialling a port that is
+connection-refused, and they sit at **`up=0`, not NoData**.
+`layer-2-etcd-member-down` is `up < 1` at `for: 10m`, critical, with no
+`health_bridge_only` — so it fires ten minutes after the merge and, on the
+notification policy's root `repeat_interval: 3m`, pages Telegram every three
+minutes, three instances at a time, against a perfectly healthy quorum.
+
+Frank already contains a live instance of the shape: `count(up==0) by (job)`
+returns `{job="kube-scheduler"} 3`, and `max_over_time(up{job="kube-scheduler"}[90d])`
+is 0 on all three. Populated Endpoints, a scrape that then fails on TLS/auth
+against 10259, and `up=0` — not NoData — for the entire retention window.
+
+So phase 5 task 1 (apply the patch, confirm the listener) runs **before** the PR
+merges; tasks 2 and 3 stay post-merge. The fix is the ordering rather than a
+looser rule, because the ConfigPatch is harmless standalone: it opens a
+read-only metrics port that nothing is yet scraping. De-fanging the paging rules
+instead would buy the same quiet by discarding the signal this plan exists to
+add.
+
+The same asymmetry governs rollback — deleting the ConfigPatch alone leaves the
+`Endpoints` object in place, so `up` reads 0 rather than disappearing, the
+member-down rule pages, and the `absent()` watchdog stays silent. A real
+rollback reverts both halves.
 
 ## The rule that exists because of code review
 

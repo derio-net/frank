@@ -41,9 +41,26 @@
 # at a time, asserting quorum between nodes with `talosctl -n <ip> etcd status`
 # (3 members, one leader) before moving on.
 #
-# ROLLBACK: delete the ConfigPatch. etcd returns to serving metrics on 2379
-# only, and the scrape target simply goes down — every alert rule added by this
-# layer uses `noDataState: OK`, so nothing fires.
+# ORDERING — THIS IS A PRE-MERGE GATE. APPLY IT *BEFORE* THE kubeEtcd VALUES
+# BLOCK MERGES.
+# `up` is NOT a series etcd exports: the scraper synthesises one per configured
+# target, 1 on a successful scrape and 0 on a failed one, and it is never ABSENT
+# while the target is configured. Supplying kubeEtcd.endpoints is what creates
+# targets (the chart drops its pod selector for a static Endpoints object), so
+# merging first hands vmagent three targets dialling a refused port: they sit at
+# up=0, NOT NoData, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no
+# health_bridge_only) pages Telegram every 3 minutes against a healthy quorum.
+# Frank already has a live instance of the shape — kube-scheduler has three
+# POPULATED Endpoints and a scrape that fails on TLS/auth against 10259, and has
+# read up=0 (not NoData) for the whole retention window.
+#
+# ROLLBACK: revert BOTH halves — the kubeEtcd block in
+# apps/victoria-metrics/values.yaml FIRST, then delete this ConfigPatch.
+# Deleting the ConfigPatch alone is not quiet: the Endpoints object survives, so
+# up goes to 0 rather than disappearing — layer-2-etcd-member-down PAGES, while
+# absent(up{job="kube-etcd"}) stays empty so the blindness watchdog never fires.
+# Only the five etcd_server_/disk_/mvcc_ rules go NoData and read OK.
+# Full prose: patches/phase08-obs/README.md.
 #
 # The port here is asserted equal to `kubeEtcd.service.targetPort` in
 # apps/victoria-metrics/values.yaml by scripts/tests/test_etcd_scrape.py. The

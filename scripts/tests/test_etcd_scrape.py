@@ -599,15 +599,34 @@ def test_etcd_rules_use_the_three_step_sse_shape():
 def test_etcd_rules_declare_nodata_ok_and_execerr_error():
     """`noDataState: OK` is the deliberate posture, and it has a cost.
 
-    Grafana defaults an omitted `noDataState` to `NoData`, which FIRES. Before
-    the ConfigPatch lands the target is simply down, so every one of these rules
-    sits at NoData — omitting the field would page on merge, for a cluster that
-    is perfectly healthy.
+    Grafana defaults an omitted `noDataState` to `NoData`, which FIRES. Every
+    rule here that queries an `etcd_server_*` / `etcd_disk_*` / `etcd_mvcc_*`
+    series is NoData whenever the scrape is failing — no scrape, no samples —
+    so omitting the field would fire against a healthy cluster.
 
-    The cost is that a scrape which disappears LATER also reads OK, which is
-    precisely why `layer-2-etcd-scrape-absent` exists. Stating both fields is
-    what makes that trade-off visible in the file instead of implied by a
-    default.
+    **The `up{job=...}` rules are the asymmetric case, and an earlier version of
+    this docstring stated the falsehood as fact.** It said "before the
+    ConfigPatch lands the target is simply down, so every one of these rules
+    sits at NoData". That is wrong for exactly one of them, and it is the one
+    that pages. `up` is not exported by etcd — the SCRAPER synthesises it, once
+    per configured target, every interval: `1` on a successful scrape and `0` on
+    a failed one. It is never absent while the target is configured, and
+    supplying `kubeEtcd.endpoints` configures three of them the moment ArgoCD
+    syncs. So with the listener still closed, `layer-2-etcd-member-down`
+    (`up < 1`) is not NoData — it is `0 < 1`, true, and it pages after `for:
+    10m`. That is why the ConfigPatch is a PRE-MERGE gate (see
+    `patches/phase08-obs/README.md` and the design spec's "Ordering is NOT safe
+    in either direction"), and why `test_the_ordering_claim_is_not_reverted`
+    below guards the docs that say so.
+
+    Live instance of the same shape on Frank, 2026-08-03:
+    `count(up==0) by (job)` returns `{job="kube-scheduler"} 3` — populated
+    Endpoints, failing scrape, `up=0` rather than NoData.
+
+    The cost of `noDataState: OK` is that a scrape which disappears LATER also
+    reads OK, which is precisely why `layer-2-etcd-scrape-absent` exists.
+    Stating both fields is what makes that trade-off visible in the file instead
+    of implied by a default.
     """
     offenders = {
         uid: {
@@ -620,8 +639,11 @@ def test_etcd_rules_declare_nodata_ok_and_execerr_error():
     assert not offenders, (
         "etcd alert rule(s) do not declare `noDataState: OK` / "
         f"`execErrState: Error`: {offenders}. An omitted noDataState defaults "
-        "to NoData, which fires — and these rules are NoData by construction "
-        "until the operator applies the Talos ConfigPatch."
+        "to NoData, which fires — and the five etcd_*-querying rules are NoData "
+        "by construction until the operator applies the Talos ConfigPatch. (The "
+        "up{job=...} rules are NOT: the scraper synthesises up=0 for a "
+        "configured-but-unreachable target, which is why that ConfigPatch is a "
+        "pre-merge gate.)"
     )
 
 
@@ -1341,4 +1363,184 @@ def test_the_two_copies_of_the_manual_operation_agree():
         "the README is silently discarded on the next sync, and a fix applied "
         "only to the plan leaves the operator reading the old procedure at the "
         "moment they are restarting the quorum."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The ordering claim is load-bearing, was WRONG, and must not silently revert.
+#
+# Every ordering statement in this branch originally said the ConfigPatch could
+# be applied before or after the merge, on the reasoning that "the target is
+# simply down and the rules sit at NoData with noDataState: OK — nothing fires".
+# That is false. `up` is not a series etcd exports: the SCRAPER synthesises one
+# per configured target, every interval, `1` on success and `0` on failure. It is
+# never absent while the target is configured — and supplying `kubeEtcd.endpoints`
+# is exactly what configures three of them.
+#
+# So merging first does not produce a quiet NoData window. It produces three
+# `up=0` targets, `layer-2-etcd-member-down` firing at `for: 10m`, and Telegram
+# paged every 3 minutes (the notification policy's root repeat_interval) against
+# a perfectly healthy quorum, until an operator applies a patch the plan had
+# deferred. Frank already contains a live instance of the shape: `kube-scheduler`
+# has three POPULATED Endpoints and a scrape that fails on TLS/auth against
+# 10259, and `max_over_time(up{job="kube-scheduler"}[90d])` is 0 — not NoData —
+# on all three.
+#
+# This guard exists because the defect WAS a documentation claim. Nothing in the
+# manifests was wrong; seven prose statements were, and they were what the
+# implementation trusted. So the tripwire is on the prose, deliberately, and it
+# is anchored to the manifest fact that makes the prose necessary.
+# ---------------------------------------------------------------------------
+
+DESIGN_SPEC = (
+    REPO
+    / "docs"
+    / "superpowers"
+    / "specs"
+    / "2026-08-03--obs--etcd-scrape-control-plane-design.md"
+)
+
+_SPEC_ROOTS = (
+    REPO / "docs" / "superpowers" / "specs",
+    REPO / "docs" / "superpowers" / "implemented" / "specs",
+)
+
+PLAN_PROSE_FILE = "_prose.md"
+
+# The affirmative claim that was wrong. Case-sensitive on the capitalised form
+# so the corrected documents can still QUOTE the old sentence in lower case
+# while explaining why it was false — which every one of them now does.
+_REVERTED_ORDERING_CLAIMS = (
+    "Ordering is safe in either direction",
+    "Ordering is safe either way",
+)
+
+# What a document that gets this right must contain: the conclusion (a pre-merge
+# gate) and the MECHANISM (up is synthesised by the scraper). Requiring both is
+# what stops the correction decaying into an unexplained assertion that the next
+# reader has no way to evaluate and therefore no reason to keep.
+_PRE_MERGE = re.compile(r"pre-?merge", re.IGNORECASE)
+_SYNTHESISED = re.compile(r"synthesis", re.IGNORECASE)
+
+
+def _spec_path() -> pathlib.Path:
+    for root in _SPEC_ROOTS:
+        candidate = root / DESIGN_SPEC.name
+        if candidate.exists():
+            return candidate
+    raise AssertionError(
+        f"could not find {DESIGN_SPEC.name} under "
+        f"{[str(p.relative_to(REPO)) for p in _SPEC_ROOTS]} — the design spec is "
+        "the ordering authority; if it moved, add the root here rather than "
+        "deleting the check"
+    )
+
+
+def _plan_prose() -> pathlib.Path:
+    for root in _PLAN_ROOTS:
+        candidate = root / PLAN_SLUG / PLAN_PROSE_FILE
+        if candidate.exists():
+            return candidate
+    raise AssertionError(
+        f"could not find {PLAN_SLUG}/{PLAN_PROSE_FILE} under "
+        f"{[str(p.relative_to(REPO)) for p in _PLAN_ROOTS]}"
+    )
+
+
+def _paging_rules_built_on_up() -> dict[str, str]:
+    """Paging rules whose query is `up{job=...}` — not `absent(up{...})`.
+
+    These are the rules that make the ordering load-bearing: only a rule that
+    reads the SYNTHESISED `up` value (rather than its presence) can fire while
+    the listener is closed, and only a rule with no `health_bridge_only` label
+    can reach Telegram when it does.
+    """
+    found: dict[str, str] = {}
+    for uid, rule in _etcd_rules().items():
+        if uid not in ETCD_PAGING_UIDS:
+            continue
+        expr = _rule_expr(rule)
+        if "absent" in expr:
+            continue
+        if _UP_JOB.search(expr):
+            found[uid] = expr
+    return found
+
+
+def test_the_ordering_claim_is_not_reverted():
+    """The docs must say pre-merge gate, and say WHY, for as long as a paging
+    rule reads `up{job=...}` directly.
+
+    Anchored to the manifests rather than free-floating: the requirement on the
+    prose is derived from the existence of a rule that pages on a synthesised
+    `up=0`. If a future redesign removes that rule, this guard's premise is gone
+    and it says so loudly rather than passing vacuously — a test that keeps
+    going green after the thing it guards has been deleted is how a tripwire
+    becomes decoration.
+    """
+    paging_on_up = _paging_rules_built_on_up()
+    assert paging_on_up, (
+        "no paging etcd rule queries `up{job=...}` any more, so the premise of "
+        "this guard — that merging the values block before the ConfigPatch is "
+        "applied pages Telegram — no longer holds.\n"
+        f"  paging uids: {sorted(ETCD_PAGING_UIDS)}\n"
+        "If that is a deliberate redesign, the ordering documentation (which "
+        "currently declares a PRE-MERGE GATE in the design spec, the patches "
+        "README, the ConfigPatch header and the plan) has to be revisited in "
+        "the same change, and this test deleted with it. If it is not "
+        "deliberate, a rule has been repointed away from target liveness and "
+        "the member-down signal is gone."
+    )
+
+    documents = {
+        _spec_path(): "the design authority",
+        PATCH_README: "what an operator reads next to the patch",
+        CONFIGPATCH: "the file being applied",
+        _plan_prose(): "the plan's narrative",
+        _plan_phase_5(): "the phase the operator executes",
+    }
+
+    faults: dict[str, list[str]] = {}
+    for path, role in documents.items():
+        text = path.read_text(encoding="utf-8")
+        problems: list[str] = []
+
+        reverted = [claim for claim in _REVERTED_ORDERING_CLAIMS if claim in text]
+        if reverted:
+            problems.append(
+                f"carries the reverted claim(s) {reverted} — `up` is "
+                "synthesised per configured target and reads 0, not absent, on "
+                "a failed scrape, so the order is NOT free"
+            )
+        if not _PRE_MERGE.search(text):
+            problems.append(
+                "never says the ConfigPatch is a pre-merge gate"
+            )
+        if not _SYNTHESISED.search(text):
+            problems.append(
+                "states the ordering without the mechanism (that the scraper "
+                "SYNTHESISES `up` for every configured target) — an "
+                "unexplained ordering constraint is one a future reader has no "
+                "way to evaluate, and this constraint has already been "
+                "reasoned away once"
+            )
+        if problems:
+            faults[f"{path.relative_to(REPO)} ({role})"] = problems
+
+    assert not faults, (
+        "the etcd ordering documentation has reverted or lost its reasoning.\n"
+        "  The rule that makes ordering load-bearing: "
+        f"{sorted(paging_on_up)}\n"
+        "  `up` is NOT exported by etcd. vmagent synthesises one series per "
+        "CONFIGURED target every interval — 1 on a successful scrape, 0 on a "
+        "failed one — and never omits it while the target is configured. "
+        "Supplying kubeEtcd.endpoints is what creates the targets, so merging "
+        "before the listener is open gives three targets at up=0 (not NoData), "
+        "layer-2-etcd-member-down fires at for: 10m, and the notification "
+        "policy's root repeat_interval: 3m pages Telegram every 3 minutes "
+        "against a healthy quorum.\n"
+        "  Live instance on Frank, 2026-08-03: count(up==0) by (job) returns "
+        "{job=\"kube-scheduler\"} 3, and max_over_time(up{job=\"kube-scheduler\"}"
+        "[90d]) is 0 on all three — populated Endpoints, failing scrape, up=0.\n"
+        f"  faults: {faults}"
     )

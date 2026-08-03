@@ -1,7 +1,7 @@
 schema_version: 2
 phase:
   number: 5
-  title: '[manual] Apply the ConfigPatch and produce the acceptance evidence'
+  title: '[manual] Apply the ConfigPatch (pre-merge gate) and produce the acceptance evidence'
   tag: manual
   depends_on:
   - 4
@@ -11,11 +11,34 @@ phase:
   - obs-etcd-blindness-is-tracked
 tasks:
 - number: 1
-  title: Apply the Talos ConfigPatch to the control-plane machine set
+  title: '[PRE-MERGE GATE] Apply the Talos ConfigPatch to the control-plane machine set'
   steps:
   - id: P5.T1.S1
     text: |
-      OPERATOR. Requires `source .env` (repo root — KUBECONFIG/TALOSCONFIG
+      OPERATOR. **This task is a PRE-MERGE GATE. Task 1 (both steps) must be
+      done, and the listener confirmed, BEFORE this PR is merged.** Tasks 2
+      and 3 are post-merge.
+
+      Why the order inverts — an earlier draft of this plan had it backwards.
+      `up` is not a series etcd exports: the scraper SYNTHESISES one per
+      configured target, 1 on a successful scrape and 0 on a failed one, and
+      it is never ABSENT while the target is configured. Supplying
+      `kubeEtcd.endpoints` is exactly what creates targets (the chart drops
+      its pod selector for a static `Endpoints` object), so merging first
+      hands vmagent three targets dialling a refused port. They sit at
+      `up=0`, NOT NoData — and `layer-2-etcd-member-down` (`up lt 1`,
+      `for: 10m`, critical, no `health_bridge_only`) fires ten minutes later
+      and repeats to Telegram every 3 minutes, against a perfectly healthy
+      quorum, until this patch is applied.
+
+      Frank already contains a live instance of that shape:
+      `count(up==0) by (job)` returns `{job="kube-scheduler"} 3`, and
+      `max_over_time(up{job="kube-scheduler"}[90d])` is 0 on all three —
+      populated Endpoints, failing scrape, `up=0` rather than NoData, for the
+      whole retention window. Applying this patch first costs nothing: it
+      opens a read-only metrics port nothing is yet scraping.
+
+      Requires `source .env` (repo root — KUBECONFIG/TALOSCONFIG
       are RELATIVE paths) and `source .env_devops` (Omni service account).
 
       ```
@@ -51,7 +74,7 @@ tasks:
       layer: obs
       app: victoria-metrics
       plan: docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane
-      when: "After the PR merges and ArgoCD has synced the kubeEtcd block in apps/victoria-metrics/values.yaml. Ordering is safe either way — before the patch the scrape target is simply down and every rule sits at NoData with noDataState: OK."
+      when: "BEFORE the PR carrying the kubeEtcd block in apps/victoria-metrics/values.yaml is merged. This is a pre-merge gate, not a post-merge follow-up. `up` is synthesised by the scraper for every configured target and reads 0 on a failed scrape, never absent — so merging first hands vmagent three targets dialling a refused port, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no health_bridge_only) pages Telegram every 3 minutes against a perfectly healthy quorum. Rollback reverts BOTH halves for the same reason."
       why_manual: "Omni lives outside the cluster and the apply needs the Omni service-account credential, so it cannot be driven by ArgoCD. It also restarts etcd on each control-plane node in turn, which must be watched one node at a time with quorum asserted between nodes — a rolling restart of the quorum is not something to fire and forget."
       commands:
         - source .env && source .env_devops
@@ -82,7 +105,12 @@ tasks:
       ```
   - id: P5.T1.S2
     text: |
-      OPERATOR. Confirm the listener, from inside the cluster:
+      OPERATOR. **Still pre-merge — this step is the gate's evidence.** It
+      needs nothing from the merge (it is a wget from the vmagent pod), and
+      it is what turns "omnictl exited 0" into proof that etcd actually
+      restarted with the new argument.
+
+      Confirm the listener, from inside the cluster:
 
       ```
       kubectl -n monitoring exec deploy/vmagent-... -c vmagent -- \
@@ -93,11 +121,12 @@ tasks:
       the patch, all three returned `Connection refused` — that is the
       recorded before-state.
 - number: 2
-  title: Confirm the scrape, the rules, and the dashboard are live
+  title: '[post-merge] Confirm the scrape, the rules, and the dashboard are live'
   steps:
   - id: P5.T2.S1
     text: |
-      OPERATOR. In VMUI or via the vmsingle pod:
+      OPERATOR. POST-MERGE, once ArgoCD has synced the kubeEtcd block. In
+      VMUI or via the vmsingle pod:
 
         - `up{job="kube-etcd"}` returns **3 series, all 1**
         - `etcd_server_has_leader`, `etcd_disk_wal_fsync_duration_seconds_bucket`
@@ -129,7 +158,7 @@ tasks:
       Restore selfHeal AND force a sync in the same session. End with the
       app `Synced`, not merely `Healthy`.
 - number: 3
-  title: Re-run the soak and rewrite the acceptance evidence
+  title: '[post-merge] Re-run the soak and rewrite the acceptance evidence'
   steps:
   - id: P5.T3.S1
     text: |

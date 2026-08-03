@@ -107,9 +107,14 @@ signal we are adding in order to trust the control plane.
 
 **This is operator work.** Applying it needs `omnictl` with the Omni service
 account, and it restarts etcd on each control-plane node in turn. It is the plan's
-**back-loaded manual phase** — the PR ships it unimplemented.
+manual phase — and it is a **pre-merge gate**, not a back-loaded one: see
+"Ordering is NOT safe in either direction" below for why the GitOps half pages
+Telegram every three minutes if it lands first.
 
-Rollback is deleting the ConfigPatch; etcd returns to serving metrics on 2379 only.
+Rollback is deleting the ConfigPatch **and reverting the `kubeEtcd` values block
+in the same breath**; etcd returns to serving metrics on 2379 only. Deleting the
+ConfigPatch alone converts the rollback into a pager — same asymmetry, same
+reason.
 
 ### Half 2 — point the scrape at it (GitOps, ArgoCD)
 
@@ -148,10 +153,71 @@ are fixed by Talos machine config, so a static list is not a drift risk — but 
 *is* a duplication, and the tripwire below asserts it against the repo's own
 machine table.
 
-**Ordering is safe in either direction.** If the values merge before the
-ConfigPatch is applied, the target is simply down and the rules sit at `NoData`
-with `noDataState: OK` — nothing fires. There is no generic "target down" pager
-on Frank.
+### Ordering is NOT safe in either direction — the ConfigPatch is a pre-merge gate
+
+An earlier draft of this design claimed the opposite, in seven places: *"if the
+values merge before the ConfigPatch is applied, the target is simply down and the
+rules sit at `NoData` with `noDataState: OK` — nothing fires."* **That claim is
+false, and it is false for a reason worth stating precisely, because the same
+mistake governs rollback.**
+
+`up` is not a series etcd exports. It is **synthesised by the scraper, once per
+configured target, on every scrape interval** — `1` when the scrape succeeded and
+**`0` when it failed**. It is never *absent* for a target that is configured. So
+"the target is down" and "the series is missing" are not the same state, and only
+the second one is NoData.
+
+Supplying `kubeEtcd.endpoints` is precisely what creates targets: the chart drops
+the pod selector and renders a static `Endpoints` object carrying three
+addresses, so vmagent gains three targets the instant ArgoCD syncs. Port 2381 is
+connection-refused until the ConfigPatch is applied. Those three targets
+therefore sit at **`up=0`, not NoData**, and:
+
+- `layer-2-etcd-member-down` is `up{job="kube-etcd"} < 1`, `for: 10m`,
+  `severity: critical`, with **no** `health_bridge_only` label — so it fires ten
+  minutes after the sync;
+- the notification policy's root `repeat_interval` is **3m**, so it then pages
+  Telegram **every three minutes, three instances at a time**, against a
+  perfectly healthy quorum;
+- it keeps doing that until an operator applies a ConfigPatch that this design
+  had deliberately deferred to *after* the merge.
+
+The other five rules genuinely are NoData in that window (they query
+`etcd_server_*` / `etcd_disk_*` / `etcd_mvcc_*`, which a failed scrape produces
+none of) and genuinely do read OK. `up` is the one asymmetric case — and it is
+the case the two paging rules are built on.
+
+**Live proof, measured on Frank 2026-08-03.** This is not a theoretical reading
+of the scrape protocol; the cluster already contains an instance of it:
+
+```
+count(up==0) by (job)                          ->  {job="kube-scheduler"}  3
+max_over_time(up{job="kube-scheduler"}[90d])   ->  0, 0, 0   (all three targets)
+```
+
+`kube-scheduler` has three **populated** Endpoints — Talos runs it as a static
+pod carrying `component: kube-scheduler`, so the chart's selector works — and a
+scrape that then **fails**, because Talos binds 10259 with TLS/auth the chart
+default does not satisfy. It has sat at `up=0`, not NoData, for the entire
+retention window. `kube-etcd` enters exactly that state the moment this values
+block merges with the listener still closed.
+
+**So the order inverts: the operator applies the ConfigPatch BEFORE this PR is
+merged.** That is the right resolution rather than de-fanging the rule, because
+the ConfigPatch is *harmless standalone*: it opens a read-only, key-material-free
+metrics port that nothing yet scrapes, and changes no other behaviour. Applying
+it first costs nothing, makes every claim in this design true at the moment of
+merge, and lets the scrape come up healthy immediately instead of alarming.
+Relaxing `for:`, adding `health_bridge_only` to the paging rules, or shipping the
+values block disabled would each buy the same quiet at the price of the signal
+this layer exists to add.
+
+**Rollback inherits the asymmetry.** Deleting the ConfigPatch on its own is *not*
+quiet either: the `Endpoints` object survives in git and on the cluster, `up`
+goes to `0` rather than absent, `absent(up{job="kube-etcd"})` stays empty so the
+blindness watchdog never fires, and `layer-2-etcd-member-down` pages. A real
+rollback reverts **both halves** — the ConfigPatch *and* the `kubeEtcd` values
+block. See `patches/phase08-obs/README.md`.
 
 ### Half 2b — the signals
 
@@ -293,10 +359,21 @@ files and nothing else connects them:
 
 ## Test Plan
 
-Post-merge, operator-driven. Steps 1–2 are the manual phase; 3–6 produce the
-acceptance evidence (`d4-testplan`).
+Operator-driven, and **split across the merge**.
 
-1. **Apply the ConfigPatch.** `omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml`
+**Steps 1–2 are a PRE-MERGE GATE.** The ConfigPatch must be applied, and the
+listener confirmed responding on all three minis, *before* this PR is merged.
+Merging first does not produce a quiet NoData window — it produces three
+`up=0` targets, a `layer-2-etcd-member-down` page ten minutes later, and a
+Telegram repeat every three minutes against a healthy quorum. See "Ordering is
+NOT safe in either direction" above for the mechanism and the live proof.
+Step 2 belongs to the gate because it needs nothing from the merge (it is a
+`wget` from the vmagent pod) and it is what turns "omnictl exited 0" into
+evidence; the plan's phase 5 task 1 carries both steps for the same reason.
+
+**Steps 3–6 are post-merge** and produce the acceptance evidence (`d4-testplan`).
+
+1. **Apply the ConfigPatch.** *(pre-merge)* `omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml`
    (needs `source .env_devops` for the Omni service account, and `source .env`
    from the repo root for the relative `TALOSCONFIG`). Watch the rolling etcd
    restart **one node at a time**, asserting quorum between nodes:
@@ -308,10 +385,12 @@ acceptance evidence (`d4-testplan`).
    scoping is copied from a patch that demonstrably landed (phase13-auth,
    PR #742), but the apply itself is unverified here by construction. It is the
    manual phase for exactly that reason.
-2. **Confirm the listener.** From the vmagent pod:
+2. **Confirm the listener.** *(pre-merge — this is the gate's evidence)* From the
+   vmagent pod:
    `wget -qO- http://192.168.55.2{1,2,3}:2381/metrics | head` returns etcd metrics
-   on all three.
-3. **Confirm the scrape.** `up{job="kube-etcd"}` returns **3 series, all 1**, and
+   on all three. Before the patch all three returned `Connection refused`; that
+   is the recorded before-state, and the transition is what makes the merge safe.
+3. **Confirm the scrape.** *(post-merge)* `up{job="kube-etcd"}` returns **3 series, all 1**, and
    `etcd_server_has_leader` / `etcd_disk_wal_fsync_duration_seconds_bucket` /
    `etcd_mvcc_db_total_size_in_bytes` exist in VMSingle.
 4. **Confirm the rules evaluate.** All five rules are `Normal`, not `NoData` and

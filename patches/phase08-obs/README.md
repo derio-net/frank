@@ -63,13 +63,47 @@ and asserts it against `kubeEtcd.service.targetPort` — and derives the three
 control-plane addresses out of `agents/rules/frank-infrastructure.md` rather
 than restating them.
 
-**Ordering is safe in either direction.** If the values merge before this patch
-is applied, the target is simply down and every rule sits at `NoData` with
-`noDataState: OK` — nothing fires.
+## Ordering: this patch is a PRE-MERGE gate
+
+**Apply this patch BEFORE the PR carrying the `kubeEtcd` values block merges.**
+
+An earlier draft of this file said the opposite — "ordering is safe in either
+direction; before the patch the target is simply down and every rule sits at
+`NoData` with `noDataState: OK`". That is wrong, and the mechanism matters:
+
+**`up` is not a series etcd exports. The scraper synthesises it for every
+configured target — `1` on a successful scrape, `0` on a failed one — and it is
+never *absent* while the target is configured.** Supplying `kubeEtcd.endpoints`
+is exactly what creates targets: the chart drops its pod selector and renders a
+static `Endpoints` object with three addresses. So the moment ArgoCD syncs the
+values block, vmagent has three targets dialling a port that is
+connection-refused, and they sit at **`up=0`, not NoData**.
+
+`layer-2-etcd-member-down` is `up{job="kube-etcd"} < 1`, `for: 10m`,
+`severity: critical`, with no `health_bridge_only` label. It therefore fires ten
+minutes after the sync, and the notification policy's root `repeat_interval: 3m`
+pages Telegram every three minutes, three instances at a time, against a
+perfectly healthy quorum — until this patch is applied.
+
+Frank already contains a live instance of this shape. `kube-scheduler` has three
+*populated* Endpoints (Talos runs it as a static pod, so the chart's selector
+works) and a scrape that then fails on TLS/auth against 10259:
+
+```text
+count(up==0) by (job)                         ->  {job="kube-scheduler"}  3
+max_over_time(up{job="kube-scheduler"}[90d])  ->  0, 0, 0
+```
+
+Not NoData. `up=0`, for the whole retention window.
+
+Applying this patch first costs nothing — it opens a read-only metrics port that
+nothing is yet scraping, and changes no other behaviour — and it makes the scrape
+come up healthy on the very first sync instead of alarming.
 
 ## Application
 
-See the manual-operation block below. In short:
+See the manual-operation block below. It runs **before** the GitOps half merges
+(see "Ordering" above). In short:
 
 ```bash
 source .env && source .env_devops
@@ -80,20 +114,36 @@ It triggers a rolling **etcd restart** on each control-plane node in turn. Watch
 the roll one node at a time and assert quorum *between* nodes, not after all
 three.
 
-## Rollback
+## Rollback — revert BOTH halves, or the rollback is a pager
 
-Delete the ConfigPatch:
+**A rollback is two changes, in this order:**
+
+1. revert the `kubeEtcd` block in `apps/victoria-metrics/values.yaml` (git, via
+   ArgoCD) — this removes the static `Endpoints` object and therefore the targets;
+2. then delete the ConfigPatch:
 
 ```bash
 source .env_devops
 omnictl delete configpatch 160-etcd-metrics-listener
 ```
 
-etcd returns to serving metrics on 2379 only. The scrape target goes down; every
-alert rule this layer added uses `noDataState: OK`, so nothing fires. The
-`layer-2-etcd-scrape-absent` watchdog will report the blindness to the Health
-Bridge (not to Telegram) after 15 minutes, which is the intended behaviour — a
-deliberate rollback should be recorded as blindness, because that is what it is.
+**Deleting the ConfigPatch alone is NOT quiet, despite what an earlier draft of
+this file claimed.** The `Endpoints` object survives, so the three targets survive
+— they just stop answering. `up` goes to **`0`**, not absent:
+
+- `layer-2-etcd-member-down` (`up < 1`, `for: 10m`, critical, pages) **fires**,
+  and repeats to Telegram every 3 minutes;
+- `absent(up{job="kube-etcd"})` stays **empty**, because the series is still
+  there at value 0 — so `layer-2-etcd-scrape-absent`, the watchdog whose whole
+  job is to notice blindness, never fires;
+- the five `etcd_server_*` / `etcd_disk_*` / `etcd_mvcc_*` rules do go NoData and
+  do read OK.
+
+So the half of the alerting that should stay quiet pages, and the half that
+should speak up stays silent. Reverting the values block first removes the
+targets, at which point `up` genuinely disappears, `absent()` fires, and the
+blindness is recorded as blindness — which is the intended behaviour for a
+deliberate rollback.
 
 ## Manual operation
 
@@ -114,7 +164,7 @@ id: obs-etcd-metrics-listener-apply
 layer: obs
 app: victoria-metrics
 plan: docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane
-when: "After the PR merges and ArgoCD has synced the kubeEtcd block in apps/victoria-metrics/values.yaml. Ordering is safe either way — before the patch the scrape target is simply down and every rule sits at NoData with noDataState: OK."
+when: "BEFORE the PR carrying the kubeEtcd block in apps/victoria-metrics/values.yaml is merged. This is a pre-merge gate, not a post-merge follow-up. `up` is synthesised by the scraper for every configured target and reads 0 on a failed scrape, never absent — so merging first hands vmagent three targets dialling a refused port, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no health_bridge_only) pages Telegram every 3 minutes against a perfectly healthy quorum. Rollback reverts BOTH halves for the same reason."
 why_manual: "Omni lives outside the cluster and the apply needs the Omni service-account credential, so it cannot be driven by ArgoCD. It also restarts etcd on each control-plane node in turn, which must be watched one node at a time with quorum asserted between nodes — a rolling restart of the quorum is not something to fire and forget."
 commands:
   - source .env && source .env_devops
