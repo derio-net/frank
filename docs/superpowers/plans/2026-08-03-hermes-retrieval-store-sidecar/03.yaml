@@ -1,0 +1,81 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Documentation — the DSN, the manual install, the gotcha
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: App-level documentation
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Document the store where an operator will look for it.
+
+      In `apps/hermes-agent-shell/README.md`, add a short section covering:
+      the DSN `postgres://gbrain@127.0.0.1:5434/gbrain`; that it is
+      loopback-only with `trust` auth and what that implies inside the pod;
+      that the extension is created at initdb and later changes are `psql`
+      work; and that the client CLI is installed by the operator onto the home
+      PVC and must be reinstalled if that PVC is ever rebuilt.
+
+      Be explicit that adding this container recreates the pod (`Recreate`
+      strategy, RWO volumes), so Hindsight bounces and live tmux/SSH
+      sessions drop — the issue's "no restart required" refers to avoiding
+      a volume DETACH, not to avoiding a pod restart.
+  - id: P3.T1.S2
+    text: |-
+      Add a one-line gotcha to `agents/rules/frank-gotchas.md` under the
+      Agent shells section, and the full prose to
+      `docs/runbooks/frank-gotchas/agent-shells.md`.
+
+      The durable, non-obvious lesson is the one the design gate produced:
+      a stock Postgres image runs fine under strict non-root + cap-drop
+      ALL + fsGroup ONLY when PGDATA is a SUBDIRECTORY of the mount, because
+      the entrypoint creating that directory is what makes it uid-owned and
+      0700; the mount root has already been widened to 0775 by fsGroup, and
+      Postgres refuses anything wider than 0750. Include that the official
+      image ships `/var/run/postgresql` at mode 3777, so the `-k /tmp`
+      workaround the hindsight image carries is NOT needed.
+- number: 2
+  title: Register the manual operations
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Add `# manual-operation` fenced YAML blocks to this plan's `_prose.md`
+      for the two operator steps, using the schema in the `sync-runbook`
+      skill (`id`, `layer`, `app`, `plan`, `when`, `why_manual`, `commands`,
+      `verify`, `status`):
+
+      - `orch-hermes-gbrain-cli-install` — the one-time `bun install -g`
+        of the client CLI onto the home PVC, with a `verify` that runs in a
+        LOGIN shell (`ssh … 'bash -lc "<cli> --version"'`), not
+        `ssh host -- cmd`, which skips /etc/profile.d entirely.
+      - `orch-hermes-ssh-bun-repin` — re-pinning the ssh sidecar image to
+        the agent-images build that carries Bun, with the note that the
+        scheduled agent-images bump re-pins it eventually if nobody does so
+        sooner.
+
+      Then run `/sync-runbook` so `docs/runbooks/manual-operations.yaml`
+      picks them up. Note the runbook is GENERATED from plan blocks — a
+      later fix must edit the block here, or the next sync reverts it.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-08-03T16:06:24+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-08-03T16:06:26+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-08-03T16:06:28+00:00'
+      note: null
+  completion:
+    at: '2026-08-03T16:06:29+00:00'
+    note: null
+    observed_prs: []

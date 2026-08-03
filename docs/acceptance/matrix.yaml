@@ -874,3 +874,35 @@ rows:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
   notes: 'Two-part claim, one part now proven live. PROVEN (2026-08-03, post-merge): the by-design workloads do NOT alert — comfyui (gpu-switcher timeshare) and litellm (Rollout scaleDown: onsuccess, serving 5/5) both sit at 0 replicas and the shipped expr returns 0 series, while the same query with exclusions stripped returns exactly those 2, so it is quiet for the right reason rather than by matching nothing. NOT PROVEN: that an UNEXPECTED scale-to-0 raises the alert — needs a real one. Note the rule sits in Normal (NoData) in the healthy case by construction: its expr is a PromQL filter, so ''no series'' IS the healthy state (noDataState: OK). The exclusion set is derived in CI from gpu-switcher''s WORKLOADS env var and every Rollout workloadRef with scaleDown: onsuccess, so it cannot drift silently. Rule carries health_bridge_only: ''true'' — verified present on the live ConfigMap.'
+- id: orch-hermes-retrieval-store-available
+  capability: Agent shell retrieval store
+  acceptance: From inside the hermes-agent-shell pod, an operator can reach a dedicated PostgreSQL 18 database with
+    the pgvector extension enabled, on its own loopback port, without touching Hindsight.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--orch--hermes-retrieval-store-sidecar-design.md
+  status: not-implemented
+  notes: 'Closes on Test Plan rows 2-3 (post-merge): the extension query the issue itself specifies returns 0.8.6,
+    and df shows its own volume. Deliberately NOT closed by the design-time container gate — that proved the image
+    behaves under this pod''s security posture on a laptop, which is evidence for the design, not for the deployment.'
+- id: orch-hermes-retrieval-store-isolated
+  capability: Agent shell retrieval store
+  acceptance: The retrieval store's data lives on its own backed-up Longhorn volume, so a Hindsight restore, migration
+    or resize cannot take the retrieval store with it, and vice versa.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--orch--hermes-retrieval-store-sidecar-design.md
+  status: not-implemented
+  notes: 'This is the whole point of the 2026-08-03 revision to frank#759, which withdrew the shared-database shape.
+    Closes on Test Plan rows 1, 3 and 5: Hindsight''s PVC still reports 5Gi and its container is healthy, gbrain
+    is on a distinct mount, and gbrain data survives a pod delete. Asserted on the artifacts, not on ArgoCD sync
+    status.'
+- id: orch-hermes-shell-js-runtime
+  capability: Agent shell retrieval store
+  acceptance: An operator logging in over SSH has a JavaScript runtime available and can install a CLI from a git
+    ref that survives pod restarts.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--orch--hermes-retrieval-store-sidecar-design.md
+  status: not-implemented
+  notes: 'Closes on Test Plan rows 6-8. Row 8 is the load-bearing one: it tests the PVC-persistence claim that decision
+    2 (CLI installed by hand rather than baked) entirely rests on. If it fails, decision 2 is wrong and the CLI
+    belongs in the image. Rows 6-7 must be run in a LOGIN shell (bash -lc) — ''ssh host -- cmd'' skips /etc/profile.d
+    and would prove nothing about the PATH shim.'
