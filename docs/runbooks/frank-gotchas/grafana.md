@@ -586,3 +586,32 @@ via `.github/workflows/repo-tripwires.yml`. The durable parts are the
 no-pod-readiness tripwire, the two `for: 15m` policy guards, the exemption-rot
 guard and the exclusion-set derivation; the per-uid expectation maps are
 migration scaffolding.
+
+### A filter-style rule sits in `NoData` when it is healthy
+
+`workload-unexpectedly-scaled-to-zero` is permanently in `Normal (NoData)` on a
+healthy cluster, and that is correct. Its expression is a PromQL **filter**:
+
+```promql
+kube_deployment_spec_replicas{namespace!~"ollama|comfyui",deployment!~"litellm"} == 0
+```
+
+`== 0` drops every series that does not match, so when nothing is unexpectedly
+scaled to zero the query returns **no series at all** — which is precisely the
+condition the rule exists to report as healthy. `noDataState: OK` means it never
+alerts on that.
+
+This inverts the usual reading. For the twelve migrated rules, whose expressions
+always return series, `NoData` means the query is wrong — a typo'd metric name
+produces NoData rather than an error, and that is the check worth running after
+any rule edit. For a filter-style rule it means the opposite.
+
+Measured 2026-08-03 post-merge: 5 feature-health rules in `NoData`, of which 4
+were already there beforehand (the two cert-expiry canary-absent watchdogs,
+`Exercise Reminder Stale`, `VK Issue Bridge Failures`). The delta was exactly
+this one rule.
+
+So the post-deploy check "no feature-health rule is in NoData" needs a carve-out
+for filter-style rules, or it reports a healthy rule as broken. Same PromQL fact
+as the `== 0` / `lt 1` threshold pairing documented above, showing up in a
+second place.

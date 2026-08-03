@@ -817,13 +817,7 @@ rows:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
-  notes: 'The defect this migration removes: 48 alerts fired on 2026-08-02 for NodeShutdown tombstones
-    against a healthy cluster. Pinned in CI by the no-kube_pod_status_ready tripwire; full proof arrives
-    at the next reboot. All 12 offending rules are migrated as of phase 3 and the folder-wide
-    no-kube_pod_status_ready tripwire is live (it carried xfail(strict=True) through phases 1-2 and was
-    retired when the twelfth rule landed). Stays not-implemented because the claim is about observed
-    behaviour during a control-plane roll, and no roll has happened since: CI proves the defect class is
-    absent from the manifests, not that a reboot passes quietly. Flips at the next node reboot.'
+  notes: 'Phase 6 live run 2026-08-03 (PR #756, merge b8558529): 39 feature-health rules live, ZERO still querying kube_pod_status_ready, and the firing set fell 25 -> 3 (2 TLS canaries + 1 gpu_timeshare) — the exact muted/by-design baseline. STILL not-implemented because the claim is about what happens DURING a control-plane roll, and no roll has occurred since the merge. What is proven: the defect class is absent from the manifests (CI) and from the live ConfigMap. What is not: that a reboot passes quietly. Flips at the next node reboot.'
 - id: feature-health-detects-real-outage
   capability: Feature-health alerting
   acceptance: A workload that loses all available replicas still raises its layer's feature-health alert.
@@ -833,15 +827,7 @@ rows:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
-  notes: 'The coverage claim the migration must not regress. All 14 shipped expressions were extracted
-    from the ConfigMap (never retyped) and run against live VictoriaMetrics, each top-level `or` branch
-    separately: every branch returns series independently, every series carries workload + lowercase kind,
-    and every value is 0 — the correct quiet state under gt 0, and the permanently-firing state under the
-    old lt 1, which is the per-rule polarity proof. The StatefulSet subtraction joins 13 = 13 cluster-wide.
-    Still not-implemented: that proves the queries resolve and are correctly polarised, not that a real
-    outage raises the alert. Flips when Grafana has reloaded the provisioning file (read at boot, not
-    watched) and an outage or injected failure is observed. Known narrowing recorded in grafana.md:
-    layer-12 no longer watches the Rollout-managed sympozium-apiserver replicas.'
+  notes: 'Phase 6 live run 2026-08-03: all 14 expressions return series against live VictoriaMetrics, each `or` branch independently, every series carrying workload + lowercase kind, every value 0 — the correct quiet state under gt 0 and the permanently-firing state under the old lt 1, which is the per-rule polarity proof. STILL not-implemented: that proves the queries resolve and are correctly polarised, not that losing replicas RAISES the alert. Needs an injected or genuine failure. Known narrowing recorded in grafana.md: layer-12 no longer watches the Rollout-managed sympozium-apiserver replicas.'
 - id: feature-health-routing-preserved
   capability: Feature-health alerting
   acceptance: The routing-relevant fields of every migrated feature-health alert — folder, uid, severity
@@ -878,16 +864,4 @@ rows:
     unit:
     - frank:scripts/tests/test_feature_health_workload_metrics.py
   status: not-implemented
-  notes: 'Exclusion set derived in CI from gpu-switcher''s WORKLOADS env var and every Rollout workloadRef
-    with scaleDown: onsuccess. Live-checked against comfyui (timeshare) and litellm (Rollout scale-down)
-    both sitting at 0 while healthy. Phase 4 (2026-08-03) shipped the rule and the derivation: the guard
-    parses both declarative sources and set-compares them against the rule''s exclusion regexes (refusing
-    any non-literal alternative, so "exactly, no more and no less" stays a checkable claim), and a
-    companion assertion fails if a Rollout''s whole namespace is excluded rather than the Deployment by
-    name. Live-verified in BOTH directions: the shipped expr returns 0 series, the same expr with the
-    exclusions stripped returns comfyui and litellm, and the selector without the == 0 filter returns 73
-    Deployments - so the quiet state is quiet because nothing is wrong, not because the selector matches
-    nothing. Still not-implemented: the second half of the claim ("raises an alert") needs an actual
-    scale-to-0 observed after Grafana reloads the provisioning file, which it reads at boot rather than
-    watching. That is the phase 6 post-merge step. Deliberately not flipped on the exclusion half alone,
-    matching the discipline on the two sibling rows.'
+  notes: 'Two-part claim, one part now proven live. PROVEN (2026-08-03, post-merge): the by-design workloads do NOT alert — comfyui (gpu-switcher timeshare) and litellm (Rollout scaleDown: onsuccess, serving 5/5) both sit at 0 replicas and the shipped expr returns 0 series, while the same query with exclusions stripped returns exactly those 2, so it is quiet for the right reason rather than by matching nothing. NOT PROVEN: that an UNEXPECTED scale-to-0 raises the alert — needs a real one. Note the rule sits in Normal (NoData) in the healthy case by construction: its expr is a PromQL filter, so ''no series'' IS the healthy state (noDataState: OK). The exclusion set is derived in CI from gpu-switcher''s WORKLOADS env var and every Rollout workloadRef with scaleDown: onsuccess, so it cannot drift silently. Rule carries health_bridge_only: ''true'' — verified present on the live ConfigMap.'

@@ -1226,3 +1226,59 @@ applied where I meant it to". Re-parse the artifact and assert the mutated value
 before running the suite — a green result from an unapplied mutation is
 indistinguishable from a vacuous guard, and the wrong conclusion is the
 comfortable one.
+
+<!-- fr:journal kind=finding scope=plan id=ee382c32c4c3 created=2026-08-03T09:48:55 phase=6 state=fixed -->
+### ee382c32c4c3 · finding [fixed] · Post-merge verification: firing set 25 -> 3, the predicted baseline (phase 6)
+
+Phase 6 run 2026-08-03, after PR #756 merged as `b8558529`.
+
+**ArgoCD reconcile lag is real and looks exactly like the stale-revision
+gotcha.** Immediately after the merge, `grafana-alerting` reported
+`Synced/Healthy` at revision `b3a1a18d` — one commit behind main, and that one
+commit was the merge. Asserting on the ARTIFACT rather than the sync status
+showed the live ConfigMap still carrying all twelve `kube_pod_status_ready`
+rules and neither new rule. It picked up `b8558529` ~2 minutes later on its own,
+so this was ordinary lag, not the `argocd.md` stale-revision bug — but the two
+are indistinguishable at the moment you look, which is the argument for checking
+the artifact every time.
+
+Grafana rolled (`rollout restart deploy/victoria-metrics-grafana`) — provisioning
+files are read at boot and never watched, so the merge is inert until this runs.
+
+**Live results:**
+
+| check | result |
+|---|---|
+| feature-health rules live | 39 |
+| still on `kube_pod_status_ready` | **NONE** |
+| `workload-unexpectedly-scaled-to-zero` | present, `health_bridge_only: "true"` intact |
+| `layer-8-observability-collectors-down` | present |
+| firing set | **3** — 2 TLS canaries + 1 gpu_timeshare |
+| scale-to-0 expr | 0 series |
+| same, exclusions stripped | 2 (`comfyui`, `litellm`) — quiet for the right reason |
+
+25 permanently-firing alerts -> 3. The 3 are exactly the muted/by-design
+baseline the spec predicted.
+
+<!-- fr:journal kind=discovery scope=plan id=c9e9bfd7397c created=2026-08-03T09:48:57 phase=6 -->
+### c9e9bfd7397c · discovery · Test Plan step 2 is wrong for filter-style rules: NoData IS the healthy state (phase 6)
+
+The Test Plan asserts "zero feature-health rules in `Normal (NoData)`", on the
+reasoning that a typo`d metric name yields NoData rather than an error. That
+holds for the twelve migrated rules, whose exprs always return series.
+
+It does NOT hold for `workload-unexpectedly-scaled-to-zero`. Its expr is a
+PromQL **filter** (`kube_deployment_spec_replicas{...} == 0`), so when nothing
+is unexpectedly scaled to zero it returns **no series at all** — and "no series"
+is precisely the condition the rule exists to report as healthy. It sits in
+`Normal (NoData)` permanently in the good case, with `noDataState: OK` so it
+never alerts on that.
+
+Measured: 5 feature-health rules in NoData post-merge; 4 were already there at
+session start (the two cert-expiry canary-absent watchdogs, Exercise Reminder
+Stale, VK Issue Bridge Failures), so the delta is exactly this rule.
+
+The trap for whoever audits NoData next: this rule looks broken and is not.
+Worth a line in `grafana.md` — a filter-style rule inverts the usual reading,
+where NoData means "the query is wrong". Same family as the `== 0` / `lt 1`
+pairing already documented there, and it follows from the same PromQL fact.
