@@ -393,9 +393,9 @@ evidence; the plan's phase 5 task 1 carries both steps for the same reason.
 3. **Confirm the scrape.** *(post-merge)* `up{job="kube-etcd"}` returns **3 series, all 1**, and
    `etcd_server_has_leader` / `etcd_disk_wal_fsync_duration_seconds_bucket` /
    `etcd_mvcc_db_total_size_in_bytes` exist in VMSingle.
-4. **Confirm the rules evaluate.** All five rules are `Normal`, not `NoData` and
-   not `Error`, in Grafana's rule list; the etcd dashboard renders data in all
-   five panels.
+4. **Confirm the rules evaluate.** All **six** rules are `Normal`, not `NoData`
+   and not `Error`, in Grafana's rule list; the curated etcd dashboard
+   (`frank-l2-etcd`) renders data in all five panels.
 5. **Baseline (60 s idle):** record `etcd_server_leader_changes_seen_total`,
    `etcd_server_has_leader`, WAL fsync p99, and apiserver p99
    (**excluding `verb=~"WATCH|CONNECT"`** — unfiltered it reads a flat 60 s,
