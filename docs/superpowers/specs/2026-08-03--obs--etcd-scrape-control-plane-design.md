@@ -226,6 +226,12 @@ The panels are not decoration — they are where the acceptance re-run's
 before/under-load evidence lives. Without them the promoted row has no durable
 home beyond a paragraph of prose.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|-----------|
+| 2026-08-03--obs--etcd-scrape-control-plane | `derio-net/frank` | `2026-08-03--obs--etcd-scrape-control-plane` | — |
+
 ## Rejected alternatives
 
 | Alternative | Why not |

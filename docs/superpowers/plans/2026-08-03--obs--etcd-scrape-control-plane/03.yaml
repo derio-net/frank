@@ -1,0 +1,63 @@
+schema_version: 2
+phase:
+  number: 3
+  title: The dashboard — where the acceptance evidence will live
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - obs-etcd-server-metrics-scraped
+tasks:
+- number: 1
+  title: Tripwire — dashboard ConfigMap exists, is mounted, and queries etcd server
+    metrics
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED. Add `test_etcd_dashboard_is_provisioned_and_mounted`:
+
+        - `apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml` exists and
+          is a ConfigMap carrying a provider yaml and a dashboard json
+        - the dashboard json parses and has exactly the five panels from
+          the spec, each with a non-empty title
+        - every panel target's `expr` references an
+          `etcd_(server|disk|mvcc|network)_` metric — same negative
+          assertion as the rules: no `etcd_request_*`
+        - `apps/victoria-metrics/values.yaml` `grafana.extraConfigmapMounts`
+          contains BOTH the provider mount and the json mount for this
+          ConfigMap
+
+      The mount assertion is the one that would otherwise be forgotten: a
+      dashboard ConfigMap that exists but is not mounted syncs green in
+      ArgoCD and renders nowhere. Every other dashboard on Frank needs two
+      mount entries; this is a two-place edit that looks like one.
+
+      Confirm FAIL.
+  - id: P3.T1.S2
+    text: |
+      GREEN. Write `apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml`,
+      modelling it on `secure-agent-pod-dashboard-cm.yaml` (the smallest of
+      the existing boards). Five panels per the spec: has_leader per node
+      (stat), leader changes/1h, WAL fsync p99, DB size vs quota (gauge),
+      peer round-trip p99.
+
+      Add the two `extraConfigmapMounts` entries to
+      `apps/victoria-metrics/values.yaml`, following the existing
+      provider/json pair pattern exactly.
+
+      Re-run. Confirm PASS.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

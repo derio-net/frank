@@ -1,0 +1,195 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Wire the scrape — ConfigPatch and chart values, guarded across the file boundary
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - obs-etcd-server-metrics-scraped
+tasks:
+- number: 1
+  title: Tripwire — the Talos ConfigPatch that opens the metrics listener
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. Create `scripts/tests/test_etcd_scrape.py`.
+
+      Model the style on `scripts/tests/test_igpu_dra_docs.py`:
+      `REPO = Path(__file__).resolve().parents[2]`, module-level loader
+      helpers, and assertion messages that state the contract rather than
+      the value.
+
+      First test: `test_configpatch_opens_the_metrics_listener`. It loads
+      `patches/phase08-obs/omni-configpatch-etcd-metrics.yaml` and asserts:
+
+        - `metadata.type == "ConfigPatches.omni.sidero.dev"`
+        - `metadata.labels["omni.sidero.dev/cluster"] == "frank"`
+        - `metadata.labels["omni.sidero.dev/machine-set"] == "frank-control-planes"`
+        - the embedded `spec.data` YAML string parses, and
+          `cluster.etcd.extraArgs["listen-metrics-urls"] == "http://0.0.0.0:2381"`
+
+      Note `spec.data` is a YAML document embedded as a **string** — the
+      same double-load shape as the alert ConfigMap and the headscale
+      config test. Load the outer document, then `yaml.safe_load` the
+      `data` value.
+
+      The machine-set assertion is the load-bearing one. etcd runs only on
+      control planes; a fleet-wide patch would push etcd args to four
+      workers that run no etcd.
+
+      Run `uv run --frozen pytest scripts/tests/test_etcd_scrape.py -q`.
+      Confirm it FAILS on the missing file — not on an import error.
+  - id: P1.T1.S2
+    text: |
+      GREEN. Create `patches/phase08-obs/omni-configpatch-etcd-metrics.yaml`,
+      copying the structure of `patches/phase13-auth/omni-configpatch.yaml`
+      (the only existing machine-set-scoped patch, and one that demonstrably
+      landed — PR #742).
+
+      ```yaml
+      metadata:
+          namespace: default
+          type: ConfigPatches.omni.sidero.dev
+          id: 160-etcd-metrics-listener
+          labels:
+              omni.sidero.dev/cluster: frank
+              omni.sidero.dev/machine-set: frank-control-planes
+      spec:
+          data: |
+              cluster:
+                  etcd:
+                      extraArgs:
+                          listen-metrics-urls: http://0.0.0.0:2381
+      ```
+
+      Header comment must record WHY plain HTTP is acceptable (the metrics
+      listener serves `/metrics` and `/health` only, carries no key
+      material, and the alternative — scraping 2379 — requires an etcd
+      client certificate that also grants full read/write to cluster
+      state) and that `id: 160` was verified free against all 30 patches
+      in `patches/`.
+
+      Re-run the test. Confirm PASS.
+- number: 2
+  title: Tripwire — chart values point a static Endpoints object at the three minis
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED. Add `test_kube_etcd_values_target_the_control_planes` to the same
+      file. Load `apps/victoria-metrics/values.yaml` and assert:
+
+        - `kubeEtcd.enabled is True`
+        - `kubeEtcd.service.port == 2381` and `targetPort == 2381`
+        - `kubeEtcd.endpoints` is exactly the three control-plane IPs
+        - the single `vmScrape.spec.endpoints` entry has
+          `scheme == "http"` and `port == "http-metrics"`
+        - that entry carries **no** `bearerTokenFile` and no
+          `bearerTokenSecret` and no `tlsConfig`
+
+      The negative assertions matter more than the positive ones. The
+      chart's DEFAULT `vmScrape` uses `scheme: https` plus a ServiceAccount
+      bearer token, aimed at port 2379. Inheriting any part of that default
+      produces a target that fails forever while the config looks
+      plausible.
+
+      Confirm FAIL (values.yaml has no `kubeEtcd` key at all today).
+  - id: P1.T2.S2
+    text: |
+      GREEN. Add the `kubeEtcd` block to `apps/victoria-metrics/values.yaml`,
+      placed next to the existing `kubeControllerManager` disable so the
+      control-plane component scrapes read together.
+
+      Follow that file's established comment discipline — the
+      `promscrape.maxScrapeSize` and `kubelet` blocks both explain the
+      failure they prevent. This block must record:
+
+        - the chart default is `kubeEtcd.enabled: true`, and the Service +
+          empty Endpoints have existed for 148 days
+        - the selector `component: etcd` targets a POD; Talos runs etcd as
+          a host system service, so it can never match
+        - supplying `endpoints:` switches the chart to a static Endpoints
+          object, which is what a host service requires
+        - the `vmScrape` override REPLACES the default wholesale, and that
+          is deliberate
+
+      Re-run. Confirm PASS.
+- number: 3
+  title: Tripwire — the two halves cannot drift apart
+  steps:
+  - id: P1.T3.S1
+    text: |
+      RED-then-GREEN (this asserts a property the two files now satisfy, so
+      write it and watch it pass — then mutation-check it).
+
+      Add `test_listener_port_matches_the_scrape_target_port`: parse the
+      port out of the ConfigPatch's `listen-metrics-urls` URL and assert it
+      equals `kubeEtcd.service.targetPort`.
+
+      Add `test_endpoints_match_the_documented_control_plane_ips`: parse the
+      control-plane rows out of the machine table in
+      `agents/rules/frank-infrastructure.md` and assert the set equals
+      `kubeEtcd.endpoints`. Derive the IPs — do not hardcode a second copy,
+      or the guard becomes the third place the addresses live.
+
+      These are the whole reason this file exists. The ConfigPatch and the
+      chart values live in different directories, are applied by different
+      tools (omnictl vs ArgoCD), and nothing else in the repo connects
+      them. A port typo in either produces exactly the silent-empty-target
+      failure being fixed.
+
+      **Mutation-check both**: temporarily change the ConfigPatch port to
+      2382, confirm the test fails and names the mismatch; revert. Do the
+      same with one endpoint IP. Record both failure messages in the
+      journal via `fr journal add --scope plan --kind discovery`.
+  - id: P1.T3.S2
+    text: |
+      Verify the chart actually renders what the tests assume, at the
+      pinned version — the tests assert the INPUT, this asserts the OUTPUT.
+
+      ```
+      helm template vm-test vm/victoria-metrics-k8s-stack --version 0.72.4 \
+        -f <(python3 -c "import yaml,sys;d=yaml.safe_load(open('apps/victoria-metrics/values.yaml'));print(yaml.dump({'kubeEtcd':d['kubeEtcd']}))") \
+        --set victoria-metrics-operator.enabled=false
+      ```
+
+      Confirm the output contains a headless Service on 2381, an
+      `Endpoints` object carrying the three mini IPs, and a
+      `VMServiceScrape` whose Service label is `jobLabel: kube-etcd`.
+
+      That last one is load-bearing for phase 2: the alert rules select on
+      `job="kube-etcd"`, and that string comes from the chart, not from us.
+      Record the rendered job label in the journal.
+
+      Note this uses `rtk proxy helm ...` if rtk is rewriting helm output —
+      `rtk` summarises command output, which silently truncates the render.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

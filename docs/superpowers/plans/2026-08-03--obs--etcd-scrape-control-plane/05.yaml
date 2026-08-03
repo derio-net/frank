@@ -1,0 +1,172 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Apply the ConfigPatch and produce the acceptance evidence'
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+  acceptance:
+  - obs-etcd-server-metrics-scraped
+  - obs-etcd-blindness-is-tracked
+tasks:
+- number: 1
+  title: Apply the Talos ConfigPatch to the control-plane machine set
+  steps:
+  - id: P5.T1.S1
+    text: |
+      OPERATOR. Requires `source .env` (repo root — KUBECONFIG/TALOSCONFIG
+      are RELATIVE paths) and `source .env_devops` (Omni service account).
+
+      ```
+      omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
+      ```
+
+      This restarts etcd on each control-plane node in turn. Assert quorum
+      BETWEEN nodes, not after all three:
+
+      ```
+      talosctl -n 192.168.55.21 etcd status   # 3 members, exactly one leader
+      ```
+
+      Do not proceed to the next node until the previous one is back in the
+      member list with a leader elected.
+
+      Omni is known to wedge silently on a cold-boot clock jump — the UI
+      keeps serving cached reads while the reconcile runtime is stopped, so
+      an applied patch never reaches its node. If nothing changes on the
+      first node within a few minutes, `docker restart omni` on the Omni
+      host and refresh the stored talosconfig.
+  - id: P5.T1.S2
+    text: |
+      OPERATOR. Confirm the listener, from inside the cluster:
+
+      ```
+      kubectl -n monitoring exec deploy/vmagent-... -c vmagent -- \
+        wget -qO- http://192.168.55.21:2381/metrics | head
+      ```
+
+      Repeat for .22 and .23. All three must return etcd metrics. Before
+      the patch, all three returned `Connection refused` — that is the
+      recorded before-state.
+- number: 2
+  title: Confirm the scrape, the rules, and the dashboard are live
+  steps:
+  - id: P5.T2.S1
+    text: |
+      OPERATOR. In VMUI or via the vmsingle pod:
+
+        - `up{job="kube-etcd"}` returns **3 series, all 1**
+        - `etcd_server_has_leader`, `etcd_disk_wal_fsync_duration_seconds_bucket`
+          and `etcd_mvcc_db_total_size_in_bytes` all return data
+
+      Then in Grafana: all six rules are `Normal` — not `NoData`, not
+      `Error` — and the etcd dashboard renders data in all five panels.
+
+      A rule sitting at NoData here means the scrape did not land; do not
+      record the phase complete on a green ArgoCD status. ArgoCD reports
+      sync, not evidence, and on this repo `Synced` has twice meant
+      "synced to a stale revision".
+  - id: P5.T2.S2
+    text: |
+      OPERATOR. Prove the blindness watchdog actually works, which is the
+      only way `obs-etcd-blindness-is-tracked` can be evidenced.
+
+      Deliberately pause the scrape — the least invasive way is to
+      temporarily empty `kubeEtcd.endpoints` on the LIVE VMServiceScrape's
+      Endpoints object (suspend the app's selfHeal first; see
+      `agents/rules/frank-argocd.md` for the full suspend/restore recipe,
+      including passing the WHOLE `automated` map so `prune: false` is not
+      silently dropped).
+
+      Wait out `for: 15m`. Confirm the `absent()` watchdog fires, reaches
+      health-bridge, and does NOT reach Telegram. Then restore and confirm
+      it clears.
+
+      Restore selfHeal AND force a sync in the same session. End with the
+      app `Synced`, not merely `Healthy`.
+- number: 3
+  title: Re-run the soak and rewrite the acceptance evidence
+  steps:
+  - id: P5.T3.S1
+    text: |
+      OPERATOR. Baseline, 60s idle: record
+      `etcd_server_leader_changes_seen_total`, `etcd_server_has_leader`,
+      WAL fsync p99, and apiserver p99.
+
+      The apiserver query MUST exclude `verb=~"WATCH|CONNECT"`. Unfiltered
+      it reads a flat 60s — that is the apiserver's long-poll timeout, not
+      latency, and it swamps the quantile. Excluded, it is ~22ms.
+  - id: P5.T3.S2
+    text: |
+      OPERATOR. Re-run the soak: 7500 rerank requests over 240s (~31/s)
+      from mini-1, matching the 2026-08-03 measurement so the numbers are
+      comparable rather than merely new.
+
+      Capture the same four signals under load.
+  - id: P5.T3.S3
+    text: |
+      OPERATOR. Rewrite the `infer-igpu-workload-preserves-quorum` notes in
+      `docs/acceptance/matrix.yaml` with the before/under-load numbers,
+      deleting the sentence "NOT VERIFIABLE: etcd leader changes and WAL
+      fsync -- Frank does not scrape etcd".
+
+      The status stays `skipped` — that is this repo's convention for a row
+      proved by live operator measurement (see
+      `gpu1-usb-25g-node-ip-stable`), and `fr acceptance` has no `manual`
+      status. Deleting that sentence, not flipping a status, is the
+      deliverable.
+
+      Also update the notes on the three new `obs-etcd-*` rows with what
+      was actually observed.
+
+      Then `fr acceptance report --deterministic` — `add` is append-only
+      and there is no `set`, so status edits are hand-edits followed by a
+      regenerate.
+
+      If the soak shows quorum WAS disturbed, record that. A row that
+      reports the workload is unsafe is a successful measurement, not a
+      failed one.
+  - id: P5.T3.S4
+    text: |
+      OPERATOR. Close-out: run `/sync-runbook` now that the manual op has
+      actually been performed, add the measured numbers to the operating
+      post's new section, and set the plan status to `Deployed`.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
