@@ -43,7 +43,9 @@ graph LR
             pvcC["comfyui-config<br/>10Gi RWX"]
         end
 
-        cfy --- pvcs
+        cfy --- pvcM
+        cfy --- pvcO
+        cfy --- pvcC
     end
 
     subgraph gpunode["gpu-1 node"]

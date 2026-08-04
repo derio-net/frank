@@ -255,26 +255,49 @@ features:
 
 # Blog-craft quality gates.
 #
-# mermaid_syntax is OFF because turning it on would fail CI on content that
-# already shipped, not on anything this branch changed. The gate rejects edges
-# that target a subgraph id (`svc --> mySubgraph`), and frank's back catalogue
-# has 50 of them across ~30 posts. That shape is legal Mermaid and renders
-# today; the gate's objection is that it lays out unpredictably. Fixing one is
-# not mechanical — you have to choose WHICH node inside the subgraph the edge
-# should really point at, which is a per-diagram judgement call.
+# mermaid_syntax is ON, and the back catalogue is clean: 0 findings across all
+# 85 posts. The gate rejects edges that target a subgraph id
+# (`svc --> mySubgraph`). That shape is legal Mermaid and renders today; the
+# gate's objection is that it lays out unpredictably — Mermaid attaches the
+# arrow to the box's border at whatever point the layout engine picks, so the
+# same diagram can imply a different entry point on every re-render, and a
+# reader cannot tell WHICH node inside the box actually receives the traffic.
 #
-# This is the first time anything has measured that, because the workflow
-# carrying this gate was never executed (see .github/workflows/blog-ci.yml).
-# The step stays wired there, so flipping this to true is the only action
-# needed once the diagrams are converted — no workflow edit.
+# Frank's back catalogue had 50 such edges across 23 posts; all are converted.
+# The fix was never mechanical — for each edge you have to choose which node
+# inside the subgraph it should really point at (usually the entry point that
+# receives the traffic or data), and where a subgraph is a set of peers with no
+# entry point at all (a group of probe targets, a group of PVCs, a group of
+# mesh clients) the edge was fanned out to every member instead. Two were
+# converted first (operating/12, operating/13) as worked examples of the
+# single-entry-node form: `router -->|"100% weight"| svc_stable --> s1`.
 #
-# Two were converted here (operating/12, operating/13) as worked examples of
-# the fix: point the edge at a representative node inside the subgraph.
+# Keep it on. The conversion is only durable if new posts are held to it: an
+# edge added against a subgraph id is cheap to redirect the day it is written
+# and expensive to redirect a year later, when nobody remembers which node was
+# meant. The step is wired in .github/workflows/blog-ci.yml and blocks there.
+#
+# Note the tension with the width gate in the same workflow
+# (validate_mermaid_layout.mjs, --max-width 1400). Fanning an edge out onto a
+# subgraph's members promotes those members into a rank of their own, which
+# makes the diagram wider; converting the catalogue pushed
+# building/19-progressive-delivery and building/22-health-monitoring over that
+# budget and widened building/24-in-cluster-ingress and building/29-ruflo,
+# which were over it already. Narrowing those is a layout problem, not a
+# syntax one — do not reach for `%% blog-craft: wide-ok` to paper over it.
 quality:
+  # Structural educational-writing gate (reader_goal, diataxis mode, command
+  # blocks, an actionable section, a diagram). Enabled 2026-08-03 at the end of
+  # the blog-quality-gate plan, once the whole corpus reported 0 findings —
+  # turning it on earlier would have made every PR red for work the plan was
+  # still doing. It is a HEADING regex for the actionable check, so
+  # scripts/tests/test_actionable_sections_carry_commands.py backstops it: a
+  # heading with nothing under it passes this gate and fails that tripwire.
+  enabled: true
   # Warnings-first AI-tells lint; severities/thresholds in docs/CONFIG.md. (options: true,false)
   lint:
     enabled: true
-  mermaid_syntax: false
+  mermaid_syntax: true
 
 voice: |
   Frank speaks as the cluster itself — conversational, technically precise,

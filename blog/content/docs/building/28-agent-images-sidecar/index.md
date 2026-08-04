@@ -32,12 +32,12 @@ flowchart TD
     BUMP[Lockstep bumper<br/>dispatch handler]
     DEPLOY[ArgoCD syncs]
   end
-  VK -->|repository_dispatch| AI
+  CI1 -->|repository_dispatch| BASE
   BASE -->|build-children| KALI
   BASE --> VKL
-  AI -->|repository_dispatch| BUMP
-  BUMP -->|opens PR| Frank
-  Frank --> DEPLOY
+  KALI -->|repository_dispatch| BUMP
+  VKL -->|repository_dispatch| BUMP
+  BUMP -->|opens PR| DEPLOY
 ```
 
 Three repos, three CI loops, two `repository_dispatch` hops. Any push to the fork eventually produces a reviewable PR in `frank`.
@@ -152,10 +152,10 @@ jobs:
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Port 8081 bind race** — kali's npm {{< abbr "VK" >}} grabs port before sidecar boots, sidecar CrashLoopBackOff (246 restarts in 20h) | Two processes racing for the same port; "lighter sidecar will win" was false | Kali in-process VK binds `127.0.0.1:18081` (unrouted); sidecar owns `0.0.0.0:8081` | `a1b2c3d4` |
-| **"Please build @vibe/local-web first"** — UI shows placeholder HTML, real React app never served | `rust-embed` embeds whatever is in `dist/`; build script creates a dummy `index.html` if directory missing | Frontend must be built before Rust stage; `fe-builder` stage runs `pnpm build` before `COPY` into builder | `e5f6g7h8` |
-| **PVC mount hides image-baked VK binary** — `npm install -g @vibe-kanban/cli` in image invisible at runtime | Kubernetes PVC mount at `/home/claude` hides image contents at that path | Moved VK to separate sidecar container; image never installs VK in user home | `i9j0k1l2` |
-| **Bumper opened PR with no diff** — build ran but no image had actually changed | `sed` pattern `[a-f0-9]\+` did not match 40-char SHA | Added `--quiet` check; bumper exits if no diff | `m3n4o5p6` |
+| **Port 8081 bind race** — kali's npm {{< abbr "VK" >}} grabs port before sidecar boots, sidecar CrashLoopBackOff (246 restarts in 20h) | Two processes racing for the same port; "lighter sidecar will win" was false | Kali in-process VK binds `127.0.0.1:18081` (unrouted); sidecar owns `0.0.0.0:8081` | — |
+| **"Please build @vibe/local-web first"** — UI shows placeholder HTML, real React app never served | `rust-embed` embeds whatever is in `dist/`; build script creates a dummy `index.html` if directory missing | Frontend must be built before Rust stage; `fe-builder` stage runs `pnpm build` before `COPY` into builder | — |
+| **PVC mount hides image-baked VK binary** — `npm install -g @vibe-kanban/cli` in image invisible at runtime | Kubernetes PVC mount at `/home/claude` hides image contents at that path | Moved VK to separate sidecar container; image never installs VK in user home | — |
+| **Bumper opened PR with no diff** — build ran but no image had actually changed | `sed` pattern `[a-f0-9]\+` did not match 40-char SHA | Added `--quiet` check; bumper exits if no diff | — |
 
 ## Recovery Path
 

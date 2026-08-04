@@ -38,9 +38,9 @@ flowchart TD
   VP -->|stuck Init:0/1| DP
   MP -->|EtcFileSpec conflict| CRI
   CRI -->|missing base_runtime_spec| RT
-  RT -->|ContainerCreating| Pod
+  RT -->|ContainerCreating| PH
   PH -->|nvidia exec fails| CO
-  CO -->|CrashLoopBackOff| Pod
+  CO -->|CrashLoopBackOff| PH
 ```
 
 ## Issue 1: Validation Markers

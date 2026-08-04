@@ -9,8 +9,8 @@ summary: "Day-to-day commands for managing Longhorn volumes, checking backup hea
 weight: 3
 reader_goal: "Check Longhorn volume health, manage R2 backups, expand a volume, restore from backup, and debug degraded volumes, failed backups, or stuck attachments — without relying on the Longhorn UI."
 diataxis: [how-to, reference]
-last_updated: 2026-07-27
-last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
+last_updated: 2026-08-01
+last_updated_commit: https://github.com/derio-net/frank/commit/104c5bb3
 ---
 
 {{< last-updated >}}
@@ -126,12 +126,19 @@ NAME      URL                              CREDENTIAL        AVAILABLE   LASTSYN
 default   s3://frank-longhorn-backups@auto/   longhorn-r2-secret   true        2026-07-15T02:00:00Z
 ```
 
-List recent backups for a specific volume:
+List recent backups for a specific volume. The label on a `Backup` is `backup-volume`, and `<volume-name>` is the PV name (`pvc-<uuid>`), not the PVC name:
 
 ```bash
 kubectl get backups.longhorn.io -n longhorn-system \
-  -l longhornvolume=<volume-name> \
+  -l backup-volume=<volume-name> \
   --sort-by=.metadata.creationTimestamp
+```
+
+Do not reach for `longhornvolume` here out of habit. It is a real Longhorn label on `replicas.longhorn.io`, `engines.longhorn.io` and `snapshots.longhorn.io` — all three verified live — and it is absent on `Backup` alone. So the habit is learned correctly on three kinds and is silently wrong on the fourth, where the bad selector returns `No resources found`: the same output you would get if every backup were genuinely missing. The label set is per-kind, so confirm it against the kind you are querying rather than assuming it carries over:
+
+```bash
+kubectl get backups.longhorn.io -n longhorn-system -o json \
+  | jq '.items[0].metadata.labels'
 ```
 
 ### Node and Disk Status
@@ -198,7 +205,7 @@ metadata:
   generateName: manual-backup-
   namespace: longhorn-system
   labels:
-    longhornvolume: <volume-name>
+    backup-volume: <volume-name>
 spec:
   snapshotName: ""
 EOF

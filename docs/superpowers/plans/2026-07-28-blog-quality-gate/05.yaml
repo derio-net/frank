@@ -12,7 +12,7 @@ tasks:
   steps:
   - id: P5.T1.S1
     text: |
-      This post needs both an actionable section and a mermaid diagram (its diataxis mode is how-to/tutorial, which the gate requires to carry one). Gather evidence via `post-researcher`, including the metrics-server / `kubectl top` verification path and the `--kubelet-insecure-tls` gotcha already recorded in `agents/rules/frank-gotchas.md`.
+      This post needs both an actionable section and a mermaid diagram (its diataxis mode is how-to/tutorial, which the gate requires to carry one). Evidence is gathered by an **orchestrator-dispatched** `blog-craft:post-researcher` (mechanical brief, no expected findings) and handed down — not researched inline by the executor, which holds the phase brief and so is not blind. A matching orchestrator-run `blog-craft:cold-reader` pass follows the writing. See super-fr#428. The brief must cover the metrics-server / `kubectl top` verification path and the `--kubelet-insecure-tls` gotcha already recorded in `agents/rules/frank-gotchas.md`.
   - id: P5.T1.S2
     text: |
       Add the section plus a `flowchart` showing scrape path: kubelet -> metrics-server -> metrics.k8s.io -> `kubectl top` / HPA. Confirm the mermaid renders (`cd blog && hugo --buildDrafts`) and the gate reports zero findings for the post.
@@ -28,22 +28,22 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:42:01+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:42:03+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:42:05+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-08-03T07:42:07+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-08-03T07:42:23+00:00'
     note: null
     observed_prs: []

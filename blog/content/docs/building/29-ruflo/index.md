@@ -20,31 +20,31 @@ This layer adds the opposite. **Ruflo** is the rebrand of ruvnet's `claude-flow`
 
 ```mermaid
 flowchart TD
-  subgraph Pod[ruflo pod — ruflo-system namespace]
-    subgraph Server[ruflo-server]
-      RUV[ruvocal SSR<br/>node:24-slim<br/>port 3000]
-      RVF[RVF JSON store<br/>5Gi PVC /app/db]
-    end
-    subgraph Shell[ruflo-shell — s6-overlay]
-      SSHD[sshd — key-only<br/>port 22]
-      CF[claude-flow CLI]
-      INV[Inventory ConfigMap<br/>mise/npm/pipx/cargo]
-    end
-    SH[ruflo-shell-home PVC<br/>10Gi — mise, cargo, pipx]
-    WS[ruflo-workspace PVC<br/>20Gi — shared]
+  subgraph Pod[ruflo pod]
+    direction TB
+    RUV["ruflo-server<br/>ruvocal SSR, :3000"]
+    RVF["RVF store<br/>5Gi PVC"]
+    SSHD["ruflo-shell<br/>s6 + sshd :22"]
+    CF["claude-flow CLI"]
+    VOL["PVCs<br/>shell-home 10Gi<br/>workspace 20Gi"]
   end
   subgraph Network
     direction TB
-    WEB[ruflo.cluster.derio.net<br/>Traefik + Authentik]
-    SSH[192.168.55.222:22<br/>SSH + Mosh UDP]
-    LLM[litellm.litellm.svc:4000<br/>LiteLLM gateway]
+    WEB["ruflo.cluster.derio.net"]
+    SSH["SSH + Mosh"]
+    LLM["LiteLLM gateway"]
   end
 
-  Shell -->|OPENAI_BASE_URL| LLM
-  Server -->|OPENAI_BASE_URL| LLM
-  WEB --> Server
-  SSH --> Shell
+  WEB --> RUV
+  RUV --> RVF
+  SSH --> SSHD
+  SSHD --> CF
+  SSHD --> VOL
+  CF -->|OPENAI_BASE_URL| LLM
+  RUV -->|OPENAI_BASE_URL| LLM
 ```
+
+The three network edges, in full: the web UI is `ruflo.cluster.derio.net` behind Traefik with Authentik forward-auth; the shell answers SSH on `192.168.55.222:22` with Mosh on UDP 60016-60031; and both containers reach the gateway at `litellm.litellm.svc:4000`. The diagram keeps those labels short to stay legible.
 
 Two ArgoCD apps: `apps/ruflo-db/` and `apps/ruflo/`. Zero frontier-{{< abbr "LLM" >}} provider keys in the pod — every LLM call exits through the in-cluster LiteLLM gateway.
 
@@ -121,12 +121,12 @@ On boot, a reconcile script computes the diff, installs/removes accordingly, wri
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **PostgreSQL deployed but never used** — RVF JSON store was the actual data layer | `.env.example` showed `DATABASE_URL`; runtime revealed RVF | Mounted 5Gi PVC at `/app/db/`; left PostgreSQL parked | `a1b2c3d4` |
-| **RVF shim broken for uploads** — `upload.once is not a function`, attachments 500'd | Shim compiled against Mongo API but did not implement stream contract | Replaced with real Node.js Writable/Readable in one file | `e5f6g7h8` |
-| **LiteLLM returned 401 on first SSR render** — `OPENAI_API_KEY` was OpenRouter key, not LiteLLM virtual key | LiteLLM authenticates against its own key store, not upstream provider | Provisioned `RUFLO_LITELLM_KEY` in Infisical, projected as `OPENAI_API_KEY` | `i9j0k1l2` |
-| **`shareProcessNamespace: true` crashes s6-overlay** — "can only run as pid 1" on shell container | Agent-shell-base's s6-overlay v3 init expects pid 1 of its own PID namespace | Removed `shareProcessNamespace` from manifest | `m3n4o5p6` |
-| **Probe flapping on SSR endpoint** — `/` SSR-renders model list, any LiteLLM flake flips probes | Liveness probe was also a full dependency check | Changed probe to `/api/v2/feature-flags` | `q7r8s9t0` |
-| **npm install fails with {{< abbr "EACCES" >}}** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | `u1v2w3x4` |
+| **PostgreSQL deployed but never used** — RVF JSON store was the actual data layer | `.env.example` showed `DATABASE_URL`; runtime revealed RVF | Mounted 5Gi PVC at `/app/db/`; left PostgreSQL parked | — |
+| **RVF shim broken for uploads** — `upload.once is not a function`, attachments 500'd | Shim compiled against Mongo API but did not implement stream contract | Replaced with real Node.js Writable/Readable in one file | — |
+| **LiteLLM returned 401 on first SSR render** — `OPENAI_API_KEY` was OpenRouter key, not LiteLLM virtual key | LiteLLM authenticates against its own key store, not upstream provider | Provisioned `RUFLO_LITELLM_KEY` in Infisical, projected as `OPENAI_API_KEY` | — |
+| **`shareProcessNamespace: true` crashes s6-overlay** — "can only run as pid 1" on shell container | Agent-shell-base's s6-overlay v3 init expects pid 1 of its own PID namespace | Removed `shareProcessNamespace` from manifest | — |
+| **Probe flapping on SSR endpoint** — `/` SSR-renders model list, any LiteLLM flake flips probes | Liveness probe was also a full dependency check | Changed probe to `/api/v2/feature-flags` | — |
+| **npm install fails with {{< abbr "EACCES" >}}** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | — |
 
 ## Recovery Path
 

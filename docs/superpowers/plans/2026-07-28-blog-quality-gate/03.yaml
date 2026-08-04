@@ -12,7 +12,9 @@ tasks:
   steps:
   - id: P3.T1.S1
     text: |
-      Dispatch `blog-craft:post-researcher` per post. These four already pass the evidence check, so they HAVE command blocks — the research question is narrower: what would a reader do to verify or recover this layer today? Prefer commands already proven elsewhere in the repo (`docs/runbooks/`, `agents/rules/frank-commands.md`) over inventing new ones.
+      **ORCHESTRATOR STEP — not the phase executor's.** The orchestrator dispatches `blog-craft:post-researcher` once per post (it is read-only: Glob/Grep/Read) with a deliberately MECHANICAL brief — repo path, post path, and the research question — and NOTHING about expected findings, target counts, or how the section should read. It then hands each returned evidence brief down to the executor inside the phase dispatch.
+      Corrected twice during execution, and the second correction matters. The step originally said "dispatch `blog-craft:post-researcher`" while being executed by `fr-phase-executor`, whose grant (Read/Edit/Write/Bash/Grep/Glob) has no Agent tool — so it silently researched inline instead, and ticked the step. The first fix reworded it to "gather evidence inline", which made the impossible instruction executable but THREW AWAY the property the agent exists for: post-researcher is valuable because it is BLIND to the drafting context. An executor holding the phase brief is not blind. Naming the actor is the fix; naming only the outcome was not. Tracked upstream as super-fr#428.
+      The research question is narrow: these four already pass the evidence check, so they HAVE command blocks — what would a reader do to verify or recover this layer today? Prefer commands already proven in `docs/runbooks/`, `agents/rules/frank-commands.md` and `docs/runbooks/frank-gotchas/` over inventing new ones.
   - id: P3.T1.S2
     text: |
       Run each candidate command and capture output. For 06-fun-stuff (OpenRGB), check whether the layer has genuine day-to-day operations at all — if it does not, `quality_exempt: novelty layer, no operational surface` is the honest answer and is explicitly allowed. Decide per post, and say which you chose and why.
@@ -25,25 +27,58 @@ tasks:
   - id: P3.T2.S2
     text: |
       Run the gate over all posts and confirm these four no longer appear. Run `uv run --frozen pytest` and `cd blog && hugo --buildDrafts` clean.
+  - id: P3.T2.S3
+    text: |
+      **ORCHESTRATOR STEP — not the phase executor's.** Added during execution (super-fr#428). The orchestrator dispatches `blog-craft:cold-reader` (read-only, no session context) once per edited post, giving it ONLY the draft path and the methodology references. Its five-section critique (takeaway mirror, lost points, session residue, arc assessment, AI-tell instances) goes back to the executor for revision.
+      This exists because the gate cannot see quality: the actionable-section check is a heading regex, so a hollow section passes. The author reviewing their own draft cannot see it either — which is exactly what happened in Phase 2, where the executor's "reader-back pass" was self-review by the writer. `/blog-post` and `/post-rewrite` dispatch cold-reader for precisely this reason; routing blog work through `fr-phase-executor` bypassed it.
+- number: 3
+  title: 'RETROFIT: apply the blind treatment to the posts edited before it existed'
+  steps:
+  - id: P3.T3.S1
+    text: |
+      **ORCHESTRATOR STEP.** Added during execution. The blind post-researcher / cold-reader treatment was introduced at Phase 3, so three posts were already edited without it and must not be left as the only unreviewed prose in the plan: `building/00-overview` and `building/01-introduction` (Phase 2 — sections written from evidence the executor gathered inside its own briefed context, then self-reviewed), and `operating/22-cicd-platform` (Phase 1 — a sentence rewritten with no review pass of any kind).
+      Dispatch `blog-craft:post-researcher` for `00-overview` and `01-introduction` with a mechanical brief, to independently corroborate the commands and claims those posts now publish. `22-cicd-platform` gained no evidence block, so it needs the cold read, not a researcher.
+  - id: P3.T3.S2
+    text: |
+      **ORCHESTRATOR STEP.** Dispatch `blog-craft:cold-reader` over all three posts (draft path + methodology refs only). Hand each critique, plus any contradiction the researcher found, to the executor.
+  - id: P3.T3.S3
+    text: |
+      Executor: revise the three posts against the critiques. Re-run every command those posts publish and confirm the pasted output still matches — a published command whose output was never independently reproduced is the same hollow-compliance risk one layer down. Re-run the gate and confirm no regression (these three are already at zero findings; they must stay there).
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T21:14:24+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T21:35:15+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T21:35:16+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T21:35:17+00:00'
+      note: null
+    P3.T2.S3:
+      state: x
+      ticked_at: '2026-07-28T22:48:02+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-07-28T22:48:03+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-07-28T22:48:04+00:00'
+      note: null
+    P3.T3.S3:
+      state: x
+      ticked_at: '2026-07-28T22:48:05+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-07-28T22:48:12+00:00'
     note: null
     observed_prs: []

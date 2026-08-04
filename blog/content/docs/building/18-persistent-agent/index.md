@@ -118,7 +118,7 @@ Claude Code's `--remote` flag starts a headless session that persists independen
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **SSH host key changes on every restart** — no PVC persistence for `/etc/ssh/` keys | Host keys regenerated each boot; SSH clients warned about changed fingerprint | Store host keys in `/root/.ssh-host-keys/` on PVC, copy back on boot | `3a4b5c6d` |
+| **SSH host key changes on every restart** — no PVC persistence for `/etc/ssh/` keys | Host keys regenerated each boot; SSH clients warned about changed fingerprint | Store host keys in `/root/.ssh-host-keys/` on PVC, copy back on boot | — |
 | **apt-get install on every start** — 30s startup delay while installing packages | Efficiency choice — trade-off for not maintaining a custom image | Accepted as design choice; easy to pre-bake image if startup time becomes critical | — |
 
 ## Recovery Path

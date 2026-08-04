@@ -33,32 +33,32 @@ tasks:
   steps:
   - id: P1.T3.S1
     text: |
-      Run the gate over all posts and confirm the total is now 13 findings across 11 posts (down from 15/11 — two structural findings cleared, the lint FAIL cleared). Command:
+      Run the gate over all posts and confirm the total is now 14 GATE findings across 11 posts, with 0 LINT FAIL (down from 15 gate findings + 1 lint FAIL). CORRECTED DURING EXECUTION — this step originally said 13, which was wrong: only ONE gate finding (the invalid diataxis) was clearable here. The validator keeps TWO INDEPENDENT COUNTERS — gate findings are indented `x` lines under a post heading; lint hits are separate top-level `LINT FAIL:` lines — and the spec's backlog table lists both in one table, so subtracting the lint FAIL from the gate total double-counts it. Later phases: treat 14 gate findings / 11 posts as the Phase 1 exit state. Command:
       `uv run --frozen python blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/*/*/index.md`.
       Also run `uv run --frozen pytest` and confirm 354 passed, 1 xfailed.
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T20:06:34+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T20:07:04+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T20:07:12+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T20:08:14+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-28T20:15:05+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-07-28T20:15:59+00:00'
     note: null
     observed_prs: []

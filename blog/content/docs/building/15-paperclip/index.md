@@ -44,7 +44,7 @@ flowchart LR
 
 ## Architecture
 
-Two ArgoCD apps, ordered by sync-wave:
+Two ArgoCD apps, ordered by sync-wave. The `paperclip` Application carries `argocd.argoproj.io/sync-wave: "1"`, so every resource in it waits for wave 0 — the database — to report Healthy before it is applied:
 
 ```mermaid
 flowchart LR
@@ -58,7 +58,10 @@ flowchart LR
     LB[LoadBalancer<br/>192.168.55.212:3100]
   end
 
-  Wave0 --> Wave1
+  DB --> P
+  DB --> ES
+  DB --> PVC
+  DB --> LB
 ```
 
 | App | Chart | Purpose |
@@ -242,12 +245,12 @@ Layer 3 is the load-bearing one. We do not notice (2) unless we SSH in. Layer 3 
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **HTTP probes get 403 in private mode** — kubelet probes from node IP, but Paperclip's `/` returns 403 to non-localhost | Paperclip's `private` exposure denies all non-localhost HTTP | Switched from `httpGet` to `tcpSocket` probes | `dcba1234` |
-| **PVC rollout deadlock** — new pod cannot attach RWO PVC until old pod releases it; rolling update creates new pod first | Default `RollingUpdate` strategy creates new pod before terminating old one | Scale old ReplicaSet to zero manually; or use `Recreate` strategy | `efab5678` |
-| **fsGroup missing — PVC owned by root** — `node` user (uid 1000) cannot write to `/paperclip` | Dockerfile `chown` runs at image build, does not re-run on PVC mount | Added `fsGroup: 1000` to pod securityContext | `9012bcde` |
-| **Initial memory limit 1Gi too low** — container OOMKilled under agent load | Memory guess inherited from fork-era image, never re-validated | Bumped to 12Gi on gpu-1 | `3456fghi` |
-| **arm64-only image pushed** — build machine defaulted to native arch; cluster nodes are amd64 | `docker buildx build` without `--platform linux/amd64` | Added explicit platform flag | `7890jklm` |
-| **Optional secrets blocking rollout** — missing `imagePullSecret` caused `CreateContainerConfigError`, old pod stayed alive with PVC locked | Any `secretRef` for a non-essential feature should be `optional: true` | Marked optional secrets with `optional: true` | `1234abcd` |
+| **HTTP probes get 403 in private mode** — kubelet probes from node IP, but Paperclip's `/` returns 403 to non-localhost | Paperclip's `private` exposure denies all non-localhost HTTP | Switched from `httpGet` to `tcpSocket` probes | — |
+| **PVC rollout deadlock** — new pod cannot attach RWO PVC until old pod releases it; rolling update creates new pod first | Default `RollingUpdate` strategy creates new pod before terminating old one | Scale old ReplicaSet to zero manually; or use `Recreate` strategy | — |
+| **fsGroup missing — PVC owned by root** — `node` user (uid 1000) cannot write to `/paperclip` | Dockerfile `chown` runs at image build, does not re-run on PVC mount | Added `fsGroup: 1000` to pod securityContext | — |
+| **Initial memory limit 1Gi too low** — container OOMKilled under agent load | Memory guess inherited from fork-era image, never re-validated | Bumped to 12Gi on gpu-1 | — |
+| **arm64-only image pushed** — build machine defaulted to native arch; cluster nodes are amd64 | `docker buildx build` without `--platform linux/amd64` | Added explicit platform flag | — |
+| **Optional secrets blocking rollout** — missing `imagePullSecret` caused `CreateContainerConfigError`, old pod stayed alive with PVC locked | Any `secretRef` for a non-essential feature should be `optional: true` | Marked optional secrets with `optional: true` | — |
 
 ## Recovery Path
 

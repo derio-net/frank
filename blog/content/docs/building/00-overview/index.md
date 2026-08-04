@@ -3,16 +3,14 @@ title: "Frank, the Talos Cluster: Overview & Roadmap"
 date: 2026-03-06
 draft: false
 tags: ["overview", "roadmap"]
-summary: "A living overview of Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and cluster state."
+summary: "The index to Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, cluster state, and the commands to check any of it."
 weight: 1
 reader_goal: "Understand Frank's capability layers and how they map to hardware zones"
 diataxis: reference
-last_updated: 2026-07-15
+last_updated: 2026-08-01
 ---
 
-This is the overview post for the **Frank, the Talos Cluster** series — a tutorial-style walkthrough of building an AI-hybrid Kubernetes homelab from scratch.
-
-This post is a **living document**: it gets updated as new technologies and capabilities are added to the cluster.
+The **Frank, the Talos Cluster** series is a walkthrough of building an AI-hybrid Kubernetes homelab from scratch, one layer per post. This post is not part of that walkthrough. It is the index to it: the roadmap, the capability map, the hardware, and a set of commands for checking whether any of it is still true.
 
 ## Roadmap
 
@@ -33,12 +31,11 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **VictoriaLogs + Fluent Bit** | Centralised log aggregation and querying |
 | **Longhorn Backup + Cloudflare R2** | {{< abbr "PVC" >}} backup/restore, daily + weekly schedules, offsite storage |
 | **Infisical + External Secrets Operator** | Secret management with audit trail, ExternalSecret → K8s Secret sync (`192.168.55.204`) |
-| **Ollama** | Local {{< abbr "LLM" >}} inference on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
-| **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`) |
-| **OpenRouter** | Free-tier cloud model aggregation (DeepSeek R1, Gemini Flash, Llama 3.3 70B) |
+| **Ollama** | Local {{< abbr "LLM" >}} inference on gpu-1's RTX 5070 Ti (16GB). Six base models as of 2026-07-29: Mistral Small 3.2 24B (default), Gemma 4 12B and Qwen2.5-VL 7B (multimodal), Qwen2.5-Coder 14B, Qwen3 14B (reasoning), Qwen3.6 35B-A3B (MoE, partial CPU offload). Lineup lives in `apps/litellm/values.yaml` |
+| **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`). Local-only since 2026-06-04 — no free-tier cloud aliases |
 | **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy={{< abbr "CRD" >}}, execution=Job (`192.168.55.207`) |
 | **cert-manager** | Automated {{< abbr "TLS" >}} certificate lifecycle for webhooks and internal services |
-| **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
+| **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for 18 routes incl. Longhorn, Hubble, Tekton Dashboard (`192.168.55.211`) |
 | **vCluster** | Virtual K8s clusters inside Frank — disposable sandboxes with own API server, resource quotas, network policies |
 | **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
 | **ComfyUI** | Diffusion model serving — video (LTX-2.3), image (SDXL), audio (Stable Audio), node-based workflow editor (`192.168.55.213`) |
@@ -51,8 +48,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 | **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
-| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), {{< abbr "ACME" >}} via Cloudflare DNS-01, Authentik forward-auth for 12 services (`192.168.55.220`) |
-| **{{< abbr "VK" >}} Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server, local {{< abbr "JWT" >}} auth, Authentik SSO ingress (`vk.cluster.derio.net`) |
+| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), {{< abbr "ACME" >}} via Cloudflare DNS-01, Authentik forward-auth (`192.168.55.220`) |
+| **{{< abbr "VK" >}} Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server (`vk.cluster.derio.net`). Local {{< abbr "JWT" >}} auth behind an IP allowlist, no forward-auth |
 | **VK Relay** | WebSocket relay sidecar tunneling browser API calls to local VK agent server via yamux multiplexing, {{< abbr "SPAKE2" >}} pairing, Ed25519 request signing |
 | **gethomepage.dev** | Cluster dashboard at `master.cluster.derio.net` — service catalog with HTTP health indicators, custom bookmarks |
 | **Gitea** | Self-hosted git forge with GitHub pull-mirror, Authentik OIDC SSO (`192.168.55.209`) |
@@ -64,27 +61,71 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **GoatCounter** | Cookieless blog analytics — public beacon via Hop's Caddy at `counter.derio.net`, mesh-only admin at `counter.cluster.derio.net` with Authentik forward-auth (`192.168.55.224`) |
 | **CrowdSec + caddy-crowdsec-bouncer** | Edge HTTP security — agent tails Caddy logs on Hop, Caddy bouncer enforces decisions locally without round-tripping to Frank |
 | **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
-| **ai-alert-helper** | FastAPI service — daily blog digest, alert-time LLM enrichment, surge detection (hour-of-day baseline computed in Python because LogsQL has no `quantile_over_time`); LiteLLM-backed swap contract for future Sympozium |
+| **alert-agent** | Autonomous `claude` agent on multi-agent-shell — daily blog digest, Grafana-alert triage, traffic-surge detection, inbound Telegram Q&A. HTTP-only, no kube credential; deterministic facts from a `frank-facts` CLI. Replaced the FastAPI `ai-alert-helper` on 2026-06-16 |
 | **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` {{< abbr "CR" >}} (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
 | **hermes (Nous Research)** | Terminal-native agent CLI in a dedicated `agent-shell-base` pod on gpu-1 — {{< abbr "BYOK" >}} to LiteLLM (provider pinned via `config.yaml` mapping), profile.d shim defeating the sshd env-scrub, SSH+Mosh on `192.168.55.226` |
 | **metrics-server** | Aggregated resource Metrics API (`metrics.k8s.io`) on Talos — restores `kubectl top nodes/pods` and unblocks CPU/memory {{< abbr "HPA" >}}; `--kubelet-insecure-tls` for self-signed kubelet certs. Custom/external metrics deferred to a VM-backed prometheus-adapter |
 
 ## Cluster State
 
+Four zones, lettered A to D. **Zone A** is management and has no row here on purpose: it lives outside the cluster, so it has no node to appear as. The other three are the cluster.
+
 | Node | Zone | Role | Hardware |
 |------|------|------|----------|
-| mini-1/2/3 | Core (B) | Control-plane + Worker | Intel Ultra 5, 64GB RAM, 1TB NVMe, Arc iGPU |
-| gpu-1 | AI Compute (C) | Worker | i9, 128GB RAM, RTX 5070, 2x4TB SSD |
-| pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
-| raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
+| mini-1/2/3 | B — Core HA | Control-plane + Worker | Intel Ultra 5, 64GB RAM, 1TB NVMe, Arc iGPU |
+| gpu-1 | C — AI Compute | Worker | i9, 128GB RAM, RTX 5070 Ti (16GB GDDR7), 2x4TB SSD |
+| pc-1 | D — Edge | Worker | Legacy desktop, 64GB SSD + 3x HDD |
+| raspi-1/2 | D — Edge | Worker | Raspberry Pi 4, 32GB SD |
+
+## Verify this page against a live cluster
+
+Everything in the Technology → Capability Map arrives as an ArgoCD Application, so the table is checkable rather than a claim you have to take on trust. The `kubectl` lines below want a kubeconfig for a cluster; the `grep` lines want a clone of [derio-net/frank](https://github.com/derio-net/frank) and run from its root.
+
+**Every number below was captured on 2026-07-29** and will have moved since. The command is the durable part; the digits are a sample so you can tell whether you typed it right. Start with the count:
+
+```console
+$ kubectl -n argocd get applications --no-headers | wc -l
+      69
+```
+
+Sixty-eight of those are templated by the App-of-Apps. The sixty-ninth is `root` itself, applied by hand once at bootstrap, because at that moment nothing exists yet to apply it:
+
+```console
+$ grep -l 'kind: Application' apps/root/templates/*.yaml | wc -l
+      68
+```
+
+That arithmetic is the whole GitOps claim in one line. When the two numbers stop agreeing, something on the cluster was made outside git.
+
+Existing and converged are different questions, so ask the second one separately:
+
+```console
+$ kubectl -n argocd get applications \
+    -o jsonpath='{range .items[*]}{.status.sync.status}{" "}{.status.health.status}{"\n"}{end}' \
+  | sort | uniq -c | sort -rn
+  62 Synced Healthy
+   5 OutOfSync Healthy
+   1 Synced Suspended
+   1 OutOfSync Missing
+```
+
+Sixty-two green out of sixty-nine, on an ordinary afternoon. `Suspended` is a canary parked at a manual promotion gate — Argo Rollouts doing its job, not a fault. `OutOfSync` is live state disagreeing with git. Neither is an emergency, and a cluster reporting all green all the time is usually one nobody is asking hard questions of.
+
+The roadmap at the top is numbered by published post. The layer codes that plan filenames and commit messages use are a separate registry:
+
+```console
+$ grep -c '^  - code:' docs/layers.yaml
+22
+```
+
+Twenty-one numbered capability layers, plus `repo` for meta-work that is not a cluster capability at all. The two sequences match through Layer 17 and diverge after it, because layers stopped shipping in the order they were planned. If you are looking for the post that covers a layer, follow the roadmap; if you are looking for the plan that built it, follow the code.
 
 ## Missteps
 
-The roadmap has evolved significantly since the cluster was first built. Here are the decisions that got revised:
+Three forks where the obvious choice was the wrong one.
 
-| What Happened | Why It Was Wrong | How We Fixed It | Commit |
-|---------------|-----------------|-----------------|--------|
-| **Initial roadmap used a flat numbered list** — each new capability was slotted in by hand, making reordering and insertion painful | No structured layer model meant the sequence kept shifting as we discovered missing prerequisites | Adopted the 12-layer model from `docs/layers.yaml` and the `{{< roadmap >}}` shortcode, auto-generated from plan weight ordering | `cfb7dd1e` |
-| **Blog series was a single flat directory** — operating and building content were mixed, making cross-referencing confusing | No clear separation between "how I built it" (building) and "how to operate it" (operating) | Split into `building/` and `operating/` series with cross-series backlinks, each with its own weight-ordered index | `39cfcec4` |
-| **Papers prologue used `relref` to a draft building post** — build failed at CI because Hugo refuses to resolve `relref` targets with `draft: true` | Assumed `relref` would silently skip draft targets; Hugo returns a hard error | Replaced `relref` with plain `/docs/building/NN-slug` path — Hugo allows absolute document paths to drafts even when `relref` does not | `bd0415e6` |
-| **Original bootstrap documented a manual Talos install** — SSH-based kubeadm flow described in the draft | Omni support was added after the initial bootstrap post was written, making the documented flow obsolete | Rewrote to describe the Omni-based bootstrap as the primary path, with a footnote that manual Talos installs are possible but not recommended | `ce2fcd9e` |
+| The fork | Why the obvious branch was wrong | What Frank does now | Evidence |
+|----------|----------------------------------|---------------------|----------|
+| **Maintain the index by hand, or derive it from the pages** | Hand-maintained indexes drift silently — nothing fails when you forget, and reordering means editing every entry | Layer registry in `docs/layers.yaml`; `{{</* roadmap */>}}` and `{{</* series-index */>}}` derive their cards from page frontmatter | `d7678b9e`, `cfb7dd1e` |
+| **One series or two** | Build narrative and runbook have different readers and different half-lives. A build post is a dated story and should age; a runbook has to stay true | Split into `building/` and `operating/`, cross-linked at render time | `7f5ff73f`, `fc274975` |
+| **`relref` or a plain path for cross-post links** | `relref` validates targets at build time, but a missing `/docs/` prefix is not a warning — it is `REF_NOT_FOUND` and a dead `build-pages` job | Prefix every `relref` with the full section path; escape any shortcode you are only quoting as `{{</*` … `*/>}}` | `2840cce7` |

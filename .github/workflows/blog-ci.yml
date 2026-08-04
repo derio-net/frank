@@ -106,6 +106,19 @@ jobs:
           done
           python3 blog/scripts/validate_papers.py --config .blog-craft.yaml blog/content/docs/papers/*/index.md
 
+      # Educational-writing gate: every `content_type: posts` post must carry the
+      # evidence a genuinely useful teaching post needs (reader_goal, Diátaxis
+      # mode, a command/output block, an actionable section). Papers/explainers
+      # are skipped — they have their own validators. Ships at scripts/ so a
+      # plain-python CI runs it without the plugin.
+      #
+      # frank note: the actionable-section half of this gate is a HEADING regex,
+      # so it passes a section containing nothing.
+      # scripts/tests/test_actionable_sections_carry_commands.py (run by
+      # repo-tripwires.yml) is the backstop. Neither gate covers the other.
+      - name: Validate post quality (educational-writing)
+        run: python3 blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/*/*/index.md
+
       # Abbreviation glossary gate: every abbr marker must have an entry in
       # blog/data/glossary.yaml. A marker with nothing behind it is a broken
       # promise to the reader — and it fails the Hugo build, so without this gate

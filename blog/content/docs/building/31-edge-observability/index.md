@@ -247,15 +247,15 @@ Six of seven were invisible to ArgoCD. Synced, Healthy, three containers Running
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **`_msg_field=log` wrong for Caddy** — VictoriaLogs returned "missing _msg field" | Caddy emits `msg` at top level, not `log` | Changed to `_msg_field=msg` in fluent-bit output config | `a1b2c3d4` |
-| **GoatCounter crash-loop on `GOATCOUNTER_PORT`** — auto-injected env var treated as port | Kubernetes injects Service env vars; `tcp://10.x.x.x:8080` is not a valid port | Set `enableServiceLinks: false` on Pod spec | `e5f6g7h8` |
-| **Caddy access logs empty** — global `log` directive only sets runtime logger, not access logs | Access logs require per-site `log` directive | Added `log` inside `blog.derio.net` site block | `i9j0k1l2` |
-| **CrowdSec LAPI loses state on restart** — agent crashloops, bouncer de-auths, no bans enforced | LAPI data lives in emptyDir on Hop with no PV | Added postStart hook and persistent PV on Hetzner Volume subdirectory | `m3n4o5p6` |
-| **CrowdSec agent parses zero logs** — default `container_runtime: docker` incompatible with Talos CRI | Talos runs containerd, not Docker | Changed to `container_runtime: containerd` | `q7r8s9t0` |
-| **DatasourceError storm on blog-edge rules** — SSE expects wide series, receives long from instant query | VictoriaLogs datasource defaults to `queryType: instant` | Set `queryType: stats` in alert rule model | `u1v2w3x4` |
-| **Digest counted all Hop traffic, not just blog** — no `request.host` filter in query | Raw Caddy log query without dimensional filter | Added vhost filter and GoatCounter query to digest facts | `y5z6a7b8` |
-| **Surge detection fired 370x on zero visitors** — baseline floor of 1, probe traffic counted as blog | Divide-by-zero guard pinned baseline to 1; blackbox probe not excluded | Added `SURGE_ABS_FLOOR`, excluded probe UA, wired GoatCounter visitor gate | `c9d0e1f2` |
-| **Agent instructions loaded as `SKILL.md`** — `CLAUDE.md`/`AGENTS.md` were empty, agent had no instructions | No harness loads `SKILL.md`; claude reads `CLAUDE.md` only | Mount instructions as `AGENTS.md` + `CLAUDE.md`; image fans canonical file out to all harness filenames | `g3h4i5j6` |
+| **`_msg_field=log` wrong for Caddy** — VictoriaLogs returned "missing _msg field" | Caddy emits `msg` at top level, not `log` | Changed to `_msg_field=msg` in fluent-bit output config | — |
+| **GoatCounter crash-loop on `GOATCOUNTER_PORT`** — auto-injected env var treated as port | Kubernetes injects Service env vars; `tcp://10.x.x.x:8080` is not a valid port | Set `enableServiceLinks: false` on Pod spec | — |
+| **Caddy access logs empty** — global `log` directive only sets runtime logger, not access logs | Access logs require per-site `log` directive | Added `log` inside `blog.derio.net` site block | — |
+| **CrowdSec LAPI loses state on restart** — agent crashloops, bouncer de-auths, no bans enforced | LAPI data lives in emptyDir on Hop with no PV | Added postStart hook and persistent PV on Hetzner Volume subdirectory | — |
+| **CrowdSec agent parses zero logs** — default `container_runtime: docker` incompatible with Talos CRI | Talos runs containerd, not Docker | Changed to `container_runtime: containerd` | — |
+| **DatasourceError storm on blog-edge rules** — SSE expects wide series, receives long from instant query | VictoriaLogs datasource defaults to `queryType: instant` | Set `queryType: stats` in alert rule model | — |
+| **Digest counted all Hop traffic, not just blog** — no `request.host` filter in query | Raw Caddy log query without dimensional filter | Added vhost filter and GoatCounter query to digest facts | — |
+| **Surge detection fired 370x on zero visitors** — baseline floor of 1, probe traffic counted as blog | Divide-by-zero guard pinned baseline to 1; blackbox probe not excluded | Added `SURGE_ABS_FLOOR`, excluded probe UA, wired GoatCounter visitor gate | — |
+| **Agent instructions loaded as `SKILL.md`** — `CLAUDE.md`/`AGENTS.md` were empty, agent had no instructions | No harness loads `SKILL.md`; claude reads `CLAUDE.md` only | Mount instructions as `AGENTS.md` + `CLAUDE.md`; image fans canonical file out to all harness filenames | — |
 
 ## Recovery Path
 

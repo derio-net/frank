@@ -9,7 +9,7 @@ summary: "kubectl top was dead for months because nothing served metrics.k8s.io.
 weight: 37
 reader_goal: "Serve the aggregated resource Metrics API on a Talos cluster with metrics-server, and know when NOT to route it through your TSDB"
 diataxis: tutorial
-last_updated: 2026-07-25
+last_updated: 2026-08-01
 ---
 
 I have scraped my own kubelets for months. VictoriaMetrics has every CPU sample, every working-set byte, every cgroup number on all seven nodes. And yet the day someone typed `kubectl top nodes` to size a workload, I answered:
@@ -39,7 +39,21 @@ flowchart TD
 
 **Option 2 — prometheus-adapter backed by VictoriaMetrics.** Serve `metrics.k8s.io` *and* `custom`/`external.metrics.k8s.io` from the data I already store. No double-scrape. It unlocks custom-metric autoscaling — scale on queue depth, requests-per-second, tokens-per-second. It is the maximalist, more-Frank-flavoured answer.
 
-Every instinct I have says build Option 2. Maximum complexity is the point of me. So I made myself say the quiet part: **who is the consumer?** I grepped my own repo. The only `HorizontalPodAutoscaler` anywhere was inside a *vendored* Tekton pipeline — not a workload I run. Nothing on me uses HPA yet. Zero custom-metric consumers. Zero.
+Every instinct I have says build Option 2. Maximum complexity is the point of me. So I made myself say the quiet part: **who is the consumer?** I grepped my own repo. The only `HorizontalPodAutoscaler` anywhere was inside a *vendored* Tekton release manifest, and I read "vendored" as "not mine" and moved on. Zero custom-metric consumers, I concluded. Zero consumers at all.
+
+The grep was right. The inference was wrong, and the word doing the damage was *vendored*. A vendored manifest is not a dormant example file — I apply it. `apps/tekton/vendor/pipelines/release.yaml` declares an HPA on `tekton-pipelines-webhook`, ArgoCD tracks it, and it has been live on me since March. It is as much a workload I run as anything I wrote by hand; I just did not write it, which is a fact about authorship and not about deployment.
+
+So the honest answer to "who is the consumer?" was never zero. It was one, and I had been running it the whole time:
+
+```console
+$ kubectl get hpa -A
+NAMESPACE          NAME                       REFERENCE                             TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+tekton-pipelines   tekton-pipelines-webhook   Deployment/tekton-pipelines-webhook   cpu: 2%/100%   1         5         1          125d
+```
+
+That HPA was created 2026-03-29. metrics-server arrived 2026-07-25 — 118 days later. I did not watch it over that window, so I will not claim to have measured it, but the mechanism is not in doubt and this post describes it below: an HPA with no Metrics API reports `<unknown>` and cannot scale. For 118 days I had an autoscaler that could not autoscale, and nothing anywhere said so.
+
+That does not change the decision. Zero *custom*-metric consumers was still true, and Option 1 was still right — a CPU-based HPA is served fine by the plain resource API. What it changes is my confidence in how I reached it. The consumer question had a real answer sitting in my own cluster, and the grep I trusted to answer it returned that answer while I filed it under "does not count."
 
 Routing resource metrics through a general-purpose {{< abbr "TSDB" >}} means every `kubectl top` and every CPU/mem HPA tick becomes a PromQL query with the TSDB's latency, against a query engine tuned for dashboards, not 15-second control loops. I would be buying fragility and lag to serve a custom-metrics audience of nobody.
 
@@ -87,7 +101,63 @@ blackbox-exporter  <unknown>/80%   1         2         1
 blackbox-exporter  40%/80%         1         2         1
 ```
 
-`<unknown>` for a beat while the HPA controller found the Metrics API, then a real `40%/80%`. That transition is the whole point — resource metrics are feeding the autoscaling control loop. I deleted the HPA immediately; none ships. It was proof, not a policy.
+`<unknown>` for a beat while the HPA controller found the Metrics API, then a real `40%/80%`. That transition is the whole point — resource metrics are feeding the autoscaling control loop. I deleted that HPA immediately: it was proof, not a policy, and I do not want an autoscaler on a blackbox exporter.
+
+Which leaves the Tekton webhook HPA as the only one I ship, and a better witness than my throwaway ever was. It did not have to be created for a test, it is load-bearing, and its `ScalingActive` condition is checked below.
+
+## Verifying the Metrics API
+
+Day-to-day operations are in the companion post, [Operating on Frank — The Metrics API](/docs/operating/29-metrics-api). Use this section when you have just deployed metrics-server, or when `kubectl top` has gone quiet and you need to find out where. The checks are ordered so each one narrows the fault, and the last is the one most people skip. Output below captured 2026-08-01.
+
+**1. Is anything registered to serve the API?**
+
+```console
+$ kubectl get apiservice v1beta1.metrics.k8s.io
+NAME                     SERVICE                      AVAILABLE   AGE
+v1beta1.metrics.k8s.io   kube-system/metrics-server   True        7d15h
+```
+
+`NotFound` here means no backend is registered at all, and `kubectl top` will say `error: Metrics API not available` — the failure this whole layer exists to fix. `AVAILABLE=False` is a different problem: something is registered but not answering, so go to check 2. Expect `False` for roughly the first 30 seconds after a fresh deploy, while the first scrape lands. Wait it out before debugging it.
+
+**2. Is the pod healthy, and is it configured for Talos?**
+
+```console
+$ kubectl -n kube-system get pods -l app.kubernetes.io/name=metrics-server
+NAME                              READY   STATUS    RESTARTS      AGE
+metrics-server-6d9fff4668-8g9vc   1/1     Running   5 (10h ago)   7d15h
+```
+
+A Ready pod proves almost nothing here, which is the trap this layer is built around: without `--kubelet-insecure-tls` on Talos, every scrape fails certificate verification and the pod stays cheerfully Ready while serving nothing. So check the flags, not the phase:
+
+```console
+$ kubectl -n kube-system get deploy metrics-server \
+    -o jsonpath='{.spec.template.spec.containers[0].args}'
+["--secure-port=10250","--cert-dir=/tmp","--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname","--kubelet-use-node-status-port","--metric-resolution=15s","--kubelet-insecure-tls"]
+```
+
+If `--kubelet-insecure-tls` is absent, that is your bug — `kubectl -n kube-system logs deploy/metrics-server` will be full of `x509: certificate signed by unknown authority`. This output is also the direct evidence for the chart behaviour described above: `--kubelet-preferred-address-types` is present *from the chart's own defaults*, and the values file adds only one flag. Reading the rendered arg list is how you tell "appends" from "replaces" without guessing.
+
+**3. Do metrics reach the autoscaling control loop?**
+
+`kubectl top` proves the API answers a human. It does not prove the HPA controller can read it, and those are separate consumers. Ask an HPA:
+
+```console
+$ kubectl -n tekton-pipelines get hpa tekton-pipelines-webhook \
+    -o jsonpath='{range .status.conditions[*]}{.type}={.status} ({.reason}){"\n"}{end}'
+AbleToScale=True (ReadyForNewScale)
+ScalingActive=True (ValidMetricFound)
+ScalingLimited=False (DesiredWithinRange)
+```
+
+`ScalingActive=True (ValidMetricFound)` is the strongest single signal this layer produces. It means a real controller successfully read a real metric for a real workload. `ScalingActive=False` with reason `FailedGetResourceMetric` means the Metrics API is not serving that workload, even if `kubectl top nodes` looks fine — pod metrics and node metrics can fail independently.
+
+Substitute your own HPA if you have one. If you have none, that is worth knowing on its own, and the honest way to find out is:
+
+```console
+$ kubectl get hpa -A
+```
+
+Run it before concluding you have no consumers. An empty result is a real answer; anything else is a workload that has been quietly unable to scale for as long as the Metrics API has been missing. Grepping manifests would have told me the same thing 118 days earlier, if I had trusted what it found.
 
 ## A detour worth admitting
 
@@ -97,9 +167,19 @@ Building this, my own planning CLI hard-stopped: a legacy directory layout tripp
 
 I now read my own vitals through the interface Kubernetes expects. `kubectl top` works. CPU/mem autoscaling is unblocked. And I did it by building the plain thing correctly instead of the clever thing prematurely — with the clever thing filed, scoped, and waiting for a reason to exist.
 
+## What Transfers
+
+**Ask who the consumer is before you build the general version.** The question is right even when your answer to it is wrong. Scoping to a real audience is what kept this a one-flag deploy instead of a TSDB-backed adapter serving nobody.
+
+**Then distrust your own inventory.** My grep found the consumer and I discarded it over the word *vendored*. If you vendor upstream manifests, you run them; authorship is not deployment. When a survey returns "zero", check whether you filtered the answer out — `kubectl get <kind> -A` against the live cluster is a different question from a grep, and it is the one that would have caught this.
+
+**Ready is not working.** metrics-server on Talos boots happily and serves nothing without one flag. Any component that scrapes something else can fail entirely while every liveness signal stays green, so verify the *capability*, not the pod. On this layer that means `ScalingActive=True`, not `1/1 Running`.
+
+**Silent breakage has no age limit.** Nothing paged across those 118 days, and by mechanism nothing could have, because a broken autoscaler on an idle webhook looks exactly like a working autoscaler on an idle webhook. The absence of complaints is not evidence; it is usually just the absence of anyone looking.
+
 ## References
 
 - Issue: [#394 — No Metrics API on Frank](https://github.com/derio-net/frank/issues/394)
 - Deferred follow-up: [#701 — VM-backed prometheus-adapter for custom/external metrics](https://github.com/derio-net/frank/issues/701)
 - [metrics-server](https://github.com/kubernetes-sigs/metrics-server) · [Kubernetes resource metrics pipeline](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/)
-- Companion: *Operating on Frank — The Metrics API*
+- Companion: [Operating on Frank — The Metrics API](/docs/operating/29-metrics-api)

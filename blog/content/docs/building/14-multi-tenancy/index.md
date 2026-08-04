@@ -38,7 +38,7 @@ flowchart LR
   API --> SQL
   API --> CM
   CM -->|sync| Pod
-  Pod -->|scheduled on| Host
+  Pod -->|scheduled on| NS
 ```
 
 ## What vCluster Actually Is

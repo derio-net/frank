@@ -46,10 +46,11 @@ flowchart TD
     CAD[Caddy relay]
   end
 
-  GitHub -->|pull mirror 10m| GM
-  GitHub -->|webhook PR/push| CAD
+  FR -->|pull mirror 10m| GM
+  AS -->|pull mirror 10m| GM
+  AS -->|webhook PR/push| CAD
   CAD -->|Tailscale mesh| ELGH
-  Gitea -->|webhook push| EL
+  WH -->|webhook push| EL
   EL --> PIPE
   ELGH --> PIPE2
   PIPE -->|Kaniko build| REG
@@ -276,7 +277,7 @@ flowchart TD
   PIPE -->|force-push| REPO
   REPO --> CIPE
   CIPE -->|mandatory| CS
-  CIPE -->|best-effort| Gitea
+  CIPE -->|best-effort| REPO
 ```
 
 Two webhook events drive the chain:
@@ -325,16 +326,16 @@ The subtle part is **parallel running**. GitHub Actions stays enabled while Fran
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Tekton v1 `resources` field silently fails** — ArgoCD shows `ComparisonError`, block all syncs for tekton-extras | Tekton v1 Tasks use `computeResources`, not `resources`; old field fails schema validation | Changed `resources` to `computeResources` in all Task definitions | `a1b2c3d4` |
-| **GitHub ClusterInterceptor drops Gitea webhooks** — nothing reaches EventListener | Gitea sends `X-Gitea-Event` headers, not `X-GitHub-Event` | Switched to CEL interceptor matching `X-Gitea-Event: push` | `e5f6g7h8` |
-| **Gitea webhook silently fails delivery** — UI shows "sent" but EventListener receives nothing | `webhook.ALLOWED_HOST_LIST` default blocks `*.svc.cluster.local` | Set `webhook.ALLOWED_HOST_LIST` to `*.svc.cluster.local` | `i9j0k1l2` |
-| **HOME=/ for nobody UID** — git config --global fails because / is read-only | Tekton steps run as UID 65534 with HOME=/ from /etc/passwd | Set `env: [{name: HOME, value: /tekton/home}]` on affected steps | `m3n4o5p6` |
-| **`$(tasks.status)` returns "Completed" not "Succeeded"** — skipped tasks reported as failures | Tekton reports `"Completed"` when tasks skipped via `when` clauses | Check for both `"Succeeded"` and `"Completed"` in finally block | `q7r8s9t0` |
-| **Kaniko Docker config naming** — `kubernetes.io/dockerconfigjson` mounts as `.dockerconfigjson`, Kaniko reads `config.json` | Secret mount filename does not match Kaniko's expected path | Template ExternalSecret to output both `.dockerconfigjson` and `config.json` | `u1v2w3x4` |
-| **Cilium sharing-key missing** — `gitea-ssh` service stuck at `<pending>` for 41 days | `lbipam.cilium.io/ips` annotation is a request, not a coordination mechanism between Services | Added `lbipam.cilium.io/sharing-key: "gitea"` to both Service annotations | `y5z6a7b8` |
-| **Gitea SSH port unreachable from outside** — `192.168.55.209:2222` returned "no route to host" | Same as above; SSH service never got LB IP | Same fix: add sharing-key annotation | `c9d0e1f2` |
-| **GIT_SSH_COMMAND fails for nobody UID** — SSH key not found, push fails | `$HOME` is `/`, default key lookup walks `~/.ssh/id_*` against wrong path | Set `GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa"` and `HOME=/tekton/home` | `g3h4i5j6` |
-| **PodSecurity restricted blocks Kaniko** — vendored Tekton YAML sets `restricted` on `tekton-pipelines` namespace | Kaniko needs privileged capabilities for image building | Patched vendored release YAML to use `baseline` instead of `restricted` | `k7l8m9n0` |
+| **Tekton v1 `resources` field silently fails** — ArgoCD shows `ComparisonError`, block all syncs for tekton-extras | Tekton v1 Tasks use `computeResources`, not `resources`; old field fails schema validation | Changed `resources` to `computeResources` in all Task definitions | — |
+| **GitHub ClusterInterceptor drops Gitea webhooks** — nothing reaches EventListener | Gitea sends `X-Gitea-Event` headers, not `X-GitHub-Event` | Switched to CEL interceptor matching `X-Gitea-Event: push` | — |
+| **Gitea webhook silently fails delivery** — UI shows "sent" but EventListener receives nothing | `webhook.ALLOWED_HOST_LIST` default blocks `*.svc.cluster.local` | Set `webhook.ALLOWED_HOST_LIST` to `*.svc.cluster.local` | — |
+| **HOME=/ for nobody UID** — git config --global fails because / is read-only | Tekton steps run as UID 65534 with HOME=/ from /etc/passwd | Set `env: [{name: HOME, value: /tekton/home}]` on affected steps | — |
+| **`$(tasks.status)` returns "Completed" not "Succeeded"** — skipped tasks reported as failures | Tekton reports `"Completed"` when tasks skipped via `when` clauses | Check for both `"Succeeded"` and `"Completed"` in finally block | — |
+| **Kaniko Docker config naming** — `kubernetes.io/dockerconfigjson` mounts as `.dockerconfigjson`, Kaniko reads `config.json` | Secret mount filename does not match Kaniko's expected path | Template ExternalSecret to output both `.dockerconfigjson` and `config.json` | — |
+| **Cilium sharing-key missing** — `gitea-ssh` service stuck at `<pending>` for 41 days | `lbipam.cilium.io/ips` annotation is a request, not a coordination mechanism between Services | Added `lbipam.cilium.io/sharing-key: "gitea"` to both Service annotations | — |
+| **Gitea SSH port unreachable from outside** — `192.168.55.209:2222` returned "no route to host" | Same as above; SSH service never got LB IP | Same fix: add sharing-key annotation | — |
+| **GIT_SSH_COMMAND fails for nobody UID** — SSH key not found, push fails | `$HOME` is `/`, default key lookup walks `~/.ssh/id_*` against wrong path | Set `GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa"` and `HOME=/tekton/home` | — |
+| **PodSecurity restricted blocks Kaniko** — vendored Tekton YAML sets `restricted` on `tekton-pipelines` namespace | Kaniko needs privileged capabilities for image building | Patched vendored release YAML to use `baseline` instead of `restricted` | — |
 
 ## Recovery Path
 

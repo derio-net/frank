@@ -205,11 +205,11 @@ v0.4.0 fixes both:
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Public repo leaks cluster state** — tracker Issues in public `derio-net/frank` exposed health status | Bridge comments and bug titles contained cluster signal | Transferred trackers to new private repo `derio-net/frank-ops` | `c1d2e3f4` |
-| **Bug close matched by alertname** — DatasourceError closed by wrong layer's resolve | Close path used title match, not feature reference | Switched to body ref matching (`**Feature Issue:**`) | `g5h6i7j8` |
-| **Label format mismatch** — `derio-net/frank#8` in tracker body, bridge expects `frank#8` | Bridge splits on `#`, passes left half as bare repo name | Normalized all labels to `repo#number` format | `k9l0m1n2` |
-| **Power outage creates fake corpses** — DatasourceError marks layers dead when they are fine | Blind sensor treated as layer failure | v0.4.0: DatasourceError/NoData → degraded only, no bug creation | `o3p4q5r6` |
-| **Dead bugs on restart** — Grafana pod restart loses memory of previous fired instances, resolves never arrive | Fresh Grafana has no state of alerts the old process fired | Webhook-only path; reconciler documented as follow-up | `s7t8u9v0` |
+| **Public repo leaks cluster state** — tracker Issues in public `derio-net/frank` exposed health status | Bridge comments and bug titles contained cluster signal | Transferred trackers to new private repo `derio-net/frank-ops` | — |
+| **Bug close matched by alertname** — DatasourceError closed by wrong layer's resolve | Close path used title match, not feature reference | Switched to body ref matching (`**Feature Issue:**`) | — |
+| **Label format mismatch** — `derio-net/frank#8` in tracker body, bridge expects `frank#8` | Bridge splits on `#`, passes left half as bare repo name | Normalized all labels to `repo#number` format | — |
+| **Power outage creates fake corpses** — DatasourceError marks layers dead when they are fine | Blind sensor treated as layer failure | v0.4.0: DatasourceError/NoData → degraded only, no bug creation | — |
+| **Dead bugs on restart** — Grafana pod restart loses memory of previous fired instances, resolves never arrive | Fresh Grafana has no state of alerts the old process fired | Webhook-only path; reconciler documented as follow-up | — |
 
 ## Recovery Path
 

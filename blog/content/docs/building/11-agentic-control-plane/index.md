@@ -313,10 +313,10 @@ On initial deploy, `sympozium-extras` may fail to sync because ArgoCD has not ye
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **LiteLLM baseURL missing from PersonaPack-driven agents** — agents defaulted to `api.openai.com` because PersonaPack CRD has no `baseURL` field | PersonaPack-generated SympoziumInstances cannot set `baseURL`; only manually created instances can | Injected `OPENAI_BASE_URL` into the auth Secret consumed via `envFrom` | `27d947d2` |
-| **llmfit SkillPack sidecars rejected by PodSecurity** — `hostPID: true` and `hostPath` volumes violate `baseline` | The controller has no `agentNamespace` config; agent pods inherit the controller namespace's PodSecurity standard | Applied `pod-security.kubernetes.io/enforce: privileged` label on `sympozium-system` namespace | `c34d065b` |
-| **Dead LiteLLM alias in PersonaPack** — `qwen3.5` was removed from LiteLLM config but PersonaPacks still referenced it; 350 silent failures over 2 weeks | PersonaPack `model` is stamped at SympoziumInstance creation and never reconciled; editing the PersonaPack has no effect on existing instances | Deleted all SympoziumInstances in `sympozium-system`, controller recreated them with the new model alias from the merged PersonaPack manifest | PR #448, `c5812e2b` |
-| **AgentRun stuck comparing `Completed`** — the terminal success phase is `Succeeded`, not `Completed` | Schema documentation ambiguous; poll loop checking `Completed` never exits | Changed phase match to `Succeeded` | `19a2b4f1` |
+| **LiteLLM baseURL missing from PersonaPack-driven agents** — agents defaulted to `api.openai.com` because PersonaPack CRD has no `baseURL` field | PersonaPack-generated SympoziumInstances cannot set `baseURL`; only manually created instances can | Injected `OPENAI_BASE_URL` into the auth Secret consumed via `envFrom` | — |
+| **llmfit SkillPack sidecars rejected by PodSecurity** — `hostPID: true` and `hostPath` volumes violate `baseline` | The controller has no `agentNamespace` config; agent pods inherit the controller namespace's PodSecurity standard | Applied `pod-security.kubernetes.io/enforce: privileged` label on `sympozium-system` namespace | — |
+| **Dead LiteLLM alias in PersonaPack** — `qwen3.5` was removed from LiteLLM config but PersonaPacks still referenced it; 350 silent failures over 2 weeks | PersonaPack `model` is stamped at SympoziumInstance creation and never reconciled; editing the PersonaPack has no effect on existing instances | Deleted all SympoziumInstances in `sympozium-system`, controller recreated them with the new model alias from the merged PersonaPack manifest | PR #448 |
+| **AgentRun stuck comparing `Completed`** — the terminal success phase is `Succeeded`, not `Completed` | Schema documentation ambiguous; poll loop checking `Completed` never exits | Changed phase match to `Succeeded` | — |
 
 ## References
 

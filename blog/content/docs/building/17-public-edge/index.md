@@ -34,13 +34,15 @@ flowchart LR
     Phone[phone<br/>100.64.0.x]
   end
 
-  Internet --> CaddyExt
-  Internet --> STUN
+  CaddyExt --> Caddy
+  STUN --> Headscale
   Caddy --> Headscale
   Caddy --> HP
   Caddy --> Blog
-  Caddy -->|forward-auth| Mesh
-  Tailscale --> Mesh
+  Caddy -->|forward-auth| Laptop
+  Caddy -->|forward-auth| Phone
+  Tailscale --> Laptop
+  Tailscale --> Phone
 ```
 
 ## Why a Separate Cluster
@@ -319,11 +321,11 @@ Changed `redir / /admin/ permanent` to catch-all `@not_admin` matcher. Exact-pat
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Omni unreachable from Hetzner** — Hop could not phone home to on-prem Omni for registration | Impossible to fix — on-prem Omni is behind NAT | Switched to standalone `talosctl` management | `8a3f2b1c` |
-| **Missing Tailscale DaemonSet** — hop-1 was not on the mesh, Caddy couldn't see real source IPs | Hosting Headscale does not equal being on the mesh | Deployed kernel-mode Tailscale DaemonSet with `hostNetwork: true` | `4d5e6f7g` |
-| **config_strict killed HTTP listener silently** — Headplane pod Running/Ready but port 3000 never opened | `config_strict: true` on unknown config fields silently drops the listener | Set `config_strict: false` (reverted later after config cleanup) | `9h0i1j2k` |
-| **Caddy RollingUpdate deadlock with hostPort** — new pod cannot bind ports while old pod holds them | Single-node cluster cannot parallel-schedule hostPort pods | Changed to `Recreate` strategy | `3l4m5n6o` |
-| **Empty Cloudflare secret masked by running pod** — old pod had token baked in; rollout restart surfaced emptiness | `secretKeyRef` env vars are resolved once at pod creation | Refilled secret; verify with rollout restart after secret changes | `7p8q9r0s` |
+| **Omni unreachable from Hetzner** — Hop could not phone home to on-prem Omni for registration | Impossible to fix — on-prem Omni is behind NAT | Switched to standalone `talosctl` management | — |
+| **Missing Tailscale DaemonSet** — hop-1 was not on the mesh, Caddy couldn't see real source IPs | Hosting Headscale does not equal being on the mesh | Deployed kernel-mode Tailscale DaemonSet with `hostNetwork: true` | — |
+| **config_strict killed HTTP listener silently** — Headplane pod Running/Ready but port 3000 never opened | `config_strict: true` on unknown config fields silently drops the listener | Set `config_strict: false` (reverted later after config cleanup) | — |
+| **Caddy RollingUpdate deadlock with hostPort** — new pod cannot bind ports while old pod holds them | Single-node cluster cannot parallel-schedule hostPort pods | Changed to `Recreate` strategy | — |
+| **Empty Cloudflare secret masked by running pod** — old pod had token baked in; rollout restart surfaced emptiness | `secretKeyRef` env vars are resolved once at pod creation | Refilled secret; verify with rollout restart after secret changes | — |
 
 ## A Second Public Site (2026-07-25)
 

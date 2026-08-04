@@ -33,26 +33,15 @@ flowchart TD
       MW[Middlewares<br/>ip-allowlist + security-headers]
       FA[authentik-forward-auth]
     end
-    subgraph Direct[Direct proxy — native auth]
-      A[ArgoCD]
-      S[Sympozium]
-      AK[Authentik]
-      H[Homepage]
-    end
-    subgraph SSO[Forward-auth via Authentik]
-      G[Grafana]
-      L[Longhorn]
-      I[Infisical]
-      N[n8n]
-      GI[Gitea]
-    end
+    Direct["Direct proxy — native auth<br/>ArgoCD · Sympozium · Authentik · Homepage"]
+    SSO["Forward-auth via Authentik<br/>Grafana · Longhorn · Infisical · n8n · Gitea"]
   end
   DNS --> T
   T --> AC
   T --> MW
   T --> FA
   T --> Direct
-  T --> SSO
+  FA --> SSO
 ```
 
 ## Why Traefik
@@ -253,11 +242,11 @@ The genuinely irreversible moment is not the merge. It is `omnictl apply` of the
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **acme.json permission denied** — ACME resolver silently fails, IngressRoutes report "nonexistent certificate resolver" | Longhorn creates root-owned volume; Traefik runs as uid 65532 | Added `podSecurityContext.fsGroup: 65532` at top level, not nested under `deployment` | `a1b2c3d4` |
-| **ACME DNS-01 NXDOMAIN** — Let's Encrypt cannot verify TXT record | Cloudflare needs time to propagate; router ACLs block local DNS checks | Set `propagation.delayBeforeChecks: 60` | `e5f6g7h8` |
-| **Blueprint `invalidation_flow` missing** — provider creation fails silently, no error in logs | Authentik 2026.x serializer rejects providers without `invalidation_flow` attr | Added `invalidation_flow` reference to every blueprint entry | `i9j0k1l2` |
-| **Blueprint creates provider but does not assign to outpost** — forward-auth does not route to new service | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django ORM: `outpost.providers.add(provider)` after each blueprint apply | `m3n4o5p6` |
-| **Homepage `ping` monitor shows DOWN** | Kubernetes ClusterIP addresses do not respond to ICMP | Switch to `siteMonitor:` (HTTP GET) instead of `ping:` | `q7r8s9t0` |
+| **acme.json permission denied** — ACME resolver silently fails, IngressRoutes report "nonexistent certificate resolver" | Longhorn creates root-owned volume; Traefik runs as uid 65532 | Added `podSecurityContext.fsGroup: 65532` at top level, not nested under `deployment` | — |
+| **ACME DNS-01 NXDOMAIN** — Let's Encrypt cannot verify TXT record | Cloudflare needs time to propagate; router ACLs block local DNS checks | Set `propagation.delayBeforeChecks: 60` | — |
+| **Blueprint `invalidation_flow` missing** — provider creation fails silently, no error in logs | Authentik 2026.x serializer rejects providers without `invalidation_flow` attr | Added `invalidation_flow` reference to every blueprint entry | — |
+| **Blueprint creates provider but does not assign to outpost** — forward-auth does not route to new service | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django ORM: `outpost.providers.add(provider)` after each blueprint apply | — |
+| **Homepage `ping` monitor shows DOWN** | Kubernetes ClusterIP addresses do not respond to ICMP | Switch to `siteMonitor:` (HTTP GET) instead of `ping:` | — |
 | **Deleting nine IngressRoutes from Git deleted none of them** — all nine kept serving after the PR merged | Every Application runs `prune: false`, so removal from Git only stops management. Compounded by the routes belonging to `traefik-extras` while the similarly-named `traefik` app stayed green | Manual `kubectl delete ingressroute`, then assert the objects are gone rather than that the app is `Synced` | `0c094108` |
 | **`omnictl apply` reported success twice while applying the old config** | It reads a *local* file and has no idea the checkout is stale — the pre-merge dual-issuer patch was re-applied from an unpulled tree | `git pull` before applying; the legacy-token `TokenReview` check is what exposed it | `99baf9dc` |
 

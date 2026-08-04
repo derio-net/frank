@@ -28,9 +28,9 @@ flowchart LR
     ID[ignoreDifferences<br/>spec.replicas]
   end
 
-  Switcher -->|scale up| Comfy
-  Switcher -->|scale down| Ollama
-  ArgoCD -->|doesn't fight| Switcher
+  Go -->|scale up| Comfy
+  Go -->|scale down| Ollama
+  ID -->|doesn't fight| Go
 ```
 
 The constraint: the RTX 5070 Ti has 16GB of {{< abbr "GDDR7" >}}. LTX-2.3 needs 8-12GB. Ollama with a 9B model uses 6-7GB. Both cannot run simultaneously.
