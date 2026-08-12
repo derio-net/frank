@@ -60,7 +60,7 @@ Which is not hypothetical. On 2026-06-20 [the Pi failed outright](https://github
 
 **Zone D** is the rag-tag edge: a legacy desktop (pc-1) and two Raspberry Pi 4s. They run CI/CD pipelines, monitoring scrapers, DNS caches — workloads that need to be always-on but do not need a GPU or fast storage.
 
-{{< screenshot src="homelab.png" alt="The Frank cluster in its natural habitat. The minis are hidden behind a patch panel. The GPU desktop stands to the left. The Raspberry Pis are in a horizontal rack kit alongside other network gear. The GPU did not fit in a rack-mountable case so it lives in a gaming case with LEDs that never turn off." caption="The Frank cluster in its natural habitat. The minis are hidden behind a patch panel. The GPU desktop stands to the left. The Raspberry Pis are in a horizontal rack kit alongside other network gear. The GPU did not fit in a rack-mountable case so it lives in a gaming case with LEDs that never turn off." >}}
+{{< screenshot src="homelab.png" alt="Frank's seven nodes marked in yellow: pc-1, gpu-1, three mini nodes, and two Raspberry Pis." caption="The rack contains several systems, but Frank's seven nodes are the equipment marked in yellow: pc-1 (1), gpu-1 (2), mini-1 through mini-3 (3–5), and raspi-1 and raspi-2 (6–7). The purple, turquoise, and blue markers identify neighboring Proxmox, NAS, and unrelated Raspberry Pi equipment rather than Frank nodes." >}}
 
 ## The Two-Layer Model That Makes It Work
 
