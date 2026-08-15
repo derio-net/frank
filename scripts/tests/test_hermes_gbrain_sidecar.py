@@ -10,12 +10,23 @@ database.
 Everything asserted here is invisible in a diff and green in a suite if it is
 wrong. The five things that actually break:
 
-  1. `PGDATA` at the mount ROOT. The design gate (spec: "The gate, run during
-     design") found the entrypoint CREATING that directory is precisely what
-     makes it uid-1000-owned and 0700; the mount root has already been widened
-     to 0775 by `fsGroup`, and Postgres refuses a data dir wider than 0750. So
-     the guard is on the RELATIONSHIP — PGDATA strictly below the mount — not on
-     a literal path.
+  1. `PGDATA` at the mount ROOT. The stock entrypoint runs
+     `chmod 00700 "$PGDATA" || :` on EVERY start, before the "already
+     initialised" branch. Because the container CREATES and OWNS the
+     subdirectory, that chmod SUCCEEDS — which is both why the strict posture
+     works and why an fsGroup re-walk that re-loosens a populated PGDATA is put
+     back to 0700 at the next boot. Point PGDATA at the mount root instead —
+     which the pod-level `fsGroup` leaves at root:1000 2775 — and the identical
+     chmod EPERMs on a root-owned directory, is SWALLOWED by the `|| :`, and
+     initdb then dies on its own chmod ("could not change permissions of
+     directory"). So the guard is on the RELATIONSHIP — PGDATA strictly below
+     the mount — not on a literal path.
+
+     (An earlier draft of this file explained it as "the mount root is 0775 and
+     Postgres refuses a data dir wider than 0750". That is NOT the mechanism:
+     the volume root is 2775, and the 0750 postmaster check is only reachable
+     had it got past the chmod. Corrected 2026-08-03 and reproduced on the
+     pinned digest; the runbook and `deployment.yaml` carry the same correction.)
   2. A kubelet-side probe (`httpGet`/`tcpSocket`) against a server that binds
      127.0.0.1 only. The kubelet probes the POD IP, so such a probe is refused
      forever. The `hindsight` container in the same file paid 37 restarts
@@ -52,6 +63,7 @@ disjointness runs on resolved `claimName`s (comparing volume NAMES let two
 distinct names point at one PVC).
 """
 
+import re
 from pathlib import Path
 
 import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
@@ -151,9 +163,17 @@ def test_gbrain_initdb_configmap_creates_the_vector_extension():
     sql_keys = [k for k in cm["data"] if k.endswith(".sql")]
     assert sql_keys, "the initdb ConfigMap must carry a .sql key"
 
-    body = "\n".join(cm["data"][k] for k in sql_keys).lower()
-    assert "create extension" in body, "the init SQL must create an extension"
-    assert "vector" in body, "the extension created must be pgvector's `vector`"
+    # ONE regex, not two independent substrings. Two `in` checks over the
+    # concatenation of every .sql key pass on `CREATE EXTENSION hstore;` in one
+    # key plus the word "vector" in a COMMENT in another — the extension the
+    # store exists for silently absent, the guard green.
+    body = "\n".join(cm["data"][k] for k in sql_keys)
+    assert re.search(
+        r"create\s+extension\s+(if\s+not\s+exists\s+)?vector\b", body, re.IGNORECASE
+    ), (
+        "the init SQL must actually CREATE EXTENSION vector — this is the only "
+        f"place pgvector gets enabled, and it is read once, at initdb. Got: {body!r}"
+    )
 
 
 # ── Task 2: the gbrain container ────────────────────────────────────────────
@@ -233,7 +253,33 @@ def _server_settings(container: dict) -> dict:
     `listen_addresses` is described in the spec as "the only thing standing
     between this database and anything that can route to the pod", so it is the
     one setting that must not be assertable by substring. Parse, do not grep.
+
+    KEYS ARE NORMALISED, and that is not cosmetic. Postgres does not compare GUC
+    names verbatim: `ParseLongOption` rewrites `-` to `_`, and GUC lookup is
+    case-insensitive. So the FIRST version of this parser — which stored
+    `key.strip()` as written — was still bypassable by the two spellings nobody
+    had mutated, even though it had just been "upgraded" from a substring check
+    precisely to close this hole (2026-08-15 review):
+
+        -c LISTEN_ADDRESSES=0.0.0.0   -> stored as 'LISTEN_ADDRESSES'
+        --listen-addresses=0.0.0.0    -> stored as 'listen-addresses'
+
+    Neither collides with the `listen_addresses` the assertion reads, so the
+    guard stayed green while the server bound every interface — with `trust`,
+    unauthenticated superuser Postgres on the pod IP. Normalising on write is
+    what makes the parse actually model Postgres rather than merely look like it.
+
+    Three arg SHAPES are recognised, because the guard is only as good as the
+    spellings it can see: `-c key=value` (split or joined) and `--key=value`,
+    plus the space-separated `--key value` long form. Recognising more shapes can
+    only make this stricter — an unrecognised shape is one the server honours and
+    the test cannot see.
     """
+
+    def _norm(key: str) -> str:
+        # Mirror ParseLongOption: hyphens are underscores, lookup is case-insensitive.
+        return key.strip().lower().replace("-", "_")
+
     settings: dict = {}
     args = list(container.get("args", []))
     i = 0
@@ -245,12 +291,21 @@ def _server_settings(container: dict) -> dict:
             arg = arg[2:]
         elif arg.startswith("--") and "=" in arg:
             arg = arg[2:]
+        elif (
+            arg.startswith("--")
+            and i + 1 < len(args)
+            and not args[i + 1].startswith("-")
+        ):
+            # `--listen-addresses 0.0.0.0` — the space-separated long form.
+            settings[_norm(arg[2:])] = args[i + 1].strip()
+            i += 2
+            continue
         else:
             i += 1
             continue
         if "=" in arg:
             key, value = arg.split("=", 1)
-            settings[key.strip()] = value.strip()  # LAST wins, as postgres does
+            settings[_norm(key)] = value.strip()  # LAST wins, as postgres does
         i += consumed
     return settings
 
@@ -290,13 +345,13 @@ def test_gbrain_image_is_stock_pgvector_pinned_by_digest():
 def test_gbrain_pgdata_is_a_subdirectory_of_the_mount():
     """PGDATA strictly BELOW the mount root, never AT it.
 
-    The design gate found the entrypoint CREATING that directory is what makes it
-    uid-1000-owned and 0700. The mount root has already been widened to 0775 by
-    the pod's `fsGroup`, and Postgres refuses a data dir wider than 0750 — so
-    pointing PGDATA at the mount root is how this fails, on Longhorn, at first
-    boot, in a way no local gate reproduces. Nothing in review, and nothing in a
-    `docker run` against a plain volume, sees it: it needs a real kubelet
-    re-walking a real fsGroup.
+    The stock entrypoint runs `chmod 00700 "$PGDATA" || :` on every start.
+    Because the container CREATES and OWNS the subdirectory, that chmod succeeds.
+    Point PGDATA at the mount root — which the pod's `fsGroup` leaves at
+    root:1000 2775 — and the same chmod EPERMs on a root-owned directory, is
+    swallowed by the `|| :`, and initdb dies on its own chmod. That is how this
+    fails: at first boot, with the real error several lines away from the real
+    cause.
 
     Both sides of the relationship come off the manifest — the mountPath is read
     back from whichever volumeMount is backed by the gbrain PVC — so renaming the
@@ -308,9 +363,10 @@ def test_gbrain_pgdata_is_a_subdirectory_of_the_mount():
     pgdata = _env(gbrain)["PGDATA"].rstrip("/")
 
     assert pgdata != mount_path, (
-        f"PGDATA ({pgdata!r}) must not BE the mount root — fsGroup has already "
-        "widened that directory to 0775 and Postgres refuses a data dir wider "
-        "than 0750, so the container fails at initdb on first boot"
+        f"PGDATA ({pgdata!r}) must not BE the mount root — fsGroup leaves that "
+        "directory root-owned (root:1000 2775), so the entrypoint's "
+        "`chmod 00700 $PGDATA` EPERMs, is swallowed by its `|| :`, and initdb "
+        "then dies on its own chmod at first boot"
     )
     assert pgdata.startswith(mount_path + "/"), (
         f"PGDATA ({pgdata!r}) must live UNDER the gbrain PVC mount "
@@ -399,6 +455,43 @@ def test_gbrain_runs_strict_non_root():
     assert sc["runAsNonRoot"] is True
     assert sc["allowPrivilegeEscalation"] is False
     assert sc["capabilities"]["drop"] == ["ALL"]
+    assert sc.get("seccompProfile", {}).get("type") == "RuntimeDefault", (
+        "gbrain must set seccompProfile RuntimeDefault — with the five settings "
+        "above it is the only field between this container and a clean "
+        "`restricted` audit, which the namespace warns at"
+    )
+
+
+def test_gbrain_pins_the_collation_provider_at_initdb():
+    """The collation provider is a FIRST-BOOT-ONLY decision, so it is guarded.
+
+    With no POSTGRES_INITDB_ARGS the image's `ENV LANG en_US.utf8` wins and
+    initdb builds the cluster under the LIBC provider — measured on the pinned
+    digest: datlocprovider 'c', datcollate 'en_US.utf8'. That binds collation to
+    the glibc inside the image, so a later image rebuild emits `collation version
+    mismatch` and every text/btree index needs REINDEX.
+
+    This is guarded rather than merely commented because the window to fix it
+    closes the instant the volume initialises: after first boot the entrypoint
+    skips initdb entirely, and changing this env var does nothing at all. A
+    deleted line here is silent today and expensive later — the worst shape.
+
+    Measured 2026-08-15 on the pinned digest (amd64): with the arg,
+    datlocprovider 'b', datlocale 'C.UTF-8', pgvector 0.8.6 still installs from
+    initdb.d, an hnsw index builds and answers; on an already-initialised volume
+    the arg is an inert no-op.
+    """
+    args = _env(_gbrain()).get("POSTGRES_INITDB_ARGS", "")
+
+    assert "--locale-provider=builtin" in args, (
+        "gbrain must pin the BUILTIN locale provider at initdb — without it the "
+        f"cluster inherits libc/en_US.utf8 from the image's LANG (got {args!r}), "
+        "and that binds the collation to the image's glibc version forever"
+    )
+    assert "--builtin-locale=C.UTF-8" in args, (
+        "the builtin provider needs an explicit builtin locale; C.UTF-8 matches "
+        f"the hindsight sidecar's baked recipe (got {args!r})"
+    )
 
 
 def test_gbrain_probes_are_exec_pg_isready_on_loopback():
@@ -421,7 +514,7 @@ def test_gbrain_probes_are_exec_pg_isready_on_loopback():
     gbrain = _gbrain()
     port = _configured_port(gbrain)
 
-    for probe_name in ("startupProbe", "readinessProbe", "livenessProbe"):
+    for probe_name in ("startupProbe", "livenessProbe"):
         probe = gbrain.get(probe_name)
         assert probe is not None, f"gbrain must declare a {probe_name}"
         for kubelet_side in ("httpGet", "tcpSocket"):
@@ -447,6 +540,42 @@ def test_gbrain_probes_are_exec_pg_isready_on_loopback():
             f"with (`-c port={port}`); a probe on the wrong port either never "
             "passes or passes against the Hindsight database next door"
         )
+
+
+def test_gbrain_declares_no_readiness_probe():
+    """gbrain must NOT have a readinessProbe — its absence is a decision.
+
+    Pod `Ready` is an ALL-containers condition, and service.yaml selects this pod
+    with no `publishNotReadyAddresses`. So a readiness failure in this sidecar
+    withdraws the whole pod from 192.168.55.226 — SSH (22 -> 2222) and all
+    sixteen mosh ports included. The failure mode is self-blocking: the store you
+    would log in to debug is what removed the way in.
+
+    It would also gate nothing. Readiness governs SERVICE ENDPOINTS; gbrain
+    declares no `ports:` and no Service routes to it, so the probe is pure
+    downside. Container health remains supervised by startup + liveness.
+
+    This is asserted rather than merely commented because re-adding a
+    readinessProbe is the single most natural-looking edit anyone could make to
+    this block — every sibling container has one, so it reads as an omission. It
+    is not; `ssh` keeps its readinessProbe precisely because there the
+    LB-withdrawal IS the wanted behaviour.
+    """
+    gbrain = _gbrain()
+
+    assert "readinessProbe" not in gbrain, (
+        "gbrain must NOT declare a readinessProbe: pod Ready is all-containers "
+        "and the LoadBalancer Service has no publishNotReadyAddresses, so this "
+        "sidecar going unready takes operator SSH and mosh off 192.168.55.226 — "
+        "while gating no endpoint of its own, since gbrain declares no ports"
+    )
+    # And the point only holds while the Service really is Ready-gated.
+    svc = _load(MANIFESTS / "service.yaml")
+    assert svc["spec"].get("publishNotReadyAddresses") is not True, (
+        "service.yaml has grown publishNotReadyAddresses=true — that changes the "
+        "premise of the probe decision above (and of the `ssh` readinessProbe "
+        "the runbook relies on); re-derive both before leaving this green"
+    )
 
 
 # ── Task 3: Hindsight is genuinely untouched ────────────────────────────────
@@ -546,7 +675,9 @@ def test_ssh_container_still_execs_the_image_entrypoint():
 
     assert f"exec {SSH_IMAGE_ENTRYPOINT}" in script, (
         f"the ssh sidecar must still `exec {SSH_IMAGE_ENTRYPOINT}` — this plan "
-        "changes the ssh container's IMAGE pin and nothing else about it"
+        "changes NOTHING about the ssh container. Its image pin is moved by the "
+        "scheduled agent-images bump workflow, not by this branch (that bump is "
+        "how the Bun runtime arrived; see the re-pin manual operation)"
     )
 
 

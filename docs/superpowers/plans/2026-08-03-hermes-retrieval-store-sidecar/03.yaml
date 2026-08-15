@@ -34,9 +34,10 @@ tasks:
       The durable, non-obvious lesson is the one the design gate produced:
       a stock Postgres image runs fine under strict non-root + cap-drop
       ALL + fsGroup ONLY when PGDATA is a SUBDIRECTORY of the mount, because
-      the entrypoint creating that directory is what makes it uid-owned and
-      0700; the mount root has already been widened to 0775 by fsGroup, and
-      Postgres refuses anything wider than 0750. Include that the official
+      the entrypoint's per-boot `chmod 00700 "$PGDATA" || :` succeeds on a
+      directory the container created and owns, while at the mount root
+      (root:1000 2775 after fsGroup) it EPERMs, is swallowed by the `|| :`,
+      and initdb dies on its own chmod. Include that the official
       image ships `/var/run/postgresql` at mode 3777, so the `-k /tmp`
       workaround the hindsight image carries is NOT needed.
 - number: 2

@@ -21,11 +21,14 @@ tasks:
       `PGDATA.startswith(mountPath + "/")`. Assert the relationship, not the
       literal string, so the guard survives a rename of either.
 
-      Why this matters: fsGroup leaves the mount root at 0775. Postgres
-      refuses a PGDATA wider than 0750, so pointing PGDATA at the root
-      fails at initdb — but ONLY on a real cluster with a real fsGroup
-      re-walk. Nothing in review or in a local `docker run` with a plain
-      volume would catch it.
+      Why this matters: the entrypoint runs `chmod 00700 "$PGDATA" || :`
+      on every start. On a subdirectory the container creates and owns,
+      that chmod succeeds. At the mount root — which fsGroup leaves at
+      root:1000 2775 — it EPERMs, the `|| :` swallows the error, and
+      initdb then dies on its own chmod, several lines away from the
+      cause. (Corrected 2026-08-03: the earlier "root is 0775, Postgres
+      refuses wider than 0750" reading was wrong — that check is only
+      reachable had it got past the chmod.)
 
       MUTATION-CHECK IT: temporarily set `PGDATA` to the mountPath itself,
       confirm the test FAILS, then restore. A guard that passes against its

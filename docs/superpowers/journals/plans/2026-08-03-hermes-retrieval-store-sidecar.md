@@ -545,3 +545,132 @@ workflow every month. The docstring now states the scope precisely and says why
 image/env are deliberately out of it. Also documented the two vacuity classes
 (last-wins parse, claimName indirection) at the top, so the next author does not
 re-introduce them.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-guc-parser-bypass created=2026-08-15T16:52:24 phase=2 state=fixed -->
+### rv2-guc-parser-bypass · finding [fixed] · The loopback guard was still bypassable by two GUC spellings Postgres accepts (phase 2)
+
+`_server_settings` stored GUC names verbatim, but Postgres does not compare them
+verbatim: `ParseLongOption` rewrites `-` to `_` and lookup is case-insensitive. So
+`--listen-addresses=0.0.0.0` and `-c LISTEN_ADDRESSES=0.0.0.0` both bound every
+interface while `settings['listen_addresses']` still read `127.0.0.1` — with
+`trust`, unauthenticated superuser Postgres on the pod IP. This is the guard the
+2026-08-03 round had *just* upgraded from a substring check for exactly this
+reason; it was upgraded to a narrower substring check.
+
+Fixed by normalising keys on write (`lower()`, `-`->`_`) and by additionally
+recognising the space-separated `--key value` long form, which nothing had tested.
+Mutation-checked across 7 spellings (both reported, plus space-form, mixed-case,
+joined `-c`, and a port drift): all 7 now fail the guard, baseline unchanged.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-readiness-probe-withdraws-ssh created=2026-08-15T16:52:24 phase=1 state=fixed -->
+### rv2-readiness-probe-withdraws-ssh · finding [fixed] · gbrain's readinessProbe would have withdrawn operator SSH from the LoadBalancer (phase 1)
+
+Pod `Ready` is an all-containers condition and `service.yaml` has no
+`publishNotReadyAddresses`, so a gbrain readiness failure removes the pod from
+192.168.55.226 — taking SSH (22->2222) and all sixteen mosh ports with it. The
+failure is self-blocking: the store you would log in to debug is what removed the
+way in. It also gated nothing, since gbrain deliberately declares no `ports:` and
+no Service routes to it.
+
+Removed, and its ABSENCE is now asserted (`test_gbrain_declares_no_readiness_probe`)
+together with the premise it rests on — that the Service is still Ready-gated —
+because re-adding it is the most natural-looking edit anyone could make here.
+`ssh` keeps its readinessProbe: there the LB withdrawal is the wanted behaviour.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-collation-provider-first-boot created=2026-08-15T16:52:25 phase=1 state=fixed -->
+### rv2-collation-provider-first-boot · finding [fixed] · The cluster would have initialised with a glibc-bound libc collation, permanently (phase 1)
+
+With no `POSTGRES_INITDB_ARGS` the image's `ENV LANG en_US.utf8` wins and initdb
+builds under the LIBC provider. Measured on the pinned digest: `datlocprovider` 'c',
+`datcollate` 'en_US.utf8'. That binds collation to the glibc inside the image, so a
+later rebuild emits a collation-version mismatch and every text/btree index needs
+REINDEX. It is a first-boot-only decision — after initdb the entrypoint never runs it
+again — so the window closes the moment the volume initialises.
+
+Fixed with `--locale-provider=builtin --builtin-locale=C.UTF-8` and guarded.
+VERIFIED EMPIRICALLY against the pinned digest on amd64 rather than asserted: with
+the arg, `datlocprovider` 'b' / `datlocale` 'C.UTF-8'; pgvector 0.8.6 still installs
+from the initdb.d ConfigMap; an hnsw index builds and answers a `<->` query; and on a
+second boot over the already-initialised volume the arg is an inert no-op with no
+collation warning and the data intact. Byte-order sorting is the accepted trade and
+matches the hindsight sidecar's baked C.UTF-8 recipe.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-stale-pgdata-mechanism-in-tests created=2026-08-15T16:52:26 phase=2 state=fixed -->
+### rv2-stale-pgdata-mechanism-in-tests · finding [fixed] · The test file still taught the false PGDATA mechanism the rest of the branch had corrected (phase 2)
+
+Three places in `test_hermes_gbrain_sidecar.py` — plus `_prose.md`, `02.yaml` and
+`03.yaml` — still explained the failure as 'the mount root is 0775 and Postgres
+refuses a data dir wider than 0750'. That is not the mechanism: the volume root is
+2775, and the 0750 postmaster check is only reachable had it got past the
+entrypoint's `chmod 00700 $PGDATA || :`, which EPERMs on a root-owned directory and
+is swallowed. The manifests, runbook and README already carried the correction; the
+test file is what a future engineer reads FIRST when the guard goes red. All five
+artefacts now carry the same corrected mechanism, with the retraction stated.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-discretion-scan-missed-riskiest-file created=2026-08-15T16:52:27 phase=2 state=fixed -->
+### rv2-discretion-scan-missed-riskiest-file · finding [fixed] · The discretion scan omitted the artefact most likely to leak (phase 2)
+
+`docs/runbooks/manual-operations.yaml` was unscanned, yet it is where the
+`bun install -g 'git+<client CLI repo URL>#<pinned ref>'` placeholder lives — a blank
+a future operator is actively invited to fill in with the identifier the guard exists
+to keep out. It could not simply be appended: it registers all 144 manual ops, and
+scanning it whole imports unrelated `github.com/<org>/` hits whose only cure is
+widening the allowlist, which is how such a guard rots into a rubber stamp.
+
+Added a scoped-scan mechanism (`_scan_units()`): whole files, plus extracts scoped by
+op id for partly-in-scope artefacts. Mutation-checked — injecting a private org and a
+foreign-qualified issue number into the scoped text both fire. `agent-shells.md` was
+measured clean and added whole. `agents/rules/frank-gotchas.md` is deliberately still
+excluded, with the measurement recorded: it trips a genuine false positive from an
+unrelated upstream ArgoCD citation, and this work's footprint there is one summary
+line whose full prose lives in the scanned runbook.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-issue-allowlist-bare-numbers created=2026-08-15T16:52:27 phase=2 state=fixed -->
+### rv2-issue-allowlist-bare-numbers · finding [fixed] · The public-issue allowlist exempted bare numbers regardless of which repo they named (phase 2)
+
+`_PUBLIC_FRANK_ISSUES` matched on the number alone, so a private-repo reference
+that happened to collide with 748/751/759 would have been exempted silently. Now the
+repo qualifier is captured: an unqualified `#748` stays exempt (unambiguous in this
+repo's prose) and `frank#748`/`derio-net/frank#748` are exempt, but
+`someotherrepo#748` is not. Mutation-checked.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-minor-cluster created=2026-08-15T16:52:28 phase=2 state=fixed -->
+### rv2-minor-cluster · finding [fixed] · Five smaller defects: vacuous initdb assertion, wrong docstring, missing schema field, probe threshold, posture (phase 2)
+
+* The initdb ConfigMap check was two independent substrings over the concatenation
+  of every .sql key, so `CREATE EXTENSION hstore;` plus the word 'vector' in a comment
+  would pass. Now one regex.
+* A docstring claimed 'this plan changes the ssh container's IMAGE pin' — it changes
+  nothing about that container; the pin is moved by the scheduled bump workflow.
+* The three new acceptance rows were the only ones of 66 omitting `levels:`. Added —
+  `unit` for the two with real structural guards, an explicitly-empty `{}` with its
+  reason for the JS-runtime row, which nothing in this repo can verify statically.
+* `livenessProbe.failureThreshold` 3 -> 10: at 3x30s the kubelet kills Postgres
+  mid-WAL-replay after an unclean stop, restarting recovery from scratch each time.
+* Added `seccompProfile: RuntimeDefault`, the only field between this container and
+  the `restricted` level the namespace audits at.
+
+<!-- fr:journal kind=finding scope=plan id=rv2-prestop-shutdown-hook created=2026-08-15T16:52:29 state=refuted -->
+### rv2-prestop-shutdown-hook · finding [refuted] · REFUTED: adding a preStop pg_ctl hook for graceful shutdown
+
+Review suggested a `lifecycle.preStop` running `pg_ctl -m fast stop` as
+belt-and-braces, in case plain SIGTERM (a SMART shutdown, which waits for clients)
+outlived the 45s grace period. Not taken. The official postgres image sets
+`STOPSIGNAL SIGINT` and containerd honours image stop signals, so fast shutdown is
+already what happens; adding a redundant hook introduces a second shutdown path that
+can itself fail or mask the first, on a container whose termination behaviour is not
+otherwise instrumented here. The reviewer raised it as optional and I agree with the
+reasoning while declining the change — recorded so the option is findable if a real
+unclean-shutdown incident ever argues for it.
+
+<!-- fr:journal kind=decision scope=plan id=rv2-manual-phase-overtaken created=2026-08-15T16:52:30 phase=4 -->
+### rv2-manual-phase-overtaken · decision · Phase 4's re-pin step was overtaken by events; the verify half still stands (phase 4)
+
+P4.T1.S1 asked the operator to re-pin `hermes-agent-shell-ssh` to an agent-images
+build carrying Bun, manual because that image did not exist when the plan was written.
+agent-images#158 merged 2026-08-13 as c04eaab, and the scheduled bump re-pinned frank
+main (#766); rebasing this branch inherited it. So the EDIT half is done and the
+manual op has been rewritten to say so — but the VERIFY half is untouched, because
+ArgoCD syncs from main and `bun --version` over a LOGIN shell is a different claim
+from the pin looking right. The step is deliberately NOT ticked: completing a manual
+phase is the operator's, not this session's.

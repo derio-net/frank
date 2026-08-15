@@ -24,6 +24,15 @@
 # group — `daily-nas` (retain 7) and `weekly-r2` (retain 4). The Hindsight volume
 # next door carries that label today despite its own manifest never setting one.
 # Nothing here needs to opt in; opting OUT would be the thing that took an edit.
+#
+# THE COST OF A PVC PER SIDECAR, stated plainly: this is now the FIFTH RWO
+# Longhorn volume the pod must attach before ANY container starts, and the
+# Deployment is `strategy: Recreate`. If this volume fails to attach — node
+# reboot, engine image issue, a replica-scheduling refusal — the whole pod sits
+# in ContainerCreating, taking the agent shell, SSH and the Hindsight memory
+# backend down with it. Lifecycle isolation is still the right call (see above);
+# this is simply the price it is bought at, recorded so that a future pod-stuck
+# incident starts with "which of the five volumes?" instead of a surprise.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

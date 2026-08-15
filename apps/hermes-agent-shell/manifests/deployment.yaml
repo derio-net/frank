@@ -554,6 +554,21 @@ spec:
           # Postgres image ships /var/run/postgresql at mode 3777 for exactly this
           # arbitrary-uid case. Verified during the design gate rather than
           # inherited by copy.
+          #
+          # NO /dev/shm emptyDir, so this container gets the container runtime's
+          # default 64 MiB. That is a KNOWN, ACCEPTED gap (spec: "Named gaps"),
+          # not an oversight — the store ships empty, `hindsight` next door has
+          # run on the same 64 MiB since the 2026-07-09 cutover, and pre-emptively
+          # diverging the two Postgres sidecars is the worse trade. It is written
+          # HERE, in the deployed artifact, because the consumer is a CLI that
+          # owns its own schema and index builds, i.e. the workload most likely to
+          # run `CREATE INDEX … USING hnsw` on a table big enough to go parallel
+          # and hit:
+          #     could not resize shared memory segment … No space left on device
+          # Whoever debugs that is reading this file, not the spec. Two remedies,
+          # either one a one-liner: add `-c max_parallel_maintenance_workers=0`
+          # to the args below (slower serial index builds, never hits it), or add
+          # a `dshm` emptyDir with `medium: Memory` and mount it at /dev/shm.
           args: ["-c", "listen_addresses=127.0.0.1", "-c", "port=5434"]
           env:
             # PGDATA IS A SUBDIRECTORY OF THE MOUNT, NOT THE MOUNT ROOT — and
@@ -580,6 +595,29 @@ spec:
             # See the trust discussion in the block comment above.
             - name: POSTGRES_HOST_AUTH_METHOD
               value: trust
+            # COLLATION IS A FIRST-BOOT-ONLY DECISION, so it has to be made
+            # here or never. The official image sets `ENV LANG en_US.utf8`, and
+            # initdb with no --locale-provider inherits it under the LIBC
+            # provider — measured on this exact digest: datlocprovider `c`,
+            # datcollate `en_US.utf8`. That binds the cluster's collation to
+            # the glibc inside the image, so a later rebuild on a newer Debian
+            # produces `WARNING: database "gbrain" has a collation version
+            # mismatch` and every text/btree index needs REINDEX. The builtin
+            # provider (PG17+) has no such version to drift.
+            #
+            # Measured 2026-08-15 against this digest on amd64, both boots:
+            # datlocprovider `b`, datlocale `C.UTF-8`, encoding UTF8; the
+            # initdb.d CREATE EXTENSION still yields vector 0.8.6; an hnsw
+            # index builds and answers a <-> query. On an ALREADY-initialised
+            # volume the entrypoint skips initdb entirely, so this var is a
+            # no-op there — it cannot damage a store that got created first.
+            #
+            # The trade is byte-order (memcmp) sorting instead of linguistic
+            # ordering. That is correct for a retrieval store keyed by ids and
+            # vectors, and it matches the `hindsight` sidecar above, whose
+            # baked recipe already pins locale C.UTF-8.
+            - name: POSTGRES_INITDB_ARGS
+              value: "--locale-provider=builtin --builtin-locale=C.UTF-8"
           volumeMounts:
             # Sidecar-ONLY volume — not shared with hermes, ssh or /opt/data.
             - name: gbrain-data
@@ -602,6 +640,15 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+            # The namespace ENFORCES `baseline` but audits/warns at
+            # `restricted`. With the four settings above, this is the only
+            # field between this container and a clean `restricted` audit —
+            # and stock Postgres runs fine under the default profile. The
+            # sibling containers do not set it, so omitting it would be
+            # consistent; setting it is free and moves one container to the
+            # level the namespace says it wants.
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               cpu: 100m
@@ -625,24 +672,46 @@ spec:
           # loopback, which is where Postgres actually is. The startup budget is
           # generous (150s) because first boot runs initdb before anything can
           # answer.
+          # DELIBERATELY NO readinessProbe — this one is a trap, and the sidecar
+          # shape is what makes it one. Pod `Ready` is an ALL-containers
+          # condition, and the Service in service.yaml selects this pod with no
+          # `publishNotReadyAddresses`. So a gbrain readiness failure — corrupt
+          # PGDATA after a node crash, an OOM kill, a long crash recovery —
+          # removes the pod from 192.168.55.226, taking SSH (22 -> 2222) and all
+          # sixteen mosh ports with it. The store you would want to log in and
+          # debug is the thing that just took away the way in. (`kubectl exec`
+          # still works, so it is not a lockout — but the runbook's documented
+          # access path breaks at exactly the wrong moment.)
+          #
+          # And it would buy nothing in exchange: readiness gates SERVICE
+          # ENDPOINTS, gbrain deliberately declares no `ports:`, and no Service
+          # ever routes to it. Container health is still supervised by the
+          # startup and liveness probes below.
+          #
+          # Note `ssh` DOES keep its readinessProbe, and should: there the
+          # LB-withdrawal is the desired behaviour (agent-shells.md records
+          # "sshd-down is visible via the K8s readinessProbe"). The distinction
+          # is whether the container actually serves the traffic being gated.
           startupProbe:
             exec:
               command: ["pg_isready", "-h", "127.0.0.1", "-p", "5434", "-U", "gbrain", "-d", "gbrain"]
             periodSeconds: 5
             timeoutSeconds: 5
+            # 5 x 30 = 150s, and the guard asserts >= 150 with ZERO slack — the
+            # equality is intentional, so do not "tidy" either number.
             failureThreshold: 30
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-h", "127.0.0.1", "-p", "5434", "-U", "gbrain", "-d", "gbrain"]
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
           livenessProbe:
             exec:
               command: ["pg_isready", "-h", "127.0.0.1", "-p", "5434", "-U", "gbrain", "-d", "gbrain"]
             periodSeconds: 30
             timeoutSeconds: 5
-            failureThreshold: 3
+            # 10, not 3. After an unclean stop pg_isready returns PQPING_REJECT
+            # while the server replays WAL; at 3 x 30s the kubelet kills the
+            # container mid-recovery, recovery restarts from scratch, and each
+            # iteration gets FURTHER from healthy. 300s of rope costs nothing —
+            # a wedged Postgres is rare, a liveness-induced recovery loop is the
+            # commoner real outage.
+            failureThreshold: 10
       volumes:
         - name: data
           persistentVolumeClaim:

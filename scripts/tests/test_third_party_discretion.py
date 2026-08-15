@@ -64,6 +64,8 @@ from __future__ import annotations
 import pathlib
 import re
 
+import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
+
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
 PLAN_SLUG = "2026-08-02--infer--igpu-embedding-rerank"
@@ -110,6 +112,28 @@ SCANNED_PATHS = [
     REPO / "apps/hermes-agent-shell/manifests/pvc-gbrain.yaml",
     REPO / "apps/hermes-agent-shell/manifests/configmap-gbrain-initdb.yaml",
     REPO / "scripts/tests/test_hermes_gbrain_sidecar.py",
+    # The runbook prose this work added (107 lines of it) — added 2026-08-15
+    # after review pointed out that the narrative artefacts were scanned while
+    # the OPERATIONAL one was not. Verified clean as a whole file, so it goes in
+    # whole rather than scoped.
+    REPO / "docs/runbooks/frank-gotchas/agent-shells.md",
+    #
+    # DELIBERATELY ABSENT: `agents/rules/frank-gotchas.md`. It is the shared
+    # compact hot-file for EVERY layer in the repo, and scanning it whole fires
+    # a false positive that has nothing to do with this work: an unrelated
+    # upstream ArgoCD bug reference — `argo-cd#26529` — discretion-selftest
+    # sits within the context window of the words "client-go" in the
+    # vCluster gotcha, so an upstream citation reads as an issue number
+    # next to requester-words. The only ways to silence it are to allowlist
+    # that number (a lie — it is not a frank issue) or to widen the
+    # context regex (blunting the rule everywhere). Neither buys real coverage:
+    # this work's footprint in that file is a SINGLE one-line summary whose full
+    # prose lives in agent-shells.md, which IS scanned above. Measured, not
+    # assumed, 2026-08-15.
+    #
+    # `docs/runbooks/manual-operations.yaml` is not here either — it is scanned,
+    # but SCOPED to the two ops this work added. See _SCOPED_OPS below for why a
+    # whole-file scan of a 144-op registry would rot the guard the same way.
     pathlib.Path(__file__),
 ]
 
@@ -255,13 +279,60 @@ def _rel(path: pathlib.Path) -> str:
     return path.relative_to(REPO).as_posix()
 
 
+# ── Partially-scoped artefacts ──────────────────────────────────────────────
+#
+# `docs/runbooks/manual-operations.yaml` is the registry for every manual op in
+# the repo (144 of them), so it cannot go in SCANNED_PATHS whole: doing that
+# imports unrelated `github.com/<org>/` hits from ops belonging to other layers,
+# and the only way to silence those is to widen `_PUBLIC_ORGS` — which is how a
+# discretion guard rots into a rubber stamp that passes because it forgives
+# everything.
+#
+# It must not be skipped either, because it is arguably the highest-risk file in
+# this change: it is where `bun install -g 'git+<client CLI repo URL>#<pinned
+# ref>'` lives — a placeholder a future operator is actively invited to fill in
+# with exactly the identifier this file exists to keep out.
+#
+# So the two ops THIS work added are extracted by id and scanned; the other 142
+# are out of scope by construction rather than by oversight.
+_SCOPED_OPS = ("orch-hermes-gbrain-cli-install", "orch-hermes-ssh-bun-repin")
+_MANUAL_OPS = REPO / "docs/runbooks/manual-operations.yaml"
+
+
+def _manual_op_text() -> str:
+    ops = yaml.safe_load(_MANUAL_OPS.read_text(encoding="utf-8"))["operations"]
+    wanted = [op for op in ops if op.get("id") in _SCOPED_OPS]
+    assert len(wanted) == len(_SCOPED_OPS), (
+        f"expected ops {list(_SCOPED_OPS)} in {_rel(_MANUAL_OPS)}, found "
+        f"{[op.get('id') for op in wanted]} — an op was renamed, dropped, or the "
+        "runbook was regenerated from an edited plan. A scoped scan that quietly "
+        "narrows to nothing is precisely the rot test_every_scanned_path_exists "
+        "was written to stop, so this fails loudly instead."
+    )
+    return yaml.safe_dump(wanted, allow_unicode=True, sort_keys=False)
+
+
+def _scan_units() -> list[tuple[str, str]]:
+    """Every (label, text) the discretion rules run over.
+
+    Whole files from SCANNED_PATHS, plus scoped extracts for artefacts that are
+    only partly in scope. Rules iterate THIS, never `_files()` directly — a rule
+    added against `_files()` would silently skip the scoped extracts.
+    """
+    units = [
+        (_rel(path), _scannable(path.read_text(encoding="utf-8", errors="replace"), path))
+        for path in _files()
+    ]
+    units.append((f"{_rel(_MANUAL_OPS)}[{'+'.join(_SCOPED_OPS)}]", _manual_op_text()))
+    return units
+
+
 def _hits(pattern: re.Pattern[str]) -> list[tuple[str, str]]:
     found = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in pattern.finditer(text):
             start = max(0, match.start() - 40)
-            found.append((_rel(path), " ".join(text[start : match.end() + 40].split())))
+            found.append((label, " ".join(text[start : match.end() + 40].split())))
     return found
 
 
@@ -281,12 +352,11 @@ def test_no_corpus_or_benchmark_statistics():
 def test_no_github_org_outside_the_public_allowlist():
     pattern = next(p for name, p, _ in _PATTERNS if name.startswith("github org"))
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in pattern.finditer(text):
             org = match.group(1).lower()
             if org not in _PUBLIC_ORGS:
-                offenders.append(f"{_rel(path)}: github.com/{match.group(1)}/…")
+                offenders.append(f"{label}: github.com/{match.group(1)}/…")
     assert not offenders, (
         "a GitHub org outside the public allowlist appears in these artefacts. "
         "If it is a legitimate public upstream, add it to _PUBLIC_ORGS with a "
@@ -312,19 +382,28 @@ def test_no_issue_number_is_correlatable_with_the_requester():
     nobody has accounted for, which is the shape a private-repo number would
     have.
     """
-    number = re.compile(r"#(\d+)")
+    # The optional leading group is the REPO QUALIFIER, and capturing it is what
+    # keeps the allowlist from being a number-shaped skeleton key. `748` is
+    # exempt because it is one of frank's own issues — but `#748` in some OTHER
+    # repo is a completely different object that happens to collide, and the
+    # bare-number form exempted it silently. So a qualified reference is exempt
+    # only when the qualifier is frank's (`frank#748`, `derio-net/frank#748`);
+    # an unqualified `#748` stays exempt, since in this repo's prose that is
+    # unambiguously frank's own numbering.
+    number = re.compile(r"(?:(?P<qual>[A-Za-z0-9_.\-/]+))?#(?P<num>\d+)")
     context = re.compile(_REQUESTER_CONTEXT, re.IGNORECASE)
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in number.finditer(text):
-            if int(match.group(1)) in _PUBLIC_FRANK_ISSUES:
+            qual = (match.group("qual") or "").lower().rstrip("/")
+            is_franks = qual == "" or qual == "frank" or qual.endswith("/frank")
+            if is_franks and int(match.group("num")) in _PUBLIC_FRANK_ISSUES:
                 continue
             window = text[
                 max(0, match.start() - _WINDOW) : match.end() + _WINDOW
             ]
             if context.search(window):
-                offenders.append(f"{_rel(path)}: …{' '.join(window.split())}…")
+                offenders.append(f"{label}: …{' '.join(window.split())}…")
     assert not offenders, (
         "an issue number sits next to words identifying the requester — drop "
         "the number (or, if it is one of frank's OWN public issues, add it to "
@@ -341,14 +420,13 @@ def test_no_corpus_size_next_to_the_requester():
     counted = re.compile(rf"\b\d[\d,._]*\s*(?:k|m)?\s+{_CORPUS_NOUNS}\b", re.IGNORECASE)
     context = re.compile(_REQUESTER_CONTEXT, re.IGNORECASE)
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in counted.finditer(text):
             window = text[
                 max(0, match.start() - _WINDOW) : match.end() + _WINDOW
             ]
             if context.search(window):
-                offenders.append(f"{_rel(path)}: …{' '.join(window.split())}…")
+                offenders.append(f"{label}: …{' '.join(window.split())}…")
     assert not offenders, (
         "a corpus/benchmark SIZE appears next to words identifying the "
         f"requester — that is the private corpus's shape: {offenders}"
@@ -364,12 +442,11 @@ def test_the_consumer_is_called_an_external_client_and_nothing_else():
     reviewer can actually apply.
     """
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for unit, text in _scan_units():
         for label in _FORBIDDEN_LABELS:
             for match in re.finditer(rf"\b{label}s?\b", text, re.IGNORECASE):
                 window = text[max(0, match.start() - 60) : match.end() + 60]
-                offenders.append(f"{_rel(path)} [{label}]: …{' '.join(window.split())}…")
+                offenders.append(f"{unit} [{label}]: …{' '.join(window.split())}…")
     assert not offenders, (
         'refer to the requester only as "an external client" — every synonym '
         f"invites detail this repo must not carry: {offenders}"
