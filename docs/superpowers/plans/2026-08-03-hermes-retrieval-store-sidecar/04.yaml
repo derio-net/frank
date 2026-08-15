@@ -1,0 +1,63 @@
+schema_version: 2
+phase:
+  number: 4
+  title: '[manual] Operator: re-pin, install, and run the Test Plan'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+  acceptance:
+  - orch-hermes-retrieval-store-available
+  - orch-hermes-retrieval-store-isolated
+  - orch-hermes-shell-js-runtime
+tasks:
+- number: 1
+  title: Steps that cannot exist before this merges
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Re-pin `hermes-agent-shell-ssh` in `deployment.yaml` to the
+      agent-images `main` build that carries Bun, and push it to this PR.
+
+      This is manual for a structural reason: the image does not exist while
+      this plan is being written. If frank merges first it is still correct
+      — the scheduled bump workflow re-pins later; the only consequence is
+      that `bun --version` does not answer until then.
+  - id: P4.T1.S2
+    text: |-
+      After ArgoCD syncs, walk the spec's Test Plan rows 1-8 and record the
+      outputs. Row 8 (the CLI still resolves after a pod restart) is the
+      one that decides whether decision 2 was right — if it fails, the CLI
+      belongs in the image and that is a rework, not a patch.
+
+      Then flip the three acceptance rows from `not-implemented` with the
+      evidence. Note `fr acceptance` has no `set` verb AND its `add` cannot
+      append to this matrix (indentation mismatch, see the spec journal) —
+      both are hand-edits of `docs/acceptance/matrix.yaml` followed by
+      `fr acceptance report --deterministic`.
+  - id: P4.T1.S3
+    text: |-
+      Hand the retrieval endpoints and the DSN to the requesting repo so it
+      can run its own recall benchmark (Test Plan row 9). That row cannot be
+      verified here — it depends on a corpus this cluster does not have and
+      this repo must not contain.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

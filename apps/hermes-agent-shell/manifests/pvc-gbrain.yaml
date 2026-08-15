@@ -1,0 +1,47 @@
+# Dedicated retrieval-store volume — mounted ONLY into the `gbrain` sidecar
+# container (see deployment.yaml), at /opt/gbrain. Holds that container's
+# PostgreSQL 18 + pgvector data dir (PGDATA=/opt/gbrain/pgdata).
+#
+# WHY ITS OWN PVC RATHER THAN HINDSIGHT'S (frank#759, revised 2026-08-03 —
+# supersedes the original "expand the Hindsight volume and share its Postgres"
+# shape): the two are different memory layers with different write patterns and
+# different recovery expectations. Sharing would have made a Hindsight restore
+# silently take the retrieval store back with it, and would have required an
+# RWO expansion — a detach-and-expand on a volume holding a live database, which
+# is exactly the risky, schedulable operation the revision set out to avoid. The
+# only thing sharing saved was one container image.
+#
+# Sized 10Gi as HEADROOM, NOT PROJECTION: the working set is expected in the low
+# hundreds of MB. Cluster headroom was measured before claiming it (2026-07-27
+# taught us Longhorn's provisioning ceiling counts each replica's DECLARED size,
+# refuses growth silently, and leaves ArgoCD green): at the current
+# storageOverProvisioningPercentage 150 the control-plane nodes had 264-360 GiB
+# of scheduling headroom each, so 10Gi at replica count 3 is noise.
+#
+# BACKUPS COME FOR FREE, and that is a mechanism rather than a hope: Longhorn
+# labels any volume carrying no explicit recurring-job labels with
+# `recurring-job-group.longhorn.io/default: enabled`, and two jobs select that
+# group — `daily-nas` (retain 7) and `weekly-r2` (retain 4). The Hindsight volume
+# next door carries that label today despite its own manifest never setting one.
+# Nothing here needs to opt in; opting OUT would be the thing that took an edit.
+#
+# THE COST OF A PVC PER SIDECAR, stated plainly: this is now the FIFTH RWO
+# Longhorn volume the pod must attach before ANY container starts, and the
+# Deployment is `strategy: Recreate`. If this volume fails to attach — node
+# reboot, engine image issue, a replica-scheduling refusal — the whole pod sits
+# in ContainerCreating, taking the agent shell, SSH and the Hindsight memory
+# backend down with it. Lifecycle isolation is still the right call (see above);
+# this is simply the price it is bought at, recorded so that a future pod-stuck
+# incident starts with "which of the five volumes?" instead of a surprise.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-shell-gbrain
+  namespace: hermes-agent-shell
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

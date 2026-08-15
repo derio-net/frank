@@ -56,7 +56,14 @@ EXEMPT: dict[str, str] = {
     # scripts read per-invocation or per-login, not parsed once by a daemon. A
     # roll would evict live operator sessions for no correctness gain.
     "apps/secure-agent-pod/manifests:secure-agent-pod": "profile.d shims read per-login; rolling evicts live sessions",
-    "apps/hermes-agent-shell/manifests:hermes-agent-shell": "profile.d shims read per-login; rolling evicts live sessions",
+    # hermes-agent-shell mounts a SECOND kind of read-once ConfigMap since
+    # frank#759: the gbrain sidecar's /docker-entrypoint-initdb.d SQL. That one
+    # is not merely cheap to leave unhashed — rolling the pod on a change to it
+    # would achieve NOTHING, because the Postgres entrypoint reads initdb.d only
+    # when it has to initialise an empty PGDATA, and skips the directory entirely
+    # on every later start. A schema or extension change after first boot is a
+    # psql operation against the live database, never a ConfigMap edit.
+    "apps/hermes-agent-shell/manifests:hermes-agent-shell": "profile.d shims read per-login (rolling evicts live sessions); gbrain initdb.d SQL read once at database initialisation, so rolling could not deliver a change anyway",
     "apps/paperclip/manifests:paperclip": "shell inventory/motd read per-login; rolling evicts live sessions",
     "apps/ruflo/manifests:ruflo": "shell inventory/motd read per-login; rolling evicts live sessions",
     # n8n-01 mounts agent-session bootstrap/driver scripts, executed per session

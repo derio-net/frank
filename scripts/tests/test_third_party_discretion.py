@@ -1,13 +1,22 @@
-"""Tripwire: the ovms-retrieval artefacts must not leak the private consumer.
+"""Tripwire: artefacts built for the private consumer must not leak it.
 
-This repo is PUBLIC. The work in `apps/ovms-retrieval/` was requested by a
-repo that is not, and `agents/rules/third-party-privacy.md` plus the design
-spec's own "Scope discipline" section set the line: name no consumer repo,
-product or corpus; reproduce no benchmark queries, document titles or corpus
-statistics; refer to the requester only as an external client. The spec calls
-a breach "a blocking finding" — and then, in its Test Plan, breached it
-itself. Prose that asks reviewers to be vigilant is not a control; this file
-is.
+This repo is PUBLIC. The work in `apps/ovms-retrieval/` (frank#748, the iGPU
+retrieval tier) and the `gbrain` sidecar in `apps/hermes-agent-shell/`
+(frank#759, where that client's CLI keeps its vectors) were both requested by a
+repo that is not public. `agents/rules/third-party-privacy.md` plus the design
+specs' own "Discretion" sections set the line: name no consumer repo, product or
+corpus; reproduce no benchmark queries, document titles or corpus statistics;
+refer to the requester only as an external client. The first spec called a
+breach "a blocking finding" — and then, in its Test Plan, breached it itself.
+Prose that asks reviewers to be vigilant is not a control; this file is.
+
+**`SCANNED_PATHS` is the whole control surface.** The checks below are decent
+patterns applied to exactly the files listed there and no others, so a follow-on
+plan for the same requester that does not append its own paths gets a green run
+that says nothing about its own artefacts. That happened once already: #759's
+branch added a spec, a plan, a journal, a README section, three manifests and a
+test file, and the list still named only #748's. Appending is the maintenance
+this file needs; forgetting it is silent.
 
 ## How it is written, and why that shape
 
@@ -55,16 +64,33 @@ from __future__ import annotations
 import pathlib
 import re
 
+import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
+
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
 PLAN_SLUG = "2026-08-02--infer--igpu-embedding-rerank"
 
-# Everything this branch adds that a reader outside Frank can see.
+# frank#759: the retrieval-store sidecar that lets the same external client's
+# CLI keep vectors in-cluster. Same requester, same discretion rule — and this
+# list is the ONLY thing that decides what gets checked, so a follow-on plan
+# that forgets to append here ships a green `test_third_party_discretion.py`
+# that is evidence about a different piece of work entirely.
+GBRAIN_PLAN_SLUG = "2026-08-03-hermes-retrieval-store-sidecar"
+GBRAIN_SPEC_SLUG = "2026-08-03--orch--hermes-retrieval-store-sidecar"
+
+# Everything these branches add that a reader outside Frank can see.
 SCANNED_PATHS = [
-    REPO / "docs/superpowers/specs" / f"{PLAN_SLUG}-design.md",
-    REPO / "docs/superpowers/plans" / PLAN_SLUG,
-    REPO / "docs/superpowers/journals/plans" / f"{PLAN_SLUG}.md",
-    REPO / "docs/superpowers/journals/specs" / f"{PLAN_SLUG}.md",
+    # ARCHIVED, not deleted. When #748's plan completed (frank#757) these four
+    # moved under `implemented/`, and because `_files()` used to skip anything
+    # that did not exist, the scan silently stopped reading the spec, the plan
+    # and BOTH journals — the four most prose-heavy artefacts, i.e. exactly
+    # where a leak lives — while still reporting a comfortable "6 passed".
+    # `test_every_scanned_path_exists` below now fails on a rotted entry
+    # instead of quietly shrinking the control surface.
+    REPO / "docs/superpowers/implemented/specs" / f"{PLAN_SLUG}-design.md",
+    REPO / "docs/superpowers/implemented/plans" / PLAN_SLUG,
+    REPO / "docs/superpowers/implemented/journals/plans" / f"{PLAN_SLUG}.md",
+    REPO / "docs/superpowers/implemented/journals/specs" / f"{PLAN_SLUG}.md",
     REPO / "apps/ovms-retrieval",
     REPO / "scripts/ovms-retrieval-bench.py",
     REPO / "scripts/tests/test_ovms_retrieval_bench.py",
@@ -73,6 +99,41 @@ SCANNED_PATHS = [
     REPO / "scripts/tests/test_igpu_dra_docs.py",
     REPO / "scripts/tests/test_ovms_retrieval_phase5_plan.py",
     REPO / "docs/runbooks/frank-gotchas/igpu-dra.md",
+    # frank#759 — the gbrain sidecar. Named file by file rather than by adding
+    # `apps/hermes-agent-shell/` wholesale: that directory predates this work by
+    # months, and pulling unrelated manifests into a discretion scan buys false
+    # positives whose only cure is widening the allowlist.
+    REPO / "docs/superpowers/specs" / f"{GBRAIN_SPEC_SLUG}-design.md",
+    REPO / "docs/superpowers/plans" / GBRAIN_PLAN_SLUG,
+    REPO / "docs/superpowers/journals/plans" / f"{GBRAIN_PLAN_SLUG}.md",
+    REPO / "docs/superpowers/journals/specs" / f"{GBRAIN_SPEC_SLUG}.md",
+    REPO / "apps/hermes-agent-shell/README.md",
+    REPO / "apps/hermes-agent-shell/manifests/deployment.yaml",
+    REPO / "apps/hermes-agent-shell/manifests/pvc-gbrain.yaml",
+    REPO / "apps/hermes-agent-shell/manifests/configmap-gbrain-initdb.yaml",
+    REPO / "scripts/tests/test_hermes_gbrain_sidecar.py",
+    # The runbook prose this work added (107 lines of it) — added 2026-08-15
+    # after review pointed out that the narrative artefacts were scanned while
+    # the OPERATIONAL one was not. Verified clean as a whole file, so it goes in
+    # whole rather than scoped.
+    REPO / "docs/runbooks/frank-gotchas/agent-shells.md",
+    #
+    # DELIBERATELY ABSENT: `agents/rules/frank-gotchas.md`. It is the shared
+    # compact hot-file for EVERY layer in the repo, and scanning it whole fires
+    # a false positive that has nothing to do with this work: an unrelated
+    # upstream ArgoCD bug reference — `argo-cd#26529` — discretion-selftest
+    # sits within the context window of the words "client-go" in the
+    # vCluster gotcha, so an upstream citation reads as an issue number
+    # next to requester-words. The only ways to silence it are to allowlist
+    # that number (a lie — it is not a frank issue) or to widen the
+    # context regex (blunting the rule everywhere). Neither buys real coverage:
+    # this work's footprint in that file is a SINGLE one-line summary whose full
+    # prose lives in agent-shells.md, which IS scanned above. Measured, not
+    # assumed, 2026-08-15.
+    #
+    # `docs/runbooks/manual-operations.yaml` is not here either — it is scanned,
+    # but SCOPED to the two ops this work added. See _SCOPED_OPS below for why a
+    # whole-file scan of a 144-op registry would rot the guard the same way.
     pathlib.Path(__file__),
 ]
 
@@ -141,6 +202,23 @@ _PUBLIC_ORGS = {
 # guard that gets deleted.
 _FORBIDDEN_LABELS = ("customer", "partner", "buyer")  # discretion-selftest
 
+# Issue numbers in `derio-net/frank` — THIS repo, which is public. They appear
+# in commit subjects, PR titles, plan front matter and manifest provenance
+# comments throughout, and they correlate to nothing: looking one up lands you
+# back here.
+#
+# The rule below exists to stop a number from the PRIVATE repo sitting next to
+# words identifying the requester, because that IS a correlatable identifier.
+# `#\d+` cannot tell the two apart, so the discrimination has to be a list.
+# Keeping it explicit and short is the point: any OTHER number appearing next to
+# "requester"/"client"/"corpus" still fails, which is exactly the shape worth
+# stopping. Do not add a number here without knowing it is a frank issue.
+_PUBLIC_FRANK_ISSUES = {
+    748,  # the iGPU retrieval tier this work builds on
+    751,  # its follow-on, cited in #759's header
+    759,  # the retrieval-store sidecar; `gbrain` is the codename IT uses, publicly
+}
+
 _WINDOW = 120
 
 # The per-line exemption marker. It is honoured in THIS FILE ONLY — the
@@ -176,17 +254,85 @@ def _files() -> list[pathlib.Path]:
     return out
 
 
+def test_every_scanned_path_exists():
+    """A path that no longer exists must FAIL, not be skipped.
+
+    `_files()` walks the list and quietly ignores anything missing, which makes
+    the scan shrink itself whenever an artefact is renamed or archived — and
+    plans ARE archived here as a matter of routine (`docs/superpowers/plans/` ->
+    `implemented/`). That is how #748's spec, plan and both journals dropped out
+    of the scan while the file kept reporting green.
+
+    The blanket `assert out` at the end of `_files()` cannot catch this: it only
+    fires when EVERY entry has rotted. Coverage that degrades one path at a time
+    needs a per-path assertion.
+    """
+    missing = [p.relative_to(REPO).as_posix() for p in SCANNED_PATHS if not p.exists()]
+    assert not missing, (
+        "these SCANNED_PATHS entries do not exist, so they are being silently "
+        "skipped and the discretion scan is narrower than it looks. If the "
+        f"artefact moved, repoint the entry; if it was deleted, remove it: {missing}"
+    )
+
+
 def _rel(path: pathlib.Path) -> str:
     return path.relative_to(REPO).as_posix()
 
 
+# ── Partially-scoped artefacts ──────────────────────────────────────────────
+#
+# `docs/runbooks/manual-operations.yaml` is the registry for every manual op in
+# the repo (144 of them), so it cannot go in SCANNED_PATHS whole: doing that
+# imports unrelated `github.com/<org>/` hits from ops belonging to other layers,
+# and the only way to silence those is to widen `_PUBLIC_ORGS` — which is how a
+# discretion guard rots into a rubber stamp that passes because it forgives
+# everything.
+#
+# It must not be skipped either, because it is arguably the highest-risk file in
+# this change: it is where `bun install -g 'git+<client CLI repo URL>#<pinned
+# ref>'` lives — a placeholder a future operator is actively invited to fill in
+# with exactly the identifier this file exists to keep out.
+#
+# So the two ops THIS work added are extracted by id and scanned; the other 142
+# are out of scope by construction rather than by oversight.
+_SCOPED_OPS = ("orch-hermes-gbrain-cli-install", "orch-hermes-ssh-bun-repin")
+_MANUAL_OPS = REPO / "docs/runbooks/manual-operations.yaml"
+
+
+def _manual_op_text() -> str:
+    ops = yaml.safe_load(_MANUAL_OPS.read_text(encoding="utf-8"))["operations"]
+    wanted = [op for op in ops if op.get("id") in _SCOPED_OPS]
+    assert len(wanted) == len(_SCOPED_OPS), (
+        f"expected ops {list(_SCOPED_OPS)} in {_rel(_MANUAL_OPS)}, found "
+        f"{[op.get('id') for op in wanted]} — an op was renamed, dropped, or the "
+        "runbook was regenerated from an edited plan. A scoped scan that quietly "
+        "narrows to nothing is precisely the rot test_every_scanned_path_exists "
+        "was written to stop, so this fails loudly instead."
+    )
+    return yaml.safe_dump(wanted, allow_unicode=True, sort_keys=False)
+
+
+def _scan_units() -> list[tuple[str, str]]:
+    """Every (label, text) the discretion rules run over.
+
+    Whole files from SCANNED_PATHS, plus scoped extracts for artefacts that are
+    only partly in scope. Rules iterate THIS, never `_files()` directly — a rule
+    added against `_files()` would silently skip the scoped extracts.
+    """
+    units = [
+        (_rel(path), _scannable(path.read_text(encoding="utf-8", errors="replace"), path))
+        for path in _files()
+    ]
+    units.append((f"{_rel(_MANUAL_OPS)}[{'+'.join(_SCOPED_OPS)}]", _manual_op_text()))
+    return units
+
+
 def _hits(pattern: re.Pattern[str]) -> list[tuple[str, str]]:
     found = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in pattern.finditer(text):
             start = max(0, match.start() - 40)
-            found.append((_rel(path), " ".join(text[start : match.end() + 40].split())))
+            found.append((label, " ".join(text[start : match.end() + 40].split())))
     return found
 
 
@@ -206,12 +352,11 @@ def test_no_corpus_or_benchmark_statistics():
 def test_no_github_org_outside_the_public_allowlist():
     pattern = next(p for name, p, _ in _PATTERNS if name.startswith("github org"))
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in pattern.finditer(text):
             org = match.group(1).lower()
             if org not in _PUBLIC_ORGS:
-                offenders.append(f"{_rel(path)}: github.com/{match.group(1)}/…")
+                offenders.append(f"{label}: github.com/{match.group(1)}/…")
     assert not offenders, (
         "a GitHub org outside the public allowlist appears in these artefacts. "
         "If it is a legitimate public upstream, add it to _PUBLIC_ORGS with a "
@@ -225,21 +370,44 @@ def test_no_issue_number_is_correlatable_with_the_requester():
     Anyone holding a list of candidate repos confirms or eliminates one in a
     single lookup. Cite the private issue as "the private issue" — with no
     number — exactly as the spec now does.
+
+    Numbers in `_PUBLIC_FRANK_ISSUES` are exempt, and that exemption was added
+    on 2026-08-03 rather than being original: widening `SCANNED_PATHS` to cover
+    #759's artefacts produced eight hits, every one of them a reference to
+    frank's OWN public issues (`frank#759` in a manifest provenance comment,
+    "the iGPU retrieval tier from #748" in the spec). Scrubbing those would have
+    satisfied the regex while changing the actual risk not at all — and it would
+    have stripped provenance that every other comment in the same file carries.
+    This is a deliberate narrowing: the guard now fires on an issue number that
+    nobody has accounted for, which is the shape a private-repo number would
+    have.
     """
-    number = re.compile(r"#\d+")
+    # The optional leading group is the REPO QUALIFIER, and capturing it is what
+    # keeps the allowlist from being a number-shaped skeleton key. `748` is
+    # exempt because it is one of frank's own issues — but `#748` in some OTHER
+    # repo is a completely different object that happens to collide, and the
+    # bare-number form exempted it silently. So a qualified reference is exempt
+    # only when the qualifier is frank's (`frank#748`, `derio-net/frank#748`);
+    # an unqualified `#748` stays exempt, since in this repo's prose that is
+    # unambiguously frank's own numbering.
+    number = re.compile(r"(?:(?P<qual>[A-Za-z0-9_.\-/]+))?#(?P<num>\d+)")
     context = re.compile(_REQUESTER_CONTEXT, re.IGNORECASE)
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in number.finditer(text):
+            qual = (match.group("qual") or "").lower().rstrip("/")
+            is_franks = qual == "" or qual == "frank" or qual.endswith("/frank")
+            if is_franks and int(match.group("num")) in _PUBLIC_FRANK_ISSUES:
+                continue
             window = text[
                 max(0, match.start() - _WINDOW) : match.end() + _WINDOW
             ]
             if context.search(window):
-                offenders.append(f"{_rel(path)}: …{' '.join(window.split())}…")
+                offenders.append(f"{label}: …{' '.join(window.split())}…")
     assert not offenders, (
         "an issue number sits next to words identifying the requester — drop "
-        f"the number: {offenders}"
+        "the number (or, if it is one of frank's OWN public issues, add it to "
+        f"_PUBLIC_FRANK_ISSUES with a reason): {offenders}"
     )
 
 
@@ -252,14 +420,13 @@ def test_no_corpus_size_next_to_the_requester():
     counted = re.compile(rf"\b\d[\d,._]*\s*(?:k|m)?\s+{_CORPUS_NOUNS}\b", re.IGNORECASE)
     context = re.compile(_REQUESTER_CONTEXT, re.IGNORECASE)
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for label, text in _scan_units():
         for match in counted.finditer(text):
             window = text[
                 max(0, match.start() - _WINDOW) : match.end() + _WINDOW
             ]
             if context.search(window):
-                offenders.append(f"{_rel(path)}: …{' '.join(window.split())}…")
+                offenders.append(f"{label}: …{' '.join(window.split())}…")
     assert not offenders, (
         "a corpus/benchmark SIZE appears next to words identifying the "
         f"requester — that is the private corpus's shape: {offenders}"
@@ -275,12 +442,11 @@ def test_the_consumer_is_called_an_external_client_and_nothing_else():
     reviewer can actually apply.
     """
     offenders = []
-    for path in _files():
-        text = _scannable(path.read_text(encoding="utf-8", errors="replace"), path)
+    for unit, text in _scan_units():
         for label in _FORBIDDEN_LABELS:
             for match in re.finditer(rf"\b{label}s?\b", text, re.IGNORECASE):
                 window = text[max(0, match.start() - 60) : match.end() + 60]
-                offenders.append(f"{_rel(path)} [{label}]: …{' '.join(window.split())}…")
+                offenders.append(f"{unit} [{label}]: …{' '.join(window.split())}…")
     assert not offenders, (
         'refer to the requester only as "an external client" — every synonym '
         f"invites detail this repo must not carry: {offenders}"

@@ -1,0 +1,26 @@
+# pgvector's extension, created declaratively instead of by a remembered psql
+# step. The official Postgres entrypoint (which pgvector/pgvector inherits) runs
+# every *.sql in /docker-entrypoint-initdb.d in filename order; this ConfigMap is
+# mounted there in the `gbrain` container (see deployment.yaml).
+#
+# FIRST-BOOT-ONLY, BY DESIGN — the trap worth naming: initdb.d runs ONLY when the
+# entrypoint has to initialise an empty PGDATA. On every subsequent start the data
+# dir already exists and the whole directory is skipped. So editing this file does
+# NOTHING to a volume that has already been initialised: ArgoCD will report Synced,
+# the new text will be present on disk in the pod, and the database will be exactly
+# as it was. Any later schema or extension change is a `psql` operation against the
+# live database (or a migration the consuming CLI owns) — not a ConfigMap edit.
+#
+# This also means the app-scoped exemption in
+# scripts/tests/test_config_reaches_the_process.py is correct here for a stronger
+# reason than "it is a profile.d shim": there is no rolling mechanism that COULD
+# make a change to this file reach the process, because the process only ever
+# reads it once, before the database exists.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-agent-shell-gbrain-initdb
+  namespace: hermes-agent-shell
+data:
+  10-vector.sql: |
+    CREATE EXTENSION IF NOT EXISTS vector;
