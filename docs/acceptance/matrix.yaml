@@ -883,10 +883,15 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_hermes_gbrain_sidecar.py
-  status: not-implemented
-  notes: 'Closes on Test Plan rows 2-3 (post-merge): the extension query the issue itself specifies returns 0.8.6,
-    and df shows its own volume. Deliberately NOT closed by the design-time container gate — that proved the image
-    behaves under this pod''s security posture on a laptop, which is evidence for the design, not for the deployment.'
+  status: skipped
+  notes: 'Live proof 2026-08-15 (post-merge, ArgoCD at 0fbbe549, pod hermes-agent-shell-859d56d94b-phjz6 4/4 Running):
+    Test Plan row 2 — `select extversion from pg_extension where extname=''vector''` inside the gbrain container
+    returns 0.8.6. Row 3 — `df -h /opt/gbrain` shows its own Longhorn volume (pvc-a10dd99b, 9.8G) distinct from
+    Hindsight''s (pvc-cf287075, 4.9G). Reachability is genuinely loopback-only: the RUNNING server reports
+    listen_addresses=127.0.0.1, port=5434 from pg_settings, not merely from the manifest. Hindsight untouched
+    (row 1). Also confirmed the collation fix made during the 2026-08-15 review, which had a single first-initdb
+    window: datlocprovider ''b'', datlocale ''C.UTF-8''. NOT closed by the design-time container gate — that proved
+    the image behaves under this posture on a laptop, which is evidence for the design, not for the deployment.'
 - id: orch-hermes-retrieval-store-isolated
   capability: Agent shell retrieval store
   acceptance: The retrieval store's data lives on its own backed-up Longhorn volume, so a Hindsight restore, migration
@@ -896,11 +901,16 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_hermes_gbrain_sidecar.py
-  status: not-implemented
-  notes: 'This is the whole point of the 2026-08-03 revision to frank#759, which withdrew the shared-database shape.
-    Closes on Test Plan rows 1, 3 and 5: Hindsight''s PVC still reports 5Gi and its container is healthy, gbrain
-    is on a distinct mount, and gbrain data survives a pod delete. Asserted on the artifacts, not on ArgoCD sync
-    status.'
+  status: skipped
+  notes: 'Live proof 2026-08-15 (post-merge). Row 1 — Hindsight''s PVC still reports 5Gi and its container is
+    ready with 0 restarts; gbrain is a separate 10Gi PVC. Row 3 — distinct Longhorn volumes (pvc-a10dd99b vs
+    pvc-cf287075), distinct mounts. Row 5 — seeded a vector row + hnsw index, forced a CHECKPOINT, DELETED the pod;
+    the replacement (…-qfssc, name changed, so genuinely recreated) came back 4/4 with the row still present and
+    retrievable through an index scan, collation still builtin. The kubelet fsGroup re-walk left PGDATA at
+    drwx------ 1000:1000 on the populated volume — the claim the local docker gate could only approximate, since
+    it needs a real kubelet. Asserted on the artifacts, not on ArgoCD sync status: ArgoCD reported Synced/Healthy
+    at the PRE-merge revision for ~2min after the merge, with a 3/3 pod, so sync status would have been a false
+    positive here.'
 - id: orch-hermes-shell-js-runtime
   capability: Agent shell retrieval store
   acceptance: An operator logging in over SSH has a JavaScript runtime available and can install a CLI from a git
@@ -912,7 +922,12 @@ rows:
   # The only proof is Test Plan rows 6-8 against a live pod, in a LOGIN shell.
   levels: {}
   status: not-implemented
-  notes: 'Closes on Test Plan rows 6-8. Row 8 is the load-bearing one: it tests the PVC-persistence claim that decision
-    2 (CLI installed by hand rather than baked) entirely rests on. If it fails, decision 2 is wrong and the CLI
-    belongs in the image. Rows 6-7 must be run in a LOGIN shell (bash -lc) — ''ssh host -- cmd'' skips /etc/profile.d
-    and would prove nothing about the PATH shim.'
+  notes: 'HALF PROVEN 2026-08-15, deliberately still open. Row 6 PASSES: `ssh hermes ''bash -lc "bun --version"''`
+    returns 1.3.14 — a LOGIN shell, so the /etc/profile.d PATH shim is genuinely exercised (the live ssh pin is
+    4ed6ec9, which is past the c04eaab that introduced Bun; /usr/local/bin/bun is dated 2026-08-13). Rows 7-8 remain
+    OWED and cannot be run from this repo: they need the CLI''s private git ref, which lives in the requesting repo''s
+    private issue and is deliberately not written down here. Row 8 is the load-bearing one — it tests the
+    PVC-persistence claim that decision 2 (CLI installed by hand rather than baked) entirely rests on. If it fails,
+    decision 2 is wrong and the CLI belongs in the image. Do not close this row on row 6 alone: "a runtime exists"
+    and "an installed CLI survives a restart" are different claims, and only the second decides the design. Rows 6-7
+    must be run in a LOGIN shell (bash -lc) — ''ssh host -- cmd'' skips /etc/profile.d and would prove nothing.'
