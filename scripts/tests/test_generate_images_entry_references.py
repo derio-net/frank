@@ -88,12 +88,30 @@ def test_gen_bytes_takes_root_so_entry_refs_can_resolve():
     assert "entry" in params and "root" in params, params
 
 
-def test_master_reference_stays_first_in_the_payload():
+def test_master_reference_stays_first_in_the_payload(tmp_path):
     """ORDER guard: reference_guidance declares the FIRST image canonical for the
-    face; entry anchors must be appended AFTER it, never before."""
-    import inspect
+    face; entry anchors must be appended AFTER it, never before.
+
+    Asserted against BEHAVIOUR, not against the source text of `_gen_bytes`.
+    The earlier form string-indexed that function for `contents.append(Image.open(ref))`
+    and broke — without the property breaking — when blog-craft v0.21.1 consolidated
+    the ordering into `payload_paths()`, which is now THE one place it is assembled
+    (it used to be spelled out in three, where a reordering inside `_gen_bytes` would
+    have left this guard green). A guard coupled to an implementation's wording fails
+    on a refactor that strengthens the very thing it guards, so it now calls the
+    function and checks the order that actually reaches the model.
+    """
     m = _mod()
-    src = inspect.getsource(m._gen_bytes)
-    master_at = src.index("contents.append(Image.open(ref))")
-    entry_at = src.index("entry_reference_paths(entry, root)")
-    assert master_at < entry_at, "entry references must be appended after the master sheet"
+    (tmp_path / "refs").mkdir()
+    for n in ("master", "one", "two"):
+        (tmp_path / f"refs/{n}.png").write_bytes(b"x")
+    master = tmp_path / "refs/master.png"
+    entry = {"references": ["refs/one.png", "refs/two.png"]}
+
+    got = [p.name for p in m.payload_paths(entry, {}, tmp_path, primary=master)]
+    assert got == ["master.png", "one.png", "two.png"], got
+
+    # With no primary the anchors still keep their declared order and nothing is
+    # promoted into the face-authority slot.
+    got_none = [p.name for p in m.payload_paths(entry, {}, tmp_path, primary=None)]
+    assert got_none == ["one.png", "two.png"], got_none

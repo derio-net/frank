@@ -11,8 +11,8 @@
 #
 # COMMIT THIS FILE. Without it the updater falls back to the current config and
 # says so. Delete it only to deliberately forget what was last synced.
-version: 6
-blog_craft_version: "v0.19.0"   # blog-craft RELEASE frank is synced to (was v0.18.1).
+version: 7
+blog_craft_version: "v0.21.1"   # blog-craft RELEASE frank is synced to (was v0.19.0).
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump
@@ -95,6 +95,20 @@ image:
     banner_transform:
       - reference_guidance[banner_transform]
       - scene
+    # Sticker order — frank's fixed 8-token sequence, transcribed from the
+    # legacy generate-stickers.py. `border_spec` trails `scene` deliberately:
+    # the die-cut finish is described AFTER the scene it frames. Swapping
+    # those two yields a plausible prompt that is not frank's. `clothing` and
+    # `scene` are REUSED from the cover layers; the rest are sticker-scoped.
+    sticker:
+    - sticker_base_character
+    - sticker_atmosphere
+    - sticker_reference_guidance
+    - sticker_face_pins
+    - clothing
+    - sticker_mood
+    - scene
+    - sticker_border_spec
   layers:
     base_character: |-
       Frank — a chibi-proportioned green Frankenstein monster. Uneven
@@ -179,6 +193,28 @@ image:
       focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
       amused: Frank's expression is amused — small grin, brow relaxed, eyes bright.
 
+    # Sticker-only layers (blog-craft #80/#81). Namespaced `sticker_*` so they
+    # cannot collide with the cover layers above. `sticker_mood` exists rather
+    # than reusing `mood` because it carries a `_template`, and a `_template`
+    # attaches to the LAYER: putting it on `mood` — which hero and banner both
+    # name, and whose table already holds complete sentences — would compose
+    # "Frank's expression: Frank's expression is curious — …" on every cover.
+    sticker_base_character: |-
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven cartoon-green skin with brown / reddish-tan sewn-on patches across the cheek and jaw (horizontal stitch lines crossing each; brown against green, NOT mechanical implants). Each eye is a solid BLACK circle with a single small WHITE pupil-dot — no glow. No nose. His head is slightly ROUNDED and softened — NOT a hard blocky / square flat-top Frankenstein head, NOT an angular jaw. Hair is messy and spiky with jagged peaks and is DARK (dark charcoal, near-black) — clearly DARKER than and visually DISTINCT from his green skin; it is NOT green or olive hair. Only a faint green GLOW / sheen sits on the spiky edges (matching the attached 09 & 20 sticker anchors); the bulk of the hair stays dark. Thick raised brow ridge, no eyebrows. A horizontal stitched scar across the upper forehead with a small rectangular RED bandage over it above the right eye. Two symmetric RJ45-connector bolts on the temples, each sparking faint blue. Hands stitched onto the arms with visible scar lines around the wrists. Cartoon illustration, thick outlines, vibrant colours.
+    sticker_atmosphere: |-
+      This is a die-cut character STICKER, not a scene. Frank stands alone on a FLAT, PURE-WHITE (#FFFFFF) background with absolutely NO environment, NO server room, NO furniture, NO background props, NO text, NO drop shadow on the background. Bright, even, cheerful studio lighting on the figure — vibrant saturated cartoon colours, crisp thick black outlines, clean cel shading. The ONLY objects allowed in the frame are Frank himself and the clothes, accessories and hand tools described below.
+    sticker_reference_guidance: |-
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      The FIRST reference image is the canonical character-design sheet. All of Frank's signature face features — chibi head proportions, solid BLACK eyes with a single small WHITE pupil-dot (no white sclera), no nose, jagged flat-top hair, brown sewn-on cheek and jaw patches, the red forehead bandage — come from THIS image and ONLY this image. If any additional reference image shows Frank with different face proportions, white eyes, an over-detailed face, or a "classic Frankenstein" square-jaw look, IGNORE those facial details — they are leftover from older iterations.
+      Any ADDITIONAL reference images are clothing/pose anchors. Use them ONLY to match the clothing variant, accessories, and rough posture of the Frank you draw. Do NOT render them as separate figures, do NOT copy face details from them, and do NOT interpret their cropping or empty regions as compositional cues for the output frame.
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn, and body language to fit the scene's action.
+    sticker_face_pins: |-
+      IDENTITY LOCK — Frank's face MUST match the FIRST reference (the canonical character sheet): NO nose at all; NO fangs and NO visible teeth (mouth is a simple closed or flat line); NO eyebrows and NO unibrow — only a thick green brow RIDGE. EYES ARE CRITICAL: each eye is a SOLID BLACK oval that fills the eye opening, with absolutely NO white sclera and NO coloured iris — the ONLY white is a single tiny round pupil highlight dot. Do NOT draw large round cartoon/anime eyes with white around the pupil. ALWAYS render both temple bolts as RJ45 network connectors (modular-jack shape with visible gold pin contacts — NOT plain hex bolts), sparking faint blue. ALWAYS include the small RED rectangular bandage over the forehead scar above the right eye. Keep the brown sewn-on patches on the cheek and jaw.
+    sticker_mood:
+      _template: 'Frank''s expression: {}.'
+    sticker_border_spec: |-
+      STICKER FINISH: render Frank as a glossy die-cut sticker. Around the whole figure draw a thick, even WHITE die-cut margin (a wide white 'sticker bleed' that hugs the outline of the figure and everything he holds). Immediately outside that white margin draw a single clean DARK-GREEN (#1b4332) keyline stroke of even, medium thickness that follows the same silhouette — this is the cut line. Outside the green keyline is nothing but the pure-white background. Keep the figure COMPACT and centered with generous even padding so the whole sticker (white bleed + green keyline) sits fully inside the square frame with room to spare. Pose must be tidy with NO thin trailing protrusions (no loose dangling cables, no sprawled limbs) so the green cut-line stays a simple, easy-to-cut closed shape.
 # series.title drives the NAV menu names (frank's nav is the short form); the
 # longer section/overview + homepage-card titles live in frank's preserved content.
 series:
@@ -265,6 +301,29 @@ features:
   # under the same `script-src 'self'` CSP that forced mermaid_csp_init above.
   # blog-craft #48 / CONFIG.md §9.
   glossary:  { enabled: true, first_occurrence_only: true }
+  # Die-cut sticker sheets (v7, blog-craft #80/#81). Frank's private sticker set
+  # — 18 curated masters composed through the SAME prompt engine as the covers,
+  # then laid onto print-ready A4 sheets at a real DPI. Ships no Hugo assets:
+  # a sticker set is a PRINT asset, so everything stays under blog/_private/
+  # and nothing is published. Adopted from frank's own hand-rolled
+  # blog/_private/frank-stickers/ implementation, which blog-craft absorbed.
+  #
+  # prompts_file is deliberately SEPARATE from image.prompts_file so the
+  # sticker keys stay out of the cover key namespace and `sheet`/`pos` stay out
+  # of cover entries. All three paths are config-root-relative and are REQUIRED
+  # whenever enabled is true (tools/validate_config.py enforces exactly that).
+  #
+  # sheets_prefix is left at its default — slug(project.name) + "-stickers" =
+  # "frank-stickers" — which reproduces the committed sheet filenames
+  # (frank-stickers-A4-sheet1.png). Page pixels are DERIVED from size+dpi
+  # (round(mm / 25.4 * dpi) per axis), never configured, so a sheet cannot
+  # claim A4 and print at some other size. CONFIG.md §13.
+  stickers:
+    enabled: true
+    prompts_file: blog/_private/stickers/stickers-prompts.yaml
+    images_dir: blog/_private/stickers/images
+    sheets_dir: blog/_private/stickers/sheets
+    sheet: { size: a4, dpi: 300, grid: [3, 3], gutter: 60 }
 
 # Blog-craft quality gates.
 #
