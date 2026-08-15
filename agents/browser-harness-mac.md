@@ -9,9 +9,14 @@
 > this Mac (`uname = Darwin` and `brave-clawdia` present). The host-neutral browser-harness rule in
 > `agents/rules/browser-harness.md` loads everywhere and points here for the Mac specifics.
 
-Browser automation uses **browser-harness**, a machine-global skill on `$PATH` (not checked into
-this repo). Source of truth: `~/Developer/browser-harness/SKILL.md`. Invoke as a heredoc; first
-navigation is `new_tab(url)`, not `goto_url`.
+Driving a **real, logged-in** browser uses **browser-harness**, a machine-global skill on `$PATH`
+(not checked into this repo). Source of truth: `~/Developer/browser-harness/SKILL.md`. Invoke as a
+heredoc; first navigation is `new_tab(url)`, not `goto_url`.
+
+**Scope:** local, unauthenticated rendering is exempt. A `hugo server` preview or a
+link/render/quality gate belongs in a disposable headless browser, not in the operator's profile —
+the process-wide CDP exposure described below is precisely why. Full carve-out and rule of thumb:
+"Scope — logged-in sessions, not local rendering" in `agents/rules/browser-harness.md`.
 
 ## Session shape (use the pair)
 
