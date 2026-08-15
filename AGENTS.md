@@ -94,6 +94,9 @@ inference, see #461 and derio-net/agent-skills#1).
 
 - Do not edit sensitive files such as `.env_devops`, `.sops.yaml`, or files
   under `.talos/` without explicit user confirmation.
+- This repo is fr-enabled: writes must happen inside an fr-isolation workspace,
+  never the base clone. Read-only work is unaffected. See "Write Isolation (fr)"
+  in `agents/rules/repo-workflows.md` before your first edit.
 - Cluster state should be reproducible from this repo. See
   `agents/rules/repo-principles.md` for the narrow manual-operation exception.
 - Validate agent configuration with `scripts/validate-agent-config.sh`.

@@ -23,6 +23,39 @@ When a deployed layer needs a bugfix or unplanned extension:
 
 Use the layer code in commit messages: `fix(gpu): <description>` or `feat(edge): <description>`.
 
+## Write Isolation (fr)
+
+Frank is fr-enabled, so the `fr-isolation-required` hook **blocks Edit/Write to the base clone**.
+This is not advisory. An agent that edits the main checkout directly is refused at the tool
+layer, before the write lands.
+
+- **Read-only work needs none of this.** Inspect, grep, and run reports against the main
+  checkout as usual.
+- **Every write goes through an fr workspace:**
+
+  ```
+  fr isolation up --branch <branch>                                # devcontainer (default)
+  FR_ISOLATION_TARGET=worktree fr isolation up --branch <branch>   # docker-less host worktree
+  ```
+
+  Use the host variant for doc, rule, and config edits — it is a plain git worktree with no
+  container build. Both agent pods already declare `FR_ISOLATION_TARGET=worktree` globally (see
+  `frank-gotchas.md`), so in-pod sessions get the docker-less path by default.
+- **Workspaces land in `~/.cache/fr/worktrees/frank/<branch>`**, with `/` rewritten as `__` —
+  branch `docs/my-change` becomes `~/.cache/fr/worktrees/frank/docs__my-change`.
+- **A hand-rolled `git worktree add` does not work.** It writes no `.fr-isolation` marker, so
+  the hook rejects it exactly as it rejects the base clone. Only an fr-created workspace
+  validates. This includes the pre-existing worktrees under `.worktrees/` at the repo root:
+  they are ordinary checkouts, not fr workspaces, and writes in them are refused.
+- **The marker is managed for you.** `fr isolation up` writes `.fr-isolation` and excludes it via
+  `.git/info/exclude`. Never commit it, and never hand-write one to satisfy the hook.
+- **Do not run `fr isolation down` as cleanup.** It removes the worktree. Leave the workspace in
+  place once the PR is open.
+
+Frank carries no `.fr-isolation-allow`, so every path in the repo is gated. That is deliberate:
+almost everything here is declarative cluster state, and an allowlist hole would let a write
+reach the cluster without a branch, a PR, or a review.
+
 ## Plan Management Scripts
 
 - `scripts/plan-status.sh` — list all plans with Spec/Archived/Status columns
