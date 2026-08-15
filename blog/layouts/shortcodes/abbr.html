@@ -12,6 +12,15 @@
        Definitions come from data/glossary.yaml (site.Data.glossary), whose
        entries carry `name`, `description` and an optional `url`.
 
+       The registry is keyed by the abbreviation, so two expansions of the same
+       letters need two keys — `GC` for Garbage Collection, `GC_GOATCOUNTER` for
+       GoatCounter. The optional `rendered_text` on an entry is what the reader
+       sees instead of that disambiguating key, so the suffix never leaves the
+       file. Display text resolves in one chain, identical here and in
+       glossary-index.html:
+
+         call-site argument 1  ›  entry.rendered_text  ›  the key
+
        Zero JavaScript: the trigger is a <button popovertarget> and the panel a
        <span popover>, so click/tap, Esc, click-away, keyboard focus and
        top-layer stacking are all native browser behaviour. The inner <abbr
@@ -22,11 +31,17 @@
        with nothing behind it is a broken promise to the reader. scripts/
        validate_glossary.py catches it earlier; this is the backstop. */ -}}
 {{- $key := .Get 0 -}}
-{{- $display := default $key (.Get 1) -}}
 {{- $entry := index (default (dict) site.Data.glossary) $key -}}
 {{- if not $entry -}}
   {{- errorf "abbr: %q has no entry in data/glossary.yaml (%s)" $key .Page.File.Path -}}
 {{- else -}}
+{{- /* Below the lookup, and inside this branch: resolving the display text needs
+       $entry, and the missing-entry errorf above has to fire first — reading
+       .rendered_text off a nil entry would raise a Go template error instead. */ -}}
+{{- $display := or (.Get 1) $entry.rendered_text $key -}}
+{{- /* $id stays derived from the KEY, never from $display: it is an identifier,
+       and two senses sharing a display text ("GC") would otherwise collide on one
+       anchor name and re-open the panel-placement bug of #49. */ -}}
 {{- $id := printf "abbr-%s-%d" (anchorize $key) .Ordinal -}}
 {{- /* The anchor name is derived from $id in the same breath, so the pair can
        never drift: --abbr-nut-0 belongs to #abbr-nut-0 and nothing else. It has
@@ -44,5 +59,5 @@
 {{- $anchor := printf "--%s" $id -}}
 {{- $anchorName := printf "anchor-name: %s" $anchor | safeCSS -}}
 {{- $anchorRef := printf "position-anchor: %s" $anchor | safeCSS -}}
-<button type="button" class="abbr-trigger" popovertarget="{{ $id }}" style="{{ $anchorName }}" aria-label="Expand abbreviation: {{ $key }}"><abbr title="{{ $entry.name }}">{{ $display }}</abbr></button><span popover id="{{ $id }}" class="abbr-panel" style="{{ $anchorRef }}"><strong class="abbr-name">{{ $entry.name }}</strong><span class="abbr-desc">{{ $entry.description }}</span>{{ with $entry.url }}<a class="abbr-link" href="{{ . }}">Read more</a>{{ end }}</span>
+<button type="button" class="abbr-trigger" popovertarget="{{ $id }}" style="{{ $anchorName }}" aria-label="Expand abbreviation: {{ $display }}"><abbr title="{{ $entry.name }}">{{ $display }}</abbr></button><span popover id="{{ $id }}" class="abbr-panel" style="{{ $anchorRef }}"><strong class="abbr-name">{{ $entry.name }}</strong><span class="abbr-desc">{{ $entry.description }}</span>{{ with $entry.url }}<a class="abbr-link" href="{{ . }}">Read more</a>{{ end }}</span>
 {{- end -}}

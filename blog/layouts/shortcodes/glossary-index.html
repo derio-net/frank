@@ -8,15 +8,32 @@
 
        Emits nothing at all (not an error) when data/glossary.yaml is absent or
        empty, so putting the shortcode on a page before curating any terms is
-       safe. */ -}}
+       safe.
+
+       Each term shows its resolved display text — `entry.rendered_text` when it
+       has one, else the key — the same chain abbr.html uses minus the call-site
+       argument no index has. Rendering the raw key here is what leaked
+       `GC_GOATCOUNTER` onto the page (#65 item 4). */ -}}
 {{- with site.Data.glossary -}}
 {{- $reg := . -}}
-{{- $keys := slice -}}
-{{- range $k, $v := $reg -}}{{- $keys = $keys | append $k -}}{{- end -}}
+{{- /* Sorted by display text with the key as tiebreaker, so the reader's
+       alphabet is the one on the page: two senses of "GC" stay adjacent instead
+       of being ordered by an identifier the reader cannot see — a second sense
+       keyed `ZZZ_GC` would otherwise sort after everything else on the page.
+       Both parts live in ONE composite sort string rather than two nested sorts,
+       because Hugo's sort is not documented as stable. The separator is US
+       (0x1f): it has to sort below every printable character, or a longer
+       display text would order before a shorter prefix of it. Where no entry
+       carries rendered_text this is exactly the old key sort. */ -}}
+{{- $rows := slice -}}
+{{- range $k, $v := $reg -}}
+{{- $display := or $v.rendered_text $k -}}
+{{- $rows = $rows | append (dict "sortkey" (printf "%s\x1f%s" $display $k) "display" $display "entry" $v) -}}
+{{- end -}}
 <dl class="glossary-index">
-{{- range $k := sort $keys }}
-{{- $entry := index $reg $k }}
-  <dt class="glossary-term"><abbr title="{{ $entry.name }}">{{ $k }}</abbr> — {{ $entry.name }}</dt>
+{{- range $row := sort $rows "sortkey" }}
+{{- $entry := $row.entry }}
+  <dt class="glossary-term"><abbr title="{{ $entry.name }}">{{ $row.display }}</abbr> — {{ $entry.name }}</dt>
   <dd class="glossary-definition">{{ $entry.description }}{{ with $entry.url }} <a href="{{ . }}">Read more</a>{{ end }}</dd>
 {{- end }}
 </dl>

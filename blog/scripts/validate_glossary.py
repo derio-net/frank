@@ -11,10 +11,17 @@ a build.
 | a marker inside a renderer-source shortcode body   | error    |
 | an entry missing / blank `name` or `description`   | error    |
 | `url` present but not an absolute http(s) URL      | error    |
+| `rendered_text` present but not a non-blank string | error    |
 | two keys differing only in case                    | error    |
-| a key containing a double quote                     | error    |
+| a key or a `rendered_text` with a double quote      | error    |
 | an entry no post references                        | warning  |
 | the registry is not alphabetically sorted          | warning  |
+
+`rendered_text` is the optional display text an entry shows instead of its key,
+so two expansions of the same letters can both be defined (`GC` for Garbage
+Collection, `GC_GOATCOUNTER` for GoatCounter, both rendered "GC"). Two entries
+sharing a `rendered_text` is therefore legal by design and never reported; two
+keys differing only in case still are not.
 
 Ships byte-identical at `templates/hugo-hextra/scripts/validate_glossary.py`
 (with its `glossary_scan.py` companion) so a blog's plain-python CI runs it
@@ -74,6 +81,19 @@ def validate_glossary(registry: dict,
             errors.append(
                 f"data/glossary.yaml: {key} url must be an absolute http(s) URL "
                 f"(got {url!r})")
+        rendered = entry.get("rendered_text")
+        if rendered is not None:
+            if not isinstance(rendered, str) or not rendered.strip():
+                errors.append(
+                    f"data/glossary.yaml: {key} rendered_text must be a non-empty "
+                    f"string — it is the text a reader sees instead of the key "
+                    f"(got {rendered!r})")
+            elif '"' in rendered:
+                errors.append(
+                    f"data/glossary.yaml: {key} rendered_text {rendered!r} contains a "
+                    f"double quote — the display text is what an author copies into "
+                    f"{{{{< abbr \"KEY\" \"TEXT\" >}}}} to mark a second sense by hand, "
+                    f"so the quote would terminate the argument early")
 
     for key in registry:
         if '"' in key:

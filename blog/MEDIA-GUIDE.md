@@ -93,6 +93,33 @@ To fill a placeholder:
 4. Delete the `<!-- MEDIA: ... -->` instruction comment
 5. Preview with `bash scripts/hugo-serve.sh --buildDrafts` (the wrapper prepends a recent Go to PATH so Hextra's go.mod loads cleanly — see the wrapper header for details)
 
+## Sticker Sets (opt-in, print — not a page)
+
+Only present when the blog sets `features.stickers.enabled: true`. Stickers are a
+**print** asset: there is no page, shortcode or gallery, and the images are not
+published. Two scripts, in this order:
+
+```bash
+scripts/generate-stickers.py --list                  # keys, sheet/pos, description
+scripts/generate-stickers.py --dry-run               # the full prompt + refs, no API call
+scripts/generate-stickers.py --only 01-wave          # candidates into ./regen/
+```
+
+`generate-stickers.py` **never writes over a sticker master**. It always
+generates into `--out` (default `regen/`, relative to the config), so the flow is
+*pick a winner, then copy it over by hand*:
+
+```bash
+cp regen/sticker-01-wave.png <images_dir>/sticker-01-wave.png
+scripts/build-sheets.py                              # the print-ready sheets
+```
+
+`build-sheets.py` writes the paper's DPI into the PNG, so **print at 100% / actual
+size** (no "fit to page") — that is what keeps the keyline a true cut path. It
+refuses, rather than printing a sheet with a hole in it, when two stickers claim
+the same cell, when a `pos` is outside the grid, or when a placed image is
+missing. See `docs/CONFIG.md` §13 in blog-craft for every config key.
+
 ## Using the `/media` Skill
 
 Run `/media` to get guided assistance with capturing and inserting media. The skill scans for remaining placeholders and walks you through each one.
