@@ -248,7 +248,7 @@ spec:
           # agent-images#136 merged, and the 820c1fb main build published this
           # tag (verified present on GHCR). hermes-agent-shell-ssh is in the
           # agent-images-bump AGENT_IMAGES list, so future bumps re-pin it here.
-          image: ghcr.io/derio-net/hermes-agent-shell-ssh:4ed6ec971b3501d4d16748a303f9c0f00c3b7767
+          image: ghcr.io/derio-net/hermes-agent-shell-ssh:864f1e37347e8cc51bf6cb299c6febead56b1564
           imagePullPolicy: IfNotPresent
           # BYOK-secret env snapshot (frank#688). This sidecar has no s6/init:
           # the image entrypoint exec's sshd, which becomes PID 1 and OpenSSH
@@ -409,7 +409,7 @@ spec:
           # → 28de3ab + the exec probes below was the validated combination →
           # re-pinned to the permanent main-build SHA 820c1fb (same code rebuilt
           # on main; agent-images sidecar dir merged, tag verified on GHCR).
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:4ed6ec971b3501d4d16748a303f9c0f00c3b7767
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:864f1e37347e8cc51bf6cb299c6febead56b1564
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image
