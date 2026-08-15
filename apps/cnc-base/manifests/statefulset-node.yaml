@@ -25,7 +25,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: node
-          image: ghcr.io/derio-net/multi-agent-shell:c04eaabcc79c0a0254efec24d910a0468387d199
+          image: ghcr.io/derio-net/multi-agent-shell:4ed6ec971b3501d4d16748a303f9c0f00c3b7767
           imagePullPolicy: IfNotPresent
           env:
             - name: AGENT_SESSION_SERVE
