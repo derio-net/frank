@@ -97,7 +97,8 @@ commands:
 verify:
   - "kubectl -n hermes-agent-shell get pod -l app=hermes-agent-shell -o jsonpath='{.items[0].spec.containers[?(@.name==\"ssh\")].image}' → the new SHA"
   - "ssh agent@192.168.55.226 'bash -lc \"bun --version\"' → prints a version. It MUST be a LOGIN shell: sshd scrubs the container env and `ssh host -- cmd` skips /etc/profile.d entirely, so the PATH shim is not exercised and the check proves nothing."
-status: pending
+status: done
+done_note: "2026-08-15 — no edit was needed: the scheduled agent-images bump had already carried the pin past Bun (live pin 4ed6ec9, /usr/local/bin/bun dated 2026-08-13). Verified both halves post-merge: the live ssh container image matches the manifest, and `ssh hermes 'bash -lc \"bun --version\"'` returns 1.3.14 over a LOGIN shell. Note the raw-IP form in the command above needs an IdentityFile; the `hermes` alias from apps/hermes-agent-shell/client-setup/laptop/ssh-config.snippet is what actually authenticates."
 ```
 
 ```yaml
@@ -139,6 +140,31 @@ tmux/SSH/mosh sessions drop when ArgoCD syncs. The issue's "no restart
 required by this work" means no volume *detach*, which is the risky,
 schedulable operation the revision avoids. It does not mean no restart, and
 the documentation added in phase 3 says so plainly.
+
+## Close-out status (2026-08-15, post-merge)
+
+PR #763 merged as `0fbbe549`. ArgoCD reconciled to it and recreated the pod
+`4/4 Running`. **Test Plan rows 1-6 pass; rows 7-9 remain owed**, which is why
+this plan is still `in progress` and NOT archived.
+
+| Row | Result |
+|---|---|
+| 1 | Pod `4/4`, all containers ready, 0 restarts. Hindsight PVC still `5Gi`, container healthy |
+| 2 | `vector 0.8.6` |
+| 3 | Own Longhorn volume (`pvc-a10dd99b`, 9.8G) vs Hindsight's (`pvc-cf287075`, 4.9G) |
+| 4 | `/opt/gbrain` = `drwxrwsr-x root:1000` (**2775 — observed, not derived**); `pgdata` = `drwx------ 1000:1000` |
+| 5 | Row + hnsw index survived a real pod delete; PGDATA still `0700` after the kubelet fsGroup re-walk |
+| 6 | `bun --version` -> `1.3.14` over a **login** shell |
+| 7-8 | **OWED** — need the CLI's private git ref, which is not in this repo |
+| 9 | **OWED** — the requesting repo's own benchmark |
+
+Two extra observations worth keeping. The 2026-08-15 review's collation fix was
+confirmed live (`datlocprovider` `b`, `datlocale` `C.UTF-8`) — it had exactly one
+window, the first initdb on a fresh volume, and it landed. And **ArgoCD reported
+`Synced/Healthy` at the PRE-merge revision for about two minutes after the merge,
+with a `3/3` pod** — the textbook version of this repo's "Synced can mean synced to
+a stale revision" gotcha. Every row above is asserted on an artifact, never on
+sync status.
 
 ## Why there is no Post-Deploy Checklist phase
 

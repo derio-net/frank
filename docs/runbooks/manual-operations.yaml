@@ -1354,7 +1354,8 @@ operations:
   verify:
   - "kubectl -n hermes-agent-shell get pod -l app=hermes-agent-shell -o jsonpath='{.items[0].spec.containers[?(@.name==\"ssh\")].image}' → the new SHA"
   - "ssh agent@192.168.55.226 'bash -lc \"bun --version\"' → prints a version. It MUST be a LOGIN shell: sshd scrubs the container env and `ssh host -- cmd` skips /etc/profile.d entirely, so the PATH shim is not exercised and the check proves nothing."
-  status: pending
+  status: done
+  done_note: "2026-08-15 — no edit was needed: the scheduled agent-images bump had already carried the pin past Bun (live pin 4ed6ec9, /usr/local/bin/bun dated 2026-08-13). Verified both halves post-merge: the live ssh container image matches the manifest, and `ssh hermes 'bash -lc \"bun --version\"'` returns 1.3.14 over a LOGIN shell. Note the raw-IP form in the command above needs an IdentityFile; the `hermes` alias from apps/hermes-agent-shell/client-setup/laptop/ssh-config.snippet is what actually authenticates."
 - id: orch-paperclip-hire-hermes-litellm-agent
   layer: orch
   app: paperclip
