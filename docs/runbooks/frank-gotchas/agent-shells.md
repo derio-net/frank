@@ -1034,3 +1034,69 @@ older copy of the driver that predates the resume logic — patching it fixes no
 
 **Related blind spot.** The image's login MOTD prints `✓ claude (…, age 0d)` from file
 presence alone, so it reads ✓ through both this failure and the blank-token one.
+
+## A hand-started daemon in ANY sidecar can squat another container's "loopback-only" port
+
+**Symptom.** `hermes-agent-shell`'s `hindsight` container OOMKills repeatedly (exit 137,
+22 restarts by 2026-08-27) against a 2Gi limit, while `kubectl top` shows it sitting at a
+comfortable ~808Mi. It reads exactly like an undersized limit. It is not.
+
+**Cause.** Containers in a pod share **one network namespace**. `hindsight` runs its own
+PostgreSQL bound to `127.0.0.1:5433` (deliberately loopback-only — the manifest declares no
+`containerPort` for it, and the probes are `exec` for the same reason). A PostgreSQL started
+**by hand inside the `ssh` sidecar** had already taken that port:
+
+```
+/opt/data/home/.local/micromamba/envs/hindsight-pg-fresh/bin/postgres \
+  -D /opt/data/home/.local/pgsql/hindsight-data -p 5433 -k /opt/data/home/.local/pgsql
+```
+
+PPID 1, started 2026-08-19 20:17:09 UTC, surviving every `hindsight` restart because it lives
+in a different container. So `hindsight`'s supervised postgres could never bind, and s6
+respawned it **~1×/second, indefinitely** — half a million PIDs in twelve hours. Each attempt
+starts a postmaster that allocates shared buffers, logs
+`FATAL: could not create any TCP/IP sockets`, and exits. That churn, layered on a legitimate
+~800Mi baseline (torch-CPU embedder), is what reaches 2Gi and trips the OOM killer.
+
+**The data trap.** `hindsight-api` connects by URL (`…@127.0.0.1:5433/postgres`), so it
+transparently attached to the squatter and has been writing live memory data into
+`/opt/data/home/.local/pgsql/hindsight-data` ever since. The container's own
+`/opt/hindsight/pgdata` has been cold since 2026-08-19 20:16 (one minute before the squatter
+started) and holds a July-era snapshot. **Killing the stray postgres without migrating its data
+first silently reverts the agent's memory by weeks.** Dump and restore before reclaiming the
+port.
+
+**Diagnosis.** Read the container's *first* postgres log line after start. A bind failure at
+t+0s means a squatter; a leak ramps. Then find the owner — the socket is in a shared namespace,
+so the holder may be in a different container:
+
+```bash
+# 1. inode of the listener, from any container in the pod
+kubectl -n <ns> exec <pod> -c <container> -- python3 -c "
+for line in open('/proc/net/tcp').read().splitlines()[1:]:
+    p = line.split()
+    if p[3] == '0A':
+        addr, port = p[1].split(':')
+        ip = '.'.join(str(int(addr[i:i+2], 16)) for i in (6, 4, 2, 0))
+        print('LISTEN %s:%d inode=%s' % (ip, int(port, 16), p[9]))"
+
+# 2. match that inode against open fds in EVERY container of the pod
+for c in <c1> <c2> <c3>; do
+  kubectl -n <ns> exec <pod> -c "$c" -- sh -c '
+    for p in /proc/[0-9]*; do for f in "$p"/fd/*; do
+      case "$(readlink "$f" 2>/dev/null)" in *<INODE>*)
+        echo "$c pid=$(basename "$p") $(tr "\0" " " < "$p/cmdline")";;
+      esac; done; done 2>/dev/null'
+done
+```
+
+**Fix.** Remove the stray process (after migrating its data), not the memory limit. A limit bump
+is a mitigation that stops the crash loop; it does not stop the fork storm, and the sidecar's
+postgres still never serves. Raising `requests` is separately justified: 512Mi was below the
+container's real idle floor of ~808Mi.
+
+**Prevention.** Never leave a hand-started service running in an agent shell — it outlives the
+debugging session, is invisible to GitOps, and reconciles away nothing. Upstream, the hindsight
+image's s6 `postgres` longrun should back off exponentially and give up loudly instead of
+retrying forever on a fatal, non-transient bind error (see `s6 crashloop bail` above — that
+5-deaths-in-60s bail evidently does not apply to this service).

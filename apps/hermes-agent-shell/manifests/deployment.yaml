@@ -474,13 +474,28 @@ spec:
           resources:
             requests:
               cpu: 250m
-              memory: 512Mi
+              # 512Mi was below the container's own idle floor: measured 808Mi
+              # steady-state (kubectl top, 2026-08-27) with the torch-CPU
+              # embedder resident. A request under the true floor mis-schedules
+              # the pod and gives the container no protection under node
+              # pressure. 1Gi is the observed floor rounded up.
+              memory: 1Gi
             limits:
               # The ML resident set (torch-CPU embedder + PG shared buffers)
               # moved OUT of the main container to here — main dropped 8Gi→4Gi
               # to compensate.
               cpu: "1"
-              memory: 2Gi
+              # 2Gi → 3Gi is a MITIGATION, not the fix. 22 OOMKills (exit 137)
+              # to 2026-08-27 are driven by a postgres restart storm: a
+              # manually-started postgres in the ssh sidecar has held
+              # 127.0.0.1:5433 since 2026-08-19 20:17 UTC, so this container's
+              # own supervised postgres can never bind (containers in a pod
+              # share one network namespace). s6 respawns it ~1x/second
+              # forever, and each postmaster allocates shared buffers before
+              # dying. The headroom stops the crash loop while the port
+              # conflict is resolved on the live pod; see the PR body. Revisit
+              # 3Gi once no stray postgres holds 5433.
+              memory: 3Gi
           # /health is the hindsight-api liveness/readiness surface (port 8888).
           # PG stays loopback-only — NO containerPort declared for 5433.
           #
