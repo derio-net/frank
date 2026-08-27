@@ -37,6 +37,12 @@ spec:
             # Mirrors alert-agent / n8n-01.
             - name: AGENT_TMUX_RESTORE
               value: "off"
+            # No in-pod Claude Code auto-updates — runner nodes hold long-lived
+            # claude sessions on a home PVC; the updater's ~4GB anon-memory bloat
+            # OOMKilled alert-agent (2026-08-27). Updates ship via agent-images.
+            # Guard: scripts/tests/test_claude_autoupdater_disabled.py.
+            - name: DISABLE_AUTOUPDATER
+              value: "1"
             - name: AGENT_SESSION_PORT
               value: "8765"
             # The v1 agent-session server binds 127.0.0.1 by default; the

@@ -99,6 +99,14 @@ spec:
             # SSH login shells by the fr-env profile.d shim (sshd scrubs env).
             - name: FR_ISOLATION_TARGET
               value: "worktree"
+            # No in-pod Claude Code auto-updates: the updater's download buffers
+            # ~4GiB of anon memory and OOMKilled alert-agent's persistent
+            # sessions (2026-08-27); this pod's shared home PVC showed the same
+            # self-update churn. Updates ship via agent-images. For kali's SSH
+            # login shells the fr-env shim re-exports it (sshd scrubs env).
+            # Guard: scripts/tests/test_claude_autoupdater_disabled.py.
+            - name: DISABLE_AUTOUPDATER
+              value: "1"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
@@ -198,6 +206,14 @@ spec:
             # processes spawned here inherit this env (no sshd → no shim needed).
             - name: FR_ISOLATION_TARGET
               value: "worktree"
+            # No in-pod Claude Code auto-updates: the updater's download buffers
+            # ~4GiB of anon memory and OOMKilled alert-agent's persistent
+            # sessions (2026-08-27); this pod's shared home PVC showed the same
+            # self-update churn. Updates ship via agent-images. For kali's SSH
+            # login shells the fr-env shim re-exports it (sshd scrubs env).
+            # Guard: scripts/tests/test_claude_autoupdater_disabled.py.
+            - name: DISABLE_AUTOUPDATER
+              value: "1"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
