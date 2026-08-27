@@ -567,3 +567,49 @@ agent). The **durable root fix belongs in the agent-session server**
 one-shot analytical turn can force a clean context (same `session_id`, forced
 `/clear`) regardless of idle timing — the correct primitive the frank-side session
 split only approximates. Recommended as an `agent-images` follow-up.
+
+## In-pod Claude Code auto-updater OOMs the persistent-session pod (2026-08-27)
+
+**The bounded-session-count argument above ("no OOM") assumed per-session RSS
+stays near the ~400MB design budget — the in-pod auto-updater breaks that
+assumption.** The native Claude Code build's background auto-updater ran freely
+inside the alert-agent pod (`~/.local/share/claude/versions/` accumulated
+2.1.231/232/233/236/247 between Aug 13 and Aug 27, all downloaded in-pod), and
+each update buffers its ~250-335MB download many times over in anon memory
+*inside the long-lived session processes*, whose heap never shrinks back. The
+`alert-agent-surge` and `alert-agent-digest` sessions reached **4.35GB and
+3.9GB RSS** — ~10× budget, matching the documented ~4.2GiB updater peak (the
+`claude install` gotcha in `agent-shells.md`) — pinning the `agent` container at
+its 8Gi `memory.max`.
+
+**Symptom shape (reads as "pod overloaded", pages nothing):** pod `3/3 Running`,
+restarts 0, ArgoCD green, `kubectl top` ~110m CPU. Inside the cgroup:
+`memory.current` within KBs of `memory.max`, `memory.events max=2,352,495`
+(reclaim-limit hits) with `oom_kill=0` — a permanent direct-reclaim storm, so
+every process stalls in `D` state and any interactive attach crawls. It resolved
+itself only when the 14:00Z `surge-gate` cron wake allocated on top:
+`OOMKilled` (exit 137), whole-container group kill, all tmux sessions lost.
+
+**Second, independent failure from the same updater:** the update swaps the
+binary/feature-set under the running sessions — all three panes sat wedged on
+the new version's interactive **"Set up auto mode" onboarding wizard**, so turn
+injection was dead even aside from the (concurrent, unrelated) blank-OAuth-token
+outage. An operator DM was visibly queued *behind* the dialog in the tg pane.
+After any interactive `/login` attach, dismiss such dialogs with "Don't show
+again" — that writes PVC state shared by all sessions.
+
+**Diagnosis recipe:** `kubectl exec … -- cat /sys/fs/cgroup/memory.current
+/sys/fs/cgroup/memory.max` and `grep max /sys/fs/cgroup/memory.events` (the
+reclaim-storm signature); `ps aux --sort=-rss` for the session processes;
+`tmux capture-pane -p -t <session>` for wizard-wedge; `ls -lt
+~/.local/share/claude/versions/` for updater activity (any mtime newer than the
+last agent-images bump = in-pod update).
+
+**Fix (frank #TBD):** `DISABLE_AUTOUPDATER=1` on every claude-running container
+— alert-agent `agent`, secure-agent-pod `kali`+`vk-local` (same churn observed
+on its shared home PVC), n8n-01 `multi-agent-shell`, cnc-base `node` — plus the
+kali fr-env profile.d shim re-export (sshd scrubs container env from the SSH
+login shells kali launches claude from). Binary updates ship exclusively via
+the agent-images pipeline (memory-safe curl install). Guard:
+`scripts/tests/test_claude_autoupdater_disabled.py`. Debug journal:
+`docs/superpowers/journals/debug/2026-08-27-alert-agent-oom-overload.md`.

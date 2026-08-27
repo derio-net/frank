@@ -27,7 +27,7 @@ data:
     # PermitUserEnvironment). Login shells only; non-interactive
     # `ssh host -- cmd` skips profile.d — use `kubectl exec` for that.
     if [ -r /proc/1/environ ]; then
-        for _fv in FR_ISOLATION_TARGET; do
+        for _fv in FR_ISOLATION_TARGET DISABLE_AUTOUPDATER; do
             eval "_fcur=\${$_fv:-}"
             if [ -z "$_fcur" ]; then
                 _fval=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_fv}=//p" | head -n1)

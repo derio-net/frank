@@ -46,6 +46,15 @@ spec:
             # tmux-resurrect.conf if-shell (Fix B). Fix C is the load-bearing guard;
             # this is defence + cleanliness (stops the 5-min save/restore churn).
             - { name: AGENT_TMUX_RESTORE, value: "off" }
+            # The in-pod Claude Code auto-updater buffers its ~250-335MB download
+            # many times over in anon memory inside the PERSISTENT per-stream
+            # sessions, whose RSS never shrinks back — it inflated surge/digest to
+            # ~4GB each, pinned this container at its 8Gi limit, and OOMKilled it
+            # (2026-08-27). It also swaps the binary under running sessions,
+            # wedging panes on the new version's interactive onboarding dialog.
+            # Updates ship via agent-images (memory-safe curl install), never
+            # in-pod. Guard: scripts/tests/test_claude_autoupdater_disabled.py.
+            - { name: DISABLE_AUTOUPDATER, value: "1" }
             - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }
             - { name: PYTHONPATH, value: "/opt/pylib" }
             - { name: VICTORIALOGS_URL, value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428" }

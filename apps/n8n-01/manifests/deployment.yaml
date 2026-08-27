@@ -124,6 +124,12 @@ spec:
             # driver owns sessions; continuum must not resurrect dead bash shells.
             - name: AGENT_TMUX_RESTORE
               value: "off"
+            # No in-pod Claude Code auto-updates — this pod keeps a PERSISTENT
+            # claude session, exactly the shape whose ~4GB updater bloat
+            # OOMKilled alert-agent (2026-08-27). Updates ship via agent-images.
+            # Guard: scripts/tests/test_claude_autoupdater_disabled.py.
+            - name: DISABLE_AUTOUPDATER
+              value: "1"
           resources:
             requests:
               cpu: "1000m"
