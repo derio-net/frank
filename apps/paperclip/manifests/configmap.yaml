@@ -24,3 +24,18 @@ data:
   # Opt out of upstream telemetry added in v2026.403.0.
   DO_NOT_TRACK: "1"
   PAPERCLIP_TELEMETRY_DISABLED: "1"
+  # v2026.824.0 changed the default: Paperclip-managed worktree runtimes are
+  # now exposed as `tailscale_https` instead of loopback HTTP whenever a
+  # Tailscale host broker socket is reachable. This pod has no Tailscale
+  # sidecar and no broker socket, so the `auto` default would fall back to
+  # loopback anyway — pinning `off` makes the transport a declared choice
+  # rather than a silent consequence of the broker being absent, so it cannot
+  # flip if a mesh sidecar is ever added to this pod for unrelated reasons.
+  PAPERCLIP_MANAGED_RUNTIME_HTTPS: "off"
+  # v2026.817.0 removed experimental Cloud Sync and made company Import/Export
+  # the only supported data-movement path; v2026.824.0 made those imports
+  # chunked/resumable, with a 1 GB default upload cap. paperclip-data is a
+  # 10Gi PVC already documented to fill from agent run histories + the npm
+  # cache (frank-gotchas.md), and an import stages the zip alongside its
+  # expansion, so cap at 512 MB. Raise deliberately if a real import needs it.
+  PAPERCLIP_IMPORT_ZIP_MAX_BYTES: "536870912"

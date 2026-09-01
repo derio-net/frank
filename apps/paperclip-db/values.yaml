@@ -19,13 +19,31 @@ primary:
   persistence:
     size: 5Gi
     storageClass: longhorn
+  # Headroom for schema migrations. The v2026.626.0 -> v2026.824.1 bump runs
+  # 96 migrations in a single boot — the deployed journal ends at 0124, the new
+  # image ships 0222 — carrying 259 `CREATE INDEX` (none CONCURRENTLY) and 64
+  # `CREATE TABLE`, applied automatically on startup. Note 96, not the 41 the
+  # upstream release notes advertise: those counts are per-release, and the two
+  # releases in this range that describe their batch only as "a large batch of
+  # additive migrations" publish no number at all (frank-gotchas.md).
+  # The previous request == limit == 256Mi left no burst room at all:
+  # non-concurrent index builds draw on maintenance_work_mem (64MB default) on
+  # top of shared_buffers and the connection pool, and a cgroup OOM-kill
+  # *during* the run is the failure that leaves a half-applied schema behind.
+  # requests stays small (this is an idle homelab DB most of the time); the
+  # limit is what has to absorb the migration spike. gpu-1 has 128GB, so the
+  # ceiling is free — same reasoning as the paperclip container's own 12Gi.
+  # ORDERING: paperclip-db and paperclip are separate ArgoCD Applications that
+  # auto-sync independently, so sync THIS one and confirm the pod is Ready on
+  # the new limit before letting the app roll — otherwise the migrations run
+  # under the old 256Mi ceiling this change exists to lift.
   resources:
     requests:
-      memory: 256Mi
+      memory: 512Mi
       cpu: 250m
     limits:
-      memory: 256Mi
-      cpu: 250m
+      memory: 2Gi
+      cpu: "1"
 
 metrics:
   enabled: true

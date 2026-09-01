@@ -98,10 +98,14 @@ spec:
           # v2026.824.1 patches the onboarding service startup (background-
           # service install, dashboard delivery, diagnostics). Major changes
           # since v2026.626.0: v2026.817.0 introduced stable release
-          # channels, Decisions governance, full company Import/Export, and
-          # 28 auto DB migrations; v2026.824.0 made chat-style tasks the
-          # default, HTTPS previews via Tailscale, and direct Claude/Codex
-          # sign-in. Tag scheme is upstream's: only `latest` (master HEAD),
+          # channels, Decisions governance and full company Import/Export
+          # (which replaced the removed Cloud Sync); v2026.824.0 made
+          # chat-style tasks the default, HTTPS previews via Tailscale, and
+          # direct Claude/Codex sign-in. This bump applies 96 Drizzle
+          # migrations on first boot (journal 0124 -> 0222) — see
+          # apps/paperclip-db/values.yaml for why that resized the DB, and
+          # sync paperclip-db FIRST.
+          # Tag scheme is upstream's: only `latest` (master HEAD),
           # `canary`, and `sha-<short>` are published — no semver image
           # tags. We pin to the sha for traceability: v2026.824.1 → commit
           # 8e6edcdfa911151adba26be49a41cf5017b3aade.
