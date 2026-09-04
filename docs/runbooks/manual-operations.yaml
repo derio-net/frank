@@ -1255,7 +1255,8 @@ operations:
   - "ssh agent@192.168.55.226 'bash -lc \"<cli> --version\"' → prints a version. Use `bash -lc`; `ssh host -- cmd` skips /etc/profile.d and would fail even on a correct install."
   - "Connectivity from the same shell: psql 'postgres://gbrain@127.0.0.1:5434/gbrain' -c 'select extversion from pg_extension where extname = $$vector$$' → 0.8.6 (or run it in the gbrain container if psql is not on the ssh sidecar)."
   - "Then delete the pod and re-run the --version check. That is Test Plan row 8, and it is the row that decides whether decision 2 was right — if the CLI does not survive the restart, it belongs in the image and this is a rework, not a patch."
-  status: pending
+  status: done
+  done_note: "2026-09-04 — installed `github:garrytan/gbrain#v0.47.9.0` (sha 6bf8db90) into /opt/data/home/.bun/bin/gbrain on the home PVC; `gbrain --version` -> 0.47.9.0 over a LOGIN shell. Test Plan rows 7 AND 8 both PASS: the pod was deliberately deleted and genuinely recreated (…-r26tz -> …-wpmsz) and the CLI still answered, tree still dated Sep 1 — persisted state, not a re-install. So decision 2 holds. The pin is now resolved AT RUN TIME from the newest release rather than hardcoded: upstream cuts several releases a week (v0.46.32 -> v0.47.9 in nine days), so a frozen tag is stale within days while a resolved-then-recorded tag+sha is still immutable. Bun blocked the postinstall (upstream issue 218); harmless here because it only runs `apply-migrations` and no brain is configured. `gbrain init` deliberately NOT run — that is row 9 and the requesting repo owns it."
 - id: orch-hermes-litellm-virtual-key
   layer: orch
   app: hermes-agent-shell
