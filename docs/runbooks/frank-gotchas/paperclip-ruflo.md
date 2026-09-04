@@ -63,6 +63,82 @@ kubectl exec deploy/paperclip -n paperclip-system -c paperclip -- wget -qO- loca
 # expect: {"status":"ok",...,"bootstrapStatus":"ready","bootstrapInviteActive":false}
 ```
 
+### Counting the pending set: the journal diff, not the release notes
+
+Step 1 above uses the compare API, which has two problems. It is capped at 300 files
+(`agent-shells.md`), and **the GitHub API is repo-scoped in a Claude Code cloud session** —
+`gh api repos/paperclipai/paperclip/...` and `api.github.com` both return *"GitHub access to this
+repository is not enabled for this session"*, as does `codeload`. `raw.githubusercontent.com` is
+**not** blocked, and release pages are fetchable with WebFetch, so the check is still doable
+off-LAN — just not the way step 1 writes it:
+
+```bash
+# Definitive pending set: diff the Drizzle journal at both refs.
+BASE=https://raw.githubusercontent.com/paperclipai/paperclip
+for REF in <old-full-sha> <new-full-sha>; do
+  curl -s -o "journal_$REF.json" "$BASE/$REF/packages/db/src/migrations/meta/_journal.json"
+done
+# pending = tags in new journal absent from old; fetch each as
+#   $BASE/<new-full-sha>/packages/db/src/migrations/<tag>.sql
+```
+
+**Do not sum the counts in the release notes.** Each release states the migrations *it* added,
+which is not how many run on your boot, and a release whose upgrade guide says only "a large
+batch of additive migrations" contributes an unpublished number. Measured on the
+v2026.626.0 → v2026.824.1 bump (#780): the notes advertised **41** (2 + 28 + 11 across
+v2026.722.0 / v2026.817.0 / v2026.824.0), the journal diff showed **96** — the deployed image sat
+at `0124`, the new one ships `0222`, and the whole gap was v2026.707.0 and v2026.720.0, the two
+releases that published no number.
+
+### Sizing `paperclip-db` for the boot, not for steady state
+
+96 migrations carried **259 `CREATE INDEX` (none `CONCURRENTLY`)** and 64 `CREATE TABLE`.
+`paperclip-db` had `requests == limits == 256Mi` — no burst room at all — while non-concurrent
+index builds draw on `maintenance_work_mem` (64MB default) on top of `shared_buffers` and the
+connection pool. A cgroup OOM-kill *during* the run is the bad case: it leaves a half-applied
+schema behind. Raised to `requests 512Mi / limits 2Gi` in `apps/paperclip-db/values.yaml`; the
+ceiling is free on a 128GB node and `requests` stays small because the DB idles the rest of the
+month.
+
+**Order the two syncs.** `paperclip-db` and `paperclip` are separate ArgoCD Applications, each
+with its own `automated` policy, so nothing serialises them — the app can start migrating against
+a DB that has not yet restarted onto the new limit, which is exactly the ceiling the change
+exists to lift. (The `sync-wave` on the *Application* CRs orders the root app-of-apps' writes, not
+the children's independent self-heals, so it is not a guarantee here.) Sync `paperclip-db` first,
+confirm `paperclip-db-postgresql-0` is Ready on the new limit, then let `paperclip` roll.
+
+### Reading the DDL: what "unguarded" actually means
+
+`grep -v "IF EXISTS"` over-reports. Upstream also guards with a `DO $$ BEGIN IF EXISTS (SELECT 1
+FROM pg_constraint WHERE conname = '...') THEN ... END IF; END $$;` wrapper, where the guard is on
+the *enclosing* line — `0152_tool_connection_application_no_cascade` reads as unguarded to a
+line-oriented grep and is in fact safe. Read the file, don't trust the grep.
+
+What survived that filter on #780 were **8 genuinely unguarded `DROP CONSTRAINT`** statements —
+seven in `0217_yielding_starbolt` (re-pointing issue FKs to `ON DELETE set null`/`cascade`) and one
+in `0222_orphan_cleanup_env_reference_survives_delete`. All eight target tables created at or
+before `0124`, so they must already exist in the live DB; that is a pre-merge check against the
+cluster, and it cannot be done from a cloud session:
+
+```bash
+source .env
+kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -lc \
+ 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" -tAc "
+  SELECT conname FROM pg_constraint WHERE conname IN (
+    '\''cost_events_issue_id_issues_id_fk'\'','\''feedback_votes_issue_id_issues_id_fk'\'',
+    '\''finance_events_issue_id_issues_id_fk'\'','\''issue_comments_issue_id_issues_id_fk'\'',
+    '\''issue_inbox_archives_issue_id_issues_id_fk'\'','\''issue_read_states_issue_id_issues_id_fk'\'',
+    '\''issue_thread_interactions_issue_id_issues_id_fk'\'',
+    '\''environment_leases_environment_id_environments_id_fk'\'')"'
+# expect all 8 rows. A missing one crashes the pod on boot at that migration.
+```
+
+The rest of the sweep came back clean and is worth repeating verbatim on the next bump: no
+`CREATE EXTENSION` (so no pre-create needed — the live DB's `pg_trgm`/`fuzzystrmatch`/`plpgsql`
+still cover it), no `TRUNCATE`, one scoped `DELETE FROM "agent_task_sessions"`
+(`0136_acpx_default_engine_migration`), and every `SET NOT NULL` backfilled in the same file
+(`ADD COLUMN` → `UPDATE`/`COALESCE` → `SET DEFAULT` → `SET NOT NULL`) rather than applied bare.
+
 Trap: `__drizzle_migrations` row count does **not** map to the highest migration file index (its `id` is a plain serial and `created_at` is a journal artifact — seen as id 93 timestamped before file `0093` existed). To know whether a migration already ran, query for its **tables**, not the count. First field-tested on the v2026.525.0→v2026.529.0 bump (PR #437, 2026-06-01): 4 additive migrations (0090–0093), `0093` an unguarded company-FK `ON DELETE cascade` swap — applied clean.
 
 ## Paperclip's "Test environment" runs in the app container, NOT the shell sidecar
