@@ -50,9 +50,10 @@ state:
       ticked_at: '2026-08-15T17:33:41+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-04T09:12:11+00:00'
+      note: Rows 1-8 all recorded; rows 7-8 proven live 2026-09-04 against a genuine
+        pod recreate. All three acceptance rows now flipped off not-implemented.
     P4.T1.S3:
       state: ' '
       ticked_at: null

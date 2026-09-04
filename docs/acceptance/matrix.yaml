@@ -921,13 +921,22 @@ rows:
   # agent-images ssh image, so nothing in THIS repo verifies it statically.
   # The only proof is Test Plan rows 6-8 against a live pod, in a LOGIN shell.
   levels: {}
-  status: not-implemented
-  notes: 'HALF PROVEN 2026-08-15, deliberately still open. Row 6 PASSES: `ssh hermes ''bash -lc "bun --version"''`
-    returns 1.3.14 — a LOGIN shell, so the /etc/profile.d PATH shim is genuinely exercised (the live ssh pin is
-    4ed6ec9, which is past the c04eaab that introduced Bun; /usr/local/bin/bun is dated 2026-08-13). Rows 7-8 remain
-    OWED and cannot be run from this repo: they need the CLI''s private git ref, which lives in the requesting repo''s
-    private issue and is deliberately not written down here. Row 8 is the load-bearing one — it tests the
-    PVC-persistence claim that decision 2 (CLI installed by hand rather than baked) entirely rests on. If it fails,
-    decision 2 is wrong and the CLI belongs in the image. Do not close this row on row 6 alone: "a runtime exists"
-    and "an installed CLI survives a restart" are different claims, and only the second decides the design. Rows 6-7
-    must be run in a LOGIN shell (bash -lc) — ''ssh host -- cmd'' skips /etc/profile.d and would prove nothing.'
+  status: skipped
+  notes: >-
+    Live manual proof 2026-09-04 — all three clauses of the acceptance now hold, so this closes. Row 6: `ssh hermes
+    'bash -lc "bun --version"'` -> 1.3.14 over a LOGIN shell, which genuinely exercises the /etc/profile.d PATH shim
+    (`ssh host -- cmd` skips it and would prove nothing). Row 7: installed from a PINNED git ref -> `gbrain
+    0.47.9.0` at /opt/data/home/.bun/bin/gbrain, i.e. on the home PVC. Explicitly NOT from npm: that name is
+    squatted by an unrelated package last published in 2018, and the real project's own README carries the same
+    warning. Row 8, the load-bearing one: the pod was deliberately deleted and genuinely recreated (...-r26tz ->
+    ...-wpmsz, 4/4 Running, 0 restarts) and the CLI still answered 0.47.9.0, with the node_modules tree still dated
+    Sep 1 15:56 — persisted PVC state, not a silent re-install. DECISION 2 (install by hand onto the PVC rather than
+    baking into the image) is therefore CORRECT. Three things worth carrying forward. (a) What has to survive is
+    bigger than it looks: ~/.bun/bin/gbrain is a SYMLINK to src/cli.ts — there is no compiled binary, Bun executes
+    the TypeScript entrypoint, so the whole 152-package global node_modules tree must persist. (b) Bun itself comes
+    from the IMAGE (1.3.14 against an engines floor of >=1.3.10), so an upstream floor bump would break this install
+    with a message about Bun, not about the CLI — check engines.bun before any re-pin. (c) Bun BLOCKED the package's
+    postinstall; benign here because it only runs `apply-migrations`, a no-op with no brain configured — but against
+    a brain that DOES exist it would leave the schema silently un-migrated, which looks like a working install.
+    `gbrain doctor` reports `no_url` / "No brain configured": correct and deliberate — `gbrain init` is NOT run
+    here, that is Test Plan row 9 and belongs to the requesting repo.
