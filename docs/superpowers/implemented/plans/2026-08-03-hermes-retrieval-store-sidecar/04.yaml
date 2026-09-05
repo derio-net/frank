@@ -55,10 +55,20 @@ state:
       note: Rows 1-8 all recorded; rows 7-8 proven live 2026-09-04 against a genuine
         pod recreate. All three acceptance rows now flipped off not-implemented.
     P4.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-05T15:37:46+00:00'
+      note: 'Handed over 2026-09-05 to agentic-stoa/second-brain#48 (issuecomment-5552862517):
+        DSN plus the OVMS bge-m3 / bge-reranker-v2-m3 endpoints, all re-verified live
+        before posting. Row 9 itself is theirs to run.'
   completion:
-    at: null
-    note: null
+    at: '2026-09-05T15:38:26+00:00'
+    note: 'All three steps done. S1: dissolved by ordinary repo motion — the scheduled
+      agent-images bump carried the ssh pin past Bun before anyone hand-edited it.
+      S2: Test Plan rows 1-8 run live across #772 and #781; row 8 (a deliberate pod
+      recreate, r26tz->wpmsz) proved the CLI persists on the home PVC, so decision
+      2 holds. All three acceptance rows are now off not-implemented. S3: DSN and
+      OVMS endpoints handed to agentic-stoa/second-brain#48 on 2026-09-05, re-verified
+      live at the moment of posting. Row 9, the recall benchmark, is deliberately
+      NOT part of this plan — it needs a corpus this cluster does not have and this
+      repo must not contain.'
     observed_prs: []

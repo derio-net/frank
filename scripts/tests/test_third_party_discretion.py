@@ -103,9 +103,15 @@ SCANNED_PATHS = [
     # `apps/hermes-agent-shell/` wholesale: that directory predates this work by
     # months, and pulling unrelated manifests into a discretion scan buys false
     # positives whose only cure is widening the allowlist.
+    # PARTIALLY ARCHIVED, 2026-09-05. `fr archive` moved the PLAN and its
+    # plan-journal under `implemented/` when phase 4 closed, and left the SPEC
+    # and the spec-journal where they were — so these four entries straddle two
+    # roots and look inconsistent on purpose. Do not "tidy" them onto one
+    # prefix; check which half actually moved. When the spec is archived later,
+    # the other two follow and this comment can go.
     REPO / "docs/superpowers/specs" / f"{GBRAIN_SPEC_SLUG}-design.md",
-    REPO / "docs/superpowers/plans" / GBRAIN_PLAN_SLUG,
-    REPO / "docs/superpowers/journals/plans" / f"{GBRAIN_PLAN_SLUG}.md",
+    REPO / "docs/superpowers/implemented/plans" / GBRAIN_PLAN_SLUG,
+    REPO / "docs/superpowers/implemented/journals/plans" / f"{GBRAIN_PLAN_SLUG}.md",
     REPO / "docs/superpowers/journals/specs" / f"{GBRAIN_SPEC_SLUG}.md",
     REPO / "apps/hermes-agent-shell/README.md",
     REPO / "apps/hermes-agent-shell/manifests/deployment.yaml",
