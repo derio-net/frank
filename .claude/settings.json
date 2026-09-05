@@ -50,7 +50,7 @@
     ]
   },
   "extraKnownMarketplaces": {
-    "blog-craft": {
+    "derio-net--blog-craft": {
       "source": {
         "source": "github",
         "repo": "derio-net/blog-craft"
@@ -59,6 +59,6 @@
   },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true,
-    "blog-craft@blog-craft": true
+    "blog-craft@derio-net--blog-craft": true
   }
 }
