@@ -34,10 +34,12 @@ What to look for in the migrations:
 - **Unguarded `DROP CONSTRAINT` / `ALTER`** (no `IF EXISTS`) → will *crash the pod on boot* if the named object doesn't exist. Verify it exists in the live DB before merging:
   ```bash
   source .env
-  kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -lc \
+  kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -c \
     'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" \
      -tAc "SELECT conname FROM pg_constraint WHERE conname IN ('\''<name>'\'')"'
   # psql lives at /opt/bitnami/postgresql/bin/psql; PGPASSWORD from $POSTGRES_PASSWORD inside the pod.
+  # Use `bash -c`, NOT `bash -lc`: the login shell reinitialises PATH from /etc/profile
+  # and drops /opt/bitnami/postgresql/bin, so `-lc` fails with `psql: command not found`.
   ```
 - New env reads are usually **adapter/CLI-side and optional** (e.g. Claude-adapter `ANTHROPIC_*`, skills-CLI `PAPERCLIP_API_*`/`PAPERCLIP_COMPANY_ID` set at invocation) — the *server* rarely gains a required var. Only add to `apps/paperclip/manifests/configmap.yaml` if the server boot path reads it.
 
@@ -122,7 +124,7 @@ cluster, and it cannot be done from a cloud session:
 
 ```bash
 source .env
-kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -lc \
+kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -c \
  'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" -tAc "
   SELECT conname FROM pg_constraint WHERE conname IN (
     '\''cost_events_issue_id_issues_id_fk'\'','\''feedback_votes_issue_id_issues_id_fk'\'',
@@ -131,6 +133,8 @@ kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash
     '\''issue_thread_interactions_issue_id_issues_id_fk'\'',
     '\''environment_leases_environment_id_environments_id_fk'\'')"'
 # expect all 8 rows. A missing one crashes the pod on boot at that migration.
+# `bash -c`, NOT `bash -lc` — the login shell reinitialises PATH and drops
+# /opt/bitnami/postgresql/bin, so `-lc` fails with `psql: command not found`.
 ```
 
 The rest of the sweep came back clean and is worth repeating verbatim on the next bump: no
