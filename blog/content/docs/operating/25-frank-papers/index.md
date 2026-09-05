@@ -11,6 +11,7 @@ reader_goal: "Scaffold a new Paper, pass the dossier gate, write prose with the 
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/faa3f993
+description: "Scaffolding a paper, getting the dossier past the gate, the five papers/ shortcodes, cover-image generation, and the publish flow."
 ---
 
 {{< last-updated >}}

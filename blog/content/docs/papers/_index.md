@@ -2,7 +2,8 @@
 title: "The Frank Papers"
 weight: 3
 sidebar:
-  open: true
+  open: false
+description: "Infrastructure comparisons and decision reviews, linked to evidence, implementation, and operations."
 ---
 
 Research-grade landscape reviews for every capability on the cluster. Each

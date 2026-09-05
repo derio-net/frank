@@ -11,6 +11,7 @@ reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret s
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/47697457
+description: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
 ---
 
 {{< last-updated >}}

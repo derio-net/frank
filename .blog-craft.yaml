@@ -1,5 +1,5 @@
 version: 7
-blog_craft_version: "v0.21.1"   # blog-craft RELEASE frank is synced to (was v0.19.0).
+blog_craft_version: "362e2be9fe81306eab35f3540fc37f91748e4470"  # reader-experience branch; push the companion blog-craft bundle first
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump
@@ -13,7 +13,7 @@ project:
   name: "Frank"                                   # slug: drives the read-tracker storage key
   title: "Frank, the Talos Cluster"               # display title (navbar / <title>)
   tagline: "Building, operating, and deciding: an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute"
-  base_url: "https://derio-net.github.io/frank/"
+  base_url: "https://blog.derio.net/frank/"
   base_path: "/frank/"
   module_path: "derio-net.github.io/frank"
   repo_url: "https://github.com/derio-net/frank"  # adds a GitHub nav link
@@ -254,6 +254,12 @@ content_types:
     weight_offset: 1
 
 features:
+  # Reusable templates are owned by blog-craft. Editorial selections remain
+  # operator-owned in blog/data/reader.yaml and blog/content/.
+  reader_experience:
+    enabled: true
+    agent_exports: true
+    author: { name: "derio-net", url: "https://github.com/derio-net" }
   series_overview_posts: true
   read_tracker: true
   banners:   { operator_generated: true }

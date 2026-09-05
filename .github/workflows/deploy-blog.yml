@@ -17,6 +17,7 @@ on:
       - "blog/**"
       # the checker and validator themselves — a change to a gate must run the gate
       - "scripts/check_blog_build.py"
+      - "scripts/check_blog_reader.py"
       - "scripts/validate-mermaid.mjs"
       - ".github/workflows/deploy-blog.yml"
   workflow_dispatch:
@@ -82,9 +83,7 @@ jobs:
 
       - name: Build
         working-directory: blog
-        run: |
-          hugo mod get
-          hugo --minify
+        run: python3 scripts/build-site.py
 
       # The check the Caddy CSP comment assumes exists. blog.derio.net drops
       # inline scripts and off-origin assets browser-side, and an image whose
@@ -93,6 +92,9 @@ jobs:
       # shows them, so this runs here rather than in scripts/tests/.
       - name: Check built output (CSP compatibility + responsive images)
         run: python3 scripts/check_blog_build.py blog/public
+
+      - name: Check reader and agent outputs
+        run: python3 scripts/check_blog_reader.py blog/public
 
       - name: Setup Node
         uses: actions/setup-node@v4

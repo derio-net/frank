@@ -10,6 +10,7 @@ weight: 12
 reader_goal: "Deploy Sympozium on Talos, wire LiteLLM routing through auth-secret injection, and work around the git-sourced chart, PodSecurity, and PersonaPack baseURL gotchas"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "A Kubernetes-native control plane where every AI agent is a Pod, every policy is a CRD, and every execution is a Job — orchestrated by Sympozium."
 ---
 
 The cluster can serve models. Layer 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models behind an API are passive — they wait and respond. They do not act.

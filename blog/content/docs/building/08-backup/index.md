@@ -10,6 +10,7 @@ weight: 9
 reader_goal: "Configure Longhorn backup to an S3-compatible target with RecurringJobs, work around the three main Longhorn 1.11 limitations, and verify a backup actually ran"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Configuring Longhorn backup targets with Cloudflare R2 — and the three Longhorn 1.11 gotchas that rewrote the original plan."
 ---
 
 A cluster without backups is a disaster waiting to happen. But the scope depends on what you already have in source control.

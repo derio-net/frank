@@ -30,6 +30,7 @@ tags: ["os", "talos", "immutable", "kubernetes", "homelab"]
 capabilities: ["os"]
 related_building: "docs/building/02-foundation"
 related_operating: "docs/operating/01-cluster-nodes"
+description: "Immutable OS for Kubernetes nodes is a four-job problem — read-only root, transactional updates, declarative config, and (at the strict end) no SSH at all — and the six 2026…"
 ---
 
 ## TL;DR

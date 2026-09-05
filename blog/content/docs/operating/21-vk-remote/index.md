@@ -11,6 +11,7 @@ reader_goal: "Verify the VK Remote stack is healthy, check ElectricSQL replicati
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/eff627fb
+description: "Self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync status, API verification, and troubleshooting."
 ---
 
 {{< last-updated >}}

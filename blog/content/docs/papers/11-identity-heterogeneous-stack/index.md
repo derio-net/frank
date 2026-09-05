@@ -31,6 +31,7 @@ tags: ["authentik", "identity", "sso", "forward-auth", "oidc"]
 capabilities: ["auth"]
 related_building: "docs/building/13-unified-auth"
 related_operating: "docs/operating/08-auth"
+description: "Ten web UIs, three CLIs, and a gRPC service all want to ask the same question: who's on the other side of this URL? The identity-provider slot has seven serious vendors —…"
 ---
 
 ## TL;DR

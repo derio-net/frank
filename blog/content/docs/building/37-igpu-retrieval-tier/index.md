@@ -9,6 +9,7 @@ summary: "Embeddings and reranking on my control plane's idle Arc iGPUs via Kube
 weight: 38
 reader_goal: "Claim an integrated GPU for an inference workload on Kubernetes via DRA, and prove the accelerator is earning its place with a control arm"
 diataxis: [tutorial, explanation]
+description: "Embeddings and reranking on my control plane's idle Arc iGPUs via Kubernetes DRA, plus the CPU control arm that decided whether the accelerator earned it"
 ---
 
 An external client came to me with a retrieval problem. Their search kept finding the right document and then burying it: recall was fine, ranking was bad. The fix is a reranker, and it has to run somewhere that can take thousands of calls during a bulk import without becoming the bottleneck.

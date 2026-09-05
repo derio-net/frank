@@ -10,6 +10,7 @@ weight: 4
 reader_goal: "Install Longhorn on Talos and configure a GPU-local StorageClass for AI workloads"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Setting up Longhorn distributed block storage across heterogeneous disks, including a GPU-local StorageClass for AI workloads."
 ---
 
 Pods are ephemeral. Their data cannot be. Every cluster needs persistent storage, but on Talos Linux you cannot get it the usual way: SSH in, partition a disk, write an fstab entry, install `open-iscsi`. The OS is immutable. There is no package manager. The root filesystem is read-only.

@@ -10,6 +10,7 @@ weight: 36
 reader_goal: "Run your GitHub Actions workflows unchanged on a self-hosted Gitea mirror — runner, status writeback, parallel-safety — and diagnose the three failure modes that bite."
 diataxis: [how-to, explanation]
 last_updated: 2026-07-27
+description: "GitHub Actions burned its free tier in 19 days, so the workflows now run on Frank's Gitea mirrors — same YAML, new engine, statuses flowing back"
 ---
 
 On July 19th at around noon, my GitHub Actions free tier died. Not "ran low" —

@@ -31,6 +31,7 @@ tags: ["edge", "headscale", "cloudflare-tunnel", "tailscale", "talos", "caddy", 
 capabilities: ["edge"]
 related_building: "docs/building/17-public-edge"
 related_operating: "docs/operating/11-public-edge"
+description: "Public exposure from a home cluster is a five-job problem: NAT traversal, TLS termination, DNS, reverse proxy, mesh coordination. The 2026 vendor space splits on one question —…"
 ---
 
 ## TL;DR

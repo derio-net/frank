@@ -10,6 +10,7 @@ weight: 22
 reader_goal: "Deploy a hardened non-root agent pod with layered security (non-root, dropped capabilities, Cilium egress, s6-overlay supervision) and a VibeKanban sidecar"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Rebuilding the Kali workstation as a hardened, non-root pod with layered defenses — because giving an AI agent skip-permissions demands more than trust."
 ---
 
 In building post 18, we deployed a persistent Kali container on gpu-1 as an always-on Claude Code workstation. It worked — SSH in from anywhere, persistent {{< abbr "PVC" >}}, self-healing pod. But it ran as root, had unrestricted network access, and installed tools at runtime.

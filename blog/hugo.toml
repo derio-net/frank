@@ -1,4 +1,5 @@
-baseURL = "https://derio-net.github.io/frank/"
+baseURL = "https://blog.derio.net/frank/"
+enableRobotsTXT = true
 languageCode = "en-us"
 title = "Frank, the Talos Cluster"
 
@@ -65,14 +66,14 @@ title = "Frank, the Talos Cluster"
 
 [[menu.main]]
   name = "Search"
-  weight = 4
+  weight = 6
   [menu.main.params]
     type = "search"
 
 [[menu.main]]
   name = "GitHub"
   url = "https://github.com/derio-net/frank"
-  weight = 5
+  weight = 7
   [menu.main.params]
     icon = "github"
 [markup]
@@ -100,7 +101,7 @@ title = "Frank, the Talos Cluster"
     noClasses = false
 
 [outputs]
-  home = ["HTML", "RSS", "JSON"]
+  home = ["HTML", "RSS", "JSON", "Catalog", "LLMS"]
 
 # Hugo 0.158+ default security.http.urls excludes URLs containing "@", which
 # blocks Hextra's flexsearch CDN load (cdn.jsdelivr.net/npm/flexsearch@<ver>).
@@ -108,3 +109,37 @@ title = "Frank, the Talos Cluster"
 [security]
   [security.http]
     urls = ['(?i)^https?://[a-z]', '! (?i)localhost']
+
+
+[frontmatter]
+  lastmod = ["last_updated", "lastmod", "date"]
+
+
+[params.reader]
+  enabled = true
+  agentExports = true
+
+[params.reader.author]
+  name = "derio-net"
+  url = "https://github.com/derio-net"
+
+[outputFormats.Catalog]
+  mediaType = "application/json"
+  baseName = "content-index"
+  isPlainText = true
+[outputFormats.LLMS]
+  mediaType = "text/plain"
+  baseName = "llms"
+  isPlainText = true
+
+
+# Operator-owned discovery links, preserved by blog-craft's three-way merge.
+[[menu.main]]
+  name = "Topics"
+  pageRef = "/topics"
+  weight = 4
+
+[[menu.main]]
+  name = "About"
+  pageRef = "/about"
+  weight = 5

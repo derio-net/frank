@@ -1,3 +1,4 @@
+{{ if or (not site.Params.reader.enabled) (not .IsPage) }}
 {{- /* Site/track banner. Prefer an assets/images/ banner (Hugo-processable → optimized
        WebP via opt-image); fall back to a static/images/ banner rendered raw, so a blog
        that hasn't relocated its banners to assets/ keeps rendering them (no regression).
@@ -20,7 +21,7 @@
   {{- $asset := resources.Get . -}}
   {{- if $asset -}}
 <div class="site-track-banner">
-  {{ partial "opt-image.html" (dict "resource" $asset "alt" "" "loading" "eager" "maxWidth" site.Params.imageOptimize.bannerMaxWidth) }}
+  {{ partial "opt-image.html" (dict "resource" $asset "alt" "" "loading" "eager" "sizes" "100vw" "maxWidth" site.Params.imageOptimize.bannerMaxWidth) }}
 </div>
   {{- else if (fileExists (printf "static/%s" .)) -}}
 <div class="site-track-banner">
@@ -28,3 +29,5 @@
 </div>
   {{- end -}}
 {{- end -}}
+
+{{ end }}

@@ -1,0 +1,18 @@
+:8080 {
+	encode zstd gzip
+	@content not path_regexp \.[a-f0-9]{32,64}\.[a-z0-9]+$
+	header @content Cache-Control "public, max-age=300"
+	@fingerprinted path_regexp fingerprint \.[a-f0-9]{32,64}\.[a-z0-9]+$
+	header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+	handle_path /frank/* {
+		root * /usr/share/caddy
+		file_server
+	}
+	handle /frank {
+		redir /frank/ permanent
+	}
+	handle {
+		root * /usr/share/caddy
+		file_server
+	}
+}

@@ -1,0 +1,29 @@
+home:
+  eyebrow: Field notes from a Kubernetes homelab
+  title: Build it. Operate it. Understand it.
+  description: A heterogeneous cluster, local AI, and the decisions that hold them together. Follow the builds, investigate the failures, and take the useful parts home.
+  featured:
+    - /docs/building/02-foundation
+    - /docs/operating/30-silent-failure
+    - /docs/papers/00-why-homelab-in-2026
+series:
+  - {key: building, title: Building Frank, path: docs/building/, description: 'Follow the implementation, from bare metal to working services.'}
+  - {key: operating, title: Operating on Frank, path: docs/operating/, description: 'Check health, investigate failures, and recover the system.'}
+  - {key: papers, title: The Frank Papers, path: docs/papers/, description: 'Compare approaches, examine the evidence, and understand the trade-offs.'}
+topics:
+  - slug: debugging-kubernetes
+    title: Debugging Kubernetes
+    description: Understand what a healthy status actually proves, and find the checks that matter.
+    layers: [obs, gitops, os]
+  - slug: running-local-ai
+    title: Running local AI
+    description: Put mixed GPUs to work, serve models, and manage inference workloads.
+    layers: [gpu, infer, media]
+  - slug: securing-agents
+    title: Securing and operating agents
+    description: Workstations, orchestration, identity, and the boundaries around autonomous tools.
+    layers: [agents, orch, auth, secrets]
+  - slug: choosing-infrastructure
+    title: Choosing infrastructure
+    description: Networking, storage, recovery, and delivery decisions under real constraints.
+    layers: [net, stor, backup, hw, edge, tenant, auto, cicd, deploy]

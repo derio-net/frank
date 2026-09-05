@@ -11,6 +11,7 @@ reader_goal: "Check n8n health, add new instances, upgrade, and recover from dat
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/47fbb518
+description: "Managing n8n instances — health checks, database operations, adding instances, upgrading, and common issues."
 ---
 
 {{< last-updated >}}

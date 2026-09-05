@@ -10,6 +10,7 @@ weight: 14
 reader_goal: "Deploy Authentik as the cluster-wide IdP with three integration patterns (native OIDC, forward-auth proxy, OIDC kubectl) and work around blueprint syntax gotchas"
 diataxis: tutorial
 last_updated: 2026-08-01
+description: "One identity provider for every service — Authentik brings OIDC SSO to ArgoCD, Grafana, and Infisical, forward-auth proxy to Longhorn, Hubble, and the Tekton Dashboard, and…"
 ---
 
 Before this layer, every service on the cluster had its own local admin account. ArgoCD had its built-in admin user. Grafana had `admin/admin`. Infisical had a self-created admin. Longhorn, Hubble, and Sympozium had no authentication at all — anyone on the LAN could access them.

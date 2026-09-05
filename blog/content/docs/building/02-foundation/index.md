@@ -10,6 +10,7 @@ weight: 3
 reader_goal: "Bootstrap a Talos cluster via Omni and install Cilium with eBPF kube-proxy replacement and L2 LoadBalancer"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Bootstrapping a Talos Linux cluster with Omni, configuring node labels and zones, and replacing Flannel with Cilium's eBPF networking."
 ---
 
 Every Kubernetes cluster starts with a choice of operating system. Most guides reach for Ubuntu Server and kubeadm — a general-purpose OS with Kubernetes installed on top. It works, but it carries an assumption you will SSH into your nodes, install packages, edit files, and maintain a general-purpose Linux system alongside your cluster. Over time, that OS layer accumulates drift: an apt upgrade here, a stale config file there. Reproducing any given node becomes an exercise in archaeology.

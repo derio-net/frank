@@ -1,0 +1,15 @@
+# {{ site.Title }}
+
+{{ site.Params.description }}
+
+## Discovery
+
+- [Content catalog]({{ "content-index.json" | absURL }}): versioned JSON with summaries, canonical URLs, Markdown URLs and verification metadata.
+- [RSS]({{ "index.xml" | absURL }}): new publications.
+
+## Series
+{{ range site.Sections }}{{ range .Sections }}
+- [{{ .Title }}]({{ .Permalink }}): {{ .Description }}
+{{ end }}{{ end }}
+
+Retrieve each article's markdown_url for full text. Cite its canonical HTML URL and section anchors. Publication, update and verification dates mean different things. Missing verification metadata means verification has not been recorded. Read prerequisites and state-changing steps before adapting commands to another environment.

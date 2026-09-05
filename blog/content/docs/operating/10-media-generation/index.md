@@ -11,6 +11,7 @@ reader_goal: "Run a ComfyUI workflow end-to-end, switch GPU profiles, and recove
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/0b3d5f7d
+description: "Starting ComfyUI workflows, switching GPU profiles, transferring files, and recovering from common runtime failures."
 ---
 
 {{< last-updated >}}
