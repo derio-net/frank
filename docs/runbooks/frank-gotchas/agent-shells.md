@@ -1100,3 +1100,150 @@ debugging session, is invisible to GitOps, and reconciles away nothing. Upstream
 image's s6 `postgres` longrun should back off exponentially and give up loudly instead of
 retrying forever on a fatal, non-transient bind error (see `s6 crashloop bail` above — that
 5-deaths-in-60s bail evidently does not apply to this service).
+
+## Under `Recreate` + an RWO PVC, image PULL TIME is DOWNTIME — so layer SHAPE is an availability property (2026-08-15)
+
+`secure-agent-pod` mounts an RWO PVC, so its Deployment must be `strategy: Recreate`
+(the RollingUpdate deadlock in `storage-secrets-ssa.md`). `Recreate` kills the old pod
+**first**, so nothing runs until the new image finishes pulling. Every second of pull is
+an outage of everything the pod hosts — including the `fr-bridge` supercronic cron.
+
+That turned a routine `chore(agents): bump agent-images` into a **critical page on a
+completely healthy cluster**. Timeline of the 2026-08-15 bump (frank#767):
+
+| Time (UTC) | Event |
+|---|---|
+| 16:36:00 | last bridge tick — clean, `0 errors` |
+| 16:37:08 | PR #767 merged |
+| 16:37:24 | ArgoCD rolls the Deployment; `Recreate` kills the old pod |
+| 16:37:55 | new pod starts pulling `secure-agent-kali` |
+| 16:51 / 16:53 | `VK Issue Bridge Stale` (critical) + `Layer 18 Persistent Agent Heartbeat Stale` fire |
+| **17:04:11** | **image pull completes — 26m 16s** |
+| 17:06:00 | first tick of the new pod; heartbeat resumes |
+| ~17:08 | both alerts self-resolve |
+
+Both heartbeat rules threshold at `time() - willikins_heartbeat_last_success_timestamp
+{job="vk_issue_bridge"} > 600` held `for: 5m`, i.e. they fire ~15 min into any gap —
+**shorter than the pod's own redeploy window**, so the page was structural, not a fluke.
+The 2026-08-13 bump crossed the same threshold (peak 1431s). Routine chores reliably
+paged `critical`.
+
+### The pull was not network-bound — it was one monolithic layer
+
+The tell is a controlled comparison inside the *same* rollout, on the *same* node:
+
+| image | changed bytes | duration | throughput |
+|---|---|---|---|
+| `vk-local` | 399 MB | 69 s | **5.78 MB/s** |
+| `secure-agent-kali` | 2146 MB | 1576 s | **1.36 MB/s** |
+
+gpu-1 sustained 4.3× more throughput on one image than the other, minutes apart. containerd
+fetches layers **concurrently** but decompresses and unpacks each one **serially**, so a
+single huge layer is a hard bottleneck that no amount of bandwidth relieves. kali shipped a
+**1.56 GB layer — 67% of the image** — from one `RUN` installing `kali-tools-top10`.
+
+Two independent defects, and the second mattered more:
+
+- **Dead weight.** The `kali-tools-top10` metapackage hard-Depends on three tools the pod is
+  structurally incapable of running: `aircrack-ng` (Wi-Fi cracking; a container has no radio),
+  `burpsuite` + `openjdk-25-jre-headless` (Java Swing GUI, no display, and Community has no
+  headless mode) and the `wireshark` GUI. It also never installed **`tshark`**, wireshark's
+  CLI — so the image carried the unusable half and not the usable one.
+- **Shape.** Even after the diet, one blob serialises the whole pull.
+
+### The fix, and what each half bought (agent-images#159)
+
+Replace the metapackage with an explicit member list (**Metasploit kept**), add `tshark`, and
+split the single `RUN` into four. Metasploit's `mingw-w64` cross-compiler toolchain (~630 MB)
+and `oracle-instantclient-basic` (206 MB) are named a layer earlier **purely to partition the
+blob** — they were already entering the image as its dependencies, so image *content* is
+unchanged and it degrades gracefully if that dependency set ever shifts.
+
+Measured on the next real rollout (frank#773, 2026-08-15 19:43):
+
+```
+                      BEFORE      AFTER      change
+  pull duration       1576 s      214 s      -86%   (26m16s -> 3m34s)
+  throughput          1.36 MB/s   4.87 MB/s  +258%
+  bytes downloaded    2146 MB     1042 MB    -51%
+  largest layer       1558 MB     450 MB     -71%
+  image total         2.34 GB     1.75 GB    -25%
+  peak staleness      1793 s      413 s      (threshold 600 s)
+  samples over 600s   10          0
+  the alert           FIRED       DID NOT FIRE
+```
+
+**Bytes fell 51% but time fell 86%** — the diet alone predicts ~13 min; unblocking parallelism
+bought the rest. Layer *count* went UP (45→48) while the image got smaller, which is the
+intended direction: more layers is a transfer-parallelism win as long as total bytes don't
+grow. "Reduce layer count" is image hygiene advice, not pull-speed advice, and here the two
+pull in opposite directions.
+
+### What to carry forward
+
+- **413 s against a 600 s threshold is a 31% margin, not a comfortable one.** That pull
+  benefited from 32 of 48 layers already being cached on gpu-1; a bump that changes the base
+  lineage fetches closer to the full 1.75 GB. This made the page *unlikely*, not impossible.
+- **If it pages again, the durable fix is a pre-pull, not more dieting** — an ArgoCD PreSync
+  hook Job pinned to gpu-1 running the new image tag with a no-op command warms the node cache
+  *before* the `Recreate` cutover, so downtime becomes seconds regardless of image size. The
+  old pod stays up throughout. It composes with the layer work rather than replacing it.
+- **Any `Recreate` + RWO workload has this exposure**, not just this pod. When adding one,
+  ask what its outage window is and whether anything alerts inside that window.
+- Related: `docs/runbooks/frank-gotchas/grafana.md` on heartbeat dead-man rules, and the
+  `Recreate` entries in `storage-secrets-ssa.md`.
+
+## `apt-cache policy` in a non-root pod reports the INSTALLED version as the candidate (2026-08-15)
+
+Checking whether a package exists before editing a Dockerfile is the right instinct, but doing
+it inside a running agent pod quietly measures the wrong thing.
+
+The kali image ends every apt layer with `rm -rf /var/lib/apt/lists/*`, so the pod carries **no
+package index**. Containers run as uid 1000, so refreshing it fails:
+
+```
+$ apt-get update
+E: List directory /var/lib/apt/lists/partial is missing. - Acquire (13: Permission denied)
+```
+
+With no index, `apt-cache policy` falls back to dpkg's installed database. **Every installed
+package reports its own installed version as `Candidate:`** — which looks exactly like a
+successful availability check — while anything *not* installed reports `Candidate: (none)`,
+which looks exactly like "not available in this distro."
+
+That nearly produced a wrong conclusion: `tshark` showed `Candidate: (none)` and was read as
+"Kali doesn't ship tshark." It does. It simply wasn't installed.
+
+**Check the authoritative index instead** — no cluster, no pod, no mutation:
+
+```bash
+# main / contrib / non-free are all enabled by kali/Dockerfile's sources.list line
+for comp in main contrib non-free; do
+  curl -sL -o "$comp.gz" \
+    "https://kali.download/kali/dists/kali-rolling/$comp/binary-amd64/Packages.gz"
+done
+python3 - <<'PY'
+import gzip, glob, os
+loc = {}
+for f in glob.glob('*.gz'):
+    comp = os.path.basename(f)[:-3]
+    with gzip.open(f, 'rt', errors='replace') as fh:
+        for line in fh:
+            if line.startswith('Package: '):
+                loc.setdefault(line[9:].strip(), []).append(comp)
+for p in ['tshark', 'nmap', 'metasploit-framework']:
+    print(f"{p:<24} {loc.get(p, ['ABSENT'])}")
+PY
+```
+
+Two things that check catches and the in-pod one cannot:
+
+- **`nmap` lives in `non-free`**, not `main` — Kali relicensed it under the NPSL. A component
+  assumption that happens to hold for every other package silently fails for this one.
+- A package that is genuinely absent is distinguishable from one that is merely uninstalled.
+
+**General shape:** a diagnostic that returns plausible-looking data after its own setup step
+failed is worse than one that errors. The `apt-get update` failure was invisible because it had
+been run with output suppressed. Same family as the ArgoCD "Synced means synced to a *stale*
+revision" trap and the `*.cluster.derio.net` wildcard making a DNS check vacuous — the check
+runs, goes green, and measures something else. Where a negative control is cheap, run one.
