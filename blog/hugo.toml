@@ -41,6 +41,15 @@ title = "Frank, the Talos Cluster"
     maxWidth = 1600
     bannerMaxWidth = 2560
 
+  # Pin the mermaid bundle Hextra fetches at build time. Its default is
+  # `mermaid@latest`, so diagram layout floated between builds: mermaid 11.17.0
+  # pushed 8 diagrams past the 1400px width gate with no repo change (#787).
+  # 11.16.1 is the release the gate was last green against. Bump deliberately,
+  # rebuild, and re-run validate_mermaid_layout.mjs — never `latest`.
+  # Guarded by scripts/tests/test_mermaid_bundle_pinned.py.
+  [params.mermaid]
+    base = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist"
+
 # `series` must be a taxonomy or Hextra's opengraph partial fails on
 # series-tagged pages (`first 6 $series.Pages`). capabilities/references
 # back the papers content-type's cross-referencing.
