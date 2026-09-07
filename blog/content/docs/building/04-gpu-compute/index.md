@@ -10,6 +10,7 @@ weight: 5
 reader_goal: "Deploy NVIDIA GPU Operator on Talos and configure Intel Arc iGPUs via Dynamic Resource Allocation on Kubernetes 1.35"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Adding GPU compute to the cluster — the NVIDIA RTX 5070 saga, Intel Arc iGPU via DRA, and patching charts for bleeding-edge Kubernetes."
 ---
 
 Two GPU stories converged on the same cluster, and neither was straightforward.

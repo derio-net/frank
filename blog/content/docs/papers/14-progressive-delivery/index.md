@@ -30,6 +30,7 @@ tags: ["progressive-delivery", "argo-rollouts", "flagger", "service-mesh", "kube
 capabilities: ["deploy"]
 related_building: "docs/building/19-progressive-delivery"
 related_operating: "docs/operating/12-progressive-delivery"
+description: "Progressive delivery is a four-job problem — staged exposure, metric-gated promotion, automated rollback, traffic routing — and the six contenders in 2026 (Argo Rollouts,…"
 ---
 
 ## TL;DR

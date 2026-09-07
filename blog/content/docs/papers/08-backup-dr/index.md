@@ -30,6 +30,7 @@ tags: ["backup", "disaster-recovery", "velero", "longhorn", "kasten", "kubernete
 capabilities: ["backup"]
 related_building: "docs/building/08-backup"
 related_operating: "docs/operating/02-storage-backups"
+description: "Kubernetes backup & DR is a five-job problem — API-object capture, volume capture, application-consistency hooks, offsite shipment, credential restore — and the six contenders…"
 ---
 
 ## TL;DR

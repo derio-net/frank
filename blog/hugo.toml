@@ -1,4 +1,5 @@
-baseURL = "https://derio-net.github.io/frank/"
+baseURL = "https://blog.derio.net/frank/"
+enableRobotsTXT = true
 languageCode = "en-us"
 title = "Frank, the Talos Cluster"
 
@@ -40,6 +41,15 @@ title = "Frank, the Talos Cluster"
     maxWidth = 1600
     bannerMaxWidth = 2560
 
+  # Pin the mermaid bundle Hextra fetches at build time. Its default is
+  # `mermaid@latest`, so diagram layout floated between builds: mermaid 11.17.0
+  # pushed 8 diagrams past the 1400px width gate with no repo change (#787).
+  # 11.16.1 is the release the gate was last green against. Bump deliberately,
+  # rebuild, and re-run validate_mermaid_layout.mjs — never `latest`.
+  # Guarded by scripts/tests/test_mermaid_bundle_pinned.py.
+  [params.mermaid]
+    base = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist"
+
 # `series` must be a taxonomy or Hextra's opengraph partial fails on
 # series-tagged pages (`first 6 $series.Pages`). capabilities/references
 # back the papers content-type's cross-referencing.
@@ -65,14 +75,14 @@ title = "Frank, the Talos Cluster"
 
 [[menu.main]]
   name = "Search"
-  weight = 4
+  weight = 6
   [menu.main.params]
     type = "search"
 
 [[menu.main]]
   name = "GitHub"
   url = "https://github.com/derio-net/frank"
-  weight = 5
+  weight = 7
   [menu.main.params]
     icon = "github"
 [markup]
@@ -100,7 +110,7 @@ title = "Frank, the Talos Cluster"
     noClasses = false
 
 [outputs]
-  home = ["HTML", "RSS", "JSON"]
+  home = ["HTML", "RSS", "JSON", "Catalog", "LLMS"]
 
 # Hugo 0.158+ default security.http.urls excludes URLs containing "@", which
 # blocks Hextra's flexsearch CDN load (cdn.jsdelivr.net/npm/flexsearch@<ver>).
@@ -108,3 +118,41 @@ title = "Frank, the Talos Cluster"
 [security]
   [security.http]
     urls = ['(?i)^https?://[a-z]', '! (?i)localhost']
+
+
+[frontmatter]
+  lastmod = ["last_updated", "lastmod", "date"]
+
+
+[params.reader]
+  enabled = true
+  agentExports = true
+
+[params.reader.author]
+  name = "derio-net"
+  url = "https://github.com/derio-net"
+
+[outputFormats.Catalog]
+  mediaType = "application/json"
+  baseName = "content-index"
+  isPlainText = true
+[outputFormats.LLMS]
+  mediaType = "text/plain"
+  baseName = "llms"
+  isPlainText = true
+
+
+# Operator-owned discovery links, preserved by blog-craft's three-way merge.
+[[menu.main]]
+  name = "Topics"
+  pageRef = "/topics"
+  weight = 4
+
+[[menu.main]]
+  name = "About"
+  pageRef = "/about"
+  weight = 5
+
+# END OF FILE. The file ends inside a [[menu.main]] table: any key appended
+# below the About entry silently becomes part of that menu item. Add new
+# tables ABOVE the operator-owned menu entries.

@@ -11,6 +11,7 @@ reader_goal: "Diagnose and fix ArgoCD OutOfSync drift by classifying the root ca
 diataxis: [how-to, reference]
 last_updated: 2026-07-27
 last_updated_commit: https://github.com/derio-net/frank/commit/951c0c40
+description: "How 20 of 52 ArgoCD apps were permanently OutOfSync, why it was seven different bugs, and how fixing the noise unmasked a 21-day crashloop."
 ---
 
 {{< last-updated >}}

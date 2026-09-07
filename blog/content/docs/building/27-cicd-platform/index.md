@@ -10,6 +10,7 @@ weight: 28
 reader_goal: "Deploy Gitea + Tekton + Zot + cosign on a single worker node, with pull mirrors, webhook-driven pipelines, OCI registry, and supply chain signing"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Deploying a full Kubernetes-native CI/CD platform on pc-1 — Gitea for git mirroring, Tekton for pipelines, Zot for container images, and cosign for supply chain signing."
 ---
 
 For 25 layers, every container image Frank ran came from somewhere else — Docker Hub, {{< abbr "GHCR" >}}, upstream Helm charts. The cluster consumed images but never built them.

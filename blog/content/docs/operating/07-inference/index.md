@@ -11,6 +11,7 @@ reader_goal: "Manage Ollama models, route inference through LiteLLM, and correct
 diataxis: [how-to, reference]
 last_updated: 2026-08-03
 last_updated_commit: https://github.com/derio-net/frank/commit/e0089963
+description: "Day-to-day commands for managing local LLM inference, checking model status, routing through LiteLLM, and debugging GPU memory issues — including the misleading cgroup OOM and…"
 ---
 
 {{< last-updated >}}

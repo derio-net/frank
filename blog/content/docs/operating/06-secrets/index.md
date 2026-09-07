@@ -11,6 +11,7 @@ reader_goal: "Add, rotate, and troubleshoot secrets through Infisical + External
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for managing secrets in Infisical, checking ESO sync status, handling SOPS-encrypted bootstrap secrets, and recovering from the real gotchas that have…"
 ---
 
 {{< last-updated >}}

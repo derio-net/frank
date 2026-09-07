@@ -10,6 +10,7 @@ weight: 31
 reader_goal: "Verify that a green ArgoCD tile, a Synced Application and a quiet alert stack reflect reality — and know which artifact to assert on for each of the four ways they do not"
 diataxis: [how-to, reference]
 last_updated: 2026-07-27
+description: "Four ways a healthy dashboard lies — wrong artifact, unconsumed signal, out of scope, stale view — and the command that checks each"
 ---
 
 {{< last-updated >}}

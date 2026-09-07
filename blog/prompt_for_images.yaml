@@ -146,6 +146,21 @@ images:
       Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider than usual.
       
       Frank reclines in a single dentist's chair placed in the left third of the ultra-wide frame — padded headrest, contoured backrest, armrests, its pedestal base standing on a dark floor that runs to the bottom edge. He grips the armrests, eyes wide and sidelong. There is only ONE chair and only one occupant. From the remaining two-thirds of the frame a forest of segmented mechanical arms reaches toward him across the entire width: screwdriver, soldering iron, dental mirror, probe, suction tube, multimeter test leads, a coiled hose — some hovering, some resting on him, one poised at his open mouth. An articulated examination lamp swings over his face. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: banner-topics
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: blog/assets/images/banner-topics.png
+  description: Topics banner (/topics/ index + guides) — the map-table concept; NOT YET GENERATED, the site-banner partial renders nothing until this file exists.
+  codex_generation:
+    workflow: Generate manually from Codex, then hard-gate dimensions before copying into the blog asset path.
+    prompt_key: idea-topics-1-the-map-table
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-topics-1-the-map-table.txt
+    reference_image: .reference-pool/building/reference/frank-server-torso.png
+    source_aspect_ratio: "3:1"
+    crop_aspect_ratio: "9:1"
 - key: banner-building
   operator_generated: true
   generator: codex-imagegen

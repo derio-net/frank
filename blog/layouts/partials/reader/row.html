@@ -1,0 +1,1 @@
+<article class="reader-row"><time datetime="{{ .date.Format `2006-01-02` }}">{{ .date.Format "2 Jan 2006" }}</time><h3><a href="{{ .page.RelPermalink }}">{{ .page.Title }}</a></h3><p>{{ or .page.Params.summary .page.Params.reader_goal .page.Description }}</p></article>

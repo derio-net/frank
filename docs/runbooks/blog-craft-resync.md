@@ -11,7 +11,7 @@ blog_craft_version: "v0.16.0"   # blog-craft RELEASE frank is synced to
 
 Keep this accurate: `update.py` recovers the 3-way-merge base by **re-rendering
 at the recorded release**, so a stale or wrong value silently degrades every
-`merged` path to a baseless conflict. It is a release tag, not a main SHA (older
+`merged` path to a baseless conflict. It is a release tag, not a main SHA — enforced by `scripts/tests/test_blog_craft_version_pin_is_a_release.py`, which tolerates a SHA only while it is listed in that test's dated exception table (older
 revisions of this note showed a SHA). Bump it *after* an apply, not before.
 
 Two axes move independently — the config **schema** (`version:`, migrated by

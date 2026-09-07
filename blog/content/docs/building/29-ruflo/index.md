@@ -10,6 +10,7 @@ weight: 30
 reader_goal: "Deploy a dual-container agent orchestrator pod with s6-overlay, LiteLLM virtual-key auth, inventory ConfigMap, and swarm-style agent orchestration"
 diataxis: tutorial
 last_updated: 2026-07-16
+description: "Standing up ruvnet's claude-flow as a 24/7 hybrid pod — a ruvocal web UI plus a shell sidecar — to run as the chaotic-swarm counterpoint to Paperclip's org-chart agents."
 ---
 
 Layer 15 brought Paperclip onto the cluster — virtual companies with org charts, budgets, and delegation chains. Structured. Hierarchical.

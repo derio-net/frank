@@ -1,0 +1,11 @@
+# idea-topics-1-the-map-table — banner for /topics/ ("Explore by problem")
+# Reference images, attach IN THIS ORDER:
+#   1. .reference-pool/building/reference/frank-server-torso.png   (character-design sheet; order = hero)
+# Output: one 3:1 sheet of three equal horizontal stripes (see README "Current OpenAI/Codex workflow"),
+#         crop the best stripe to 9:1 -> blog/assets/images/banner-topics.png
+
+The FIRST reference image is the canonical character-design sheet for Frank, the Talos Cluster — a humanoid figure whose torso is a small server chassis, drawn exactly as shown: same proportions, same face, same panel details. Redraw Frank from scratch in a new pose; do not copy the sheet's pose.
+
+Ultra-wide cinematic illustration, dark server-room atmosphere: cold blue rack glow, warm amber status LEDs, faint haze only in the far distance. Frank stands at the LEFT third of the frame, leaning both hands on the edge of a large, dimly back-lit MAP TABLE — a glass-topped plotting table like a naval chart room, its surface glowing softly from below. Across the table and out across the remaining two-thirds of the frame, FOUR distinct cable trays fan out from the table like routes on a map, each carrying bundled cables of one colour — red, green, violet, teal — running away into the darkness toward four separate silhouetted rack islands on the horizon. On the table, small glass markers and a brass magnifying lens rest on the glowing surface; Frank's right index finger traces one of the four routes, and his face is lit from below by the table, calm, attentive, deciding which way to go. Perspective is low and wide, so the four routes read as diverging roads.
+
+There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, table and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers, no symbols on the map.

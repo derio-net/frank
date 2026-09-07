@@ -30,6 +30,7 @@ tags: ["hardware", "heterogeneous", "node-pools", "kubernetes", "talos", "raspbe
 capabilities: ["hw"]
 related_building: "docs/building/01-introduction"
 related_operating: "docs/operating/01-cluster-nodes"
+description: "Same boxes or different boxes? Six fleet shapes split on that one question — all-RPi, all-NUC, heterogeneous bare metal, edge+core, single beefy server + VMs, full-cloud…"
 ---
 
 ## TL;DR

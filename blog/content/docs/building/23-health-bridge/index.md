@@ -10,6 +10,7 @@ weight: 24
 reader_goal: "Deploy a Go webhook receiver that maps Grafana alerts to GitHub Project lifecycle states, bridging monitoring to project management"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "A lightweight Go service that receives Grafana webhook alerts and automatically updates GitHub Project lifecycle states — turning monitoring signals into actionable project…"
 ---
 
 The previous post added feature-level health monitoring — Blackbox probes, Pushgateway heartbeats, and Grafana alerts to Telegram. But alerts only tell you something is wrong. They do not update the project board, track which features are degraded, or create bug tickets when things die.

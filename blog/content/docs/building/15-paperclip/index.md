@@ -10,6 +10,7 @@ weight: 16
 reader_goal: "Deploy Paperclip on Talos with a shell sidecar, work around probe deadlocks, PVC rollout deadlock, fsGroup permissions, and memory tuning"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Deploying Paperclip — an AI orchestrator that organises agents into virtual companies with org charts and budgets — alongside Sympozium, to compare two fundamentally different…"
 ---
 
 Layer 11 gave the cluster a Kubernetes-native agentic control plane — Sympozium, where agents are Pods and policies are {{< abbr "CRD" "CRDs" >}}. Layer 15 adds a second perspective. [Paperclip](https://github.com/paperclipai/paperclip) organises agents differently — into virtual companies with org charts, budgets, reporting lines, and governance. Where Sympozium asks "which Kubernetes primitive models this agent?", Paperclip asks "what role would this agent have in a company?".

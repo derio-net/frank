@@ -28,6 +28,7 @@ tags: ["secrets", "infisical", "external-secrets", "sops", "vault", "kubernetes"
 capabilities: ["secrets"]
 related_building: "docs/building/09-secrets"
 related_operating: "docs/operating/06-secrets"
+description: "Secrets management is a five-job problem — storage, distribution, rotation, audit, and the bootstrap chicken-and-egg — and the six contenders in 2026 (Infisical, ESO +…"
 ---
 
 ## TL;DR

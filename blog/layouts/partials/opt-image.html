@@ -56,7 +56,7 @@
   {{- end -}}
 {{- end -}}
 {{- if $primary -}}
-  <img src="{{ $primary.RelPermalink }}"{{ with (uniq $srcset) }} srcset="{{ delimit . ", " }}"{{ end }} width="{{ $primary.Width }}" height="{{ $primary.Height }}" alt="{{ .alt }}"{{ with .class }} class="{{ . }}"{{ end }} loading="{{ .loading | default "lazy" }}" decoding="async" />
+  <img src="{{ $primary.RelPermalink }}"{{ with (uniq $srcset) }} srcset="{{ delimit . ", " }}"{{ end }} sizes="{{ .sizes | default `(min-width: 1280px) 672px, (min-width: 768px) 65vw, 92vw` }}"{{ with .fetchpriority }} fetchpriority="{{ . }}"{{ end }} width="{{ $primary.Width }}" height="{{ $primary.Height }}" alt="{{ .alt }}"{{ with .class }} class="{{ . }}"{{ end }} loading="{{ .loading | default "lazy" }}" decoding="async" />
 {{- else -}}
   {{- $src := .src -}}{{- with $r }}{{ $src = .RelPermalink }}{{- end -}}
   {{- with $src -}}

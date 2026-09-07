@@ -1,3 +1,4 @@
+{{ if or (not site.Params.reader.enabled) (not .IsPage) }}
 {{- /* Site/track banner. Prefer an assets/images/ banner (Hugo-processable → optimized
        WebP via opt-image); fall back to a static/images/ banner rendered raw, so a blog
        that hasn't relocated its banners to assets/ keeps rendering them (no regression).
@@ -13,6 +14,11 @@
       {{- if $track -}}
         {{- $name = printf "images/banner-%s.png" $track -}}
       {{- end -}}
+    {{- else if and (ge (len $parts) 1) (ne (index $parts 0) "") -}}
+      {{- /* A top-level section outside docs/ (topics/, about/) banners by its own
+             name — images/banner-topics.png — and, being nil-safe, renders nothing
+             until that asset exists. */ -}}
+      {{- $name = printf "images/banner-%s.png" (index $parts 0) -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}
@@ -20,7 +26,7 @@
   {{- $asset := resources.Get . -}}
   {{- if $asset -}}
 <div class="site-track-banner">
-  {{ partial "opt-image.html" (dict "resource" $asset "alt" "" "loading" "eager" "maxWidth" site.Params.imageOptimize.bannerMaxWidth) }}
+  {{ partial "opt-image.html" (dict "resource" $asset "alt" "" "loading" "eager" "sizes" "100vw" "maxWidth" site.Params.imageOptimize.bannerMaxWidth) }}
 </div>
   {{- else if (fileExists (printf "static/%s" .)) -}}
 <div class="site-track-banner">
@@ -28,3 +34,5 @@
 </div>
   {{- end -}}
 {{- end -}}
+
+{{ end }}

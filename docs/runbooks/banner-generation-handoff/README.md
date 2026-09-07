@@ -346,6 +346,12 @@ character directory:
 - untracked: `.reference-pool/banners/`, the two covers, this directory
 - `.blog-craft.ideation.yaml` at the repo root is scratch — safe to delete
 
+**Added 2026-09-07 (frank#787):** a fifth banner, `banner-topics` (`/topics/` index and
+guides). Entry in `blog/prompt_for_images.yaml`, ready-to-paste prompt at
+`prompts/idea-topics-1-the-map-table.txt`, same 3-stripe → 9:1 workflow as above,
+target `blog/assets/images/banner-topics.png`. Not generated yet; the site-banner
+partial is nil-safe, so the pages render without a banner until the file lands.
+
 **Unresolved:** the banners still need final art. Thirteen exploratory scenes were
 shortlisted (see `ideation-scenes.yaml` and `prompts/idea-*.txt`); of those,
 `operating-1-the-chair`, `papers-2-the-board` and `building-2-the-forge` never

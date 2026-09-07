@@ -6,14 +6,15 @@
   <div class='hx:mx-auto hx:flex hextra-max-page-width'>
     {{ partial "sidebar.html" (dict "context" .) }}
     {{ partial "toc.html" . }}
-    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]{{ if in .Params.series "papers" }} paper-post{{ end }}">
+    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]{{ if in .Params.series "papers" }} paper-post{{ end }}{{ if site.Params.reader.enabled }} reader-post{{ if in .Params.series "operating" }} reader-operating{{ end }}{{ end }}">
       <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
         {{ partial "breadcrumb.html" (dict "page" . "enable" true) }}
         {{ $cover := .Resources.GetMatch "cover.*" }}
-        {{ with $cover }}
+        {{ if not site.Params.reader.enabled }}{{ with $cover }}
         <div class="post-cover">
           {{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "lazy") }}
         </div>
+        {{ end }}
         {{ end }}
         <div class="content">
           {{ if .Title }}
@@ -22,11 +23,16 @@
             {{ partial "components/page-context-menu" . }}
           </div>
           {{ end }}
-          {{ .Content }}
+          {{ if site.Params.reader.enabled }}
+          {{ with or .Params.summary .Description }}<p class="reader-summary">{{ . }}</p>{{ end }}
+          {{ partial "reader/meta.html" . }}
+          {{ if not (in .Params.series "operating") }}{{ with $cover }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}{{ end }}
+          {{ end }}
+          <div data-article-body>{{ .Content }}{{ if and site.Params.reader.enabled (in .Params.series "papers") }}{{ partial "papers/references.html" . }}{{ end }}</div>
         </div>
         {{- if in .Params.series "papers" }}
           {{- partial "papers-forwardlinks.html" . }}
-          {{- partial "papers/references.html" . }}
+          {{- if not site.Params.reader.enabled }}{{ partial "papers/references.html" . }}{{ end }}
           {{- partial "papers/dossier-link.html" . }}
           {{- partial "papers-prev-next.html" . }}
         {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}

@@ -1,15 +1,17 @@
-# Stage 1: Build Hugo site
-# Hugo Docker image includes Go (for modules) and extended features by default.
-# --chown=hugo:hugo: the image runs as the non-root `hugo` user, so COPY must
-# land files owned by that user or `hugo mod get` can't update go.mod.
+# Hugo uses the committed module pins and canonical URL in hugo.toml.
 FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
 WORKDIR /src
 COPY --chown=hugo:hugo . .
-RUN hugo mod get
-RUN hugo --minify --baseURL https://blog.derio.net/frank
+RUN hugo --minify --cleanDestinationDir
 
-# Stage 2: Serve with Caddy
+# The same post-render export used by scripts/build-site.py in CI.
+FROM python:3.12-alpine AS exporter
+WORKDIR /src
+COPY --from=builder /src/public ./public
+COPY scripts/export-content.py ./export-content.py
+RUN python3 export-content.py public
+
 FROM caddy:2.9-alpine
-COPY --from=builder /src/public /usr/share/caddy
-RUN printf ':8080 {\n    handle_path /frank/* {\n        root * /usr/share/caddy\n        file_server\n        header Cache-Control "public, max-age=3600"\n    }\n    handle /frank {\n        redir /frank/ permanent\n    }\n    handle {\n        root * /usr/share/caddy\n        file_server\n        header Cache-Control "public, max-age=3600"\n    }\n}\n' > /etc/caddy/Caddyfile
+COPY --from=exporter /src/public /usr/share/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
 EXPOSE 8080
