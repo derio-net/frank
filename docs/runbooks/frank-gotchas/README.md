@@ -19,6 +19,7 @@ Long-form companion to `agents/rules/frank-gotchas.md`. That hot file is auto-lo
 | [agent-shells.md](agent-shells.md) | s6-overlay v3, sshd env, `cont-init.d`, tmux-continuum |
 | [paperclip-ruflo.md](paperclip-ruflo.md) | PVC sizing, app-vs-shell container split, ruvocal RVF/liveness |
 | [omni.md](omni.md) | Cert renewal path (NOT the snap timer) + recovery |
+| [blog.md](blog.md) | Hugo/Hextra build: `@latest` CDN bundles fetched at build time, mermaid width gate drift |
 | [other-apps.md](other-apps.md) | Sympozium, Zot, Gitea, n8n, VK/VibeKanban, curlimages |
 
 ## When to add a new gotcha

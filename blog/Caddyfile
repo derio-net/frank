@@ -1,8 +1,12 @@
 :8080 {
 	encode zstd gzip
-	@content not path_regexp \.[a-f0-9]{32,64}\.[a-z0-9]+$
+	# Two content-addressed shapes: Hugo `| fingerprint` output (name.min.<64hex>.css)
+	# and Hugo image derivatives (cover_hu_<hex>.webp — ~26 MB of the built site,
+	# vs ~400 KB of CSS/JS). Both are safe to cache immutably; miss the second
+	# and every cover revalidates after five minutes.
+	@content not path_regexp (\.[a-f0-9]{32,64}|_hu_[a-f0-9]{6,})\.[a-z0-9]+$
 	header @content Cache-Control "public, max-age=300"
-	@fingerprinted path_regexp fingerprint \.[a-f0-9]{32,64}\.[a-z0-9]+$
+	@fingerprinted path_regexp fingerprint (\.[a-f0-9]{32,64}|_hu_[a-f0-9]{6,})\.[a-z0-9]+$
 	header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
 	# Bare /frank must redirect to /frank/, and it must be a top-level `redir`:
 	# Caddy's `/frank/*` path matcher ALSO matches `/frank` (a trailing `/*`

@@ -1,6 +1,8 @@
 {{ if site.Params.reader.enabled }}
 {{ with resources.Get "css/reader.css" }}<link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">{{ end }}
 {{ $image := .Resources.GetMatch "cover.*" }}{{ if not $image }}{{ $image = resources.Get "images/banner-landing.png" }}{{ end }}
+{{/* Hextra's own opengraph partial emits og:image from .Params.images / site.Params.images; emit ours only when neither is set so a page never carries two competing tags. */}}
+{{ if or .Params.images site.Params.images }}{{ $image = nil }}{{ end }}
 {{ with $image }}{{ $card := .Fill "1200x630 center jpg q85" }}<meta property="og:image" content="{{ $card.Permalink }}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{{ $.Title }}">{{ end }}
 <link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ `index.xml` | absURL }}">
 {{ if site.Params.reader.agentExports }}<link rel="alternate" type="application/json" title="Content catalog" href="{{ `content-index.json` | absURL }}">{{ if .IsPage }}<link rel="alternate" type="text/markdown" title="{{ .Title }}" href="{{ .Permalink }}index.md">{{ end }}{{ with resources.Get "js/reader.js" }}<script src="{{ (. | minify | fingerprint).RelPermalink }}" defer></script>{{ end }}{{ end }}

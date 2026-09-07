@@ -1,1 +1,13 @@
-{{ define "main" }}<main id="content">{{ .Content }}</main>{{ end }}
+{{/* Reader home. Mirrors Hextra's hextra-home.html: the sidebar partial is
+     called with disableSidebar so no sidebar renders, but its (hidden)
+     .hextra-sidebar-container still exists — Hextra's menu.js dereferences it
+     unconditionally at DOMContentLoaded, and without it the script throws
+     before binding the hamburger, so the mobile nav never opens and the footer
+     theme toggle is never enabled. Drop the partial and the home page loses
+     both while every other page keeps them. */}}
+{{ define "main" }}
+  <div class='hx:mx-auto hx:flex hextra-max-page-width'>
+    {{ partial "sidebar.html" (dict "context" . "disableSidebar" true) }}
+    <main id="content" class="hx:w-full hx:min-w-0">{{ .Content }}</main>
+  </div>
+{{ end }}

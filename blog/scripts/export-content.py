@@ -73,7 +73,8 @@ def markdown(node, url):
             for cls in code.attrs.get('class','').split():
                 if cls.startswith('language-'): language = cls[9:]
         fence = '`' * max(3,1+max((len(m) for m in re.findall(r'`+',source)),default=0))
-        return f'\n\n{fence}{language}\n{source}{'' if source.endswith(chr(10)) else chr(10)}{fence}\n\n'
+        newline = '' if source.endswith('\n') else '\n'
+        return f'\n\n{fence}{language}\n{source}{newline}{fence}\n\n'
     if tag == 'table':
         rows=[]
         def collect(n):
@@ -118,7 +119,7 @@ def markdown(node, url):
 def export(public):
     public=Path(public).resolve()
     catalog_path=public/'content-index.json'
-    catalog=json.loads(catalog_path.read_text())
+    catalog=json.loads(catalog_path.read_text(encoding='utf-8'))
     base_path=urlparse(catalog['site']).path.rstrip('/')
     outputs=[]
     for article in catalog['articles']:
@@ -126,9 +127,19 @@ def export(public):
         if base_path and not path.startswith(base_path+'/'):raise ValueError(f'Article outside site: {path}')
         directory=(public/path[len(base_path):].strip('/')).resolve()
         if not directory.is_relative_to(public):raise ValueError('Export escapes public directory')
-        document=Document((directory/'index.html').read_text())
+        document=Document((directory/'index.html').read_text(encoding='utf-8'))
         body=document.root.find(lambda n:'data-article-body' in n.attrs)
-        if body is None:body=document.root.find(lambda n:n.tag=='main' and n.attrs.get('id')=='content')
+        if body is None:
+            # Pages rendered by Hextra's generic single.html (about/, topics/*) have no
+            # data-article-body; their <main> starts with the theme's own <h1>. The
+            # export header already carries the title, so drop that first H1 or the
+            # Markdown opens with the title twice.
+            body=document.root.find(lambda n:n.tag=='main' and n.attrs.get('id')=='content')
+            if body is not None:
+                h1=body.find(lambda n:n.tag=='h1')
+                if h1 is not None and h1.text().strip()==article['title'].strip():
+                    parent=body.find(lambda n:h1 in n.children)
+                    parent.children.remove(h1)
         if body is None:raise ValueError(f'No article body: {article["url"]}')
         text=markdown(body,article['url'])
         # Do not normalize generated Markdown globally: whitespace inside fenced
@@ -143,8 +154,11 @@ def export(public):
         result=header+'\n'+text+'\n'
         outputs.append((directory/'index.md',result))
         article['content_sha256']=hashlib.sha256(result.encode()).hexdigest()
-    for path,result in outputs:path.write_text(result)
-    catalog_path.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n')
+    # Explicit UTF-8 everywhere: content_sha256 is computed over result.encode()
+    # (UTF-8), so a locale-default write (cp1252, latin-1) would either raise on
+    # the first em-dash or silently break the hash the reader gate verifies.
+    for path,result in outputs:path.write_text(result,encoding='utf-8')
+    catalog_path.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     print(f'Exported {len(outputs)} published pages to Markdown')
 
 if __name__=='__main__':

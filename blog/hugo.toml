@@ -152,3 +152,7 @@ title = "Frank, the Talos Cluster"
   name = "About"
   pageRef = "/about"
   weight = 5
+
+# END OF FILE. The file ends inside a [[menu.main]] table: any key appended
+# below the About entry silently becomes part of that menu item. Add new
+# tables ABOVE the operator-owned menu entries.
