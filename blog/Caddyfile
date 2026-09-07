@@ -4,12 +4,18 @@
 	header @content Cache-Control "public, max-age=300"
 	@fingerprinted path_regexp fingerprint \.[a-f0-9]{32,64}\.[a-z0-9]+$
 	header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+	# Bare /frank must redirect to /frank/, and it must be a top-level `redir`:
+	# Caddy's `/frank/*` path matcher ALSO matches `/frank` (a trailing `/*`
+	# matches the path without it), and `handle` blocks are exclusive with the
+	# longest matcher winning, so a `handle /frank { redir … }` sibling never
+	# runs — the request lands in handle_path with an empty stripped path and
+	# file_server answers 200 with no body (measured on the live edge,
+	# 2026-09-07). `redir` sorts before `handle` in Caddy's directive order.
+	@bare path /frank
+	redir @bare /frank/ permanent
 	handle_path /frank/* {
 		root * /usr/share/caddy
 		file_server
-	}
-	handle /frank {
-		redir /frank/ permanent
 	}
 	handle {
 		root * /usr/share/caddy
