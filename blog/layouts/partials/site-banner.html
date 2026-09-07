@@ -14,6 +14,11 @@
       {{- if $track -}}
         {{- $name = printf "images/banner-%s.png" $track -}}
       {{- end -}}
+    {{- else if and (ge (len $parts) 1) (ne (index $parts 0) "") -}}
+      {{- /* A top-level section outside docs/ (topics/, about/) banners by its own
+             name — images/banner-topics.png — and, being nil-safe, renders nothing
+             until that asset exists. */ -}}
+      {{- $name = printf "images/banner-%s.png" (index $parts 0) -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

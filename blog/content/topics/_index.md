@@ -5,7 +5,4 @@ description: "Find Frank's implementation stories, operating guides, and decisio
 
 Each guide connects implementation, operating procedures, and the decisions behind them.
 
-- [Debugging Kubernetes](debugging-kubernetes/)
-- [Running local AI](running-local-ai/)
-- [Securing and operating agents](securing-agents/)
-- [Choosing infrastructure](choosing-infrastructure/)
+{{< reader-topics >}}

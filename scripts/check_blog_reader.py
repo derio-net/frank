@@ -40,6 +40,12 @@ def check(public):
         if relative.startswith('docs/'):
             assert 'reader-meta' in html and 'data-copy-markdown' in html, f'missing reader controls: {relative}'
     assert set(public.rglob('index.md')) == markdown_paths, 'uncatalogued Markdown output (stale or private page)'
+    # Discovery surfaces: the topics index renders tiles (not a bullet list) and
+    # the home page renders one image tile per series.
+    topics = (public / 'topics' / 'index.html').read_text(encoding='utf-8')
+    assert 'reader-topic-index' in topics and topics.count('reader-chip') >= 4, 'topics index lost its tiles/chips'
+    home = (public / 'index.html').read_text(encoding='utf-8')
+    assert home.count('reader-series-card') == 3, 'home page must render three series image tiles'
     print(f'OK: {len(markdown_paths)} canonical Markdown exports, hashes, share images and populated RSS')
 
 

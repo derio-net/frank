@@ -38,6 +38,20 @@ def test_every_topic_layer_code_is_registered():
     assert not unknown, f"reader.yaml topics reference layer codes absent from docs/layers.yaml: {sorted(unknown)}"
 
 
+def test_series_tile_images_live_in_assets():
+    """Series tiles on the home page are rendered through opt-image (WebP + srcset),
+    which needs a Hugo-processable asset under assets/ — static/ cannot be
+    processed (the same reason the banners were relocated)."""
+    blog = os.path.join(REPO, "blog")
+    for series in _reader()["series"]:
+        image = series.get("image")
+        assert image, f"series {series['key']} has no image: tile"
+        assert os.path.exists(os.path.join(blog, "assets", image)), f"{image} missing under blog/assets/"
+    import glob
+    stale = glob.glob(os.path.join(blog, "static", "images", "tile-*.png"))
+    assert not stale, f"tiles still in static/images (unprocessable): {stale}"
+
+
 def test_every_topic_has_at_least_one_layer():
     empty = [t["slug"] for t in _reader()["topics"] if not t.get("layers")]
     assert not empty, f"topics with no layers render empty guides: {empty}"

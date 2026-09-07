@@ -619,3 +619,41 @@
   list-style: none;
   padding-left: 1rem;
 }
+
+/* === Reader: topic tiles (/topics/) and series tiles (home) === */
+.reader-topic-index .reader-topic { gap: .6rem; }
+/* The /topics/ index renders inside Hextra's prose column, whose anchor rules
+   would paint every word of a tile blue and underlined; the tile IS the link. */
+.reader-topic-index a.reader-topic,
+.reader-topic-index a.reader-topic:hover { text-decoration: none; color: inherit; }
+.reader-topic-index a.reader-topic strong { color: var(--reader-ink); font-size: 1.1rem; }
+.reader-topic-index a.reader-topic > span:not(.reader-chips) { color: var(--reader-muted); }
+.reader-topic-index a.reader-topic:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.content .reader-topic-index { margin: 1.5rem 0; }
+.reader-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
+.reader-chip {
+  font-size: .72rem; font-weight: 600; line-height: 1.4; letter-spacing: .01em;
+  padding: .1rem .55rem; border-radius: 999px;
+  /* Tinted label, not a solid badge: the palette's badge ink is tuned for a
+     two-digit number, and dark ink on the darker hues (obs, auth, media) is
+     unreadable at chip size. A 16% tint with the hue as text keeps contrast
+     for every hue in both modes. */
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  color: color-mix(in srgb, var(--chip) 78%, #000);
+  border: 1px solid color-mix(in srgb, var(--chip) 35%, transparent);
+}
+.dark .reader-chip {
+  background: color-mix(in srgb, var(--chip-dark) 18%, transparent);
+  color: color-mix(in srgb, var(--chip-dark) 85%, #fff);
+  border-color: color-mix(in srgb, var(--chip-dark) 40%, transparent);
+}
+.reader-count { font-size: .8rem; color: var(--reader-muted); }
+/* Series tiles: the old landing tiles, one notch smaller than the featured cards. */
+.reader-series-card { text-decoration: none; color: inherit; }
+.reader-series-card img { aspect-ratio: 1424 / 752; }
+.reader-series-card > div { padding: .9rem 1rem; display: flex; flex-direction: column; gap: .3rem; }
+.reader-series-card strong { font-size: 1.05rem; font-weight: 650; line-height: 1.3; }
+.reader-series-card span { font-size: .95rem; line-height: 1.5; color: var(--reader-muted); }
+@media (max-width: 760px) {
+  .reader-series-card img { aspect-ratio: auto; }
+}

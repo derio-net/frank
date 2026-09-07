@@ -7,9 +7,9 @@ home:
     - /docs/operating/30-silent-failure
     - /docs/papers/00-why-homelab-in-2026
 series:
-  - {key: building, title: Building Frank, path: docs/building/, description: 'Follow the implementation, from bare metal to working services.'}
-  - {key: operating, title: Operating on Frank, path: docs/operating/, description: 'Check health, investigate failures, and recover the system.'}
-  - {key: papers, title: The Frank Papers, path: docs/papers/, description: 'Compare approaches, examine the evidence, and understand the trade-offs.'}
+  - {key: building, title: Building Frank, path: docs/building/, image: images/tile-building.png, description: 'Follow the implementation, from bare metal to working services.'}
+  - {key: operating, title: Operating on Frank, path: docs/operating/, image: images/tile-operating.png, description: 'Check health, investigate failures, and recover the system.'}
+  - {key: papers, title: The Frank Papers, path: docs/papers/, image: images/tile-papers.png, description: 'Compare approaches, examine the evidence, and understand the trade-offs.'}
 topics:
   - slug: debugging-kubernetes
     title: Debugging Kubernetes
