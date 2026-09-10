@@ -94,4 +94,24 @@ spec:
           echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
           cat /tmp/resp
           echo
+          # GitHub caps commit statuses per (sha, context). Once that budget is
+          # spent the API returns 422 for that pair FOREVER, so no retry can ever
+          # succeed and failing the step just mints a dead pod on every
+          # invocation. Incident 2026-09-10: a Gitea Actions workflow firing every
+          # 30 min against a sha frozen for 49 days saturated one context (~900
+          # statuses vs 16 on every other), leaving 292 Failed pods and a
+          # `pending` status stranded since 2026-08-02.
+          #
+          # Tolerate exactly that case, and loudly. Every OTHER 422 stays fatal on
+          # purpose: Gitea's status vocabulary (skipped, warning) is a superset of
+          # GitHub's, and that mismatch is a real bug which must surface here
+          # rather than be swallowed -- it previously stranded a `pending` status
+          # too, and was correctly fixed by mapping the state upstream, not by
+          # ignoring the error.
+          if [ "$HTTP_CODE" -eq 422 ] && grep -q 'maximum number of statuses' /tmp/resp; then
+            echo "WARN: status quota exhausted for ${REVISION} / ${CONTEXT}"
+            echo "WARN: GitHub accepts no further statuses on this sha+context."
+            echo "WARN: the request is unactionable, so not failing the step."
+            exit 0
+          fi
           [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
