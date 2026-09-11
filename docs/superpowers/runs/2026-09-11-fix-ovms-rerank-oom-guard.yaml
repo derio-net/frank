@@ -2,7 +2,7 @@ run: 2026-09-11-fix-ovms-rerank-oom-guard
 workflow: fr-goal@1
 branch: fix/ovms-rerank-oom-guard
 started: '2026-09-11T08:07:59+00:00'
-cursor: implement
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -25,15 +25,16 @@ steps:
 
       '
   implement:
-    state: running
-    at: '2026-09-11T08:58:12+00:00'
+    state: done
+    at: '2026-09-11T12:53:59+00:00'
     items:
       phase/1/implement-phase: running
     members:
     - implement-phase
     - review-phase
   deliver:
-    state: pending
+    state: done
+    at: '2026-09-11T12:54:17+00:00'
 accounting:
   phase/1/implement-phase:
     at: '2026-09-11T08:58:12+00:00'
