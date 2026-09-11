@@ -633,6 +633,33 @@ def build_result_payload(
     }
 
 
+def build_sweep_payload(
+    *,
+    arm: str,
+    base_url: str,
+    timestamp: str,
+    server_config: dict[str, Any],
+    sweep: dict[str, Any],
+) -> dict[str, Any]:
+    """The sweep's own record section, under the same provenance every other
+    record here carries.
+
+    Keyword-only with no defaults, for the same reason `build_result_payload`
+    is: the curve this produces sets the guard's two numbers and will be
+    quoted in a spec. A curve without the endpoint and the arm it came from is
+    a number from nowhere — and the two arms run against different URLs, so a
+    forgotten flag would otherwise attribute one device's cliff to the
+    other."""
+    return {
+        "arm": arm,
+        "base_url": base_url,
+        "timestamp": timestamp,
+        "server_config": server_config,
+        "timing_includes": TIMING_INCLUDES_NOTE,
+        "sweep": sweep,
+    }
+
+
 # --------------------------------------------------------------------------
 # network I/O — the only part not covered by offline tests
 # --------------------------------------------------------------------------
@@ -833,6 +860,15 @@ def _run_embeddings_benchmark(args: argparse.Namespace) -> tuple[int, dict[str, 
     return dimension, summarize_latencies(single_latencies), summarize_latencies(batch_latencies)
 
 
+def _emit(payload: dict[str, Any], output: str | None) -> None:
+    text = json.dumps(payload, indent=2)
+    if output:
+        with open(output, "w") as f:
+            f.write(text + "\n")
+    else:
+        print(text)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
@@ -865,6 +901,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_ARM_CONTRADICTED
 
+    if args.rerank_sweep:
+        # Sweep mode REPLACES the timed benchmark rather than preceding it.
+        # The sweep exists to find the size at which the server dies; running
+        # a 30-iteration embeddings loop afterwards would measure a restarting
+        # pod and report it as embedding latency.
+        sweep_payload = build_sweep_payload(
+            arm=args.arm,
+            base_url=args.base_url,
+            timestamp=utc_timestamp(),
+            server_config=server_config,
+            sweep=_run_rerank_sweep(args),
+        )
+        _emit(sweep_payload, args.output)
+        return 0
+
     try:
         rerank_summary, degenerate = _run_rerank_benchmark(args)
         dimension, embed_single, embed_batch = _run_embeddings_benchmark(args)
@@ -890,12 +941,7 @@ def main(argv: list[str] | None = None) -> int:
         degenerate=degenerate,
     )
 
-    text = json.dumps(payload, indent=2)
-    if args.output:
-        with open(args.output, "w") as f:
-            f.write(text + "\n")
-    else:
-        print(text)
+    _emit(payload, args.output)
 
     if degenerate:
         print(

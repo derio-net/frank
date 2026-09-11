@@ -1069,6 +1069,167 @@ def test_sweep_records_the_word_count_it_actually_sent_not_the_flag(monkeypatch)
     assert sent < 50, "the stock filler is the ~20-word passage this knob exists to replace"
 
 
+# --- the sweep record carries the same provenance as every other record ---
+# A curve gets quoted. Quoted without an endpoint and an arm it is a number
+# from nowhere — and the two arms run against different URLs, so a forgotten
+# flag would otherwise attribute one device's cliff to the other.
+
+def _sweep_section():
+    return {
+        "model": "bge-reranker-v2-m3",
+        "sizes": [10, 20],
+        "words_per_document_requested": 200,
+        "warmup": {"documents": 10, "calls": 1, "attempts": []},
+        "status_note": bench.SWEEP_STATUS_NOTE,
+        "results": [
+            {
+                "documents": 10,
+                "words_per_document": 200,
+                "status": 200,
+                "latency_ms": 1.0,
+                "ok": True,
+                "error": None,
+                "body": None,
+                "results_returned": 10,
+            }
+        ],
+    }
+
+
+def test_sweep_payload_carries_arm_url_timestamp_and_server_config():
+    snapshot = bench.build_server_config_snapshot(
+        base_url="http://example.invalid:8000", arm="gpu", raw=OVMS_CONFIG_RESPONSE
+    )
+    payload = bench.build_sweep_payload(
+        arm="gpu",
+        base_url="http://example.invalid:8000",
+        timestamp="2026-09-11T12:00:00Z",
+        server_config=snapshot,
+        sweep=_sweep_section(),
+    )
+    assert payload["arm"] == "gpu"
+    assert payload["base_url"] == "http://example.invalid:8000"
+    assert payload["timestamp"] == "2026-09-11T12:00:00Z"
+    assert payload["server_config"]["servables"][0]["name"] == "bge-m3"
+    assert payload["sweep"]["sizes"] == [10, 20]
+    assert payload["sweep"]["results"][0]["documents"] == 10
+    assert "json" in payload["timing_includes"].lower()
+
+
+def test_sweep_payload_requires_its_provenance_unconditionally():
+    for missing in ("arm", "base_url", "timestamp", "server_config", "sweep"):
+        kwargs = {
+            "arm": "gpu",
+            "base_url": "http://example.invalid:8000",
+            "timestamp": "2026-09-11T12:00:00Z",
+            "server_config": {},
+            "sweep": _sweep_section(),
+        }
+        kwargs.pop(missing)
+        with pytest.raises(TypeError):
+            bench.build_sweep_payload(**kwargs)
+
+
+def test_sweep_payload_is_json_serializable():
+    import json
+
+    json.dumps(
+        bench.build_sweep_payload(
+            arm="cpu",
+            base_url="http://example.invalid:8000",
+            timestamp="2026-09-11T12:00:00Z",
+            server_config={},
+            sweep=_sweep_section(),
+        )
+    )
+
+
+def test_main_in_sweep_mode_writes_a_sweep_record(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.setattr(
+        bench, "fetch_server_config", lambda base_url: OVMS_CONFIG_RESPONSE
+    )
+    monkeypatch.setattr(bench, "_post_json", _Recorder())
+    ran: list[str] = []
+    _stub_benchmarks(monkeypatch, ran)
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        [
+            "--arm", "gpu",
+            "--base-url", "http://example.invalid:8000",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "1",
+            "--output", str(out),
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(out.read_text())
+    assert payload["arm"] == "gpu"
+    assert payload["base_url"] == "http://example.invalid:8000"
+    assert payload["timestamp"].endswith("Z")
+    assert payload["server_config"]["servables"][0]["state"] == "AVAILABLE"
+    assert [r["documents"] for r in payload["sweep"]["results"]] == [10, 20]
+    assert payload["sweep"]["results"][0]["words_per_document"] == 200
+    assert ran == [], (
+        "sweep mode replaces the timed benchmark: running a 30-iteration "
+        "embeddings loop against a server just deliberately OOM-killed "
+        "measures the restart, not the server"
+    )
+
+
+def test_main_in_sweep_mode_records_failures_and_still_exits_zero(
+    monkeypatch, tmp_path
+):
+    import json
+
+    monkeypatch.setattr(
+        bench, "fetch_server_config", lambda base_url: OVMS_CONFIG_RESPONSE
+    )
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=30, error=_http_error)
+    )
+    _stub_benchmarks(monkeypatch, [])
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0",
+         "--output", str(out)]
+    )
+
+    # A refused batch is the RESULT, not an error: the run that records it is
+    # a successful run. Whether the refusal came at the right size is a
+    # judgement made against the curve, not by this exit code.
+    assert code == 0
+    results = json.loads(out.read_text())["sweep"]["results"]
+    assert [r["ok"] for r in results] == [True, False]
+    assert results[-1]["status"] == 500
+
+
+def test_main_in_sweep_mode_still_refuses_a_contradicted_arm(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        bench,
+        "fetch_server_config",
+        lambda base_url: {"bge-m3": {"target_device": "CPU"}},
+    )
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--output", str(out)]
+    )
+
+    assert code == bench.EXIT_ARM_CONTRADICTED
+    assert rec.calls == [], "must not sweep a server that contradicts the arm"
+    assert not out.exists()
+
+
 # --- main(): the arm cross-check is enforced, not just recorded -----------
 
 def _stub_benchmarks(monkeypatch, ran: list[str]):
