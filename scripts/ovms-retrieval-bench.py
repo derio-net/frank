@@ -42,6 +42,13 @@ quoting:
   * **Warm-up happens at the smallest size only.** Warming at a size about to
     be proven fatal spends a restart and measures the next size against a
     cold server.
+  * **A size that kills the server is waited out before the next one.** The
+    kill is followed by roughly ten seconds of refused connections while the
+    pod restarts, so a sweep that walked straight on would record the NEXT
+    size as having failed when it was never served — a fabricated point in
+    the curve the cap is read off. Only a no-status failure (closed or
+    refused socket) triggers the wait; a refusal leaves the server serving.
+    The wait is reported, and its duration is itself a number worth having.
 
 Sweep mode does NOT run the embeddings benchmark afterwards: that would time
 a restarting pod and report it as embedding latency.
@@ -147,6 +154,15 @@ TIMING_INCLUDES_NOTE = (
     "server). End-to-end in-cluster client latency, not isolated server-side "
     "inference time."
 )
+
+# After a call that KILLED the server, the next size must not be sent into a
+# restarting pod: the issue this instrument exists to measure records about ten
+# seconds of refused connections after each kill, so the following size would
+# record a URLError that is indistinguishable from "this size also died". A
+# size that was never served must never appear in the curve as a size that
+# failed. These bound the wait for the server to come back.
+SWEEP_RECOVERY_TIMEOUT_S = 300
+SWEEP_RECOVERY_POLL_S = 2.0
 
 # A failed call's body is the server's own account of why it refused. Capped,
 # because an unexpected failure can return an arbitrarily large page and the
@@ -781,8 +797,19 @@ def _run_rerank_sweep(args: argparse.Namespace) -> dict[str, Any]:
             words=args.rerank_words,
         )
 
-    warmup_attempts = [attempt(smallest, i) for i in range(max(args.rerank_warmup, 0))]
-    results = [attempt(size, i) for i, size in enumerate(sizes)]
+    def run(documents: int, index: int) -> dict[str, Any]:
+        """One size, plus the wait for the server if that size killed it.
+
+        `status is None` is the discriminator: a REFUSAL carries the server's
+        status code and leaves it serving, so nothing needs waiting for; only a
+        closed or refused socket means the process went away."""
+        record = attempt(documents, index)
+        if not record["ok"] and record["status"] is None:
+            record["recovery"] = _wait_for_recovery(args.base_url, args.rerank_model)
+        return record
+
+    warmup_attempts = [run(smallest, i) for i in range(max(args.rerank_warmup, 0))]
+    results = [run(size, i) for i, size in enumerate(sizes)]
 
     return {
         "model": args.rerank_model,
@@ -854,6 +881,63 @@ def _rerank_once(
         "body": response_body,
         "results_returned": results_returned,
     }
+
+
+def _probe_ready(url: str, timeout: float = 5.0) -> bool:
+    """True when `url` answers 2xx. The monkeypatchable seam the recovery wait
+    is tested through — everything above it is offline."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _wait_for_recovery(
+    base_url: str,
+    model: str,
+    *,
+    timeout: float = SWEEP_RECOVERY_TIMEOUT_S,
+    poll: float = SWEEP_RECOVERY_POLL_S,
+) -> dict[str, Any]:
+    """Block until the reranker can serve again, and report how long it took.
+
+    Called only after a failure with NO status — a closed or refused socket,
+    i.e. the server died rather than refused. Without this the next size is
+    sent into a restarting pod and records a URLError indistinguishable from
+    its own death, quietly inventing a data point in the curve that sets the
+    guard's cap.
+
+    It probes the MODEL-level endpoint, not `/v2/health/live`: the server
+    answers server-level liveness while its servable is still loading, which
+    is the same trap the Deployment's probes are written around. Returns
+    rather than raises on timeout — a sweep that could not confirm recovery
+    should say so in the record, not vanish."""
+    ready_url = f"{base_url}/v2/models/{model}/ready"
+    start = time.perf_counter()
+    attempts = 0
+    while True:
+        attempts += 1
+        if _probe_ready(ready_url):
+            return {
+                "recovered": True,
+                "waited_s": time.perf_counter() - start,
+                "probes": attempts,
+                "probe_url": ready_url,
+            }
+        if time.perf_counter() - start >= timeout:
+            return {
+                "recovered": False,
+                "waited_s": time.perf_counter() - start,
+                "probes": attempts,
+                "probe_url": ready_url,
+                "note": (
+                    "the server did not become ready within the timeout — every "
+                    "later size in this sweep measured a server that was never "
+                    "confirmed serving, and must not be read as a batch cost"
+                ),
+            }
+        time.sleep(poll)
 
 
 def _read_error_body(exc: urllib.error.HTTPError) -> str | None:

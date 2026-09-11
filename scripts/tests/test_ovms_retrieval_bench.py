@@ -36,6 +36,21 @@ sys.modules["ovms_retrieval_bench"] = bench
 _spec.loader.exec_module(bench)
 
 
+@pytest.fixture(autouse=True)
+def _instant_recovery(monkeypatch):
+    """Make the sweep's post-kill recovery wait instant, everywhere.
+
+    After a call that killed the server, the sweep blocks until the reranker
+    can serve again — without that, the next size is sent into a restarting
+    pod and records a URLError indistinguishable from its own death. Offline
+    there is no server to come back, so the seam reports ready on the first
+    probe and nothing sleeps. The tests that assert the WAIT itself override
+    `_probe_ready` explicitly; this fixture only keeps every OTHER test from
+    blocking on a five-minute timeout."""
+    monkeypatch.setattr(bench, "_probe_ready", lambda url, timeout=5.0: True)
+    monkeypatch.setattr(bench.time, "sleep", lambda _seconds: None)
+
+
 # --- percentile maths --------------------------------------------------
 
 def test_percentile_p50_of_known_list():
@@ -1353,3 +1368,103 @@ def test_rerank_once_is_a_single_named_place_for_the_tolerance_logic(monkeypatch
     assert record["status"] == 500
     assert record["ok"] is False
     assert "max_allowed_chunks" in record["body"]
+
+
+# --- a killed server is waited for, a refusal is not ----------------------
+#
+# Found in review of this phase. The sweep walked its sizes back to back, so a
+# size that OOM-killed the server was followed immediately by the next one
+# against a restarting pod — which the issue records as about ten seconds of
+# refused connections. That size would be recorded as having failed when it was
+# never served at all, inventing a data point in the curve the guard's cap is
+# read off. The discriminator is `status`: a REFUSAL carries the server's code
+# and leaves it serving; only a closed or refused socket means the process went
+# away.
+
+class _ScriptedProbe:
+    """`_probe_ready` that is not ready until the Nth call."""
+
+    def __init__(self, ready_on: int):
+        self.ready_on = ready_on
+        self.calls: list[str] = []
+
+    def __call__(self, url, timeout=5.0):
+        self.calls.append(url)
+        return len(self.calls) >= self.ready_on
+
+
+def test_a_killed_server_is_waited_for_before_the_next_size(monkeypatch):
+    probe = _ScriptedProbe(ready_on=3)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+    rec = _FailingRecorder(fail_from=20, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    killed = sweep["results"][1]
+    assert killed["status"] is None and killed["ok"] is False
+    assert killed["recovery"]["recovered"] is True
+    assert killed["recovery"]["probes"] == 3, (
+        "the sweep moved on before the server was serving again"
+    )
+    # ...and every size was still attempted.
+    assert rec.attempted_sizes() == [10, 20, 30]
+
+
+def test_recovery_probes_the_model_not_server_liveness(monkeypatch):
+    probe = _ScriptedProbe(ready_on=1)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=10, error=_remote_disconnected)
+    )
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    # Server-level readiness answers 200 while the servable is still loading —
+    # the same trap the Deployment's probes are written around.
+    assert probe.calls[0].endswith("/v2/models/bge-reranker-v2-m3/ready")
+    assert sweep["results"][0]["recovery"]["probe_url"] == probe.calls[0]
+
+
+def test_a_refusal_does_not_wait_for_recovery(monkeypatch):
+    """A guard refusing a batch leaves the server serving. Waiting on it would
+    add minutes to every sweep for nothing, and would blur the one distinction
+    the curve depends on."""
+    probe = _ScriptedProbe(ready_on=1)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=20, error=_http_error)
+    )
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    refused = sweep["results"][1]
+    assert refused["status"] == 500 and refused["ok"] is False
+    assert "recovery" not in refused
+    assert probe.calls == []
+
+
+def test_a_recovery_that_never_comes_is_recorded_not_raised(monkeypatch):
+    monkeypatch.setattr(bench, "_probe_ready", lambda url, timeout=5.0: False)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+
+    recovery = bench._wait_for_recovery(
+        "http://example.invalid:8000", "bge-reranker-v2-m3", timeout=0.0, poll=0.0
+    )
+
+    assert recovery["recovered"] is False
+    assert "note" in recovery, (
+        "a sweep that could not confirm recovery must say so in the record — "
+        "every later size measured a server never confirmed serving"
+    )
