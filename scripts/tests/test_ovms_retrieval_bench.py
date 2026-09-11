@@ -711,6 +711,87 @@ def test_rerank_warmup_calls_are_excluded_from_the_timed_sample(monkeypatch):
     assert degenerate is False
 
 
+# --- batch sweep mode: the instrument the rerank guard is measured with ---
+# `docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md`
+# ("A batch sweep in the benchmark harness"). The sweep walks a list of batch
+# sizes and records, per size, latency + HTTP status + body on failure. The
+# cap the guard ships with is derived from that curve, so the curve has to be
+# trustworthy before it is taken.
+
+def test_parse_sweep_sizes_reads_a_comma_separated_list():
+    assert bench.parse_sweep_sizes("10,20,30,40,50") == [10, 20, 30, 40, 50]
+
+
+def test_parse_sweep_sizes_sorts_ascending_and_dedupes():
+    # Ascending is not cosmetic: a size that kills the server leaves it
+    # refusing connections for ~10s, so every smaller size must be measured
+    # BEFORE it, not after.
+    assert bench.parse_sweep_sizes("30,10,20,10") == [10, 20, 30]
+
+
+def test_parse_sweep_sizes_tolerates_whitespace():
+    assert bench.parse_sweep_sizes(" 10 , 20 ") == [10, 20]
+
+
+def test_parse_sweep_sizes_rejects_garbage():
+    for bad in ("", "10,,20", "abc", "10,0", "-5", "10,2.5"):
+        with pytest.raises(ValueError):
+            bench.parse_sweep_sizes(bad)
+
+
+def test_rerank_sweep_flag_is_absent_by_default():
+    assert bench.parse_args(["--arm", "gpu"]).rerank_sweep is None
+
+
+def test_rerank_sweep_flag_parses_to_a_size_list():
+    args = bench.parse_args(["--arm", "gpu", "--rerank-sweep", "10,20,30,40,50"])
+    assert args.rerank_sweep == [10, 20, 30, 40, 50]
+
+
+def test_sweep_issues_one_call_per_size_in_ascending_order(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "40,10,30,20,50", "--rerank-warmup", "0"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sizes_sent = [len(b["documents"]) for b in rec.bodies("/v3/rerank")]
+    assert sizes_sent == [10, 20, 30, 40, 50]
+    assert sweep["sizes"] == [10, 20, 30, 40, 50]
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30, 40, 50]
+
+
+def test_sweep_records_documents_words_status_and_latency_per_size(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        [
+            "--arm", "gpu",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "0",
+        ]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    for result in sweep["results"]:
+        assert set(["documents", "words_per_document", "status", "latency_ms"]) <= set(result)
+        assert result["status"] == 200
+        assert result["ok"] is True
+        assert isinstance(result["latency_ms"], float) and result["latency_ms"] >= 0.0
+        assert result["words_per_document"] == 200
+
+
+def test_sweep_names_the_model_it_measured(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+    assert bench._run_rerank_sweep(args)["model"] == bench.DEFAULT_RERANK_MODEL
+
+
 # --- main(): the arm cross-check is enforced, not just recorded -----------
 
 def _stub_benchmarks(monkeypatch, ran: list[str]):
