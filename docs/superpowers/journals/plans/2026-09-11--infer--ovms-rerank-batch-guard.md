@@ -89,3 +89,45 @@ Reviewed the six phase-1 commits against the spec and plan. The captures are ver
 ### branch-ci-needs-workflow-dispatch · discovery · Pushing a branch in this repo runs NO CI — every check is pull_request-only off main (phase 1)
 
 P1.T3.S2 asked to push and confirm CI green before later phases build on the skeleton. That is not achievable by pushing: repo-tripwires.yml, agent-config.yml and build-ovms-retrieval-models.yml all restrict their push trigger to branches [main], so a feature-branch push starts nothing, and fr-goal reserves the PR for the deliver step. Escape hatch: both relevant workflows carry workflow_dispatch, so "gh workflow run repo-tripwires.yml --ref BRANCH" runs the real gate on the branch. Done for f1b4147f — Repo Tripwires completed success on exactly HEAD, alongside a local full-suite run of 801 passed, 1 xfailed. The step is now genuinely satisfied rather than assumed. This is the same silent-asymmetry family the build-ovms-retrieval-models.yml header already documents, where the half that runs is the half that works. Note also that phase 1 added a file under apps/ovms-retrieval/docker/, which is that workflow path filter — so the full IR build WILL fire on the eventual PR.
+
+<!-- fr:journal kind=discovery scope=plan id=283ec622800e created=2026-09-11T11:45:00 phase=2 -->
+### 283ec622800e · discovery · The sweep records a success as status 200 because _post_json throws the code away (phase 2)
+
+Worth knowing before phase 3 quotes the curve. _post_json returns a parsed body, not a response object, so on a 2xx the actual status code is gone by the time the sweep sees it. The record therefore writes 200 for every success, and says so in a status_note field carried in the record itself rather than leaving a reader to discover it.
+
+Failures are unaffected and are where the precision matters: a non-2xx status is the server's own, read off the raised HTTPError, and a null status means no response reached the client at all. Recording 0 or 500 for a closed socket would invent a response the server never sent, which is precisely the distinction Test Plan row 6 turns on (a response, not a closed socket).
+
+Changing _post_json to return (status, body) was considered and rejected: every existing test and the recorder fake stand in for it returning a dict, and a signature change there is a much wider blast radius than a documented convention in one new record section.
+
+<!-- fr:journal kind=discovery scope=plan id=718f209679f7 created=2026-09-11T11:45:12 phase=2 -->
+### 718f209679f7 · discovery · HTTPError is a URLError subclass — catch order decides whether a refusal keeps its status (phase 2)
+
+urllib.error.HTTPError subclasses URLError, which subclasses OSError; http.client.RemoteDisconnected subclasses ConnectionResetError, so it is an OSError too. A single except (URLError, OSError) would therefore swallow a refusal into the no-status branch, and the sweep would record the guard working as if the server had died — the two outcomes the curve exists to tell apart, collapsed into one.
+
+The sweep catches HTTPError first and the socket-level family second, and the parametrised tolerance test covers all three shapes (500 refusal, RemoteDisconnected, connection refused) so the ordering cannot silently regress.
+
+Verified against a real socket as well as the fakes: running the script against http://127.0.0.1:1 produces a complete record, provenance intact, with warm-up and both sizes carrying status null and the genuine URLError text — not a traceback. The fakes prove the sweep handles the exception types the test constructs; only the real socket proves those are the types urllib actually raises.
+
+<!-- fr:journal kind=discovery scope=plan id=5a57633eb9c9 created=2026-09-11T11:45:27 phase=2 -->
+### 5a57633eb9c9 · discovery · Padding vocabulary is derived from the filler text, not authored — and the discretion scan is why (phase 2)
+
+--rerank-words pads each passage to an exact word count. The padding had to come from somewhere, and writing 180 words of plausible filler prose is exactly the thing scripts/tests/test_third_party_discretion.py scans this script to prevent. So _FILLER_VOCABULARY is DERIVED at import from the sentence template plus the existing topic list, and a test asserts the padded word set is a subset of the unpadded one — the property, not a promise.
+
+Two details found while making that test true. The word note was in the pool but appears in the filler only in the rotation suffix (note N), which shows up at offsets past 20, so it is not in the base sample; dropped from the pool rather than widened in the test. And a topic's final word only ever appears comma-attached in the sentence (about basic bicycle maintenance, written as...), so a bare maintenance in the padding read as a new word; the test now strips punctuation on both sides, with the reason written beside it. That was a correction to how the test expressed the property, not a weakening of it.
+
+generate_filler_passages REFUSES a word count below the base sentence instead of truncating. Truncating would either cut the topic anchor the degeneracy check depends on, or record a word count that was never sent.
+
+Passage length is recorded per size MEASURED from the bodies actually built, not echoed back from the flag, so a padding bug surfaces in the record rather than being papered over by it.
+
+<!-- fr:journal kind=finding scope=plan id=5866844fd3d1 created=2026-09-11T11:45:40 phase=2 state=open -->
+### 5866844fd3d1 · finding [open] · Sweep mode replaces the timed benchmark and exits 0 whatever the curve says — two deliberate choices phase 3 must know (phase 2)
+
+Neither is a defect; both would be surprises if met for the first time while driving a live OOM-kill.
+
+1. --rerank-sweep REPLACES benchmark mode. main() runs the sweep, writes the record and returns before _run_rerank_benchmark or _run_embeddings_benchmark. Running a 30-iteration embeddings loop straight after deliberately killing the server would time a restarting pod and report it as embedding latency. Consequence for phase 3: a sweep record carries no embeddings or latency-percentile section at all, and a before/after comparison against the parent spec's numbers needs a separate benchmark-mode run.
+
+2. Sweep mode exits 0 even when every size fails. A refused batch is the result, not an error. The spec's rule that a sweep in which N+1 SUCCEEDS is a failed run is a judgement against the curve, and N does not exist yet — phase 3 is what derives it. Encoding a pass/fail rule now would be guessing at the number this phase exists to make measurable. Phase 3 must read the curve rather than trust the exit code.
+
+Left open because it is a handoff to phase 3, not a defect to fix; close it once the live sweep has been driven and the curve read.
+
+Also worth carrying: --rerank-warmup defaults to 3, so a sweep with no explicit flag sends three extra calls at the smallest size before the curve starts.
