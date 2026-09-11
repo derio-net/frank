@@ -503,3 +503,194 @@ def test_actions_are_pinned_to_commit_shas():
             f"{uses!r} is not pinned to a commit SHA "
             "(see .github/workflows/repo-tripwires.yml for the `sha # vX.Y.Z` convention)"
         )
+
+
+# ── the rerank batch guard ships INSIDE the model image ──────────────────
+#
+# Contract source of truth for this section:
+# docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+#
+# `export_model.py`'s `rerank_graph_ov_template` emits exactly three fields
+# into the rerank node's options — `models_path`, `plugin_config`,
+# `target_device` — so upstream's `max_allowed_chunks` keeps its proto default
+# of 10000 documents, four orders of magnitude above what this container's
+# memory limit can serve. The exporter is fetched from a pinned ref and is not
+# forked, so the export stage rewrites each emitted rerank `graph.pbtxt` with
+# `inject_rerank_guard.py` instead.
+#
+# The rewrite is then RE-READ by the build. That is the point of this section:
+# a rewrite which matched nothing publishes a model image with the guard
+# absent, and CI, ArgoCD, the pod and the `.seed-rev` marker would all still
+# agree that it shipped.
+
+GUARD_INJECTOR = "inject_rerank_guard.py"
+
+# Measured against the live server, not chosen — see the spec's "The numbers".
+MAX_ALLOWED_CHUNKS = "64"
+MAX_POSITION_EMBEDDINGS = "640"
+
+# The rev that carries the guard. Pinned as a VALUE here;
+# test_models_rev_moves_when_the_dockerfile_changes already enforces the
+# discipline of moving it, so re-asserting that would say nothing new.
+MODELS_REV = "2"
+
+GUARD_FIELDS = ("max_allowed_chunks", "max_position_embeddings")
+
+
+def _instructions(body: str) -> list[str]:
+    """Dockerfile instructions, with `\\` line continuations folded into one."""
+    out: list[str] = []
+    current: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not current and (not stripped or stripped.startswith("#")):
+            continue
+        current.append(line)
+        if not stripped.endswith("\\"):
+            out.append("\n".join(current))
+            current = []
+    if current:
+        out.append("\n".join(current))
+    return out
+
+
+def _export_stage_body(text: str) -> str:
+    for from_line, body in _stages(text):
+        if re.search(r"\bAS\s+export\b", from_line, re.IGNORECASE):
+            return body
+    raise AssertionError("Dockerfile declares no stage named `export`")
+
+
+def _guard_instruction(text: str) -> str:
+    """The RUN instruction that rewrites the exported rerank graphs."""
+    for instruction in _instructions(_export_stage_body(text)):
+        if instruction.lstrip().startswith("RUN") and GUARD_INJECTOR in instruction:
+            return instruction
+    raise AssertionError(
+        f"the export stage must RUN {GUARD_INJECTOR} over the exported rerank "
+        "graphs — without it the servable keeps upstream's 10000-document "
+        "default and one oversized call takes the whole server down"
+    )
+
+
+def _resolve_guard_flag(text: str, flag: str) -> str:
+    """Value passed for `flag`, following one level of `ARG` indirection."""
+    instruction = _guard_instruction(text)
+    match = re.search(rf'{re.escape(flag)}[=\s]+"?\$?\{{?([A-Za-z0-9_]+)\}}?"?', instruction)
+    assert match, f"{flag} is not passed to {GUARD_INJECTOR}: {instruction!r}"
+    value = match.group(1)
+    if value.isdigit():
+        return value
+    default = re.search(rf"^\s*ARG\s+{re.escape(value)}=(\S+)", text, re.MULTILINE)
+    assert default, f"{flag} is given as ${value}, but no `ARG {value}=` default exists"
+    return default.group(1).strip('"')
+
+
+def test_export_stage_copies_the_guard_injector():
+    text = _dockerfile_text()
+    export_body = _export_stage_body(text)
+    assert re.search(rf"^\s*COPY\s+(?!--from=)[^\n]*{re.escape(GUARD_INJECTOR)}", export_body, re.M), (
+        f"the export stage must COPY {GUARD_INJECTOR} from the build context "
+        "(the build context is apps/ovms-retrieval/docker, where it lives)"
+    )
+    _final_from, final_body = _stages(text)[-1]
+    assert GUARD_INJECTOR not in final_body, (
+        f"{GUARD_INJECTOR} is build tooling — it rewrites graphs during export "
+        "and has no business in the shipped model-only image"
+    )
+
+
+def test_guard_is_injected_into_both_exported_repositories():
+    """GPU and CPU, not just the served one.
+
+    `/out/cpu` is the benchmark's control arm, and a control arm that is
+    guarded differently from the arm it controls is not a like-for-like
+    comparison — it would silently measure the guard instead of the device.
+    """
+    instruction = _guard_instruction(_dockerfile_text())
+    for repository in ("/out/gpu", "/out/cpu"):
+        assert repository in instruction, (
+            f"{repository} is not rewritten: {instruction!r}"
+        )
+    assert "graph.pbtxt" in instruction, "the guard is written into graph.pbtxt"
+    assert "RERANK_MODEL_NAME" in instruction, (
+        "the rewritten path must be derived from ${RERANK_MODEL_NAME}, not a "
+        "second hand-written copy of the model name"
+    )
+
+
+def test_guard_injection_runs_after_the_exports():
+    """Order is load-bearing: `export_model.py` writes the file being rewritten."""
+    instructions = _instructions(_export_stage_body(_dockerfile_text()))
+    exports = [i for i, ins in enumerate(instructions) if "export_model.py rerank_ov" in ins]
+    guards = [i for i, ins in enumerate(instructions) if GUARD_INJECTOR in ins and ins.lstrip().startswith("RUN")]
+    assert exports and guards, (exports, guards)
+    assert min(guards) > max(exports), (
+        "the guard must be injected AFTER the last export_model.py invocation — "
+        "an earlier rewrite is overwritten by the export that follows it"
+    )
+
+
+def test_guard_ships_the_pair_measured_against_the_live_server():
+    text = _dockerfile_text()
+    assert _resolve_guard_flag(text, "--max-allowed-chunks") == MAX_ALLOWED_CHUNKS
+    assert _resolve_guard_flag(text, "--max-position-embeddings") == MAX_POSITION_EMBEDDINGS
+
+
+def test_the_build_re_reads_the_graphs_it_rewrote():
+    """The build must not take the rewrite on trust.
+
+    `inject_rerank_guard.py` raises on every shape it does not understand, so
+    this is belt and braces — but the failure it backstops is the one with no
+    other witness. A graph that reaches the registry without both fields is
+    indistinguishable, from every downstream signal, from one that has them.
+    """
+    instruction = _guard_instruction(_dockerfile_text())
+    verification = instruction[instruction.rindex(GUARD_INJECTOR) :]
+    for field in GUARD_FIELDS:
+        assert field in verification, (
+            f"nothing in the build re-reads {field} out of the emitted graph "
+            f"after the rewrite: {instruction!r}"
+        )
+    for repository in ("/out/gpu", "/out/cpu"):
+        assert repository in verification, (
+            f"the verification pass must cover {repository} too"
+        )
+    assert re.search(r"\bexit\s+1\b", verification), (
+        "the verification must FAIL the build when a field is absent — a "
+        "report that is only printed is a report nobody reads"
+    )
+
+
+def test_the_dockerfile_says_why_the_exporter_cannot_emit_these_fields():
+    """Otherwise a future reader `simplifies` this into a flag that does not exist.
+
+    The issue behind this work proposed `--max_doc_length` as the batch cap. It
+    is not one: it never reaches graph.pbtxt at all, it sets the exported
+    tokenizer's `model_max_length`. Both that and the template's three-field
+    output need to be written down beside the rewrite.
+    """
+    body = _export_stage_body(_dockerfile_text())
+    comments = "\n".join(line for line in body.splitlines() if line.strip().startswith("#"))
+    assert "rerank_graph_ov_template" in comments, (
+        "the export stage must name the upstream template whose output is being "
+        "rewritten, so the rewrite is traceable to what it compensates for"
+    )
+    assert "max_doc_length" in comments, (
+        "the export stage must record that --max_doc_length is NOT this knob — "
+        "it sets the tokenizer's model_max_length and never reaches the graph"
+    )
+
+
+def test_models_rev_is_the_rev_that_carries_the_guard():
+    text = _dockerfile_text()
+    arg_default = re.search(r"^\s*ARG\s+MODELS_REV=(\S+)", text, re.M)
+    assert arg_default, "Dockerfile must give ARG MODELS_REV an explicit default"
+    assert arg_default.group(1).strip('"') == MODELS_REV, (
+        f"Dockerfile ARG MODELS_REV must be {MODELS_REV} — the guard changes the "
+        "emitted graphs, so the published tag and the Deployment pin must move"
+    )
+    assert str(_workflow_doc()["env"]["MODELS_REV"]) == MODELS_REV, (
+        f"workflow env MODELS_REV must be {MODELS_REV} too — it is the value that "
+        "actually tags the published image"
+    )
