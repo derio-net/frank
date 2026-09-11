@@ -264,6 +264,25 @@ refusal), recording per size: latency, HTTP status, and response body on
 failure. `N+1` is expected to be refused, and a sweep in which it *succeeds*
 is a failed run, not a lucky one.
 
+Two constraints the current harness imposes, found in review and load-bearing
+for whether the sweep measures the right thing at all:
+
+- **`generate_filler_passages` emits a fixed ~20-word passage.** The
+  reproduction in the issue used **200-word** documents, and the mechanism is
+  B × T — so a sweep at the harness's present length would send roughly a tenth
+  of the tokens per document and could easily fail to reproduce the OOM at any
+  batch size, while looking like a clean run. The sweep needs a passage-length
+  knob (`--rerank-words`, padding the existing filler rather than inventing new
+  prose), and the recorded curve must carry the length it used. A number quoted
+  without it is meaningless.
+- **`_post_json` raises on anything but 2xx.** It wraps
+  `urllib.request.urlopen`, so a refusal surfaces as `HTTPError` and a killed
+  server as `URLError` / `RemoteDisconnected`. The sweep must catch both and
+  record status and body as *data* — the refusal is the result it exists to
+  capture — rather than aborting the run at the first failure. It must also not
+  warm up at a size it is about to prove fatal: warm-up belongs at the smallest
+  size only.
+
 This is what converts the issue's closing offer — "I can re-run the
 client-side measurement and report the numbers" — into something reproducible
 rather than a one-off.
@@ -343,9 +362,12 @@ cost very different amounts of memory.
 
 **"Split the two servables into separate Deployments."** That would contain the
 blast radius, so that a rerank OOM stops evicting embeddings. It is a real
-option and it is the parent spec's central decision to reverse — two
-Deployments means two DRA claims on one iGPU, which the parent spec examined
-and rejected. Out of scope for a fix; worth revisiting if the guard proves
+option, and reversing the parent spec's central decision ("one Deployment, one
+pod, one ResourceClaim, one iGPU — rather than two of everything"). Note that
+spec argued from *simplicity*; it did not establish whether two ResourceClaims
+can hold one iGPU device at all, which under DRA is not a given. So this is
+both out of proportion to a fix and resting on an unverified premise. Worth
+revisiting — with that premise checked first — if the guard proves
 insufficient.
 
 **"Set only `max_allowed_chunks` and leave sequence length alone."** Simplest
@@ -384,3 +406,11 @@ client-side measurement.
 6. Docs: gotchas one-liner, per-topic prose in
    `docs/runbooks/frank-gotchas/igpu-dra.md`, and a retroactive correction to
    the building/operating posts for layer 11 per the fix/extension workflow.
+7. **Append every artefact this work adds to `SCANNED_PATHS` in
+   `scripts/tests/test_third_party_discretion.py`.** That file is the
+   discretion control surface and it scans *only* the paths named in that list;
+   it records that this exact omission already happened once, on frank#759,
+   producing a green run that said nothing about the new branch's artefacts.
+   The spec, its journal, the plan and its journal, and any new or changed
+   script all belong there. (The checks were run ad hoc against this spec and
+   its journal during review and pass; that is not a substitute for the list.)

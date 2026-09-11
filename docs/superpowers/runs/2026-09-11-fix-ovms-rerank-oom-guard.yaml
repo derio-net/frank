@@ -2,13 +2,16 @@ run: 2026-09-11-fix-ovms-rerank-oom-guard
 workflow: fr-goal@1
 branch: fix/ovms-rerank-oom-guard
 started: '2026-09-11T08:07:59+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-09-11T08:08:07+00:00'
+    state: done
+    at: '2026-09-11T08:46:07+00:00'
+    emitted:
+      spec: docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-09-11T08:46:08+00:00'
   plan:
     state: pending
   plan-review:
