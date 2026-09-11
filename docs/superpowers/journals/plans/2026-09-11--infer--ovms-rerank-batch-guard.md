@@ -224,3 +224,28 @@ P4.T1.S3 reads run it over all four emitted graphs after the export_model.py inv
 So the correct reading of all four is one rerank graph per exported repository, which is what the spec itself says: add two fields in both exported repositories, /out/gpu and /out/cpu. The Dockerfile loops over the two repository roots and rewrites RERANK_MODEL_NAME/graph.pbtxt under each. The path is derived from the existing ARG rather than re-spelling the model name, so a model rename cannot leave the guard pointing at a file that no longer exists.
 
 Recording it because the phrase all four graphs reads like an instruction to widen the loop, and widening it turns a working build into a build that cannot succeed.
+
+<!-- fr:journal kind=finding scope=plan id=p4-build-job-unobserved created=2026-09-11T14:02:48 phase=4 state=open -->
+### p4-build-job-unobserved · finding [open] · P4.T1.S4 is half done: the suite is green, the real build has not been run (phase 4)
+
+uv run --frozen pytest scripts/tests -q gives 848 passed, 1 xfailed on the branch as committed (840 passed, 1 xfailed before this phase; eight new tests). That is the local half.
+
+The other half — confirm the Build OVMS Retrieval Models job is green — was deliberately not performed, and cannot be from here. The phase executor never pushes and never opens a PR. That job runs on pull_request and on workflow_dispatch, and workflow_dispatch needs a ref that exists on the remote, so an unpushed branch has neither route. Same shape as the phase-1 carry-over, and it should be closed the same way: push, then either read the PR's job or run gh workflow run build-ovms-retrieval-models.yml --ref fix/ovms-rerank-oom-guard.
+
+This one matters more than phase 1's did, and it should block phase 5 rather than trail it. Everything asserted in this phase is SHAPE: that the Dockerfile copies the injector, loops over both repositories, passes 64 and 640, and greps the result. No test here has ever seen export_model.py emit a graph. Two specific things only the real build can answer:
+
+- whether a freshly exported graph.pbtxt from v2026.2.1 still has the shape the injector understands. The injector is exercised against a capture taken off the running pod, which came from the SAME pinned exporter ref, so this is very likely fine — but likely is not observed, and the injector's whole design is to refuse rather than guess, which means a template change fails the build rather than shipping quietly.
+- whether the export stage still resolves at all. The stage fetches export_model.py and requirements.txt from raw.githubusercontent.com at build time and pip-installs from PyPI, so it can break for reasons entirely unrelated to this change.
+
+The good news is that the pull_request trigger makes this cheap: this workflow is the only build-*.yml in the repo that runs on PRs, the path filter covers apps/ovms-retrieval/docker/**, and a PR build does not publish. So opening the PR proves the export toolchain and the injection against real exported graphs without pushing anything to the registry. Confirm it before phase 5, as the step says.
+
+<!-- fr:journal kind=discovery scope=plan id=nrb-note-p4t1 created=2026-09-11T14:03:04 phase=4 -->
+### nrb-note-p4t1 · discovery · The refactor step had real work: the mechanism sentence was wrong in the safe direction (phase 4)
+
+P4.T1.S5 asked for the new Dockerfile block to be re-read as prose. It needed it.
+
+The green-phase comment said a single long passage costs as much as a whole batch of short ones. That is a fair description of a LINEAR cost in tokens and it is not what phase 3 measured: attention scores are T x T, the fitted exponent on document length is about 1.78, and doubling the length more than tripled the memory. So a long passage costs MORE than a batch of short ones, and the sentence understated the very fact that makes max_position_embeddings the primary control rather than a secondary precaution behind the document cap. Written as it was, a future reader could reasonably conclude that capping documents alone is sufficient — the exact wrong conclusion the spec spends a section refusing.
+
+Also added: a one-line meaning beside each ARG. Neither is guessable from the identifier — max_allowed_chunks is checked before a single token is allocated, max_position_embeddings is what bounds the padded tensor width — and a number in a build file with no semantics is a number the next person cannot safely change.
+
+Recording this because no-refactor-because was the expected shape here and would have been wrong.

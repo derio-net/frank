@@ -64,14 +64,19 @@ state:
       ticked_at: '2026-09-11T11:55:54+00:00'
       note: null
     P4.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T12:02:26+00:00'
+      note: 'Full suite run and green (848 passed, 1 xfailed). The push and the CI
+        observation are the orchestrator''s: a phase executor never pushes and never
+        opens a PR, and the build job this step wants to read only runs on a pull_request
+        or a workflow_dispatch against a PUSHED ref. Recorded ''-'' rather than ''x''
+        because ticking it would claim a CI observation nobody has made. See journal
+        entry p4-build-job-unobserved.'
     P4.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:02:04+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-09-11T12:03:31+00:00'
     note: null
     observed_prs: []
