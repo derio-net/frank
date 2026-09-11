@@ -304,6 +304,52 @@ Procedure, from an in-cluster pod, before any manifest change:
 4. Repeat the sweep at 10Gi to find where the 50-document call actually peaks —
    the 6Gi arm can only report "hit the ceiling", never the true requirement.
 
+### Measured, 2026-09-11, at the current 6Gi limit
+
+Single calls, each read from `/sys/fs/cgroup/memory.peak` inside the `ovms`
+container (vmagent scrapes at 20s; these transients last 0.1–2.5s, so metrics
+cannot see them).
+
+| documents | tokens/doc | peak | result |
+|---|---|---|---|
+| 64 | 332 | 3.50 GiB (58%) | 200 |
+| 50 | 511 | 4.38 GiB (73%) | 200 |
+| 64 | 415 | 4.81 GiB (80%) | 200 |
+| 64 | 511 | — | **killed** |
+| 50 | 664 | — | **killed** |
+| 40 | 664 | — | **killed** |
+
+Three things this settles.
+
+**T dominates.** At 10 documents, T≈329 costs 0.285 GiB, T≈667 costs 0.947,
+T≈1329 costs 3.220 — doubling length more than triples the cost, an exponent
+near 1.7. That is attention: the scores tensor is `B × heads × T × T`, and
+this is XLM-RoBERTa-large (24 layers, 16 heads). At T≈664 even **forty** rows
+is fatal. So `max_position_embeddings` is the primary control and
+`max_allowed_chunks` the secondary one — the reverse of how the issue framed
+it.
+
+**The report reproduces, at its own token density.** A first sweep at 200
+words had 50 documents succeed, where the issue reports 50 dying. Measured
+against the served tokenizer: this harness's padded filler is 1.66 tokens per
+word, random dictionary words are 3.02. Their documents were ~1.8× denser at
+the same word count, which at a 1.7 exponent is ~3× the length-dependent
+memory. Their 50-document call sits at T≈605, between two measured kills.
+Words are not tokens, and the mechanism is tokens.
+
+**Memory is never released.** `memory.current` after a large call equals
+`memory.peak` and stays there — idle 2.21 GiB, 4.90 GiB after a 50-document
+call. The resident floor ratchets to the high-water of the largest call
+served, which explains the issue's restart accumulation over a week of light
+use far better than any single request does. It also means an ascending
+sweep's per-size deltas are **not** per-call costs; every clean number above
+comes from a single call on a freshly restarted container.
+
+**Do not extrapolate.** A power-law fit over three points over-predicted one
+independent check by 28% and then predicted ~4.9 GiB — comfortably inside
+6 GiB — for a configuration that killed the server. Measure the pair you
+intend to ship, at the limit you intend to ship it with.
+
 The numbers derived from that curve:
 
 - **`max_allowed_chunks` (`N`)** — headroom above 50, set from the 10Gi curve
