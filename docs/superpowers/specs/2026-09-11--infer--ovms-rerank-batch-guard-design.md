@@ -438,6 +438,30 @@ change, no scoring impact. Rejected on the mechanism: the tensor is B × T, T
 comes from the longest document, and the model context is ~8194 — so a
 document-only cap leaves a guard that one long passage walks straight past.
 
+## Before merging — publish the image first
+
+**Merging this without publishing `:2` first takes the retrieval tier down for
+the length of a model build.** On merge, ArgoCD polls every ~3 minutes and
+syncs the Deployment pinned to `ghcr.io/derio-net/ovms-retrieval-models:2`,
+while the `push: main` build is still downloading and int8-quantizing two
+models. The Deployment is `strategy: Recreate`, so the running pod is deleted
+and its replacement sits in `ImagePullBackOff` on the seed initContainer until
+the image exists.
+
+The build job publishes on anything that is not a `pull_request`
+(`push: ${{ github.event_name != 'pull_request' }}`), so a
+**`workflow_dispatch` on the branch publishes `:2` ahead of the merge**:
+
+```bash
+gh workflow run build-ovms-retrieval-models.yml --ref fix/ovms-rerank-oom-guard
+```
+
+Wait for it to succeed, confirm the tag exists, and only then merge. The bytes
+are identical to what `push: main` would produce from the same ref, and any
+later change to the Dockerfile moves the rev again (enforced), so there is no
+drift risk. `ovms-retrieval-models` is already a public package, so the
+first-push-is-private trap does not apply.
+
 ## Test Plan (post-merge, operator-driven)
 
 | # | Action | Expected |
