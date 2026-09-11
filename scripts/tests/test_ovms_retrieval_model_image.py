@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -410,9 +411,18 @@ def test_rev_drift_rule_ignores_comment_and_rev_only_edits():
         "a comment rewording is not a model-content change — demanding a rev "
         "bump for it would train people to bump reflexively"
     )
-    rev_only = base.replace("ARG MODELS_REV=1", "ARG MODELS_REV=2")
+    # Read the current rev rather than naming it. This mutation uses the LIVE
+    # Dockerfile as its fixture, and the one value in that file guaranteed to
+    # move is the rev — so a hard-coded `ARG MODELS_REV=1` makes the
+    # replacement a silent no-op the first time the gate above does its job,
+    # and the test then fails on exactly the change it exists to bless.
+    current = re.search(r"^\s*ARG\s+MODELS_REV=(\S+)", base, re.M)
+    assert current, "Dockerfile must declare ARG MODELS_REV"
+    old_rev = current.group(1).strip('"')
+    new_rev = str(int(old_rev) + 1)
+    rev_only = base.replace(f"ARG MODELS_REV={old_rev}", f"ARG MODELS_REV={new_rev}")
     assert rev_only != base
-    assert not rev_drift_violation(base, rev_only, "1", "2"), (
+    assert not rev_drift_violation(base, rev_only, old_rev, new_rev), (
         "the ARG default is the rev itself, not content it should count as changing"
     )
 
@@ -694,3 +704,75 @@ def test_models_rev_is_the_rev_that_carries_the_guard():
         f"workflow env MODELS_REV must be {MODELS_REV} too — it is the value that "
         "actually tags the published image"
     )
+
+
+# The graph.pbtxt this pod was actually serving before the guard existed —
+# captured verbatim, never hand-written (see the plan journal entry on its
+# missing trailing newline, which is upstream's template and not a capture
+# artefact).
+LIVE_RERANK_GRAPH = REPO / "scripts/tests/fixtures/ovms-retrieval/rerank-graph.live.pbtxt"
+INJECTOR = REPO / "apps/ovms-retrieval/docker" / GUARD_INJECTOR
+
+
+def _expand_build_args(text: str, value: str) -> str:
+    """Substitute `${NAME}` with the Dockerfile's `ARG NAME=` default."""
+    def repl(match: re.Match[str]) -> str:
+        default = re.search(rf"^\s*ARG\s+{re.escape(match.group(1))}=(\S+)", text, re.M)
+        assert default, f"${match.group(1)} has no ARG default"
+        return default.group(1).strip('"')
+
+    return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", repl, value)
+
+
+def _guard_verification_patterns(text: str) -> list[str]:
+    patterns = re.findall(r'grep\s+-qE\s+"([^"]+)"', _guard_instruction(text))
+    assert patterns, (
+        "the guard's verification pass must use `grep -qE \"<pattern>\"` so the "
+        "pattern it asserts on is readable from the Dockerfile"
+    )
+    return [_expand_build_args(text, p) for p in patterns]
+
+
+def test_the_builds_verification_matches_what_the_injector_writes(tmp_path):
+    """The two halves of the guard are written in different languages.
+
+    `inject_rerank_guard.py` decides the emitted spelling — indentation,
+    the space after the colon, which of the two fields carries the trailing
+    comma — and the Dockerfile decides what to grep for. Nothing else compares
+    them, so a change to either side alone gives a build whose verification
+    can never match, or (worse, and the reason this exists) one whose patterns
+    are loose enough to pass over a graph the calculator will not read.
+
+    Run against the live capture, with the real `grep`, rather than a
+    hand-written expected file: the emitted bytes have no trailing newline and
+    a whole-file comparison would fail on a byte nobody added.
+    """
+    text = _dockerfile_text()
+    graph = tmp_path / "graph.pbtxt"
+    graph.write_text(LIVE_RERANK_GRAPH.read_text())
+
+    injected = subprocess.run(
+        [
+            sys.executable,
+            str(INJECTOR),
+            str(graph),
+            "--max-allowed-chunks",
+            _resolve_guard_flag(text, "--max-allowed-chunks"),
+            "--max-position-embeddings",
+            _resolve_guard_flag(text, "--max-position-embeddings"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert injected.returncode == 0, injected.stderr
+
+    patterns = _guard_verification_patterns(text)
+    assert len(patterns) == len(GUARD_FIELDS), (
+        f"expected one verification pattern per guard field, got {patterns}"
+    )
+    for pattern in patterns:
+        found = subprocess.run(["grep", "-qE", pattern, str(graph)])
+        assert found.returncode == 0, (
+            f"the build greps for {pattern!r}, which matches nothing in the "
+            f"graph the injector produced:\n{graph.read_text()}"
+        )

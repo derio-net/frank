@@ -52,12 +52,12 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:48:46+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:48:49+00:00'
       note: null
     P4.T1.S3:
       state: ' '

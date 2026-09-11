@@ -75,7 +75,7 @@ spec:
         # image. The runtime image stays stock upstream — this is the only
         # place Frank-built bytes enter the pod.
         - name: seed-models
-          image: ghcr.io/derio-net/ovms-retrieval-models:1
+          image: ghcr.io/derio-net/ovms-retrieval-models:2
           # IfNotPresent is safe because the tag is the immutable model rev:
           # new contents get a new rev (and therefore a genuine pull), while a
           # restart reuses the node cache instead of re-pulling GBs of weights.
@@ -86,7 +86,7 @@ spec:
             # mean the marker claims a rev the bytes on the volume are not.
             # Guarded by test_model_image_tag_matches_the_rev_ci_publishes.
             - name: MODELS_REV
-              value: "1"
+              value: "2"
           command: ["/bin/sh", "-eu", "-c"]
           args:
             # VERSION-GATED, not seed-if-absent. Frank already documents the
