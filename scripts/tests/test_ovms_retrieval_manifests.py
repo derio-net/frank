@@ -67,6 +67,25 @@ MODEL_IMAGE_REPO = "ghcr.io/derio-net/ovms-retrieval-models"
 EMBEDDINGS_MODEL_NAME = "bge-m3"
 RERANK_MODEL_NAME = "bge-reranker-v2-m3"
 
+# The `ovms` container's memory envelope. The request is what the scheduler
+# charges mini-1; the limit is the backstop the workload must not reach.
+# Raised 6Gi -> 10Gi by 2026-09-11--infer--ovms-rerank-batch-guard; the
+# request deliberately did NOT move, so the scheduler's view is unchanged.
+OVMS_MEMORY_REQUEST = "2Gi"
+OVMS_MEMORY_LIMIT = "10Gi"
+OVMS_MEMORY_LIMIT_BEFORE = "6Gi"
+
+# Predicted worst case under the bounds the exported graph now carries
+# (max_allowed_chunks 64, max_position_embeddings 640): 6.36 GiB, which is 64%
+# of the new limit and 106% of the old one. Measured on a freshly restarted
+# container, 2026-09-11; see the design spec's "The numbers".
+MEASURED_WORST_CASE_GIB = 6.36
+
+# The rev this plan took the model image to. Asserted as a FLOOR, never as an
+# equality — see the note on test_model_rev_is_the_same_value_in_all_three
+# places. The model rev exists in order to move.
+MODELS_REV_FLOOR = 2
+
 MODELS_MOUNT = "/models"
 SEED_SOURCE = "/models-src/gpu"
 CPU_SEED_SOURCE = "/models-src/cpu"
@@ -134,6 +153,42 @@ def _seed_script_live() -> str:
     return "\n".join(
         line for line in _seed_script().splitlines() if not line.lstrip().startswith("#")
     )
+
+
+def _ovms_resources_comment() -> str:
+    """The comment prose attached to the `ovms` container's `resources:` block.
+
+    Deliberately NARROW. Scanning the whole Deployment would let a future edit
+    satisfy the provenance test with a sentence at the other end of the file,
+    which is provenance nobody reading `limits: memory: 10Gi` will ever see.
+    Collected from two places only: the contiguous comment run immediately
+    above `resources:`, and every comment inside the block.
+    """
+    lines = (MANIFESTS / "deployment.yaml").read_text().splitlines()
+
+    start = next(i for i, ln in enumerate(lines) if ln.strip() == "- name: ovms")
+    key_indent = len(lines[start]) - len(lines[start].lstrip()) + 2
+    res = next(i for i in range(start, len(lines)) if lines[i].strip() == "resources:")
+
+    above: list[str] = []
+    i = res - 1
+    while i > start and lines[i].strip().startswith("#"):
+        above.append(lines[i].strip())
+        i -= 1
+    above.reverse()
+
+    inside: list[str] = []
+    for ln in lines[res + 1 :]:
+        stripped = ln.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            inside.append(stripped)
+            continue
+        if len(ln) - len(ln.lstrip()) <= key_indent:
+            break
+
+    return "\n".join(ln.lstrip("#").strip() for ln in above + inside)
 
 
 def _application() -> dict:
@@ -395,12 +450,163 @@ def test_readiness_is_model_level_never_the_server_health_endpoint():
 
 
 def test_resources_declare_both_requests_and_limits():
-    """A limit without a request lets the scheduler over-commit an etcd member."""
+    """A limit without a request lets the scheduler over-commit an etcd member.
+
+    The two memory halves move independently and only one of them moved. The
+    LIMIT went 6Gi -> 10Gi so the guard's own worst case cannot itself OOM;
+    the REQUEST stayed at 2Gi so the scheduler's view of mini-1 — an etcd
+    member — is exactly what it was before. Raising the request as well would
+    quietly re-price the control-plane node for a ceiling nothing is expected
+    to reach.
+    """
     res = _ovms()["resources"]
     assert _quantity(res["requests"]["cpu"]) == "500m", res
-    assert _quantity(res["requests"]["memory"]) == "2Gi", res
+    assert _quantity(res["requests"]["memory"]) == OVMS_MEMORY_REQUEST, (
+        f"requests.memory is {res['requests']['memory']!r}; it must stay at "
+        f"{OVMS_MEMORY_REQUEST} — only the ceiling moved, not what the "
+        "scheduler charges an etcd member"
+    )
     assert _quantity(res["limits"]["cpu"]) == "2", res
-    assert _quantity(res["limits"]["memory"]) == "6Gi", res
+    assert _quantity(res["limits"]["memory"]) == OVMS_MEMORY_LIMIT, (
+        f"limits.memory is {res['limits']['memory']!r}, want "
+        f"{OVMS_MEMORY_LIMIT}. The bounded graph's predicted worst case is "
+        f"{MEASURED_WORST_CASE_GIB} GiB, which is 106% of the previous "
+        f"{OVMS_MEMORY_LIMIT_BEFORE} — a guard whose own worst case OOMs is "
+        "decorative"
+    )
+
+
+def test_model_rev_is_the_same_value_in_all_three_places():
+    """Seed image tag, seed `MODELS_REV` env and the workflow rev are ONE value.
+
+    Each pair is already guarded separately (tag vs workflow rev, env vs tag),
+    which makes the triangle true by transitivity — but only while both of
+    those tests survive. Stating it once, directly, means deleting either one
+    does not silently unpin the other side.
+
+    The floor is a FLOOR, not an equality, and that is deliberate. This file
+    already shipped one assertion that hard-coded the rev it expected and
+    therefore failed on the first legitimate bump — a fixture that disarms
+    itself the first time the thing it guards is used. `== 2` here would be
+    the same shape: correct for exactly one value of a field whose entire
+    purpose is to change. What must never happen is the rev going BACKWARDS,
+    because a lower rev is a marker claiming bytes the volume is not.
+    """
+    workflow = yaml.safe_load(WORKFLOW.read_text())
+    published_rev = str(workflow["env"]["MODELS_REV"])
+    deployed_tag = _seed()["image"].rsplit(":", 1)[1]
+    env = {e["name"]: e.get("value") for e in _seed().get("env", [])}
+
+    assert deployed_tag == published_rev == env.get("MODELS_REV"), (
+        "the model rev must be one value in three places — seed image tag "
+        f"{deployed_tag!r}, workflow env {published_rev!r}, container env "
+        f"{env.get('MODELS_REV')!r}"
+    )
+    assert int(deployed_tag) >= MODELS_REV_FLOOR, (
+        f"model rev is {deployed_tag}, below the {MODELS_REV_FLOOR} that "
+        "carries the exported rerank guard. Reverting the rev means the "
+        "Deployment pins an image whose graph has no bound on batch size, "
+        "while the marker on the volume says it does"
+    )
+
+
+def test_the_raised_ceiling_carries_its_own_provenance():
+    """A number in a manifest with no provenance is one nobody can change.
+
+    `limits.memory: 10Gi` reverses the parent spec's posture on purpose — that
+    spec kept the ceiling small precisely BECAUSE mini-1 is an etcd member, so
+    a later reader who finds a bigger number and no reason has every incentive
+    to "restore" it. The comment beside it therefore has to carry the four
+    things that make the raise defensible, and this test is what keeps them
+    there:
+
+      * the mechanism — cost is near-quadratic in document length, so the
+        sequence bound is the primary control and not a precaution;
+      * the ratchet — memory is never returned after a call, so the resident
+        floor rises to the high-water of the largest call ever served. That,
+        not request size, is why the failure was intermittent;
+      * the measured worst case under the shipped bounds, against both the old
+        ceiling and the new one;
+      * that 10Gi was never itself measured, and which Test Plan row closes
+        that.
+
+    Scoped to the comments attached to the `resources:` block, not the file at
+    large: provenance three hundred lines away from the number is provenance
+    the next operator will not find.
+    """
+    prose = _ovms_resources_comment()
+    assert prose, "the ovms `resources:` block carries no explanatory comment at all"
+
+    def needs(pattern: str, why: str) -> None:
+        assert re.search(pattern, prose, re.I | re.S), (
+            f"{why}\n\n--- comment as written ---\n{prose}"
+        )
+
+    needs(
+        r"\betcd\b",
+        "the comment must name the posture it reverses: the parent spec kept "
+        "this ceiling small because mini-1 is an etcd member. Without that, "
+        "the raise reads as carelessness rather than a decision",
+    )
+    needs(
+        rf"\b{re.escape(OVMS_MEMORY_LIMIT_BEFORE)}\b.*\b{re.escape(OVMS_MEMORY_LIMIT)}\b"
+        rf"|\b{re.escape(OVMS_MEMORY_LIMIT)}\b.*\b{re.escape(OVMS_MEMORY_LIMIT_BEFORE)}\b",
+        f"the comment must state the move itself — {OVMS_MEMORY_LIMIT_BEFORE} "
+        f"to {OVMS_MEMORY_LIMIT} — so the reader knows what changed",
+    )
+    needs(
+        r"quadratic|T\s*[x×*]\s*T",
+        "the comment must give the MECHANISM: attention scores are T x T, so "
+        "cost is near-quadratic in document length and only linear in count. "
+        "A reader who thinks the cost is linear will conclude that capping "
+        "the document count alone is sufficient",
+    )
+    needs(
+        r"2\.21\s*GiB",
+        "the comment must give the measured IDLE floor (2.21 GiB) — it is one "
+        "half of the ratchet evidence",
+    )
+    needs(
+        r"4\.90\s*GiB",
+        "the comment must give the measured resident floor AFTER a large call "
+        "(4.90 GiB). Idle and post-call together are what show the memory is "
+        "never released",
+    )
+    needs(
+        r"ratchet|never released|not released|stays there|high-water",
+        "the comment must name the ratchet — the resident floor rising to the "
+        "high-water of the largest call ever served. That is why the failure "
+        "was intermittent, and it is the single fact the issue's own framing "
+        "got wrong",
+    )
+    needs(
+        rf"{re.escape(str(MEASURED_WORST_CASE_GIB))}\s*GiB",
+        f"the comment must give the predicted worst case ({MEASURED_WORST_CASE_GIB} "
+        "GiB) under the shipped bounds — that number, against the old ceiling, "
+        "IS the justification",
+    )
+    # The FIELD NAMES as well as the numbers. A bare "64 and 640" reads as
+    # arbitrary; naming the two graph fields is what lets the next reader find
+    # the knobs the ceiling was sized against.
+    needs(
+        r"max_allowed_chunks\D{0,40}64\b",
+        "the comment must name the document-count bound the ceiling was sized "
+        "against (max_allowed_chunks 64). Without the bounds the worst case "
+        "is unbounded and no ceiling is enough",
+    )
+    needs(
+        r"max_position_embeddings\D{0,40}640\b",
+        "the comment must name the per-chunk token bound (640). It is the "
+        "PRIMARY control, because cost is quadratic in that number and only "
+        "linear in the document count",
+    )
+    needs(
+        r"row\s*10",
+        f"the comment must say that {OVMS_MEMORY_LIMIT} was never measured at "
+        f"{OVMS_MEMORY_LIMIT} — the live patch was refused and the raise ships "
+        "through git — and point at the Test Plan row that closes it (row 10). "
+        "An unverified number that looks verified is worse than no number",
+    )
 
 
 def test_security_context_is_restricted_compliant_with_fsgroup():

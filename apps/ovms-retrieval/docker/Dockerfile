@@ -24,7 +24,7 @@
 # these contents change, so a Deployment pin is a deliberate bump, not a
 # `:latest` drift.
 
-ARG MODELS_REV=1
+ARG MODELS_REV=2
 
 # ── export stage ────────────────────────────────────────────────────────
 FROM python:3.12.13-slim-bookworm AS export
@@ -99,6 +99,62 @@ RUN mkdir -p /out/gpu /out/cpu \
         --source_model "${RERANK_MODEL}" --model_name "${RERANK_MODEL_NAME}" \
         --weight-format int8 --target_device CPU \
         --config_file_path /out/cpu/config.json --model_repository_path /out/cpu
+
+# ── bound the rerank batch ──────────────────────────────────────────────
+# Design: docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+#
+# A rerank call is served as ONE tensor, shaped batch x longest-document
+# tokens — every document in the request is padded up to the longest one. Cost
+# is therefore linear in the batch and, since attention scores are T x T, close
+# to quadratic in that length: measured on this deployment, doubling the
+# document length more than TRIPLED the memory. So a cap on document count
+# alone bounds nothing, and one long passage is enough to reach the container's
+# memory limit and take the process down — evicting the embeddings servable
+# that shares it, for every caller.
+#
+# Upstream already ships both bounds as RerankCalculatorOVOptions fields, but
+# export_model.py cannot emit them: its rerank_graph_ov_template writes exactly
+# models_path, plugin_config and target_device, so a freshly exported servable
+# runs with the proto default of 10000 documents. Nor is --max_doc_length the
+# knob it looks like — that flag never reaches graph.pbtxt at all, it sets the
+# exported tokenizer's model_max_length, a per-document truncation length. The
+# exporter is fetched from a pinned ref and deliberately not forked, so the
+# emitted graphs are rewritten here instead.
+#
+# The values below were measured against the live server, not chosen; the
+# spec's "The numbers" table carries the derivation. They live in the model
+# image by decision, so changing them costs a rebuild and a reseed — and, like
+# every other content change here, a MODELS_REV bump.
+# document-and-chunk cap, checked before a single token is allocated
+ARG RERANK_MAX_ALLOWED_CHUNKS=64
+# per-chunk token ceiling — this is what bounds T, the padded tensor width
+ARG RERANK_MAX_POSITION_EMBEDDINGS=640
+
+COPY inject_rerank_guard.py /export/inject_rerank_guard.py
+
+# Two passes over both repositories: rewrite, then read back what was written.
+# /out/cpu is rewritten too because it is the benchmark's control arm, and a
+# control guarded differently from the arm it controls measures the guard
+# rather than the device.
+#
+# The read-back is belt and braces — the injector refuses every graph shape it
+# does not understand — but it backstops the one failure with no other witness:
+# a graph that reaches the registry without the fields is indistinguishable, to
+# CI, to ArgoCD, to the pod and to the .seed-rev marker, from one that has them.
+RUN set -eu; \
+    for repository in /out/gpu /out/cpu; do \
+        python /export/inject_rerank_guard.py \
+            "${repository}/${RERANK_MODEL_NAME}/graph.pbtxt" \
+            --max-allowed-chunks "${RERANK_MAX_ALLOWED_CHUNKS}" \
+            --max-position-embeddings "${RERANK_MAX_POSITION_EMBEDDINGS}"; \
+    done; \
+    for repository in /out/gpu /out/cpu; do \
+        graph="${repository}/${RERANK_MODEL_NAME}/graph.pbtxt"; \
+        grep -qE "^[[:space:]]*max_allowed_chunks: ${RERANK_MAX_ALLOWED_CHUNKS},?$" "${graph}" \
+            || { echo "rerank guard absent from ${graph}: max_allowed_chunks" >&2; exit 1; }; \
+        grep -qE "^[[:space:]]*max_position_embeddings: ${RERANK_MAX_POSITION_EMBEDDINGS},?$" "${graph}" \
+            || { echo "rerank guard absent from ${graph}: max_position_embeddings" >&2; exit 1; }; \
+    done
 
 # ── final stage — model artifacts only, nothing else ───────────────────
 FROM busybox:1.38.0-uclibc

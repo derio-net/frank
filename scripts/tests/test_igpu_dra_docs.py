@@ -156,3 +156,199 @@ def test_igpu_dra_topic_file_exists():
         "capacity.memory=0, render-node-permissions, CDI-no-auto-inject and "
         "OVMS model-acquisition gotchas"
     )
+
+
+# --------------------------------------------------------------------------
+# frank#793 — the rerank batch guard must be documented where an operator
+# looking at an OOM-killed retrieval pod will actually find it.
+#
+# The failure this documents is not "a big request kills the server", which is
+# how the issue framed it and what a reader will arrive believing. Measurement
+# reversed that: cost is near-quadratic in document LENGTH and only linear in
+# document COUNT, and memory is never released, so the resident floor ratchets
+# to the high-water of the largest call the container has ever served. The
+# same request therefore succeeds on a fresh pod and dies later. A gotcha that
+# records only the cap values teaches the wrong model of the bug and leaves
+# the reader unable to explain why a restart fixes it.
+#
+# Every clause below is asserted on MECHANISM WORDS with alternations, not on
+# a sentence to copy: the point is that the document says the thing, in
+# whatever words its author chose, not that it matches prose written here.
+# --------------------------------------------------------------------------
+
+IGPU_DRA = GOTCHAS_DIR / "igpu-dra.md"
+HOT_FILE = REPO / "agents" / "rules" / "frank-gotchas.md"
+
+
+def _igpu_dra_text() -> str:
+    return IGPU_DRA.read_text(encoding="utf-8")
+
+
+def _rerank_guard_section() -> str:
+    """The `##` section(s) of igpu-dra.md documenting the rerank batch guard,
+    flattened to a single line.
+
+    Scoped to the section rather than the whole file for the same reason the
+    10Gi provenance test scopes to one resources block: a whole-file scan lets
+    a future edit satisfy a clause with a sentence four screens away, which is
+    documentation nobody reading about the cap will ever find.
+
+    Flattened because this file is hard-wrapped at about 76 columns, so any
+    clause spanning two ideas — "`--max_doc_length`" and "not a batch cap" —
+    lands on one line or two depending on where the author's sentence happened
+    to break. A pattern that only matches the one-line case passes or fails on
+    typography rather than on content, which is a test that can pass for the
+    wrong reason and fail for no reason at all.
+    """
+    text = IGPU_DRA.read_text(encoding="utf-8")
+    sections = re.split(r"\n(?=## )", text)
+    hits = [s for s in sections if "max_allowed_chunks" in s]
+    assert hits, (
+        "docs/runbooks/frank-gotchas/igpu-dra.md has no section documenting "
+        "`max_allowed_chunks` — the rerank batch guard shipped with no prose "
+        "an operator can find from an OOM-killed retrieval pod"
+    )
+    return " ".join("\n".join(hits).split())
+
+
+# (clause name, pattern, what its absence costs the reader). Patterns run
+# against the FLATTENED section, so `.{0,N}` windows are character distances
+# in the prose, not "same source line".
+_RERANK_GUARD_CLAUSES: list[tuple[str, re.Pattern[str], str]] = [
+    (
+        "both bounds, named with their shipped values",
+        re.compile(
+            r"max_allowed_chunks\D{0,80}64\b.{0,200}max_position_embeddings\D{0,80}640\b"
+            r"|max_position_embeddings\D{0,80}640\b.{0,200}max_allowed_chunks\D{0,80}64\b"
+        ),
+        "a bare 64 and 640 read as arbitrary. Name each field with its value, "
+        "so a reader retuning one knows which term it bounds.",
+    ),
+    (
+        "the tensor is batch x LONGEST-document tokens",
+        re.compile(
+            r"(?:batch|B)\W{0,3}(?:[x×*]|by)\W{0,3}T\b"
+            r"|longest\b.{0,40}\bdocument",
+            re.IGNORECASE,
+        ),
+        "without it, a document-count cap looks sufficient — and it is not: "
+        "T comes from the longest document in the request and every other "
+        "document is padded up to it.",
+    ),
+    (
+        "cost is quadratic in T, linear in count",
+        re.compile(r"quadratic|T\s*[x×*]\s*T|\^\s*1\.78", re.IGNORECASE),
+        "this is what makes max_position_embeddings the PRIMARY control and "
+        "max_allowed_chunks the secondary one — the reverse of the issue's "
+        "framing. Say which lever moves the cost.",
+    ),
+    (
+        "upstream's default is 10000 and the exporter never emits it",
+        re.compile(r"10000.{0,400}export_model\.py|export_model\.py.{0,400}10000"),
+        "the guard existed upstream all along, unset. A reader who does not "
+        "know that will look for a feature to add rather than a default to "
+        "override.",
+    ),
+    (
+        "--max_doc_length is NOT a batch cap",
+        re.compile(
+            r"max_doc_length.{0,200}\b(?:not|never|no)\b"
+            r"|\b(?:not|never|no)\b.{0,200}max_doc_length",
+            re.IGNORECASE,
+        ),
+        "it is the obvious-looking flag and it is the wrong one: it sets the "
+        "exported tokenizer's model_max_length and never reaches graph.pbtxt.",
+    ),
+    (
+        "the refusal is a 500, not a 4xx",
+        re.compile(r"\b500\b.{0,300}\b4xx\b|\b4xx\b.{0,300}\b500\b"),
+        "the issue asked for 4xx. Upstream raises std::runtime_error and "
+        "Process() catches it into absl::InternalError, so a test asserting "
+        "4xx fails on correct behaviour.",
+    ),
+    (
+        "memory is never released — the floor ratchets",
+        re.compile(
+            r"ratchet|high[- ]water|never released|not released"
+            r"|does not (?:fall|drop|return)",
+            re.IGNORECASE,
+        ),
+        "this is the actual bug. memory.current after a large call equals "
+        "memory.peak and stays there for the life of the container.",
+    ),
+    (
+        "the measured floors, idle and after a large call",
+        re.compile(r"2\.21\b.{0,300}4\.90\b|4\.90\b.{0,300}2\.21\b"),
+        "the ratchet claim needs its evidence: 2.21 GiB idle, 4.90 GiB "
+        "resident after a single large call, with no return.",
+    ),
+    (
+        "the ratchet is why the failure is intermittent",
+        re.compile(
+            r"intermittent|fresh(?:ly)?[- ]restart|after a restart",
+            re.IGNORECASE,
+        ),
+        "a single request size explains neither 'works, then doesn't' nor "
+        "restarts accumulating over a week of light use. The ratchet does.",
+    ),
+    (
+        "restarting the pod resets the floor",
+        re.compile(
+            r"restart\w*\b.{0,160}(?:reset|clear|floor|idle)"
+            r"|(?:reset|clears)\b.{0,160}restart",
+            re.IGNORECASE,
+        ),
+        "it is what an operator reaches for first, and it genuinely works. "
+        "Say so, rather than leaving it to be rediscovered.",
+    ),
+    (
+        "the instrument is memory.peak, not a metrics scrape",
+        re.compile(r"memory\.peak", re.IGNORECASE),
+        "these transients last 0.1-2.5s and vmagent scrapes at 20s, so the "
+        "cluster metric cannot see them. Naming the instrument is the "
+        "difference between a reproducible measurement and a guess.",
+    ),
+]
+
+
+def test_igpu_dra_documents_the_rerank_batch_guard_mechanism():
+    section = _rerank_guard_section()
+    missing = [
+        f"{name} — {why}"
+        for name, pattern, why in _RERANK_GUARD_CLAUSES
+        if not pattern.search(section)
+    ]
+    assert not missing, (
+        "the rerank batch guard section of "
+        "docs/runbooks/frank-gotchas/igpu-dra.md is missing:\n  - "
+        + "\n  - ".join(missing)
+    )
+
+
+def test_frank_gotchas_hot_file_carries_the_rerank_guard_one_liner():
+    """One-liner in the hot file, prose in the per-topic file.
+
+    The hot file is loaded for every session in this repo; the topic file is
+    read on demand. A gotcha that exists only in the topic file is invisible
+    to an agent that does not already know to open it, and one that exists
+    only in the hot file has nowhere to put the measurement. The convention is
+    both, and this asserts the half that is easiest to forget.
+    """
+    text = HOT_FILE.read_text(encoding="utf-8")
+    sections = re.split(r"\n(?=### )", text)
+    igpu = [s for s in sections if s.startswith("### Intel iGPU / DRA")]
+    assert igpu, "agents/rules/frank-gotchas.md has no `Intel iGPU / DRA` section"
+    body = igpu[0]
+    assert "max_allowed_chunks" in body, (
+        "the `Intel iGPU / DRA` section of agents/rules/frank-gotchas.md does "
+        "not mention the rerank batch guard. One line here, prose in "
+        "docs/runbooks/frank-gotchas/igpu-dra.md — that is this repo's "
+        "one-liner-here / prose-there convention"
+    )
+    line = next(ln for ln in body.splitlines() if "max_allowed_chunks" in ln)
+    assert re.search(r"ratchet|high[- ]water|never released", line, re.IGNORECASE), (
+        "the hot-file one-liner records the cap but not the mechanism that "
+        "makes the failure intermittent. A one-liner that says only 'we set a "
+        "cap' leaves the next reader without the one fact that explains why a "
+        "restart fixes it: " + line.strip()[:160]
+    )

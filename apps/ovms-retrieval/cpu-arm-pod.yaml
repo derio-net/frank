@@ -130,13 +130,20 @@ spec:
           protocol: TCP
       # NO `resources.claims` — see note 1 above. This is the single most
       # important line in the file, and it is a line that is not here.
+      #
+      # The envelope must TRACK the Deployment's, which is why it moved 6Gi ->
+      # 10Gi with it (2026-09-11). This arm exists to isolate the DEVICE: if
+      # the two arms have different ceilings, a batch that the GPU arm serves
+      # and this one OOMs has measured the limit, not the CPU. Provenance for
+      # the number lives beside the Deployment's copy — do not change one
+      # without the other (pinned by test_ovms_retrieval_manifests.py).
       resources:
         requests:
           cpu: 500m
           memory: 2Gi
         limits:
           cpu: "2"
-          memory: 6Gi
+          memory: 10Gi
       readinessProbe:
         httpGet:
           path: /v2/models/bge-reranker-v2-m3/ready
