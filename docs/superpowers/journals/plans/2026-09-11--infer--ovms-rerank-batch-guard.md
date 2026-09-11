@@ -29,3 +29,14 @@ A restore-and-verify task: put the ArgoCD sync policy back exactly as found and 
 ### nrb-p6t2 · discovery · no-refactor-because P6.T2 (phase 6)
 
 Prose edits to two existing blog posts plus the final full-suite gate. The refactor step for phase 6's documentation work is P6.T1.S3, which re-reads the gotcha and runbook prose against house style; re-reading the same posts twice in one phase is ceremony, not review.
+
+<!-- fr:journal kind=discovery scope=plan id=3771e3702078 created=2026-09-11T11:00:41 phase=1 -->
+### 3771e3702078 · discovery · Live captures match the spec's precondition exactly (phase 1)
+
+Captured from `deploy/ovms-retrieval` container `ovms` on 2026-09-11.
+
+`graph.pbtxt`: one `node {}` named `RerankExecutor`, `calculator: "RerankCalculatorOV"`, `node_options` holding exactly `models_path: "./"`, `plugin_config: '{"NUM_STREAMS": "1" }'`, `target_device: "GPU"`. Neither `max_allowed_chunks` nor `max_position_embeddings` is present, so the proto default of 10000 documents is live — as the spec established from upstream source.
+
+`tokenizer_config.json` (381 bytes): `add_bos_token` ABSENT, `model_max_length` 16000, `tokenizer_class` `XLMRobertaTokenizer`. Absent is the answer the design needed: `RerankServable::addBosToken` stays true, so `max_position_embeddings` is a CHUNKING boundary, not a hard rejection boundary. The design's cost note (chunked scoring semantics for long documents) stands as written; no revisit needed.
+
+Neither capture was hand-edited.
