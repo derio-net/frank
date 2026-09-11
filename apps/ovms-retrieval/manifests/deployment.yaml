@@ -214,10 +214,10 @@ spec:
           resources:
             # Both halves are set on purpose: a limit without a request lets
             # the scheduler over-commit an etcd member. 2 of 14 cores, and a
-            # 2Gi request against a 10Gi ceiling. The memory limit is the real
-            # backstop rather than a formality — iGPU allocations come out of
-            # host RAM via i915, so there is no separate VRAM ceiling to hit
-            # first.
+            # 2Gi request against a ceiling of 10 of 64 GB. The memory limit is
+            # the real backstop rather than a formality — iGPU allocations come
+            # out of host RAM via i915, so there is no separate VRAM ceiling to
+            # hit first.
             #
             # WHY THE CEILING IS 10Gi, AND WHY THAT IS A REVERSAL.
             # 6Gi -> 10Gi, 2026-09-11. The parent spec set this ceiling small
@@ -266,8 +266,7 @@ spec:
             # layer, and the decision was to ship the raise through git and
             # verify afterwards rather than leave the ceiling below the guard's
             # own worst case. Test Plan row 10 of
-            # docs/superpowers/specs/
-            #   2026-09-11--infer--ovms-rerank-batch-guard-design.md
+            # docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
             # closes it: re-run the batch sweep against this pod and require
             # every peak to sit at or under ~70% of the limit.
             #
