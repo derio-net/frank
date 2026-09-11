@@ -65,3 +65,12 @@ No open risk. Full suite after the change: 797 passed, 1 xfailed.
 `scripts/tests/fixtures/ovms-retrieval/rerank-graph.live.pbtxt` is 518 bytes ending in `}` with no final newline. That reads like a sloppy capture and is not one: `export_model.py`'s Jinja template emits it that way and the pod serves exactly those bytes. The companion `tokenizer_config.json` DOES end in a newline, so the difference is upstream's, not the capture's.
 
 Consequence for phase 3: the injector preserves it (it splices inside the options block and never touches the tail), so a rewritten graph is still newline-free at EOF. Any later check that compares the built graph against a hand-written expected file must account for that, or it will fail on a byte nobody added.
+
+<!-- fr:journal kind=finding scope=plan id=1894eae90d3b created=2026-09-11T11:18:38 phase=1 state=open -->
+### 1894eae90d3b · finding [open] · P1.T3.S2 is half done: suite is green locally, CI confirmation is owed (phase 1)
+
+`uv run --frozen pytest scripts/tests -q` -> **797 passed, 1 xfailed in 447s** on the branch as committed. That is the local half of the step.
+
+The other half — push the branch and confirm CI is green *before any later phase builds on it* — was deliberately not performed. The phase executor never pushes and never opens a PR; delivery is the orchestrator's. So the step is recorded `-` with a note rather than `x`, because ticking it would claim a CI observation nobody has made.
+
+**Open until the orchestrator pushes and reads the run.** Phase 2 measures a live server and phase 3 rewrites the Dockerfile; both assume this skeleton is genuinely green in CI and not just on a Mac. The local run cannot substitute: the suite has never executed against this branch on the CI runner, and the one thing phase 1 exists to establish is that it does.

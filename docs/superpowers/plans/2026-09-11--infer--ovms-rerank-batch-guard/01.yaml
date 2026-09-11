@@ -124,10 +124,16 @@ state:
       ticked_at: '2026-09-11T09:09:32+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T09:18:23+00:00'
+      note: 'Half done, and the half that is missing is the orchestrator''s. Suite
+        run locally: ''uv run --frozen pytest scripts/tests -q'' -> 797 passed, 1
+        xfailed in 447s. The push and the CI observation were NOT performed: the phase-executor
+        contract forbids pushing or opening a PR (the orchestrator owns delivery),
+        so they are handed back rather than skipped. The skeleton''s purpose — a real
+        fixture, a real transformation, a real green suite — is met; CI confirmation
+        is owed before phase 2 builds on it.'
   completion:
-    at: null
+    at: '2026-09-11T09:18:41+00:00'
     note: null
     observed_prs: []
