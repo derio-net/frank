@@ -925,6 +925,143 @@ def test_sweep_times_a_failed_call_too(monkeypatch):
     assert result["latency_ms"] >= 0.0
 
 
+# --- sweep warm-up belongs at the smallest size ONLY ----------------------
+
+def test_sweep_warms_up_only_at_the_smallest_size(monkeypatch):
+    # Warming at a size the sweep is about to prove fatal spends a restart,
+    # and the next size is then measured against a cold server — so the curve
+    # records a recompile as batch cost.
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30", "--rerank-warmup", "2"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sizes_sent = [len(b["documents"]) for b in rec.bodies("/v3/rerank")]
+    assert sizes_sent == [10, 10, 10, 20, 30], (
+        "warm-up must be two extra calls at the SMALLEST size, before the "
+        "timed sweep, and nowhere else"
+    )
+    assert sweep["warmup"]["documents"] == 10
+    assert sweep["warmup"]["calls"] == 2
+    # The warm-up calls are not part of the curve.
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30]
+
+
+def test_sweep_warmup_failure_does_not_abort_the_sweep(monkeypatch):
+    # If the server is already dead when the sweep starts, that is a datum
+    # too — and the sizes still have to be attempted.
+    rec = _FailingRecorder(fail_from=1, error=_connection_refused)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--rerank-warmup", "1"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    assert rec.attempted_sizes() == [10, 10, 20]
+    assert [r["ok"] for r in sweep["results"]] == [False, False]
+
+
+# --- --rerank-words: the sweep must send documents the size of the fault --
+# The issue reproduced at 200 words per document and the mechanism is
+# batch x longest-document-tokens. The harness's stock filler is ~20 words, so
+# a sweep at that length sends roughly a tenth of the tokens per document and
+# may never reproduce the OOM at any batch size — while looking like a clean
+# run. A curve recorded without its word count is not quotable.
+
+def test_rerank_words_is_absent_by_default():
+    assert bench.parse_args(["--arm", "gpu"]).rerank_words is None
+
+
+def test_rerank_words_parses_as_an_int():
+    assert bench.parse_args(["--arm", "gpu", "--rerank-words", "200"]).rerank_words == 200
+
+
+def test_default_filler_passage_length_is_unchanged():
+    # Regression guard on the default path: adding the knob must not move the
+    # numbers the parent spec already published with this harness.
+    assert bench.generate_filler_passages(3, offset=0) == [
+        "This is a general-purpose passage about seasonal gardening "
+        "schedules, written as filler candidate text for a retrieval "
+        "benchmark.",
+        "This is a general-purpose passage about the history of postal "
+        "routing, written as filler candidate text for a retrieval "
+        "benchmark.",
+        "This is a general-purpose passage about basic bicycle "
+        "maintenance, written as filler candidate text for a retrieval "
+        "benchmark.",
+    ]
+
+
+def test_filler_passages_are_padded_to_the_requested_word_count():
+    for passage in bench.generate_filler_passages(8, words=200):
+        assert len(passage.split()) == 200
+
+
+def test_padded_filler_passages_are_still_distinct():
+    passages = bench.generate_filler_passages(20, words=200)
+    assert len(set(passages)) == 20
+
+
+def test_padded_filler_passages_still_carry_their_topic():
+    # The degeneracy gate only means anything because the query matches a
+    # candidate topic. Padding must not bury the anchor.
+    for i, passage in enumerate(bench.generate_filler_passages(8, words=200)):
+        assert bench._FILLER_TOPICS[i] in passage
+
+
+def test_padding_reuses_the_existing_filler_vocabulary():
+    # Pad, do not invent new prose: every padded word must already appear in
+    # the module's own filler text. `scripts/tests/test_third_party_discretion.py`
+    # scans this script, and inventing plausible-sounding corpus text is
+    # exactly what it exists to prevent.
+    base = set(" ".join(bench.generate_filler_passages(20)).lower().split())
+    padded = set(" ".join(bench.generate_filler_passages(20, words=200)).lower().split())
+    assert padded <= base
+
+
+def test_filler_passages_reject_a_word_count_below_the_base_sentence():
+    # Silently returning a 19-word passage for `--rerank-words 5` would make
+    # the recorded word count a lie.
+    with pytest.raises(ValueError):
+        bench.generate_filler_passages(4, words=5)
+
+
+def test_sweep_sends_passages_of_the_requested_length(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        [
+            "--arm", "gpu",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "0",
+        ]
+    )
+    bench._run_rerank_sweep(args)
+
+    for body in rec.bodies("/v3/rerank"):
+        assert {len(d.split()) for d in body["documents"]} == {200}
+
+
+def test_sweep_records_the_word_count_it_actually_sent_not_the_flag(monkeypatch):
+    # Measured from the bodies, so a padding bug shows up in the record
+    # instead of being papered over by echoing the flag back.
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sent = max(len(d.split()) for d in rec.bodies("/v3/rerank")[0]["documents"])
+    assert sweep["words_per_document_requested"] is None
+    assert sweep["results"][0]["words_per_document"] == sent
+    assert sent < 50, "the stock filler is the ~20-word passage this knob exists to replace"
+
+
 # --- main(): the arm cross-check is enforced, not just recorded -----------
 
 def _stub_benchmarks(monkeypatch, ran: list[str]):
