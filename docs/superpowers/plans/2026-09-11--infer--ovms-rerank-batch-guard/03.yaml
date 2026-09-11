@@ -13,175 +13,134 @@ tasks:
   title: Baseline at the current 6Gi limit
   steps:
   - id: P3.T1.S1
-    text: "Record the starting state so the deliberate damage is bounded and legible.\nRestart count:\n\
-      \n    kubectl -n retrieval get pod -l app.kubernetes.io/name=ovms-retrieval \\\n      -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount\n\
-      \nand the container's own memory accounting, which is the instrument this\nphase uses throughout:\n\
-      \n    kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- sh -c \\\n      'cat /sys/fs/cgroup/memory.current\
-      \ /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max; \\\n       cat /sys/fs/cgroup/memory.events'\n\
-      \nBaseline measured 2026-09-11 before this plan ran: current 2372685824\n(2.21 GiB, matching the\
-      \ issue's idle figure), peak 2534780928, max\n6442450944, oom_kill 0 for that instance.\n"
+    text: |
+      Record the starting state so the deliberate damage is bounded and legible.
+      Restart count:
+
+          kubectl -n retrieval get pod -l app.kubernetes.io/name=ovms-retrieval \
+            -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount
+
+      and the container's own memory accounting, which is the instrument this
+      phase uses throughout:
+
+          kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- sh -c \
+            'cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.max; \
+             cat /sys/fs/cgroup/memory.events'
+
+      Baseline measured 2026-09-11 before this plan ran: current 2372685824
+      (2.21 GiB, matching the issue's idle figure), peak 2534780928, max
+      6442450944, oom_kill 0 for that instance.
   - id: P3.T1.S2
-    text: 'Run the sweep at 10,20,30,40,50 documents x 200 words from an in-cluster pod
-
+    text: |
+      Run the sweep at 10,20,30,40,50 documents x 200 words from an in-cluster pod
       against `ovms-retrieval.retrieval.svc.cluster.local:8000` (the Service DNS
-
       name resolves only inside the cluster, and laptop-side timing measures the
-
       LAN). THIS WILL OOM-KILL THE SERVER, by design and with operator
-
       authorisation; expect roughly ten seconds of refused connections per kill.
-
       The sweep now waits for the reranker to serve again after each kill, so a
-
       size that was never served is not recorded as a size that failed.
 
-
       READ THE PEAK FROM THE CGROUP, NOT FROM METRICS. vmagent scrapes at 20s
-
       while the calls last 0.13s to 6.7s, so `container_memory_working_set_bytes`
-
       would miss the peak of nearly every call and the cap would be derived from
-
       whatever the sampler caught between them. Between sizes, read
-
       `/sys/fs/cgroup/memory.peak` (a high-water mark, so it catches a transient
-
       of any length) and `/sys/fs/cgroup/memory.events` (`oom_kill` is an
-
       unambiguous per-instance kill signal). It cannot be reset — `/sys/fs/cgroup`
-
       is mounted read-only — so it is monotonic for the life of a container
-
       instance; that is fine because the sweep ascends and a kill starts a new
-
       instance. Record the curve.
-
-      '
 - number: 2
   title: Raise the ceiling live, re-sweep, derive N and T
   steps:
   - id: P3.T2.S1
-    text: 'Suspend self-heal so a live patch survives long enough to measure, following
-
+    text: |
+      Suspend self-heal so a live patch survives long enough to measure, following
       `agents/rules/frank-argocd.md`. ROOT FIRST — the root App-of-Apps re-templates
-
       leaf Application specs every sync, so a leaf-only patch reverts inside the
-
       sync window. Read the CURRENT automated map before patching and pass it back
-
       WHOLE with only `selfHeal` flipped: `--type=merge` REPLACES a nested map, so
-
       patching `selfHeal` alone silently deletes its `prune: false` sibling.
-
-      '
   - id: P3.T2.S2
-    text: 'Patch the live Deployment''s `ovms` container to `limits.memory: 10Gi`
-
+    text: |
+      Patch the live Deployment's `ovms` container to `limits.memory: 10Gi`
       (leaving `requests` at 2Gi), wait for the Recreate rollout, and confirm the
-
       pod is Ready with both servables AVAILABLE via `GET /v1/config` before
-
       measuring anything.
-
-      '
   - id: P3.T2.S3
-    text: 'Re-run the sweep at 10Gi, extended to 60 and 70 documents, and add ONE pass
-
+    text: |
+      Re-run the sweep at 10Gi, extended to 60 and 70 documents, and add ONE pass
       with documents long enough to chunk (several thousand words each) — the
-
       short-document curve alone cannot bound the worst case, because the tensor
-
       is batch x longest-document-tokens. Record peak working set and latency per
-
       size.
-
-      '
   - id: P3.T2.S4
-    text: 'Derive the two numbers from the curve and write them into the spec''s Design
-
+    text: |
+      Derive the two numbers from the curve and write them into the spec's Design
       section, replacing the `<N>` and `<T>` placeholders: `max_allowed_chunks`
-
       with headroom above 50 such that N documents at T tokens peaks at no more
-
       than ~70% of 10Gi, and `max_position_embeddings` such that the same product
-
       holds for the long-document pass. If latency at the chosen N is already
-
       tens of seconds, say so and choose the cap on latency rather than memory —
-
       a cap that admits calls nobody will wait for is a worse outcome than one
-
       that refuses them. Record the reasoning with `fr journal add --scope plan
-
       --phase 3 --kind discovery`.
-
-      '
 - number: 3
   title: Restore GitOps ground truth and prove no drift was left behind
   steps:
   - id: P3.T3.S1
-    text: 'Restore self-heal on BOTH Applications, passing the FULL automated map
-
-      (`prune: false` included), then force a sync through the Application''s
-
+    text: |
+      Restore self-heal on BOTH Applications, passing the FULL automated map
+      (`prune: false` included), then force a sync through the Application's
       `operation` field with
-
       `syncOptions: ["ServerSideApply=true","RespectIgnoreDifferences=true"]`
-
       passed EXPLICITLY — a sync triggered that way does NOT inherit
-
       `spec.syncPolicy.syncOptions`, so large resources blow the 256KB
-
       last-applied-config annotation without it. Restore root LAST.
-
-      '
   - id: P3.T3.S2
-    text: 'Confirm the live Deployment is back to `limits.memory: 6Gi` (git ground
-
+    text: |
+      Confirm the live Deployment is back to `limits.memory: 6Gi` (git ground
       truth at this point — the 10Gi change ships in phase 5, not here) and that
-
       both Applications report `Synced`, not merely `Healthy`. Assert on the
-
-      ARTIFACT, not the sync status: read the container''s limit back from the live
-
+      ARTIFACT, not the sync status: read the container's limit back from the live
       object. Record the final restart count against the baseline from P3.T1.S1.
-
-      '
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:37:06+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:37:08+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T11:37:15+00:00'
+      note: ArgoCD self-heal suspension refused by the permission layer; operator
+        elected to ship the 10Gi raise through git and verify post-merge
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T11:37:17+00:00'
+      note: live 10Gi patch not run — same decision
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:37:11+00:00'
       note: null
     P3.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:37:13+00:00'
       note: null
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T11:37:19+00:00'
+      note: 'nothing to restore: the suspension never applied, both Applications verified
+        to hold their original automated maps'
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T11:37:21+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-09-11T11:37:24+00:00'
     note: null
     observed_prs: []

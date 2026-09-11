@@ -969,5 +969,13 @@ rows:
   - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
   levels: {}
   status: not-implemented
-  notes: Produced by the scripts/ovms-retrieval-bench.py sweep mode against the live server; recorded in the
-    plan and the runbook. Test Plan row 10.
+  notes: >-
+    PARTIALLY MET 2026-09-11. A curve WAS measured live, at the current 6Gi limit, with the sweep mode this
+    plan adds — cost per row = 0.0202 GiB x (T/332)^1.78 from three clean single-call measurements, plus the
+    finding that matters more than the curve. Memory is never released, so the resident floor ratchets to the
+    high-water of the largest call, and that (not request size) is what makes the failure intermittent. NOT
+    met, the shipped pair 64 / 640 is a short extrapolation from those anchors rather than a measurement at
+    the 10Gi limit it ships with. The live 10Gi patch was refused by the harness permission layer and the
+    operator elected to ship the raise through git and verify afterwards, so the row closes on Test Plan row
+    10 post-merge. Recorded rather than flipped, because "evidence rather than an estimate" is exactly the
+    clause still outstanding.

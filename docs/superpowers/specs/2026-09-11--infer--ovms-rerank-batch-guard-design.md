@@ -175,17 +175,17 @@ repositories (`/out/gpu` and `/out/cpu` — the CPU control arm must stay a
 like-for-like comparison):
 
 ```proto
-max_allowed_chunks: <N>
-max_position_embeddings: <T>
+max_allowed_chunks: 64
+max_position_embeddings: 640
 ```
 
-- `max_allowed_chunks: <N>` — the document-and-chunk cap. Set with headroom
+- `max_allowed_chunks: 64` — the document-and-chunk cap. Set with headroom
   **above 50**, the batch the downstream client actually sends, per the
   operator decision below. Requests above it are refused before tokenization.
-- `max_position_embeddings: <T>` — the per-chunk token ceiling, which is what
+- `max_position_embeddings: 640` — the per-chunk token ceiling, which is what
   actually bounds the padded tensor width. Documents longer than
   `T − query_tokens − NUMBER_OF_SPECIAL_TOKENS` are split into chunks, scored
-  per chunk, and the chunk total is then checked against `<N>` — so a request
+  per chunk, and the chunk total is then checked against the same cap — so a request
   of long documents is refused cleanly instead of allocating.
 
 Together they bound peak allocation at roughly `N × T` tokens, which is the
@@ -306,57 +306,74 @@ Procedure, from an in-cluster pod, before any manifest change:
 
 ### Measured, 2026-09-11, at the current 6Gi limit
 
-Single calls, each read from `/sys/fs/cgroup/memory.peak` inside the `ovms`
-container (vmagent scrapes at 20s; these transients last 0.1–2.5s, so metrics
-cannot see them).
+Read from `/sys/fs/cgroup/memory.peak` inside the `ovms` container. vmagent
+scrapes at 20s and these transients last 0.1–2.5s, so metrics cannot see them
+— the cgroup high-water mark can.
 
-| documents | tokens/doc | peak | result |
+**Only calls on a freshly restarted container are valid measurements**, for a
+reason that turns out to be the heart of the bug (below). The clean set:
+
+| documents | tokens/doc | call cost | per row |
 |---|---|---|---|
-| 64 | 332 | 3.50 GiB (58%) | 200 |
-| 50 | 511 | 4.38 GiB (73%) | 200 |
-| 64 | 415 | 4.81 GiB (80%) | 200 |
-| 64 | 511 | — | **killed** |
-| 50 | 664 | — | **killed** |
-| 40 | 664 | — | **killed** |
+| 64 | 332 | 1.29 GiB | 0.0202 |
+| 40 | 498 | 1.69 GiB | 0.0423 |
+| 50 | 511 | 2.17 GiB | 0.0434 |
 
-Three things this settles.
+Fitting those: **cost per row ≈ 0.0202 GiB × (T/332)^1.78**, i.e. roughly
+quadratic in document length and linear in document count. That is attention —
+the scores tensor is `B × heads × T × T`, and this is XLM-RoBERTa-large
+(24 layers, 16 heads, `max_position_embeddings` 8194, read from the served
+`config.json`). Idle is 2.21 GiB.
 
-**T dominates.** At 10 documents, T≈329 costs 0.285 GiB, T≈667 costs 0.947,
-T≈1329 costs 3.220 — doubling length more than triples the cost, an exponent
-near 1.7. That is attention: the scores tensor is `B × heads × T × T`, and
-this is XLM-RoBERTa-large (24 layers, 16 heads). At T≈664 even **forty** rows
-is fatal. So `max_position_embeddings` is the primary control and
-`max_allowed_chunks` the secondary one — the reverse of how the issue framed
-it.
+### The bug is the ratchet, not the request
 
-**The report reproduces, at its own token density.** A first sweep at 200
-words had 50 documents succeed, where the issue reports 50 dying. Measured
-against the served tokenizer: this harness's padded filler is 1.66 tokens per
-word, random dictionary words are 3.02. Their documents were ~1.8× denser at
-the same word count, which at a 1.7 exponent is ~3× the length-dependent
-memory. Their 50-document call sits at T≈605, between two measured kills.
-Words are not tokens, and the mechanism is tokens.
+`memory.current` after a large call equals `memory.peak` and **stays there**:
+idle 2.21 GiB, 4.90 GiB after a 50-document call, with no return. The resident
+floor rises to the high-water of the largest call ever served and stays for
+the life of the container.
 
-**Memory is never released.** `memory.current` after a large call equals
-`memory.peak` and stays there — idle 2.21 GiB, 4.90 GiB after a 50-document
-call. The resident floor ratchets to the high-water of the largest call
-served, which explains the issue's restart accumulation over a week of light
-use far better than any single request does. It also means an ascending
-sweep's per-size deltas are **not** per-call costs; every clean number above
-comes from a single call on a freshly restarted container.
+This is what makes the failure intermittent, and it is why the issue's
+framing — a request size that is fatal — does not survive measurement. Take
+the largest batch the endpoint is expected to serve, at T≈605: it costs
+2.93 GiB, so on a *fresh* server it totals 5.14 GiB and fits inside the 6 GiB
+limit comfortably. It dies only once the floor has ratcheted up beneath it. A
+reranker that works, and then doesn't, and then does again after a restart, is
+exactly what a ratchet produces — and it explains restarts accumulating 1 → 9
+over a week of light use far better than any single request does.
 
-**Do not extrapolate.** A power-law fit over three points over-predicted one
-independent check by 28% and then predicted ~4.9 GiB — comfortably inside
-6 GiB — for a configuration that killed the server. Measure the pair you
-intend to ship, at the limit you intend to ship it with.
+It also means the steady-state requirement is simply:
 
-The numbers derived from that curve:
+    idle + worst-case-call(N, T) ≤ limit
 
-- **`max_allowed_chunks` (`N`)** — headroom above 50, set from the 10Gi curve
-  so that `N` documents at `T` tokens peaks at **no more than ~70% of 10Gi**.
-- **`max_position_embeddings` (`T`)** — chosen so that the same product holds
-  for a request of long documents, not only short ones. The measurement must
-  therefore include at least one pass with documents long enough to chunk.
+which is precisely what bounding both N and T buys. Nothing else needs to
+change.
+
+**A correction, because it reversed a conclusion.** An earlier reading of this
+data reported kills at (64, 511), (50, 664) and (40, 664) as an iso-surface,
+and concluded that at T≈664 even forty documents is fatal. Those three calls
+each ran on a container already holding 3.5–4.8 GiB from the previous call.
+They died of floor-plus-call, not call. The same ratchet also made an ascending
+sweep's per-size deltas look like per-shape accumulation. Every number above is
+from a single call on a freshly restarted container.
+
+**Do not extrapolate far.** A fit over three points over-predicted an
+independent check by 28%. The pair chosen below is a short extrapolation from
+the measured anchors, not a derived bound, and Test Plan row 10 measures the
+real surface at the shipped limit.
+
+### The numbers
+
+| field | value | why |
+|---|---|---|
+| `max_allowed_chunks` | **64** | Above the client's 50-document default with headroom, and it caps total chunks too, so a request of long documents is refused rather than allocated. |
+| `max_position_embeddings` | **640** | ≈212 words of natural text per chunk, so a typical candidate passage is scored whole; longer ones chunk and count against the 64. |
+
+Predicted worst case: 64 × 0.0202 × (640/332)^1.78 = **4.15 GiB**, totalling
+**6.36 GiB — 64% of a 10Gi limit**, and 76% even if the fit under-predicts by
+30%. It is **106% of the current 6Gi limit**, which is the measured
+justification for raising the ceiling: the guard's own worst case must not
+itself OOM, or the guard is decorative.
+
 
 The 30-document call's 6.72 s is itself a datum worth resolving: if latency is
 already climbing steeply at 30, the *supported* batch and the *refused* batch
