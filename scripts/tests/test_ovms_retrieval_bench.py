@@ -792,6 +792,139 @@ def test_sweep_names_the_model_it_measured(monkeypatch):
     assert bench._run_rerank_sweep(args)["model"] == bench.DEFAULT_RERANK_MODEL
 
 
+# --- sweep failure tolerance: the refusal IS the datum --------------------
+# `_post_json` wraps `urllib.request.urlopen`, which raises on anything but
+# 2xx. So the two outcomes the sweep exists to capture — a guard refusing an
+# oversized batch, and a server killed by one — both arrive as exceptions. A
+# sweep that propagates them aborts at exactly the size it was run to measure,
+# and reports a clean curve of the sizes that happened to survive.
+
+class _FailingRecorder(_Recorder):
+    """`_Recorder` that raises at or above a document threshold.
+
+    Records EVERY attempt, including the ones it then fails, so a test can
+    assert the sweep carried on to the next size rather than stopping."""
+
+    def __init__(self, *, fail_from: int, error, dimension: int = 8):
+        super().__init__(dimension=dimension)
+        self.fail_from = fail_from
+        self.error = error
+        self.attempts: list[tuple[str, dict]] = []
+
+    def __call__(self, url, payload, timeout=None):
+        self.attempts.append((url, payload))
+        if url.endswith("/v3/rerank") and len(payload["documents"]) >= self.fail_from:
+            raise self.error(len(payload["documents"]))
+        return super().__call__(url, payload, timeout)
+
+    def attempted_sizes(self, path: str = "/v3/rerank") -> list[int]:
+        return [len(p["documents"]) for (u, p) in self.attempts if u.endswith(path)]
+
+
+def _http_error(documents: int):
+    """What an upstream `max_allowed_chunks` refusal looks like on the wire:
+    `std::runtime_error` -> `absl::InternalError` -> HTTP 500 with a message
+    naming the limit. See the spec's "The refusal is a 500, not a 4xx"."""
+    import email.message
+    import io
+    import urllib.error
+
+    return urllib.error.HTTPError(
+        "http://example.invalid:8000/v3/rerank",
+        500,
+        "Internal Server Error",
+        email.message.Message(),
+        io.BytesIO(b"Number of documents exceeds max_allowed_chunks"),
+    )
+
+
+def _remote_disconnected(documents: int):
+    """What an OOM-killed server looks like: the socket closes mid-request."""
+    import http.client
+
+    return http.client.RemoteDisconnected(
+        "Remote end closed connection without response"
+    )
+
+
+def _connection_refused(documents: int):
+    """What the ~10s after the kill looks like, while the pod restarts."""
+    import urllib.error
+
+    return urllib.error.URLError("[Errno 111] Connection refused")
+
+
+@pytest.mark.parametrize(
+    "error_factory",
+    [_http_error, _remote_disconnected, _connection_refused],
+    ids=["http-500-refusal", "killed-server", "connection-refused"],
+)
+def test_sweep_records_a_failure_and_continues_to_the_next_size(
+    monkeypatch, error_factory
+):
+    rec = _FailingRecorder(fail_from=30, error=error_factory)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30,40,50", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)  # must not raise
+
+    assert rec.attempted_sizes() == [10, 20, 30, 40, 50], (
+        "every size must be attempted — a sweep that stops at the first "
+        "failure measures only the sizes that happened to survive"
+    )
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30, 40, 50]
+    assert [r["ok"] for r in sweep["results"]] == [True, True, False, False, False]
+
+
+def test_sweep_records_the_refusal_status_and_body_verbatim(monkeypatch):
+    # The spec's Test Plan row 6 records the status code and body rather than
+    # asserting 4xx. That is only possible if the sweep keeps them.
+    rec = _FailingRecorder(fail_from=30, error=_http_error)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+    refused = sweep["results"][-1]
+
+    assert refused["status"] == 500
+    assert "max_allowed_chunks" in refused["body"]
+    assert "HTTPError" in refused["error"]
+
+
+def test_sweep_records_a_killed_server_with_no_status_at_all(monkeypatch):
+    # A closed socket has no HTTP status. Recording 0 or 500 here would invent
+    # a response the server never sent; None says "no response".
+    rec = _FailingRecorder(fail_from=30, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0"]
+    )
+
+    killed = bench._run_rerank_sweep(args)["results"][-1]
+
+    assert killed["status"] is None
+    assert killed["body"] is None
+    assert "RemoteDisconnected" in killed["error"]
+
+
+def test_sweep_times_a_failed_call_too(monkeypatch):
+    # "connection closed without response after 0.13 s" is a datum: a fast
+    # failure is a kill, a slow one is a timeout.
+    rec = _FailingRecorder(fail_from=10, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+
+    result = bench._run_rerank_sweep(args)["results"][0]
+    assert isinstance(result["latency_ms"], float)
+    assert result["latency_ms"] >= 0.0
+
+
 # --- main(): the arm cross-check is enforced, not just recorded -----------
 
 def _stub_benchmarks(monkeypatch, ran: list[str]):
