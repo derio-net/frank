@@ -414,3 +414,9 @@ client-side measurement.
    The spec, its journal, the plan and its journal, and any new or changed
    script all belong there. (The checks were run ad hoc against this spec and
    its journal during review and pass; that is not a substitute for the list.)
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-09-11--infer--ovms-rerank-batch-guard | `derio-net/frank` | `2026-09-11--infer--ovms-rerank-batch-guard` | — |

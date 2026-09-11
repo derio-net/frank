@@ -1,0 +1,122 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[live] Measure the curve and derive the two numbers'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - infer-rerank-batch-curve-measured
+tasks:
+- number: 1
+  title: Baseline at the current 6Gi limit
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Record the starting state so the deliberate damage is bounded and legible:
+      `kubectl -n retrieval get pod -l app.kubernetes.io/name=ovms-retrieval
+      -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount`
+      and the idle working set from VictoriaMetrics
+      (`container_memory_working_set_bytes{container="ovms"}`). Note the value; the
+      issue reports 2.2-3.0 GiB idle.
+  - id: P3.T1.S2
+    text: |
+      Run the sweep at 10,20,30,40,50 documents x 200 words from an in-cluster
+      pod against `ovms-retrieval.retrieval.svc.cluster.local:8000`. THIS WILL
+      OOM-KILL THE SERVER, by design and with operator authorisation; expect
+      roughly ten seconds of refused connections per kill and a restart count that
+      climbs. Sample the working set during each call and read the restart count
+      after each. Record the curve.
+- number: 2
+  title: Raise the ceiling live, re-sweep, derive N and T
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Suspend self-heal so a live patch survives long enough to measure, following
+      `agents/rules/frank-argocd.md`. ROOT FIRST — the root App-of-Apps re-templates
+      leaf Application specs every sync, so a leaf-only patch reverts inside the
+      sync window. Read the CURRENT automated map before patching and pass it back
+      WHOLE with only `selfHeal` flipped: `--type=merge` REPLACES a nested map, so
+      patching `selfHeal` alone silently deletes its `prune: false` sibling.
+  - id: P3.T2.S2
+    text: |
+      Patch the live Deployment's `ovms` container to `limits.memory: 10Gi`
+      (leaving `requests` at 2Gi), wait for the Recreate rollout, and confirm the
+      pod is Ready with both servables AVAILABLE via `GET /v1/config` before
+      measuring anything.
+  - id: P3.T2.S3
+    text: |
+      Re-run the sweep at 10Gi, extended to 60 and 70 documents, and add ONE pass
+      with documents long enough to chunk (several thousand words each) — the
+      short-document curve alone cannot bound the worst case, because the tensor
+      is batch x longest-document-tokens. Record peak working set and latency per
+      size.
+  - id: P3.T2.S4
+    text: |
+      Derive the two numbers from the curve and write them into the spec's Design
+      section, replacing the `<N>` and `<T>` placeholders: `max_allowed_chunks`
+      with headroom above 50 such that N documents at T tokens peaks at no more
+      than ~70% of 10Gi, and `max_position_embeddings` such that the same product
+      holds for the long-document pass. If latency at the chosen N is already
+      tens of seconds, say so and choose the cap on latency rather than memory —
+      a cap that admits calls nobody will wait for is a worse outcome than one
+      that refuses them. Record the reasoning with `fr journal add --scope plan
+      --phase 3 --kind discovery`.
+- number: 3
+  title: Restore GitOps ground truth and prove no drift was left behind
+  steps:
+  - id: P3.T3.S1
+    text: |
+      Restore self-heal on BOTH Applications, passing the FULL automated map
+      (`prune: false` included), then force a sync through the Application's
+      `operation` field with
+      `syncOptions: ["ServerSideApply=true","RespectIgnoreDifferences=true"]`
+      passed EXPLICITLY — a sync triggered that way does NOT inherit
+      `spec.syncPolicy.syncOptions`, so large resources blow the 256KB
+      last-applied-config annotation without it. Restore root LAST.
+  - id: P3.T3.S2
+    text: |
+      Confirm the live Deployment is back to `limits.memory: 6Gi` (git ground
+      truth at this point — the 10Gi change ships in phase 5, not here) and that
+      both Applications report `Synced`, not merely `Healthy`. Assert on the
+      ARTIFACT, not the sync status: read the container's limit back from the live
+      object. Record the final restart count against the baseline from P3.T1.S1.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

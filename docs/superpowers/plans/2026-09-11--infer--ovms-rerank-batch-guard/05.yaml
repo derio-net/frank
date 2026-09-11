@@ -1,0 +1,73 @@
+schema_version: 2
+phase:
+  number: 5
+  title: 'Deploy: pin the new model rev and raise the ceiling'
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+  acceptance:
+  - infer-rerank-supported-batch-succeeds
+  - infer-rerank-oversized-refused-cleanly
+tasks:
+- number: 1
+  title: 'Pin the rev and raise the ceiling: red, green, refactor'
+  steps:
+  - id: P5.T1.S1
+    text: |
+      RED. Extend `scripts/tests/test_ovms_retrieval_manifests.py`: the seed
+      initContainer image tag AND its `MODELS_REV` env must both be `2` and must
+      equal each other (a mismatch would mean the marker claims a rev the bytes
+      are not); the `ovms` container's `limits.memory` must be `10Gi` while
+      `requests.memory` stays `2Gi`. Run; red.
+  - id: P5.T1.S2
+    text: |
+      RED. Add an assertion that the raised ceiling is DOCUMENTED in the manifest
+      comment as a deliberate reversal of the parent spec's small-failure-domain
+      posture on an etcd member, with the measured peak that justifies it. A
+      number in a manifest with no provenance is the thing the next operator
+      cannot safely change. Still red.
+  - id: P5.T1.S3
+    text: |
+      GREEN. In `apps/ovms-retrieval/manifests/deployment.yaml`: move the seed
+      image to `ghcr.io/derio-net/ovms-retrieval-models:2`, set `MODELS_REV` to
+      `"2"`, and raise the `ovms` container's `limits.memory` to `10Gi`. Leave
+      `requests` untouched so the scheduler's view of mini-1 does not change.
+      Re-run; green.
+  - id: P5.T1.S4
+    text: |
+      GREEN. Write the comment the test now demands, covering: the measured peak
+      at 50 documents, the cap and sequence bound now in the graph, and that the
+      ceiling is a backstop the workload is no longer expected to reach. Re-run
+      the full suite; green.
+  - id: P5.T1.S5
+    text: |
+      REFACTOR. Re-read the two edited files for accidental drift (no stray
+      formatting changes, comments still true). Run
+      `uv run --frozen pytest scripts/tests -q`; all green. Push.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

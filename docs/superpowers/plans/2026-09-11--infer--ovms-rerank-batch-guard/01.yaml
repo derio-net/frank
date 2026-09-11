@@ -1,0 +1,133 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Walking skeleton — capture the real graph.pbtxt, inject the guard into it,
+    keep CI honest
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  skeleton: true
+tasks:
+- number: 1
+  title: Capture fixtures from the running server (captured, never constructed)
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Capture the LIVE rerank graph — the artefact this whole plan edits — as a
+      test fixture. From the worktree, with an ABSOLUTE kubeconfig (the repo's
+      `.env` sets a RELATIVE KUBECONFIG and is gitignored, so it does not exist
+      in a worktree at all; a relative path here silently falls back to a dead
+      `~/.kube/config`):
+
+          export KUBECONFIG=/Users/derio/Docs/projects/DERIO_NET/frank/.talos/Frank_Kubeconfig.yaml
+          mkdir -p scripts/tests/fixtures/ovms-retrieval
+          kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- \
+            cat /models/bge-reranker-v2-m3/graph.pbtxt \
+            > scripts/tests/fixtures/ovms-retrieval/rerank-graph.live.pbtxt
+
+      Expected content: a single `node {}` with `calculator: "RerankCalculatorOV"`
+      and a `node_options` block holding exactly `models_path`, `plugin_config`
+      and `target_device` — and NEITHER `max_allowed_chunks` NOR
+      `max_position_embeddings`. Do not hand-edit the captured bytes.
+  - id: P1.T1.S2
+    text: |
+      Capture the tokenizer config alongside it, because it decides which code
+      path `max_position_embeddings` controls:
+
+          kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- \
+            cat /models/bge-reranker-v2-m3/tokenizer_config.json \
+            > scripts/tests/fixtures/ovms-retrieval/rerank-tokenizer-config.live.json
+
+      Assert (by reading it) that `add_bos_token` is ABSENT and
+      `model_max_length` is 16000. Absent means `RerankServable::addBosToken`
+      stays true, so documents longer than the bound are CHUNKED rather than
+      rejected outright. If a future capture ever shows `"add_bos_token": false`,
+      the design changes and the spec must be revisited — say so in a comment at
+      the top of the test module added below.
+- number: 2
+  title: 'The injector: red, green, refactor'
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED. Create `scripts/tests/test_ovms_retrieval_rerank_guard.py`. Using the
+      captured fixture as input, assert a module
+      `apps/ovms-retrieval/docker/inject_rerank_guard.py` exposes
+      `inject(text, max_allowed_chunks, max_position_embeddings) -> str` that:
+      (a) returns text containing both `max_allowed_chunks: <N>` and
+      `max_position_embeddings: <T>` inside the RerankCalculatorOVOptions block;
+      (b) leaves `models_path`, `plugin_config` and `target_device` byte-identical;
+      (c) is idempotent — injecting twice equals injecting once;
+      (d) RAISES on input with no RerankCalculatorOVOptions block, rather than
+      returning the input unchanged. (d) is the point: a best-effort rewrite that
+      silently matches nothing would publish a model image with the guard absent,
+      and CI, ArgoCD, the pod and the seed marker would all still agree it shipped.
+      Run `uv run --frozen pytest scripts/tests/test_ovms_retrieval_rerank_guard.py -q`
+      and keep the red output — the module does not exist.
+  - id: P1.T2.S2
+    text: |
+      GREEN. Write `apps/ovms-retrieval/docker/inject_rerank_guard.py`: a
+      dependency-free stdlib script, usable both as an import and as
+      `python inject_rerank_guard.py <graph.pbtxt> --max-allowed-chunks N
+      --max-position-embeddings T` rewriting the file in place. Keep it textual
+      (the file is protobuf TEXT format, and no protobuf runtime is available in
+      the export stage) but anchored on the
+      `[type.googleapis.com / mediapipe.RerankCalculatorOVOptions]: {` line, not
+      on a loose brace match. Re-run the test; green.
+  - id: P1.T2.S3
+    text: |
+      REFACTOR + quality gate. Tidy the injector (single responsibility, clear
+      failure messages naming the file). Run
+      `uv run --frozen pytest scripts/tests/test_ovms_retrieval_rerank_guard.py -q`
+      plus `ruff check` if the repo runs it; all green.
+- number: 3
+  title: Keep the discretion tripwire's control surface complete, then prove CI
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Append EVERY artefact this branch adds to `SCANNED_PATHS` in
+      `scripts/tests/test_third_party_discretion.py`: the spec, its journal, the
+      plan folder, the plan journal, the new fixture directory, the injector and
+      the new test module. That file scans ONLY the paths named in that list and
+      records that this exact omission already happened on frank#759, producing a
+      green run that said nothing about the new branch's artefacts. Run
+      `uv run --frozen pytest scripts/tests/test_third_party_discretion.py -q`; green.
+  - id: P1.T3.S2
+    text: |
+      Run the whole suite — `uv run --frozen pytest scripts/tests -q` — and push
+      the branch. Confirm CI is green before any later phase builds on it. This is
+      the skeleton's purpose: a real fixture, a real transformation, a real CI run,
+      before anything expensive is attempted.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

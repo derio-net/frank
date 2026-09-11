@@ -1,0 +1,86 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Documentation — gotcha, runbook prose, and the retroactive post updates
+  tag: agentic
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: The gotcha and its prose
+  steps:
+  - id: P6.T1.S1
+    text: |
+      RED. Extend `scripts/tests/test_igpu_dra_docs.py` so it requires the rerank
+      batch guard to be documented in `docs/runbooks/frank-gotchas/igpu-dra.md`
+      (assert on the mechanism words, not a sentence to copy). Run; red.
+  - id: P6.T1.S2
+    text: |
+      GREEN. Add a one-liner to the `Intel iGPU / DRA` section of
+      `agents/rules/frank-gotchas.md` and the full prose to
+      `docs/runbooks/frank-gotchas/igpu-dra.md`, per this repo's
+      one-liner-here / prose-there convention. The load-bearing content: the
+      rerank tensor is batch x longest-document tokens, so a document-count cap
+      alone is defeatable by one long passage; `max_allowed_chunks` defaults to
+      10000 and `export_model.py` never emits it; `--max_doc_length` is NOT a
+      batch cap; and the refusal surfaces as a 500, not a 4xx, because the
+      calculator's `std::runtime_error` is caught into `absl::InternalError`.
+      Re-run; green.
+  - id: P6.T1.S3
+    text: |
+      REFACTOR + quality gate. Re-read the new gotcha one-liner against the section's house style — one line, mechanism first, pointing at the per-topic file for prose — and the runbook prose for anything that restates a command instead of explaining it. Run `uv run --frozen pytest scripts/tests/test_igpu_dra_docs.py -q`; green.
+- number: 2
+  title: Retroactive post updates and the final gate
+  steps:
+  - id: P6.T2.S1
+    text: |
+      Per `agents/rules/repo-workflows.md`, a fix to a deployed layer extends the
+      existing posts rather than adding one. Edit
+      `blog/content/docs/building/37-igpu-retrieval-tier/index.md` with the
+      mechanism and the measured curve, and
+      `blog/content/docs/operating/07-inference/index.md` with the operational
+      consequence: what a caller sees when it exceeds the cap, and how to read
+      `/v1/config` and the restart count when it does. Ordinary markdown edits —
+      do not run the blog-post skill.
+  - id: P6.T2.S2
+    text: |
+      Verify the blog still builds (`cd blog && hugo --minify`) and review
+      `git status` before staging: `hugo mod get` can silently bump the Hextra
+      pin, and an npm run in a worktree rewrites the root package-lock name.
+      Stage only the intended files.
+  - id: P6.T2.S3
+    text: |
+      Run `uv run --frozen pytest scripts/tests -q` in full, confirm
+      `fr journal check --scope plan` is clean, and confirm every step in this
+      plan is ticked. Push.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
