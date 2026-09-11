@@ -48,26 +48,29 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:20:05+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:20:08+00:00'
       note: null
     P5.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:20:11+00:00'
       note: null
     P5.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:20:14+00:00'
       note: null
     P5.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T12:20:35+00:00'
+      note: 'Refactor done and the full suite is green locally (850 passed, 1 xfailed,
+        262s). The push half was not performed: the phase executor never pushes and
+        never opens a PR, so ticking this would claim an observation nobody has made.
+        Delivery is the orchestrator''s.'
   completion:
-    at: null
+    at: '2026-09-11T12:22:16+00:00'
     note: null
     observed_prs: []

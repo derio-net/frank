@@ -259,3 +259,58 @@ Surfaced by the phase-4 executor as a merge-ordering concern and verified here. 
 ### review-phase-4 · review · Phase 4 review — sound, and two executor judgement calls were right (phase 4)
 
 Reviewed the four phase-4 commits. The Dockerfile block is minimal and its prose explains the mechanism rather than restating the commands; the read-back verification uses the real grep against the injector emitted spelling, and the executor added an unasked-for test binding those two independent specs together and mutation-proved it. Two judgement calls both correct. First, touching deployment.yaml — nominally phase 5 — was forced by the repo tripwires, which make the Dockerfile rev, the workflow rev and the Deployment pin one atomic change; the executor moved only the pin and left the 10Gi ceiling red for phase 5. Second, declining to widen the injection loop to all four emitted graphs: only two are rerank graphs and the injector hard-fails on anything else by design, so the plan text would have made the build unable to succeed. Also caught a pre-existing test that disarmed itself the first time it was needed — it hard-coded the rev-1 string it mutated, so it would have failed on exactly the change it exists to bless. One finding added by review: publish-before-merge.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-rev-clauses-already-green created=2026-09-11T14:21:06 phase=5 -->
+### p5-rev-clauses-already-green · discovery · Two of S1's clauses were already green, and the third was changed on purpose (phase 5)
+
+S1 asks for a red on two properties. Recording exactly which half was red, so the TDD record is not read as stronger than it is.
+
+Already satisfied by phase 4, which had to carry the rev pin for the reasons in rev-pin-is-atomic-not-splittable: the seed image tag is 2, the seed container's MODELS_REV env is 2, and both equal the rev the build workflow publishes. I asserted those rather than re-changing anything, and they passed on the first run. The genuinely red half was limits.memory, and S2's provenance clause.
+
+One deliberate change of shape. S1 says both must be 2. I did not write == 2. This file already shipped an assertion that hard-coded the rev it expected and therefore failed on the first legitimate bump (drift-gate-fixture-pinned-rev-one, found in phase 4, on this very plan). An equality against 2 is the same defect wearing different clothes: correct for exactly one value of a field whose entire purpose is to move, and it fires on the next model bump, which is a change it exists to bless.
+
+What went in instead, as test_model_rev_is_the_same_value_in_all_three_places:
+- the three-way equality, stated once and directly. Each pair was already guarded separately, so the triangle held by transitivity, but only while both of those tests survive; deleting either one silently unpinned the other side.
+- int(rev) >= 2 as a floor. The property that actually matters is that the rev never goes BACKWARDS, because a lower rev pins an image whose graph carries no bound while the marker on the volume claims it does.
+
+If the orchestrator wants the literal equality anyway it is a one-line change, but it should be made knowing it self-disarms.
+
+<!-- fr:journal kind=finding scope=plan id=cpu-arm-envelope-must-track created=2026-09-11T14:21:22 phase=5 state=fixed -->
+### cpu-arm-envelope-must-track · finding [fixed] · The ceiling exists in TWO files, and only a tripwire said so (phase 5)
+
+Raising limits.memory on the Deployment turned the manifests suite red on a test I had not touched: test_cpu_control_arm_seeds_the_cpu_repository_on_the_same_node asserts that apps/ovms-retrieval/cpu-arm-pod.yaml carries the same CPU/memory envelope as the serving container.
+
+It is right, and the reason is not housekeeping. The CPU arm exists to isolate the DEVICE. Two arms with different ceilings do not compare a GPU against a CPU; a batch the GPU arm serves and the CPU arm OOM-kills has measured the limit. The failure would have been invisible in the only place it mattered: the comparison run would simply have reported the CPU arm dying at a size the GPU arm survived, which is exactly the shape of the result that arm is there to produce.
+
+Nothing in the plan, the spec, or phase 5's brief names cpu-arm-pod.yaml. Neither did I, before the test did. Raised it to 10Gi with a comment that says the envelope TRACKS the Deployment's and points at the Deployment for the provenance rather than duplicating it, so the two copies cannot drift into two different justifications.
+
+Worth carrying: the phase-5 brief was written as if the ceiling were one number in one file. It is two, and the second one is not in any manifests directory, so a grep of apps/ovms-retrieval/manifests finds only half of it.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-provenance-scope-and-refactor created=2026-09-11T14:21:42 phase=5 -->
+### p5-provenance-scope-and-refactor · discovery · The provenance test is only worth its scope, and the refactor had real work (phase 5)
+
+Two notes on how S2 was built, because a provenance test is easy to write in a form that proves nothing.
+
+SCOPE. The assertion reads the comments attached to the ovms container's resources block only: the contiguous comment run directly above it, plus every comment inside it, extracted from the raw file rather than from parsed YAML (PyYAML discards comments, so a YAML-level check cannot see the thing being asserted at all). Scanning the whole Deployment would let a future edit satisfy the test with a sentence three hundred lines away, which is provenance nobody reading limits memory 10Gi will ever find.
+
+The clauses are content, not keywords: the mechanism (quadratic, or the T x T tensor), the measured idle floor 2.21 GiB, the post-call floor 4.90 GiB, a word for the ratchet, the predicted worst case 6.36 GiB, both graph bounds NAMED with their values (max_allowed_chunks near 64, max_position_embeddings near 640 — a bare 64 and 640 reads as arbitrary and would also match 64% in the same paragraph), the 6Gi to 10Gi move, and Test Plan row 10. One correction during writing: the two-clause patterns needed re.S, because the prose is multi-line and .* stops at a newline — without it those clauses only pass when both halves happen to land on one line, which is a test that passes for the wrong reason.
+
+REFACTOR, not no-refactor-because. Two real defects in the green-pass comment. First, the spec path had been wrapped across two comment lines to respect the column limit, which makes the one thing in that block a reader will act on — opening the Test Plan row that closes the unverified ceiling — impossible to paste. Second, the original note sized the limit against the node (6 of 64 GB) and my rewrite had dropped that for a bare 10Gi ceiling; on an etcd member, what fraction of node RAM the ceiling can take is precisely the number a reader needs, so it reads 10 of 64 GB again.
+
+The discretion guard did not fire. The comment never refers to the requester — the largest batch this endpoint is expected to serve, not whose batch it is — so no rephrasing was needed and no exemption was added.
+
+<!-- fr:journal kind=finding scope=plan id=ten-gi-ships-unmeasured created=2026-09-11T14:22:01 phase=5 state=open -->
+### ten-gi-ships-unmeasured · finding [open] · OPEN: 10Gi ships without ever having been measured at 10Gi (phase 5)
+
+Carried forward from ten-gi-arm-blocked, now shipped rather than blocked, and it should stay open until row 10 closes it.
+
+Every figure behind this ceiling was taken at 6Gi. The plan's own step 4 said the 6Gi arm can only report hit the ceiling, never the true requirement, and the arm that would have reported the true requirement never ran: the live Deployment patch was refused by the permission layer in phase 3. The operator's decision was to ship the raise through git and verify afterwards, which is the right call — leaving the ceiling below the guard's own worst case would make the guard decorative — but it means the number in the manifest is a short extrapolation, not an observation.
+
+Specifically unproven:
+- 6.36 GiB is PREDICTED from a fit over three measured points, and the spec records that a fit over those points over-predicted an independent check by 28 percent. The direction of that error is not guaranteed.
+- 64 percent of 10Gi is arithmetic on that prediction, so it inherits the same uncertainty.
+- nothing has ever observed this pod holding more than the 4.90 GiB the 50-document call left resident at 6Gi.
+
+The manifest comment says so in its own words (WHAT IS NOT PROVEN) rather than presenting 10Gi as measured, because an unverified number that looks verified is worse than no number. Test Plan row 10 closes it: re-run the batch sweep against the deployed pod and require every peak at or under about 70 percent of the limit. Note the sweep must run on a freshly restarted container for the same ratchet reason phase 3 found, or the reading overstates every size after the first.
+
+If row 10 comes back above 70 percent the response is to tighten max_position_embeddings, not to raise the ceiling again — the whole point of this shape is that the bound moves and the backstop does not.
