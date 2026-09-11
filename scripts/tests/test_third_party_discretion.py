@@ -78,6 +78,13 @@ PLAN_SLUG = "2026-08-02--infer--igpu-embedding-rerank"
 GBRAIN_PLAN_SLUG = "2026-08-03-hermes-retrieval-store-sidecar"
 GBRAIN_SPEC_SLUG = "2026-08-03--orch--hermes-retrieval-store-sidecar"
 
+# frank#793: bounding the rerank batch, so an oversized call from the same
+# external client is refused instead of OOM-killing the shared process. Third
+# plan for this requester, third time this list has to grow — appended here as
+# phase 1 of the work rather than at the end, precisely because the omission
+# documented above happened when it was left for later.
+RERANK_GUARD_SLUG = "2026-09-11--infer--ovms-rerank-batch-guard"
+
 # Everything these branches add that a reader outside Frank can see.
 SCANNED_PATHS = [
     # ARCHIVED, not deleted. When #748's plan completed (frank#757) these four
@@ -123,6 +130,19 @@ SCANNED_PATHS = [
     # the OPERATIONAL one was not. Verified clean as a whole file, so it goes in
     # whole rather than scoped.
     REPO / "docs/runbooks/frank-gotchas/agent-shells.md",
+    # frank#793 — the rerank batch guard. Note what is NOT repeated here: the
+    # injector `apps/ovms-retrieval/docker/inject_rerank_guard.py` is already
+    # covered by the `apps/ovms-retrieval` directory entry above, which
+    # `_files()` walks with `rglob`. Listing it again would double-report every
+    # hit in it and, worse, imply the directory entry does not cover its
+    # contents. Verified by walking `_files()`, not assumed.
+    REPO / "docs/superpowers/specs" / f"{RERANK_GUARD_SLUG}-design.md",
+    REPO / "docs/superpowers/journals/specs" / f"{RERANK_GUARD_SLUG}.md",
+    REPO / "docs/superpowers/plans" / RERANK_GUARD_SLUG,
+    REPO / "docs/superpowers/journals/plans" / f"{RERANK_GUARD_SLUG}.md",
+    REPO / "docs/superpowers/runs/2026-09-11-fix-ovms-rerank-oom-guard.yaml",
+    REPO / "scripts/tests/fixtures/ovms-retrieval",
+    REPO / "scripts/tests/test_ovms_retrieval_rerank_guard.py",
     #
     # DELIBERATELY ABSENT: `agents/rules/frank-gotchas.md`. It is the shared
     # compact hot-file for EVERY layer in the repo, and scanning it whole fires
@@ -140,6 +160,16 @@ SCANNED_PATHS = [
     # `docs/runbooks/manual-operations.yaml` is not here either — it is scanned,
     # but SCOPED to the two ops this work added. See _SCOPED_OPS below for why a
     # whole-file scan of a 144-op registry would rot the guard the same way.
+    #
+    # `docs/acceptance/matrix.yaml` is the same shape and is scoped the same
+    # way, by row id — see _SCOPED_ACCEPTANCE_ROWS. Measured 2026-09-11 rather
+    # than assumed: a whole-file scan of it fires exactly one hit, on a row
+    # belonging to an unrelated layer, where a frank issue citation happens to
+    # land within the context window of a requester-word. Silencing that would
+    # mean exempting a number this work has never looked at — a guard growing
+    # exemptions for other people's rows is the rot this file was written
+    # about. (Writing the offending citation out here would trip the same rule;
+    # this file lives by it. Re-derive it by scanning the file whole.)
     pathlib.Path(__file__),
 ]
 
@@ -223,6 +253,7 @@ _PUBLIC_FRANK_ISSUES = {
     748,  # the iGPU retrieval tier this work builds on
     751,  # its follow-on, cited in #759's header
     759,  # the retrieval-store sidecar; `gbrain` is the codename IT uses, publicly
+    793,  # the rerank batch guard — filed on frank, cited in its spec header
 }
 
 _WINDOW = 120
@@ -304,6 +335,16 @@ def _rel(path: pathlib.Path) -> str:
 _SCOPED_OPS = ("orch-hermes-gbrain-cli-install", "orch-hermes-ssh-bun-repin")
 _MANUAL_OPS = REPO / "docs/runbooks/manual-operations.yaml"
 
+# `docs/acceptance/matrix.yaml` — same reasoning, different registry. The three
+# rows frank#793 adds are the ones in scope; the other ~90 belong to every
+# other layer in the repo.
+_SCOPED_ACCEPTANCE_ROWS = (
+    "infer-rerank-supported-batch-succeeds",
+    "infer-rerank-oversized-refused-cleanly",
+    "infer-rerank-batch-curve-measured",
+)
+_ACCEPTANCE_MATRIX = REPO / "docs/acceptance/matrix.yaml"
+
 
 def _manual_op_text() -> str:
     ops = yaml.safe_load(_MANUAL_OPS.read_text(encoding="utf-8"))["operations"]
@@ -314,6 +355,19 @@ def _manual_op_text() -> str:
         "runbook was regenerated from an edited plan. A scoped scan that quietly "
         "narrows to nothing is precisely the rot test_every_scanned_path_exists "
         "was written to stop, so this fails loudly instead."
+    )
+    return yaml.safe_dump(wanted, allow_unicode=True, sort_keys=False)
+
+
+def _acceptance_row_text() -> str:
+    rows = yaml.safe_load(_ACCEPTANCE_MATRIX.read_text(encoding="utf-8"))["rows"]
+    wanted = [row for row in rows if row.get("id") in _SCOPED_ACCEPTANCE_ROWS]
+    assert len(wanted) == len(_SCOPED_ACCEPTANCE_ROWS), (
+        f"expected rows {list(_SCOPED_ACCEPTANCE_ROWS)} in "
+        f"{_rel(_ACCEPTANCE_MATRIX)}, found {[row.get('id') for row in wanted]} — "
+        "a row was renamed or dropped. Same reasoning as the manual-ops "
+        "assertion above: a scoped scan that quietly narrows to nothing is "
+        "worse than no scan, because it still reports green."
     )
     return yaml.safe_dump(wanted, allow_unicode=True, sort_keys=False)
 
@@ -330,6 +384,12 @@ def _scan_units() -> list[tuple[str, str]]:
         for path in _files()
     ]
     units.append((f"{_rel(_MANUAL_OPS)}[{'+'.join(_SCOPED_OPS)}]", _manual_op_text()))
+    units.append(
+        (
+            f"{_rel(_ACCEPTANCE_MATRIX)}[{'+'.join(_SCOPED_ACCEPTANCE_ROWS)}]",
+            _acceptance_row_text(),
+        )
+    )
     return units
 
 

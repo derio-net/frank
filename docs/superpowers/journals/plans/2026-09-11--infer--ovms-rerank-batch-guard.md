@@ -40,3 +40,28 @@ Captured from `deploy/ovms-retrieval` container `ovms` on 2026-09-11.
 `tokenizer_config.json` (381 bytes): `add_bos_token` ABSENT, `model_max_length` 16000, `tokenizer_class` `XLMRobertaTokenizer`. Absent is the answer the design needed: `RerankServable::addBosToken` stays true, so `max_position_embeddings` is a CHUNKING boundary, not a hard rejection boundary. The design's cost note (chunked scoring semantics for long documents) stands as written; no revisit needed.
 
 Neither capture was hand-edited.
+
+<!-- fr:journal kind=discovery scope=plan id=42511195a930 created=2026-09-11T11:17:26 phase=1 -->
+### 42511195a930 · discovery · docs/acceptance/matrix.yaml needs ROW-scoping, not a whole-file entry (phase 1)
+
+The plan's P1.T3.S1 names seven artefacts. There is an eighth: this branch also appends three rows to `docs/acceptance/matrix.yaml`, which carries prose about the work and is therefore in scope.
+
+It cannot go into `SCANNED_PATHS` whole. Measured, not assumed: scanning the 900+-line file fires exactly one hit, on a row belonging to an unrelated layer where a frank issue citation lands inside the context window of a requester-word. Silencing it would mean exempting a number this work has never looked at — which is precisely the rot the file documents. So the matrix is scoped by row id (`_SCOPED_ACCEPTANCE_ROWS` + `_acceptance_row_text()`), mirroring the `_SCOPED_OPS` treatment of the 144-op manual-operations registry, with the same loud assertion if a row is renamed or dropped.
+
+Also deliberately NOT re-listed: `apps/ovms-retrieval/docker/inject_rerank_guard.py`. It is already covered by the existing `apps/ovms-retrieval` directory entry, which `_files()` walks with `rglob`. Verified by walking `_files()` — every branch artefact is scanned, with zero duplicate entries — rather than by reading the list.
+
+<!-- fr:journal kind=finding scope=plan id=bff70c36faa4 created=2026-09-11T11:17:33 phase=1 state=fixed -->
+### bff70c36faa4 · finding [fixed] · The discretion guard fired on the comment explaining the discretion guard (phase 1)
+
+While documenting WHY `docs/acceptance/matrix.yaml` is row-scoped, the natural comment quoted the one hit a whole-file scan produces — the issue number and the requester-word beside it. `test_third_party_discretion.py` scans itself, so the comment tripped `test_no_issue_number_is_correlatable_with_the_requester` immediately.
+
+Useful two ways. It is live proof the self-scan works rather than being decorative prose about working. And the fix followed the file's own stated rule — 'if a match is genuinely benign, rephrase rather than widen the allowlist' — so the comment now describes the shape of the hit and tells the reader to re-derive it by scanning the file whole, instead of reproducing it. Adding `_SELFTEST_MARKER` would have been the wrong reflex: that exemption exists for the detector's own pattern definitions, not for a sentence that is inconvenient.
+
+No open risk. Full suite after the change: 797 passed, 1 xfailed.
+
+<!-- fr:journal kind=discovery scope=plan id=42347127ea0d created=2026-09-11T11:17:47 phase=1 -->
+### 42347127ea0d · discovery · The captured graph.pbtxt has NO trailing newline — that is the server's bytes (phase 1)
+
+`scripts/tests/fixtures/ovms-retrieval/rerank-graph.live.pbtxt` is 518 bytes ending in `}` with no final newline. That reads like a sloppy capture and is not one: `export_model.py`'s Jinja template emits it that way and the pod serves exactly those bytes. The companion `tokenizer_config.json` DOES end in a newline, so the difference is upstream's, not the capture's.
+
+Consequence for phase 3: the injector preserves it (it splices inside the options block and never touches the tail), so a rewritten graph is still newline-free at EOF. Any later check that compares the built graph against a hand-written expected file must account for that, or it will fail on a byte nobody added.
