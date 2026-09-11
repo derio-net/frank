@@ -213,16 +213,73 @@ spec:
               protocol: TCP
           resources:
             # Both halves are set on purpose: a limit without a request lets
-            # the scheduler over-commit an etcd member. 2 of 14 cores and 6 of
-            # 64 GB. The memory limit is the real backstop rather than a
-            # formality — iGPU allocations come out of host RAM via i915, so
-            # there is no separate VRAM ceiling to hit first.
+            # the scheduler over-commit an etcd member. 2 of 14 cores, and a
+            # 2Gi request against a 10Gi ceiling. The memory limit is the real
+            # backstop rather than a formality — iGPU allocations come out of
+            # host RAM via i915, so there is no separate VRAM ceiling to hit
+            # first.
+            #
+            # WHY THE CEILING IS 10Gi, AND WHY THAT IS A REVERSAL.
+            # 6Gi -> 10Gi, 2026-09-11. The parent spec set this ceiling small
+            # ON PURPOSE: mini-1 is an etcd member, and the whole iGPU
+            # experiment was sized to keep its failure domain away from the
+            # control plane. Raising it reverses that posture, so what follows
+            # is what it was reversed on — all of it measured on a freshly
+            # restarted container from /sys/fs/cgroup/memory.peak, because
+            # vmagent scrapes at 20s and these transients last 0.1–2.5s, so no
+            # metric can see them.
+            #
+            #   * Cost is near-QUADRATIC in document length and only linear in
+            #     document count. The attention scores tensor is
+            #     B x heads x T x T on a 24-layer cross-encoder, and a fit over
+            #     the measured points puts the exponent on T at about 1.78.
+            #     Read as a linear cost, this invites the conclusion that
+            #     bounding the count alone is enough. It is not — which is why
+            #     the per-chunk token bound below is the primary control and
+            #     not a secondary precaution.
+            #
+            #   * Memory is NEVER RELEASED. memory.current after a large call
+            #     equals memory.peak and stays there: idle 2.21 GiB, then
+            #     4.90 GiB afterwards, with no return. The resident floor
+            #     RATCHETS to the high-water of the largest call ever served
+            #     and holds for the life of the container. That ratchet — not
+            #     the size of any one request — is what made the failure
+            #     intermittent: the largest batch this endpoint is expected to
+            #     serve costs 2.93 GiB, so on a fresh server it fits inside
+            #     6Gi comfortably. It dies only once the floor has risen
+            #     underneath it, which is exactly what "works, then doesn't,
+            #     then works again after a restart" looks like.
+            #
+            # The exported rerank graph now bounds both terms —
+            # max_allowed_chunks: 64 and max_position_embeddings: 640, injected
+            # at build time by docker/inject_rerank_guard.py — which is what
+            # makes a worst case exist at all: 6.36 GiB. That is 64% of this
+            # 10Gi ceiling and 106% of the 6Gi it replaces. So the raise is not
+            # headroom for a larger workload. It is what turns the ceiling into
+            # a backstop the bounded workload cannot reach, rather than the
+            # thing it runs into. A guard whose own worst case OOMs is
+            # decorative.
+            #
+            # WHAT IS NOT PROVEN: 10Gi was never measured AT 10Gi. Every figure
+            # above was taken at 6Gi. The live Deployment patch that would have
+            # measured the raised arm was refused by the operator's permission
+            # layer, and the decision was to ship the raise through git and
+            # verify afterwards rather than leave the ceiling below the guard's
+            # own worst case. Test Plan row 10 of
+            # docs/superpowers/specs/
+            #   2026-09-11--infer--ovms-rerank-batch-guard-design.md
+            # closes it: re-run the batch sweep against this pod and require
+            # every peak to sit at or under ~70% of the limit.
+            #
+            # requests.memory deliberately stays at 2Gi. Only the ceiling
+            # moved, so the scheduler's view of this control-plane node is
+            # exactly what it was.
             requests:
               cpu: 500m
               memory: 2Gi
             limits:
               cpu: "2"
-              memory: 6Gi
+              memory: 10Gi
             # The iGPU, claimed through DRA. Only this container gets it — the
             # seed container copies files and would hold the device through
             # the whole init phase for nothing.
