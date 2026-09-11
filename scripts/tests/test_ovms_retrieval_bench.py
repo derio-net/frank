@@ -1017,8 +1017,15 @@ def test_padding_reuses_the_existing_filler_vocabulary():
     # the module's own filler text. `scripts/tests/test_third_party_discretion.py`
     # scans this script, and inventing plausible-sounding corpus text is
     # exactly what it exists to prevent.
-    base = set(" ".join(bench.generate_filler_passages(20)).lower().split())
-    padded = set(" ".join(bench.generate_filler_passages(20, words=200)).lower().split())
+    # Punctuation is stripped on BOTH sides before comparing: a topic's final
+    # word only ever appears comma-attached in the base sentence ("...about
+    # basic bicycle maintenance, written as..."), so a bare "maintenance" in
+    # the padding is the same word, not a new one.
+    def _words(passages):
+        return {w.strip(".,()").lower() for w in " ".join(passages).split()} - {""}
+
+    base = _words(bench.generate_filler_passages(20))
+    padded = _words(bench.generate_filler_passages(20, words=200))
     assert padded <= base
 
 

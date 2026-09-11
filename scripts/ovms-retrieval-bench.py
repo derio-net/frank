@@ -71,6 +71,7 @@ the functions that call them talk to a socket.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import math
 import sys
@@ -118,6 +119,21 @@ TIMING_INCLUDES_NOTE = (
     "inference time."
 )
 
+# A failed call's body is the server's own account of why it refused. Capped,
+# because an unexpected failure can return an arbitrarily large page and the
+# record is meant to be read.
+SWEEP_BODY_CAPTURE_CHARS = 2000
+
+# `_post_json` returns only on 2xx and discards the response code, so a
+# successful sweep call is recorded as 200. Failures carry the server's actual
+# status. Stated in the record rather than left for a reader to discover.
+SWEEP_STATUS_NOTE = (
+    "status 200 on success means '2xx, code not retained' — _post_json "
+    "returns a parsed body, not a response object. A non-2xx status is the "
+    "server's own, read from the raised HTTPError; null means no response "
+    "reached the client at all (closed or refused socket)."
+)
+
 CROSS_CHECK_CONFIRMED = "confirmed"
 CROSS_CHECK_CONTRADICTED = "contradicted"
 CROSS_CHECK_NOT_REPORTED = "not-reported"
@@ -150,6 +166,24 @@ _FILLER_TOPICS = [
     "compost bin temperature control",
     "the design of covered bridges",
 ]
+
+# The word pool `--rerank-words` pads from: the words the filler passages are
+# already built out of, nothing else. Padding a 200-word document has to come
+# from somewhere, and "somewhere" must not be newly-written prose that could
+# read as anyone's corpus — so the pool is derived from the text above rather
+# than authored. Order is deterministic (`dict.fromkeys`) so a given
+# (passage index, word count) always produces the same bytes.
+_FILLER_SENTENCE_WORDS = (
+    "this is a general-purpose passage about written as filler candidate "
+    "text for a retrieval benchmark"
+).split()
+
+_FILLER_VOCABULARY = tuple(
+    dict.fromkeys(
+        _FILLER_SENTENCE_WORDS
+        + [word for topic in _FILLER_TOPICS for word in topic.split()]
+    )
+)
 
 
 # --------------------------------------------------------------------------
@@ -203,20 +237,62 @@ def generate_filler_query(index: int = 0) -> str:
     return f"What should someone getting started know about {topic}?"
 
 
-def generate_filler_passages(n: int, offset: int = 0) -> list[str]:
+def generate_filler_passages(n: int, offset: int = 0, words: int | None = None) -> list[str]:
     """`offset` rotates which topic lands at which candidate position, so
-    successive iterations do not send a byte-identical body."""
+    successive iterations do not send a byte-identical body.
+
+    `words` pads each passage to EXACTLY that many words, from this module's
+    own filler vocabulary. `None` (the default) is the unpadded ~20-word
+    passage this harness has always sent, so the parent spec's published
+    numbers are unaffected.
+
+    Why the knob exists: the rerank calculator builds one tensor of shape
+    `{batch, longest_document_tokens}`, so peak memory is B x T. The OOM this
+    is used to measure reproduced at 200-word documents; a sweep at the stock
+    length sends roughly a tenth of the tokens per document and can fail to
+    reproduce it at ANY batch size while looking like a clean run.
+
+    Padding is drawn from `_FILLER_VOCABULARY` — words already present in the
+    text above — deliberately: this must stay obviously-invented filler and
+    never drift into plausible-sounding corpus prose. See
+    agents/rules/third-party-privacy.md."""
     passages = []
     for i in range(n):
         index = i + offset
         topic = _FILLER_TOPICS[index % len(_FILLER_TOPICS)]
         variant = index // len(_FILLER_TOPICS)
         suffix = f" (note {variant})" if variant else ""
-        passages.append(
+        passage = (
             f"This is a general-purpose passage about {topic}, written as "
             f"filler candidate text for a retrieval benchmark{suffix}."
         )
+        if words is not None:
+            passage = _pad_to_word_count(passage, words, seed=index)
+        passages.append(passage)
     return passages
+
+
+def _pad_to_word_count(text: str, words: int, seed: int) -> str:
+    """Extend `text` to exactly `words` words with vocabulary it already uses.
+
+    Refuses to shorten. A request for fewer words than the base sentence
+    already carries cannot be honoured without either truncating the topic
+    anchor the degeneracy check depends on, or recording a word count that was
+    never sent — so it raises instead of silently doing one of those."""
+    if words < 1:
+        raise ValueError(f"words must be positive, got {words}")
+    current = text.split()
+    if words < len(current):
+        raise ValueError(
+            f"cannot pad to {words} words: the base filler passage is already "
+            f"{len(current)} words. Use a larger --rerank-words, or the "
+            "default (no padding)."
+        )
+    padding = [
+        _FILLER_VOCABULARY[(seed + i) % len(_FILLER_VOCABULARY)]
+        for i in range(words - len(current))
+    ]
+    return " ".join(current + padding)
 
 
 # --------------------------------------------------------------------------
@@ -390,6 +466,31 @@ def scores_are_degenerate(scores: list[float]) -> bool:
 # CLI
 # --------------------------------------------------------------------------
 
+def parse_sweep_sizes(raw: str) -> list[int]:
+    """`"10,20,30"` -> `[10, 20, 30]`, sorted ascending and de-duplicated.
+
+    Ascending is not cosmetic. A size large enough to kill the server leaves
+    it refusing connections for about ten seconds, so any smaller size
+    measured after it would record a restart rather than a batch cost. The
+    sweep therefore always walks small to large, whatever order the operator
+    typed."""
+    sizes: list[int] = []
+    for part in raw.split(","):
+        token = part.strip()
+        if not token:
+            raise ValueError(f"empty batch size in --rerank-sweep {raw!r}")
+        try:
+            size = int(token)
+        except ValueError:
+            raise ValueError(f"batch size {token!r} is not an integer") from None
+        if size < 1:
+            raise ValueError(f"batch size {size} is not positive")
+        sizes.append(size)
+    if not sizes:
+        raise ValueError("--rerank-sweep needs at least one batch size")
+    return sorted(set(sizes))
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -415,6 +516,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rerank-candidates", type=int, default=RERANK_CANDIDATES)
     parser.add_argument("--rerank-iterations", type=int, default=RERANK_ITERATIONS)
     parser.add_argument("--rerank-warmup", type=int, default=RERANK_WARMUP)
+    parser.add_argument(
+        "--rerank-sweep",
+        type=parse_sweep_sizes,
+        default=None,
+        help=(
+            "SWEEP MODE. Comma-separated batch sizes, e.g. "
+            "'10,20,30,40,50,51'. Replaces the timed rerank+embeddings "
+            "benchmark with one rerank call per size, ascending, recording "
+            "latency, HTTP status and the response body on failure. A refusal "
+            "or a killed server is RECORDED and the sweep continues — those "
+            "are the results it exists to capture."
+        ),
+    )
+    parser.add_argument(
+        "--rerank-words",
+        type=int,
+        default=None,
+        help=(
+            "Pad every candidate passage to this many words. Default: no "
+            "padding (the stock ~20-word passage). Peak server memory is "
+            "batch x LONGEST-DOCUMENT tokens, so a sweep at the stock length "
+            "measures roughly a tenth of the tokens per document and may not "
+            "reproduce an OOM at any batch size."
+        ),
+    )
     parser.add_argument(
         "--embedding-iterations",
         type=int,
@@ -556,7 +682,9 @@ def _run_rerank_benchmark(args: argparse.Namespace) -> tuple[dict[str, float], b
         return build_rerank_request(
             args.rerank_model,
             generate_filler_query(index),
-            generate_filler_passages(args.rerank_candidates, offset=index),
+            generate_filler_passages(
+                args.rerank_candidates, offset=index, words=args.rerank_words
+            ),
         )
 
     for i in range(args.rerank_warmup):
@@ -568,6 +696,104 @@ def _run_rerank_benchmark(args: argparse.Namespace) -> tuple[dict[str, float], b
     last_scores = parse_rerank_scores(responses[-1]) if responses else []
 
     return summarize_latencies(latencies), scores_are_degenerate(last_scores)
+
+
+def _run_rerank_sweep(args: argparse.Namespace) -> dict[str, Any]:
+    """Walk `--rerank-sweep` ascending, one rerank call per size, recording
+    latency / status / body per size and NEVER propagating a failure.
+
+    Both outcomes worth measuring arrive as exceptions, because `_post_json`
+    wraps `urlopen`: a guard refusing an oversized batch is an `HTTPError`,
+    and a server killed by one is a `RemoteDisconnected` followed by
+    `URLError` for as long as the pod takes to restart. A sweep that let those
+    out would abort at exactly the size it was run to measure, and report a
+    tidy curve of the sizes that happened to survive.
+
+    Warm-up runs at the SMALLEST size only. Warming at a size about to be
+    proven fatal spends a restart, and the next size is then measured against
+    a cold server — recording a plugin recompile as batch cost."""
+    url = f"{args.base_url}/v3/rerank"
+    sizes = args.rerank_sweep
+    smallest = sizes[0]
+
+    def attempt(documents: int, index: int) -> dict[str, Any]:
+        passages = generate_filler_passages(
+            documents, offset=index, words=args.rerank_words
+        )
+        body = build_rerank_request(
+            args.rerank_model, generate_filler_query(index), passages
+        )
+        # Measured from the passages actually built, not echoed back from the
+        # flag: a padding bug then shows in the record instead of being
+        # papered over by it.
+        words_sent = max(len(p.split()) for p in passages)
+
+        start = time.perf_counter()
+        status: int | None = None
+        error: str | None = None
+        response_body: str | None = None
+        results_returned: int | None = None
+        ok = False
+        try:
+            response = _post_json(url, body)
+        except urllib.error.HTTPError as exc:
+            # Subclass of URLError — must be caught first or a refusal loses
+            # its status code and its message.
+            status = exc.code
+            error = f"HTTPError: {exc}"
+            response_body = _read_error_body(exc)
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
+            # No status at all: the socket closed, or never opened. Recording
+            # 0 or 500 here would invent a response the server never sent.
+            error = f"{type(exc).__name__}: {exc}"
+        else:
+            ok = True
+            status = 200
+            results_returned = len(response.get("results", []))
+        latency_ms = (time.perf_counter() - start) * 1000.0
+
+        return {
+            "documents": documents,
+            "words_per_document": words_sent,
+            "status": status,
+            "latency_ms": latency_ms,
+            "ok": ok,
+            "error": error,
+            "body": response_body,
+            "results_returned": results_returned,
+        }
+
+    warmup_attempts = [attempt(smallest, i) for i in range(max(args.rerank_warmup, 0))]
+    results = [attempt(size, i) for i, size in enumerate(sizes)]
+
+    return {
+        "model": args.rerank_model,
+        "sizes": list(sizes),
+        "words_per_document_requested": args.rerank_words,
+        "warmup": {
+            "documents": smallest,
+            "calls": len(warmup_attempts),
+            "attempts": warmup_attempts,
+        },
+        "status_note": SWEEP_STATUS_NOTE,
+        "results": results,
+    }
+
+
+def _read_error_body(exc: urllib.error.HTTPError) -> str | None:
+    """The server's own words about why it refused — the thing Test Plan row 6
+    records rather than asserts. Best-effort: a body that cannot be read must
+    not turn a recorded refusal into a crashed sweep."""
+    try:
+        raw = exc.read()
+    except Exception:  # pragma: no cover - defensive; fp may be absent/closed
+        return None
+    if not raw:
+        return None
+    text = raw.decode("utf-8", errors="replace")
+    if len(text) > SWEEP_BODY_CAPTURE_CHARS:
+        return text[:SWEEP_BODY_CAPTURE_CHARS] + "... [truncated]"
+    return text
 
 
 def _run_embeddings_benchmark(args: argparse.Namespace) -> tuple[int, dict[str, float], dict[str, float]]:
