@@ -330,3 +330,14 @@ WHAT THE DOCUMENT SAYS. The issue framed this as an oversized request killing th
 WHAT THE FIRST PATTERNS GOT WRONG. The clauses spanning two ideas -- the flag name and its negation, 500 and 4xx, restart and floor -- were first written with same-line windows. That file hard-wraps at about 76 columns, so whether those two ideas land on one line is a property of where the sentence happened to break, not of what it says. Same defect as the re.S correction in phase 5, one step further: not merely failing on multi-line prose, but passing or failing on typography. Caught before the red commit and fixed by flattening the section to a single line before matching, so every window is a character distance in the prose.
 
 The eleventh clause is the instrument, memory.peak, because the prose that names a 20s scrape as blind is worth nothing without naming what is not.
+
+<!-- fr:journal kind=discovery scope=plan id=7b09676c62a6 created=2026-09-11T14:43:51 phase=6 -->
+### 7b09676c62a6 · discovery · Three small judgement calls in the retroactive post edits (phase 6)
+
+None of them is in the plan; recording them so a reviewer can disagree cheaply.
+
+NO BRANCH SHAS IN THE MISSTEPS TABLE. The building post's Missteps table has a Commit column and every existing row cites a main SHA. The two rows this work adds could only cite branch commits, which are squash-merged and therefore never reach main -- a link that 404s, in a table whose whole value is that you can go read the change. Both rows cite the public frank issue instead. Same reasoning applies to the operating post's last_updated / last_updated_commit stamp, which I did NOT touch: the merge SHA is unknowable from inside the phase, and bumping the date while leaving the August SHA beside it would render a stamp that is actively wrong rather than merely stale. Left for the orchestrator to bump post-merge if it wants the stamp current.
+
+A THIRD OOM PATTERN, NOT A FOURTH PARAGRAPH. The operating post already has an Out of Memory: Which Kind? section, and it is about Ollama: VRAM exhaustion versus container cgroup RAM. The retrieval ratchet is a third answer to the same question an operator is asking when they arrive there, so it is a sibling heading next to that one rather than a note under the retrieval section. It opens by saying it is a different app, because the two patterns above it are not.
+
+TWO SIGNALS, NOT ONE, FOR TELLING REFUSAL FROM DEATH. A refused oversized call and an OOM-kill both look like a failed rerank to the caller, and the refusal's status code is 500, which reads like the server broke. The post pairs the /v1/config AVAILABLE check with the restart counter, because either alone is ambiguous: the servables read AVAILABLE again within about ten seconds of a kill, and the restart counter alone does not say whether the request was served. Also corrected the pod selector while writing it -- the manifest labels are app.kubernetes.io/name, not app.

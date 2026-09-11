@@ -69,18 +69,23 @@ state:
       ticked_at: '2026-09-11T12:33:10+00:00'
       note: null
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:44:22+00:00'
       note: null
     P6.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T12:44:25+00:00'
       note: null
     P6.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-11T12:44:29+00:00'
+      note: 'Suite green in full (852 passed, 1 xfailed, 270s) and every other step
+        in the plan is ticked. fr journal check reports 5 open findings, all inherited
+        from phases 1-5 and all owned by the orchestrator (CI confirmation, the refused
+        live Deployment patch, the 10Gi ceiling shipped unmeasured) — none is a phase-6
+        defect. Push is deliberately not done: the phase executor never pushes and
+        never opens a PR, so ticking this would claim an action nobody took.'
   completion:
-    at: null
+    at: '2026-09-11T12:44:40+00:00'
     note: null
     observed_prs: []
