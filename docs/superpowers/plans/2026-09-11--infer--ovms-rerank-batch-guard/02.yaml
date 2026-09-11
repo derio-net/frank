@@ -75,8 +75,8 @@ state:
       ticked_at: '2026-09-11T09:38:39+00:00'
       note: null
     P2.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-11T09:40:21+00:00'
       note: null
     P2.T1.S6:
       state: ' '

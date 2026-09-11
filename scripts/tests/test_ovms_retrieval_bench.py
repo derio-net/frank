@@ -1326,3 +1326,30 @@ def test_module_docstring_does_not_claim_an_unverifiable_guarantee():
 def test_module_docstring_states_what_the_timing_includes():
     doc = bench.__doc__.lower()
     assert "json.loads" in doc or "client-side" in doc
+
+
+def test_module_docstring_describes_sweep_mode():
+    # The docstring is the contract a reader meets first. Describing the
+    # rerank measurement as "one query against 20 candidate passages" while
+    # the script also walks a batch curve and records refusals would send a
+    # phase-3 operator looking for a mode the docs say does not exist.
+    doc = bench.__doc__.lower()
+    assert "sweep" in doc
+    assert "--rerank-words" in doc or "rerank-words" in doc
+
+
+def test_rerank_once_is_a_single_named_place_for_the_tolerance_logic(monkeypatch):
+    # Warm-up and the timed sweep must not grow divergent copies of "what
+    # happens when the server refuses or dies".
+    monkeypatch.setattr(bench, "_post_json", _FailingRecorder(fail_from=1, error=_http_error))
+    record = bench._rerank_once(
+        url="http://example.invalid:8000/v3/rerank",
+        model="bge-reranker-v2-m3",
+        documents=4,
+        index=0,
+        words=None,
+    )
+    assert record["documents"] == 4
+    assert record["status"] == 500
+    assert record["ok"] is False
+    assert "max_allowed_chunks" in record["body"]

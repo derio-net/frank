@@ -10,12 +10,41 @@ Run from INSIDE the cluster (laptop-side timing measures the LAN, not the
 GPU). The target defaults to the phase-2 Service,
 `ovms-retrieval.retrieval.svc.cluster.local:8000`.
 
-Measures, per the spec:
-  1. Rerank latency — one query against 20 candidate passages, N timed
-     iterations after a warm-up, reporting p50 / p95 / max.
+Two modes.
+
+**Benchmark mode** (default) measures, per the parent spec:
+  1. Rerank latency — one query against `--rerank-candidates` passages
+     (default 20), N timed iterations after a warm-up, reporting
+     p50 / p95 / max.
   2. Embedding dimensionality — read from the response, never hardcoded.
   3. Embedding latency and throughput (items/sec) — single request and
      batch-32, each warmed at its OWN shape before being timed.
+
+**Sweep mode** (`--rerank-sweep 10,20,30,40,50`) replaces all of that with one
+rerank call per batch size, ascending, recording per size: documents, words
+per document, HTTP status, latency, and the response body on failure. It is
+the instrument for
+docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md,
+where an oversized batch OOM-kills the whole server and the cap that stops it
+is derived from the resulting curve. Three properties make that curve worth
+quoting:
+
+  * **Failures are data, not errors.** `_post_json` wraps `urlopen`, which
+    raises on anything but 2xx, so a guard REFUSING a batch (`HTTPError`) and
+    a server KILLED by one (`RemoteDisconnected`, then `URLError` while the
+    pod restarts) both arrive as exceptions — and both are exactly what the
+    sweep exists to capture. Each is recorded and the sweep continues.
+  * **`--rerank-words` sets passage length.** Peak server memory is
+    batch x LONGEST-DOCUMENT tokens, so length is half the mechanism. The
+    stock filler is a ~20-word passage; the fault under investigation
+    reproduced at 200. Every recorded size carries the word count actually
+    sent, measured from the bodies.
+  * **Warm-up happens at the smallest size only.** Warming at a size about to
+    be proven fatal spends a restart and measures the next size against a
+    cold server.
+
+Sweep mode does NOT run the embeddings benchmark afterwards: that would time
+a restarting pod and report it as embedding latency.
 
 Every run rotates the query and the candidate set across iterations. Sending
 one identical body N times measures a best case with fully warm caches and
@@ -744,51 +773,13 @@ def _run_rerank_sweep(args: argparse.Namespace) -> dict[str, Any]:
     smallest = sizes[0]
 
     def attempt(documents: int, index: int) -> dict[str, Any]:
-        passages = generate_filler_passages(
-            documents, offset=index, words=args.rerank_words
+        return _rerank_once(
+            url=url,
+            model=args.rerank_model,
+            documents=documents,
+            index=index,
+            words=args.rerank_words,
         )
-        body = build_rerank_request(
-            args.rerank_model, generate_filler_query(index), passages
-        )
-        # Measured from the passages actually built, not echoed back from the
-        # flag: a padding bug then shows in the record instead of being
-        # papered over by it.
-        words_sent = max(len(p.split()) for p in passages)
-
-        start = time.perf_counter()
-        status: int | None = None
-        error: str | None = None
-        response_body: str | None = None
-        results_returned: int | None = None
-        ok = False
-        try:
-            response = _post_json(url, body)
-        except urllib.error.HTTPError as exc:
-            # Subclass of URLError — must be caught first or a refusal loses
-            # its status code and its message.
-            status = exc.code
-            error = f"HTTPError: {exc}"
-            response_body = _read_error_body(exc)
-        except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
-            # No status at all: the socket closed, or never opened. Recording
-            # 0 or 500 here would invent a response the server never sent.
-            error = f"{type(exc).__name__}: {exc}"
-        else:
-            ok = True
-            status = 200
-            results_returned = len(response.get("results", []))
-        latency_ms = (time.perf_counter() - start) * 1000.0
-
-        return {
-            "documents": documents,
-            "words_per_document": words_sent,
-            "status": status,
-            "latency_ms": latency_ms,
-            "ok": ok,
-            "error": error,
-            "body": response_body,
-            "results_returned": results_returned,
-        }
 
     warmup_attempts = [attempt(smallest, i) for i in range(max(args.rerank_warmup, 0))]
     results = [attempt(size, i) for i, size in enumerate(sizes)]
@@ -804,6 +795,64 @@ def _run_rerank_sweep(args: argparse.Namespace) -> dict[str, Any]:
         },
         "status_note": SWEEP_STATUS_NOTE,
         "results": results,
+    }
+
+
+def _rerank_once(
+    *,
+    url: str,
+    model: str,
+    documents: int,
+    index: int,
+    words: int | None,
+) -> dict[str, Any]:
+    """One rerank call, timed, whose FAILURE is a return value.
+
+    The single place the sweep's tolerance lives: warm-up and the timed sweep
+    both come through here, so "what happens when the server refuses or dies"
+    cannot grow two divergent copies. Never raises for a server-side outcome —
+    only a caller error (an impossible `words`) gets out, and that is a bug in
+    the invocation, not a measurement."""
+    passages = generate_filler_passages(documents, offset=index, words=words)
+    body = build_rerank_request(model, generate_filler_query(index), passages)
+    # Measured from the passages actually built, not echoed back from the
+    # flag: a padding bug then shows in the record instead of being papered
+    # over by it.
+    words_sent = max(len(p.split()) for p in passages)
+
+    start = time.perf_counter()
+    status: int | None = None
+    error: str | None = None
+    response_body: str | None = None
+    results_returned: int | None = None
+    ok = False
+    try:
+        response = _post_json(url, body)
+    except urllib.error.HTTPError as exc:
+        # Subclass of URLError — must be caught first or a refusal loses its
+        # status code and its message.
+        status = exc.code
+        error = f"HTTPError: {exc}"
+        response_body = _read_error_body(exc)
+    except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
+        # No status at all: the socket closed, or never opened. Recording 0 or
+        # 500 here would invent a response the server never sent.
+        error = f"{type(exc).__name__}: {exc}"
+    else:
+        ok = True
+        status = 200
+        results_returned = len(response.get("results", []))
+    latency_ms = (time.perf_counter() - start) * 1000.0
+
+    return {
+        "documents": documents,
+        "words_per_document": words_sent,
+        "status": status,
+        "latency_ms": latency_ms,
+        "ok": ok,
+        "error": error,
+        "body": response_body,
+        "results_returned": results_returned,
     }
 
 
