@@ -90,19 +90,14 @@ def inject(
     body_start = match.end()
     body_end = _find_block_close(text, body_start, source)
 
-    body = text[body_start:body_end]
-    fields, closing_indent = _split_block_body(body, source)
-
-    kept = [line for line in fields if not _is_guard_field(line)]
-    field_indent = _field_indent(kept, match.group("indent"))
-    if kept:
-        kept[-1] = kept[-1].rstrip()
-        if not kept[-1].endswith(","):
-            kept[-1] += ","
-    kept.append(f"{field_indent}max_allowed_chunks: {int(max_allowed_chunks)},")
-    kept.append(f"{field_indent}max_position_embeddings: {int(max_position_embeddings)}")
-
-    rebuilt = "\n" + "\n".join(kept) + "\n" + closing_indent
+    fields, closing_indent = _split_block_body(text[body_start:body_end], source)
+    rebuilt = _rebuild_body(
+        fields,
+        block_indent=match.group("indent"),
+        closing_indent=closing_indent,
+        max_allowed_chunks=max_allowed_chunks,
+        max_position_embeddings=max_position_embeddings,
+    )
     return text[:body_start] + rebuilt + text[body_end:]
 
 
@@ -110,8 +105,7 @@ def inject(
 
 
 def _find_options_block(text: str, source: str) -> re.Match[str]:
-    matches = _OPTIONS_ANCHOR.findall(text) and list(_OPTIONS_ANCHOR.finditer(text))
-    matches = matches or []
+    matches = list(_OPTIONS_ANCHOR.finditer(text))
     if not matches:
         raise GuardInjectionError(
             f"{source}: no `[... mediapipe.RerankCalculatorOVOptions]: {{` line. "
@@ -159,12 +153,45 @@ def _split_block_body(body: str, source: str) -> tuple[list[str], str]:
     return lines[1:-1], lines[-1]
 
 
+# --- rebuilding the block --------------------------------------------------
+
+
+def _rebuild_body(
+    fields: list[str],
+    *,
+    block_indent: str,
+    closing_indent: str,
+    max_allowed_chunks: int,
+    max_position_embeddings: int,
+) -> str:
+    """Return the block body with our two fields set, replacing any existing pair.
+
+    Dropping the existing guard fields before re-adding them is what makes a
+    re-run idempotent — and what lets phase 3 change the values without
+    stacking a second copy the calculator would read in some order nobody
+    chose.
+    """
+    kept = [line for line in fields if not _is_guard_field(line)]
+    indent = _field_indent(kept, block_indent)
+    if kept:
+        kept[-1] = _with_trailing_comma(kept[-1])
+    kept.append(f"{indent}max_allowed_chunks: {int(max_allowed_chunks)},")
+    kept.append(f"{indent}max_position_embeddings: {int(max_position_embeddings)}")
+    return "\n" + "\n".join(kept) + "\n" + closing_indent
+
+
 # --- small helpers ---------------------------------------------------------
 
 
 def _is_guard_field(line: str) -> bool:
     stripped = line.strip()
     return any(stripped.startswith(f"{field}:") for field in GUARD_FIELDS)
+
+
+def _with_trailing_comma(line: str) -> str:
+    """Fields are comma-separated in this template; our lines follow the last one."""
+    line = line.rstrip()
+    return line if line.endswith(",") else line + ","
 
 
 def _field_indent(fields: list[str], block_indent: str) -> str:

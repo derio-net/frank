@@ -241,6 +241,7 @@ def test_cli_rewrites_the_file_in_place(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,  # the exit code IS the assertion
     )
     assert proc.returncode == 0, proc.stderr
     out = target.read_text(encoding="utf-8")
@@ -263,6 +264,7 @@ def test_cli_exits_nonzero_and_names_the_file_when_there_is_no_block(tmp_path):
         ],
         capture_output=True,
         text=True,
+        check=False,  # the exit code IS the assertion
     )
     assert proc.returncode != 0
     assert "embeddings-graph.pbtxt" in proc.stderr, (
