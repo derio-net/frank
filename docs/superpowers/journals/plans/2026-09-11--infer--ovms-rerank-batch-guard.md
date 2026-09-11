@@ -66,8 +66,10 @@ No open risk. Full suite after the change: 797 passed, 1 xfailed.
 
 Consequence for phase 3: the injector preserves it (it splices inside the options block and never touches the tail), so a rewritten graph is still newline-free at EOF. Any later check that compares the built graph against a hand-written expected file must account for that, or it will fail on a byte nobody added.
 
-<!-- fr:journal kind=finding scope=plan id=1894eae90d3b created=2026-09-11T11:18:38 phase=1 state=open -->
-### 1894eae90d3b · finding [open] · P1.T3.S2 is half done: suite is green locally, CI confirmation is owed (phase 1)
+<!-- fr:journal kind=finding scope=plan id=1894eae90d3b created=2026-09-11T11:18:38 phase=1 state=fixed -->
+### 1894eae90d3b · finding [fixed] · P1.T3.S2 is half done: suite is green locally, CI confirmation is owed (phase 1)
+
+CLOSED by the orchestrator: Repo Tripwires completed success on f1b4147f (exactly HEAD at the time) plus a local full suite of 801 passed, 1 xfailed. The executor was right not to tick it — its push-and-confirm-CI clauses were outside its contract. See branch-ci-needs-workflow-dispatch for why a plain branch push proves nothing here.
 
 `uv run --frozen pytest scripts/tests -q` -> **797 passed, 1 xfailed in 447s** on the branch as committed. That is the local half of the step.
 
@@ -119,8 +121,10 @@ generate_filler_passages REFUSES a word count below the base sentence instead of
 
 Passage length is recorded per size MEASURED from the bodies actually built, not echoed back from the flag, so a padding bug surfaces in the record rather than being papered over by it.
 
-<!-- fr:journal kind=finding scope=plan id=5866844fd3d1 created=2026-09-11T11:45:40 phase=2 state=open -->
-### 5866844fd3d1 · finding [open] · Sweep mode replaces the timed benchmark and exits 0 whatever the curve says — two deliberate choices phase 3 must know (phase 2)
+<!-- fr:journal kind=finding scope=plan id=5866844fd3d1 created=2026-09-11T11:45:40 phase=2 state=fixed -->
+### 5866844fd3d1 · finding [fixed] · Sweep mode replaces the timed benchmark and exits 0 whatever the curve says — two deliberate choices phase 3 must know (phase 2)
+
+CLOSED: a handoff note to phase 3, not a defect, and phase 3 has run. Both properties held and both mattered — no embeddings section after a kill (which would have timed a restarting pod), and a curve to be read rather than an exit code, which is where the real finding was.
 
 Neither is a defect; both would be surprises if met for the first time while driving a live OOM-kill.
 
