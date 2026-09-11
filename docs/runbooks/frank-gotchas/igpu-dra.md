@@ -2,8 +2,8 @@
 
 Covers `patches/phase05-mini-config/` (the DRA resource driver deployed at
 `apps/intel-gpu-driver/`) and the first real consumer of it
-(`apps/ovms-retrieval/`). All items below were verified live on the mini
-control-plane nodes on 2026-08-02.
+(`apps/ovms-retrieval/`). Items were verified live on the mini control-plane
+nodes on 2026-08-02, except where a section carries its own date.
 
 ## `resource.k8s.io/v1` replaced the device plugin — the README drifted for a full API generation
 
@@ -190,3 +190,119 @@ everything green — the comfyui seed-if-absent bug one layer up.
 `scripts/tests/test_ovms_retrieval_model_image.py::test_models_rev_moves_when_the_dockerfile_changes`
 diffs the Dockerfile against `origin/main` and fails when the rev stayed put
 (skipping, not erroring, where no baseline ref resolves).
+
+## The rerank batch is one padded tensor, and its memory never comes back
+
+Two facts about `POST /v3/rerank` on `ovms-retrieval`, and the second one is
+the actual bug. Both measured 2026-09-11 against the served model (#793).
+
+**Cost is near-quadratic in document LENGTH and only linear in document
+COUNT.** The calculator builds a *single* inference input of shape `B × T` —
+batch size by `tokens_count_of_longest_document` plus the special tokens and
+the query — so T is set by the **longest** document in the request and every
+other one is padded up to it (`src/rerank/rerank_calculator_ov.cc`, OVMS
+v2026.2.1). The reranker is an XLM-RoBERTa-large cross-encoder (24 layers,
+16 heads, model context 8194), so attention is `B × heads × T × T`. Measured,
+cost per row is about `0.0202 GiB × (T/332)^1.78`: doubling T costs ~3.4×,
+doubling B costs 2×. **`max_position_embeddings` is therefore the primary
+control and `max_allowed_chunks` the secondary one** — the reverse of the
+order they suggest themselves in, and a guard that only counts documents is
+walked straight past by one long passage.
+
+**Memory is never released.** `memory.current` after a large call equals
+`memory.peak` and stays there: **2.21 GiB** idle, **4.90 GiB** resident after
+a single 50-document call, with no return for the life of the container. The
+resident floor ratchets up to the high-water mark of the largest call ever
+served.
+
+That ratchet, not request size, is what makes the failure intermittent. The
+largest batch this endpoint is expected to serve costs 2.93 GiB at T≈605, so
+on a freshly restarted pod it totalled 5.14 GiB and sat inside the old 6 GiB
+limit comfortably. It died only once the floor had risen beneath it. A
+reranker that works, then doesn't, then works again after a restart is a
+ratchet — and it explains restarts accumulating 1 → 9 over a week of light
+use, which no single request size does.
+
+**So restarting the pod is a legitimate mitigation, and always was.**
+`kubectl -n retrieval rollout restart deploy/ovms-retrieval` puts the floor
+back to idle and buys the same headroom the guard buys, until the next large
+call raises it again. It is also why a bug report and an attempt to reproduce
+it can honestly disagree.
+
+### The guard exists upstream, defaulted to 10000
+
+`RerankCalculatorOVOptions` has always carried `max_allowed_chunks` (proto
+default **10000**) and `max_position_embeddings`, and the chunk cap is checked
+three times — once before a single token is allocated, then twice inside
+`chunkDocuments`, on the pre-chunking batch and on the post-chunking chunk
+total. Nothing was missing except a value. `export_model.py`'s
+`rerank_graph_ov_template` emits only `models_path`, `plugin_config` and
+`target_device`, so the proto defaults applied: four orders of magnitude above
+what this container's memory limit can serve. The server had a bouncer; nobody
+told him the room holds fifty.
+
+Frank ships `max_allowed_chunks: 64` and `max_position_embeddings: 640`,
+injected into every exported `graph.pbtxt` by the model image's build
+(`apps/ovms-retrieval/docker/inject_rerank_guard.py`). Worst case at that pair
+is 6.36 GiB — 64% of the 10Gi limit, and 106% of the 6Gi it replaced. Read
+that the right way round: **the ceiling was raised because the guard's own
+worst case must not itself OOM**, not to make room for a bigger workload.
+
+The injection is assertive, not best-effort: the build re-reads each emitted
+graph and fails if the fields are absent. A `sed` that silently matched
+nothing would publish a model rev whose every downstream signal — CI green,
+ArgoCD Synced, pod Ready, seed marker at the new rev — agreed that the guard
+had shipped.
+
+Cost of the sequence bound, stated plainly: a document longer than T minus the
+query and the special tokens is no longer scored whole. It is split into
+chunks, scored per chunk, and those chunks count against the same 64. That is
+a visible relevance-score change, accepted deliberately, because the
+alternative leaves a guard that one long passage defeats.
+
+### `--max_doc_length` is not a batch cap, and the refusal is a 500
+
+Two things that look like the answer and are not.
+
+`export_model.py rerank_ov --max_doc_length` never reaches `graph.pbtxt`. Its
+only use is `hf_tokenizer.model_max_length = max_length` while the tokenizer
+is exported — a per-document truncation length baked in at export time, which
+says nothing about how many documents one request may carry. `--num_streams`
+is orthogonal too, and raising it would increase peak memory rather than bound
+it.
+
+A refused request returns HTTP **500**, not the 4xx that would be idiomatic.
+Every one of those guards raises `std::runtime_error`, and `Process()` catches
+it into `absl::InternalError`, which maps to 500. The load-bearing property
+holds — the caller gets a response naming the limit, and everyone else keeps
+their server — but **record the status code; do not assert 4xx**, or a test
+fails on correct behaviour.
+
+### Measure it with the cgroup peak, on a freshly restarted container
+
+Two traps, both of which cost real time.
+
+**A 20 s scrape cannot see these transients.** They last 0.1–2.5 s, so
+`container_memory_working_set_bytes` steps straight over the peak and reports
+a comfortable idle figure for a call that reached the limit. The instrument is
+the cgroup's own high-water mark, read inside the `ovms` container:
+
+```bash
+kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- sh -c \
+  'cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max'
+```
+
+**Only single calls on a freshly restarted container are valid measurements.**
+`memory.peak` is monotonic and the floor ratchets underneath it, so an
+ascending sweep's per-size deltas are increments of a high-water mark rather
+than per-call costs, and any kill part-way up the sweep is floor-plus-call,
+not call. An earlier reading of exactly this data concluded that at T≈664 even
+forty documents was fatal; those calls had each run on a container already
+holding 3.5–4.8 GiB from the one before. The error runs in the direction that
+makes you cap far too tightly. Restart between sizes, or the numbers describe
+the sweep rather than the server.
+
+One more, on extrapolation: a fit over the three measured points
+over-predicted an independent check by 28%. The shipped pair is a short
+extrapolation from measured anchors, not a derived bound, so re-measure at the
+new ceiling rather than trusting the curve out to it.
