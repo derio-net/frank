@@ -940,3 +940,34 @@ rows:
     a brain that DOES exist it would leave the schema silently un-migrated, which looks like a working install.
     `gbrain doctor` reports `no_url` / "No brain configured": correct and deliberate — `gbrain init` is NOT run
     here, that is Test Plan row 9 and belongs to the requesting repo.
+- id: infer-rerank-supported-batch-succeeds
+  capability: Retrieval models
+  acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default and receive scored
+    results, without the server restarting.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: Live proof owed post-merge (Test Plan rows 5 and 8). CI guards manifest and Dockerfile shape only,
+    never serving behaviour, so this row can only ever be live-proof.
+- id: infer-rerank-oversized-refused-cleanly
+  capability: Retrieval models
+  acceptance: An oversized rerank request is refused with a response naming the limit, and the server keeps
+    serving every other caller.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: Live proof owed post-merge (Test Plan rows 6 and 7). The status code is upstream's choice and is
+    recorded verbatim rather than asserted as 4xx — the calculator raises std::runtime_error, which Process()
+    catches into absl::InternalError, conventionally HTTP 500.
+- id: infer-rerank-batch-curve-measured
+  capability: Retrieval models
+  acceptance: Operators have a measured working-set curve across rerank batch sizes, so the configured cap is
+    evidence rather than an estimate.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: Produced by the scripts/ovms-retrieval-bench.py sweep mode against the live server; recorded in the
+    plan and the runbook. Test Plan row 10.
