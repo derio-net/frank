@@ -103,12 +103,14 @@ RUN mkdir -p /out/gpu /out/cpu \
 # ── bound the rerank batch ──────────────────────────────────────────────
 # Design: docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
 #
-# A rerank call is served as ONE tensor of batch x longest-document tokens:
-# every document in the request is padded up to the longest one, so peak
-# allocation grows along both dimensions at once and a single long passage
-# costs as much as a whole batch of short ones. Left unbounded it walks into
-# the container's memory limit and takes the process down — which evicts the
-# embeddings servable sharing it, for every caller.
+# A rerank call is served as ONE tensor, shaped batch x longest-document
+# tokens — every document in the request is padded up to the longest one. Cost
+# is therefore linear in the batch and, since attention scores are T x T, close
+# to quadratic in that length: measured on this deployment, doubling the
+# document length more than TRIPLED the memory. So a cap on document count
+# alone bounds nothing, and one long passage is enough to reach the container's
+# memory limit and take the process down — evicting the embeddings servable
+# that shares it, for every caller.
 #
 # Upstream already ships both bounds as RerankCalculatorOVOptions fields, but
 # export_model.py cannot emit them: its rerank_graph_ov_template writes exactly
@@ -123,20 +125,22 @@ RUN mkdir -p /out/gpu /out/cpu \
 # spec's "The numbers" table carries the derivation. They live in the model
 # image by decision, so changing them costs a rebuild and a reseed — and, like
 # every other content change here, a MODELS_REV bump.
+# document-and-chunk cap, checked before a single token is allocated
 ARG RERANK_MAX_ALLOWED_CHUNKS=64
+# per-chunk token ceiling — this is what bounds T, the padded tensor width
 ARG RERANK_MAX_POSITION_EMBEDDINGS=640
 
 COPY inject_rerank_guard.py /export/inject_rerank_guard.py
 
-# Both repositories — the CPU arm is the benchmark's control, and a control
-# guarded differently from the arm it controls measures the guard rather than
-# the device.
+# Two passes over both repositories: rewrite, then read back what was written.
+# /out/cpu is rewritten too because it is the benchmark's control arm, and a
+# control guarded differently from the arm it controls measures the guard
+# rather than the device.
 #
-# Then read back what was written. The injector refuses every graph shape it
-# does not understand, so this is belt and braces — but it backstops the one
-# failure with no other witness: a graph that reaches the registry without the
-# fields is indistinguishable, to CI, to ArgoCD, to the pod and to the
-# .seed-rev marker, from one that has them.
+# The read-back is belt and braces — the injector refuses every graph shape it
+# does not understand — but it backstops the one failure with no other witness:
+# a graph that reaches the registry without the fields is indistinguishable, to
+# CI, to ArgoCD, to the pod and to the .seed-rev marker, from one that has them.
 RUN set -eu; \
     for repository in /out/gpu /out/cpu; do \
         python /export/inject_rerank_guard.py \

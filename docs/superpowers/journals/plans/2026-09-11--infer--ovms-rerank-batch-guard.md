@@ -191,3 +191,36 @@ An earlier entry (measured-6gi-iso-surface) presented kills at 64 documents by T
 ### shipping-pair-64-640 · decision · Shipping max_allowed_chunks 64 and max_position_embeddings 640 (phase 3)
 
 Chosen from the clean anchors with a short extrapolation, not from the blocked 10Gi arm (operator elected to ship the raise through git and verify post-merge). 64 sits above the clients 50-document default with headroom and, because the field caps total CHUNKS as well as documents, a request of long documents is refused rather than allocated. 640 tokens is about 212 words of natural text per chunk, so a typical candidate passage is scored whole while longer ones chunk and count against the 64. Predicted worst case 4.15 GiB of call on top of 2.21 GiB idle = 6.36 GiB, which is 64 percent of a 10Gi limit and 76 percent even if the fit under-predicts by 30 percent. It is 106 percent of the CURRENT 6Gi limit, which is the measured justification for the raise: a guard whose own worst case OOMs is decorative. Test Plan row 10 measures the real surface at the shipped limit and the pair may need retuning, which costs a model rebuild and a reseed — an accepted cost of the decision to keep the guard in the model image.
+
+<!-- fr:journal kind=finding scope=plan id=rev-pin-is-atomic-not-splittable created=2026-09-11T13:56:16 phase=4 state=fixed -->
+### rev-pin-is-atomic-not-splittable · finding [fixed] · The rev bump cannot be split from the Deployment pin — two tripwires pull in opposite directions (phase 4)
+
+The plan gives phase 4 the MODELS_REV bump and phase 5 the Deployment pin. The repo's own guards make that split impossible, and I only found out by trying it.
+
+test_models_rev_moves_when_the_dockerfile_changes fails any Dockerfile edit that leaves MODELS_REV where it was. test_model_image_tag_matches_the_rev_ci_publishes fails any workflow rev the Deployment's seed image does not consume. So phase 4 must move the rev, and the moment it does, the Deployment must follow in the same change. There is no arrangement in which a phase that edits the Dockerfile leaves the suite green without also moving the pin. Measured, not reasoned: with the Dockerfile edited and the rev at 2, the manifests suite reported exactly one failure, Deployment pins model rev 1 but build-ovms-retrieval-models.yml publishes 2.
+
+Resolution: phase 4 carries all three values — Dockerfile ARG default, workflow env, and the Deployment's seed image tag plus its MODELS_REV env. Nothing else of phase 5's was touched. P5.T1.S1 asks for a red on two properties; the tag-and-env-equal-each-other half is now already green, and the limits.memory 10Gi half is still red, which is the substantive half. P5.T1.S2 through S4 are untouched.
+
+The cost, stated because it is real and it is what the plan's ordering was buying. The Deployment is strategy Recreate, so merging the pin ahead of the published image means the old pod is deleted and the new one waits in ImagePullBackOff on the seed initContainer for as long as the model build takes (two model downloads plus int8 quantization). Publishing before pinning avoids that window entirely. The orchestrator can recover it by merging phase 4 and phase 5 together, or by letting the build finish before phase 5 syncs. I did not make that call, because it is a delivery decision and not mine.
+
+Worth noting the guard is not wrong. Its docstring already says a Deployment ahead of CI is an ImagePullBackOff and a Deployment behind CI is a model bump that silently never deploys. Both are statements about main's steady state, and it enforces them on every branch — which is what makes these three values one unit of change rather than three.
+
+<!-- fr:journal kind=finding scope=plan id=drift-gate-fixture-pinned-rev-one created=2026-09-11T13:56:33 phase=4 state=fixed -->
+### drift-gate-fixture-pinned-rev-one · finding [fixed] · A test used the live Dockerfile as a fixture and hard-coded the one value designed to move (phase 4)
+
+test_rev_drift_rule_ignores_comment_and_rev_only_edits builds its synthetic mutations by string-replacing into the real Dockerfile. One of them was base.replace('ARG MODELS_REV=1', 'ARG MODELS_REV=2'), followed by assert rev_only != base.
+
+The moment the rev actually moved to 2, that replacement matched nothing, rev_only came back identical to base, and the test failed — on precisely the change it exists to declare legitimate. It is a self-disarming fixture: correct for exactly one value of a field whose whole purpose is to change, and it fires on the first successful use of the gate around it.
+
+Fixed by reading the current rev out of the Dockerfile and mutating to rev plus one, so the mutation is always a real edit. The comment beside it now says why the value is read rather than named.
+
+Two things this is worth remembering for. First, it was caught only because phase 4 is the first change to move this rev since the image was introduced, so the defect had been latent since the file was written and no run had ever exercised it. Second, the sibling assertion two lines above it passes literal revs to rev_drift_violation as synthetic arguments — that is fine, because those are inputs to a pure function, not string-matches against a live file. The distinction is between a value used as data and a value used as a needle.
+
+<!-- fr:journal kind=discovery scope=plan id=four-graphs-is-two-graphs created=2026-09-11T13:56:49 phase=4 -->
+### four-graphs-is-two-graphs · discovery · The plan says run the injector over all four emitted graphs; the injector's contract says two (phase 4)
+
+P4.T1.S3 reads run it over all four emitted graphs after the export_model.py invocations. Four graphs are emitted — embeddings and rerank, times GPU and CPU — but only two are rerank graphs, and inject_rerank_guard.py raises GuardInjectionError on any file with no RerankCalculatorOVOptions block. That refusal is deliberate and load-bearing: it is what makes a silent no-op impossible. Running the injector over the two embeddings graphs would therefore fail the build every time, by design.
+
+So the correct reading of all four is one rerank graph per exported repository, which is what the spec itself says: add two fields in both exported repositories, /out/gpu and /out/cpu. The Dockerfile loops over the two repository roots and rewrites RERANK_MODEL_NAME/graph.pbtxt under each. The path is derived from the existing ARG rather than re-spelling the model name, so a model rename cannot leave the guard pointing at a file that no longer exists.
+
+Recording it because the phrase all four graphs reads like an instruction to widen the loop, and widening it turns a working build into a build that cannot succeed.
