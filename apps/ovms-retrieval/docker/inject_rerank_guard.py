@@ -123,16 +123,44 @@ def _find_options_block(text: str, source: str) -> re.Match[str]:
 
 
 def _find_block_close(text: str, body_start: int, source: str) -> int:
-    """Index of the `}` closing the block whose `{` precedes `body_start`."""
+    """Index of the `}` closing the block whose `{` precedes `body_start`.
+
+    Braces inside QUOTED STRINGS and `#` COMMENTS are not structure and must
+    not be counted. This is not hypothetical tidiness: the very block being
+    edited contains `plugin_config: '{"NUM_STREAMS": "1" }'`, whose braces
+    balance only by accident. One extra `{` in such a string — a `CACHE_DIR`
+    with a template in it, any nested JSON — makes a naive counter overshoot
+    to the brace closing `node_options`, and the rewriter then writes both
+    bounds OUTSIDE the options block and reports success. The calculator would
+    never read them, the image would publish unguarded, and every downstream
+    signal would agree it shipped: exactly the silent no-op this module exists
+    to make impossible.
+    """
     depth = 1
-    for index in range(body_start, len(text)):
+    quote: str | None = None
+    in_comment = False
+    index = body_start
+    while index < len(text):
         char = text[index]
-        if char == "{":
+        if in_comment:
+            if char == "\n":
+                in_comment = False
+        elif quote is not None:
+            if char == "\\":
+                index += 1  # skip the escaped character, whatever it is
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+        elif char == "#":
+            in_comment = True
+        elif char == "{":
             depth += 1
         elif char == "}":
             depth -= 1
             if depth == 0:
                 return index
+        index += 1
     raise GuardInjectionError(
         f"{source}: the RerankCalculatorOVOptions block is never closed — the "
         "file is truncated or malformed."

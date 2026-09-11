@@ -283,6 +283,84 @@ def test_injector_is_stdlib_only():
         assert banned not in text, f"{banned} is not available in the export stage"
 
 
+# --- braces that are not structure ----------------------------------------
+#
+# Found in review, reproduced before it was fixed. The options block being
+# edited contains `plugin_config: '{"NUM_STREAMS": "1" }'` — its braces
+# balance only by accident. A counter that treats every brace as structure
+# therefore works on today's graph and silently breaks on a plausible one.
+#
+# These tests deliberately do NOT use `_options_block` below, which counts
+# braces the same naive way: a helper sharing the bug under test cannot
+# witness it. They locate the block by LINE instead.
+
+
+def _guard_fields_are_inside_the_block(text: str) -> bool:
+    """True when both bounds sit before the line that closes the options block.
+
+    Line-based on purpose — see the section comment. The block this rewriter
+    accepts always has its closing brace alone on a line.
+    """
+    lines = text.split("\n")
+    start = next(
+        i for i, line in enumerate(lines)
+        if "mediapipe.RerankCalculatorOVOptions]: {" in line
+    )
+    close = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == "}")
+    body = "\n".join(lines[start + 1 : close])
+    return "max_allowed_chunks" in body and "max_position_embeddings" in body
+
+
+def _graph_with_plugin_config(value: str) -> str:
+    return (
+        "node {\n"
+        '  calculator: "RerankCalculatorOV"\n'
+        "  node_options: {\n"
+        "    [type.googleapis.com / mediapipe.RerankCalculatorOVOptions]: {\n"
+        '      models_path: "./",\n'
+        f"      plugin_config: {value},\n"
+        '      target_device: "GPU"\n'
+        "    }\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_an_unbalanced_brace_in_a_quoted_string_does_not_move_the_fields_out():
+    """The regression. An extra `{` inside a string used to push both bounds
+    into `node_options`, where the calculator never reads them — and the
+    rewrite reported success, which is the one outcome this module promises
+    cannot happen."""
+    out = guard.inject(_graph_with_plugin_config('\'{"NOTE": "brace { here" }\''), N, T)
+    assert _guard_fields_are_inside_the_block(out), (
+        "a brace inside a quoted string was counted as structure, so the "
+        "bounds landed outside RerankCalculatorOVOptions"
+    )
+
+
+def test_an_unbalanced_closing_brace_in_a_quoted_string_is_not_structure():
+    out = guard.inject(_graph_with_plugin_config('\'{"NOTE": "brace } here" }\''), N, T)
+    assert _guard_fields_are_inside_the_block(out)
+
+
+def test_a_brace_in_a_comment_is_not_structure():
+    graph = (
+        "# a stray { in a leading comment\n"
+        + _graph_with_plugin_config('\'{"NUM_STREAMS": "1" }\'')
+    )
+    out = guard.inject(graph, N, T)
+    assert _guard_fields_are_inside_the_block(out)
+
+
+def test_an_escaped_quote_does_not_end_the_string():
+    # `\"` — ONE backslash, so the quote is escaped and the string continues
+    # past the brace. (`\\"` would be an escaped BACKSLASH followed by a real
+    # closing quote, which puts the brace outside any string, where counting it
+    # is correct.)
+    out = guard.inject(_graph_with_plugin_config('"a \\" brace { b"'), N, T)
+    assert _guard_fields_are_inside_the_block(out)
+
+
 # --- helper ----------------------------------------------------------------
 
 def _options_block(text: str) -> str:
