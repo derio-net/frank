@@ -352,7 +352,7 @@ The iGPU wins by about twenty times on everything batched. On the last row it is
 
 That row is what I would have missed by measuring only the thing I built. A single embedding call is dominated by request overhead rather than by compute, so there is barely any compute for the accelerator to accelerate. Anyone quoting "20× faster" for one-off embedding calls would be wrong, using my own numbers to be wrong with.
 
-One honest limit on that ratio: a cross-encoder's cost scales with sequence length, and these passages are short. Longer documents will move the number, plausibly in the iGPU's favour, and I have not measured that.
+One honest limit on that ratio: a cross-encoder's cost scales with sequence length, and these passages are short. Longer documents will move the number, plausibly in the iGPU's favour, and I have not measured that — though I have since measured what sequence length does to *memory*, which turned out to matter more than what it does to latency. That is the September update below.
 
 There is a second thing sitting in the CPU column. The original estimate for this workload was 1 to 5 seconds per query, arrived at by arithmetic instead of measurement. The CPU arm lands at 1.6 seconds, inside that range. The estimate had accidentally been a CPU estimate all along.
 
@@ -375,9 +375,47 @@ These nodes are etcd members, so the last question is whether any of this hurt. 
 | MemoryPressure / DiskPressure | False | False |
 | ovms working set | | 2254 Mi of 6 Gi |
 
+That 6 Gi ceiling is 10 Gi now, and the September update below is why.
+
 Excluding `WATCH` and `CONNECT` from that quantile is essential. Include them and the p99 reads 60 seconds flat both before and during, because long-poll watches sit at the apiserver timeout and swamp everything else. It looks like a catastrophe and carries no information.
 
 And a gap I would rather name than paper over: I cannot report etcd leader changes or WAL fsync latency, because I do not scrape my own etcd. The `etcd_*` series I do have are the apiserver's etcd *client* metrics; `etcd_server_leader_changes_seen_total` does not exist on this cluster. The evidence I have says no measurable impact, and the strongest signal I would have wanted is missing.
+
+## Update, September 2026: the reranker took the whole server down
+
+A month after this went in, `/v3/rerank` started killing the pod. Not slowly — connection closed without response, then about ten seconds of refused connections, then a healthy server again. Both servables live in one process behind one device claim, so every embeddings caller went down with the reranker. The restart counter walked from 1 to 9 over a week of light use.
+
+The obvious reading is that some request is simply too big. That reading is wrong, and finding out cost me two confident wrong conclusions.
+
+**The batch is one tensor, and its width is the longest document in it.** `rerank_calculator_ov.cc` builds a single inference input of shape `B × T`, where `T` comes from the longest document in the request and every other document is padded up to it. This reranker is an XLM-RoBERTa-large cross-encoder — 24 layers, 16 heads — so attention is `B × heads × T × T`. Measured against the served model, reading the cgroup's own high-water mark:
+
+| documents | tokens/doc | call cost |
+|---|---|---|
+| 64 | 332 | 1.29 GiB |
+| 40 | 498 | 1.69 GiB |
+| 50 | 511 | 2.17 GiB |
+
+Cost per row is about `0.0202 GiB × (T/332)^1.78`. Near-quadratic in document *length*, and only linear in document *count*. So the lever that matters is the sequence bound, not the document cap — the reverse of the order I reached for them in, and the reverse of how the bug report framed it. A guard that only counts documents is walked straight past by one long passage.
+
+**And the memory never comes back.** `memory.current` after a large call equals `memory.peak` and stays there: 2.21 GiB idle, 4.90 GiB resident after a single 50-document call, for the life of the container. The floor ratchets up to the high-water mark of the largest call I have ever served.
+
+That is the actual bug, and it is not the bug in the report. Take the largest batch this endpoint is expected to serve: it costs 2.93 GiB, so on a freshly restarted pod it totals 5.14 GiB and fits inside the 6 GiB limit with room to spare. It dies only once the floor has risen underneath it. A reranker that works, then doesn't, then works again after a restart is not a request-size problem, it is a ratchet — and a ratchet explains 1 → 9 restarts across a week of light use, which no single request size does. It also means restarting the pod was a real mitigation the whole time, not a superstition.
+
+Two measurement traps, and I walked into both.
+
+A 20-second metrics scrape cannot see a 0.1 to 2.5 second transient. `container_memory_working_set_bytes` reported a comfortable idle figure across calls that had reached the limit. The instrument is `/sys/fs/cgroup/memory.peak`, read inside the container.
+
+And because that peak is monotonic while the floor ratchets, only a single call on a freshly restarted container measures anything at all. An ascending sweep's per-size deltas are increments of a high-water mark, not per-call costs. I read them as costs twice, and concluded from it that forty documents at `T`≈664 was fatal — those calls had each run on a container already holding 3.5 to 4.8 GiB from the call before. The error runs in the direction that makes you cap far too tightly, which is the kind of wrong that ships.
+
+### The fix was two fields that already existed
+
+`RerankCalculatorOVOptions` has carried `max_allowed_chunks` since long before this deployment, defaulted to **10000** and checked three times, the first check before a single token is allocated. `max_position_embeddings` sits next to it. Neither appears in the graph template `export_model.py` emits, so both defaults applied — four orders of magnitude above what this container's memory limit can serve. The server had a bouncer; nobody had told him the room holds fifty.
+
+`export_model.py` will not emit them and I am not forking it, so the model image's build injects both into every exported `graph.pbtxt` — and then re-reads each graph and fails the build if the fields are absent. That second half is the part worth copying. A `sed` that silently matched nothing would have published a model revision whose every downstream signal — CI green, ArgoCD Synced, pod Ready, seed marker at the new revision — agreed the guard had shipped.
+
+The pair is `max_allowed_chunks: 64` and `max_position_embeddings: 640`, and the container's `limits.memory` went from 6Gi to 10Gi. Read that raise the right way round: the guard's own worst case is 6.36 GiB, which is 106% of the old ceiling and 64% of the new one. The ceiling moved so that the guard cannot OOM-kill the server it protects. It is not headroom for a bigger workload, and these nodes are still etcd members, so `requests.memory` stayed at 2Gi and the scheduler's view of the node did not change.
+
+Two costs, both accepted deliberately. A document longer than `T` is no longer scored whole: it is split into chunks, scored per chunk, and its chunks count against the same 64 — so relevance scores move for long passages. And a refused request comes back as HTTP **500**, not the 4xx anyone would expect: each of those guards raises `std::runtime_error`, and `Process()` catches it into `absl::InternalError`. The caller gets a response naming the limit and everybody else keeps their server, which was the whole point — but the status code is upstream's to choose, not mine, so the test plan *records* it rather than asserting 4xx.
 
 ## Missteps
 
@@ -388,6 +426,8 @@ And a gap I would rather name than paper over: I cannot report etcd leader chang
 | **Seed copied the whole tree with `cp -R` under a 512Mi limit** | Dirty-page pressure, not volume: fast overlayfs reads into slow network writes, and cgroup v2 cannot reclaim dirty pages | Per-file `cp` with a bare `sync` between; limit raised to 2Gi, sized to the largest single file | `e0089963` |
 | **Hand-copied upstream's `requirements.txt` with a comment claiming parity** | It was a subset, missing `requests`; the image build died five seconds in | Fetch the requirements from the same pinned ref as the script itself | `e0089963` |
 | **Seed-source test matched its own explanatory comment** | The block scalar carries its `#` comments into the scanned string, so flipping the real `cp` to the CPU repository still passed | Strip comment lines, assert the executable line | `2a6bb5db` |
+| **Read an ascending memory sweep's per-size deltas as per-call costs** | `memory.peak` is monotonic and the resident floor ratchets, so every size after the first was measuring the sizes before it — it put the fatal batch at forty documents when forty is fine on a fresh pod | Measure one call per container start, and restart between sizes | [#793](https://github.com/derio-net/frank/issues/793) |
+| **Went looking for `--max_doc_length` as the batch cap** | It never reaches `graph.pbtxt`; it sets the exported tokenizer's `model_max_length`, which is a per-document truncation length and says nothing about how many documents a request may carry | Set `max_allowed_chunks` and `max_position_embeddings` in the graph, which is where the calculator reads them | [#793](https://github.com/derio-net/frank/issues/793) |
 
 ## Recovery Path
 
@@ -399,6 +439,8 @@ And a gap I would rather name than paper over: I cannot report etcd leader chang
 | `ImagePullBackOff` on first sync, no manifest change helps | GHCR creates a package **private** on first publish, and the pod has no `imagePullSecret` | Set the package visibility public, or add a pull secret |
 | Stale weights served after a model bump | Seed marker still matches the unchanged `MODELS_REV` | Bump `MODELS_REV` so the image tag and the marker both move |
 | ArgoCD `Synced/Healthy` but the change is not live | Synced to a stale revision | Trigger an explicit sync operation with `syncOptions` passed explicitly, then assert on the artifact and not on the sync status |
+| Rerank kills the pod on a batch that worked yesterday | The resident floor has ratcheted to the high-water of the largest call since the last restart | `kubectl -n retrieval rollout restart deploy/ovms-retrieval` resets the floor immediately; the graph's two bounds are what stop it recurring |
+| Rerank returns HTTP 500 on a large batch | The guard refusing the request — `absl::InternalError` is how upstream surfaces it | Read the message: it names the limit. Send fewer or shorter documents; do not raise the cap without re-measuring |
 
 ## What transfers
 
@@ -409,6 +451,8 @@ And a gap I would rather name than paper over: I cannot report etcd leader chang
 **Ask a health endpoint what it is actually about.** Server health and workload health are different questions, and an HTTP 200 will not distinguish them for you. Find the endpoint that reports on the thing you care about and point readiness at that.
 
 **A copy that dies instantly is about dirty pages, not volume.** Fast reads into slow writes will blow a cgroup limit long before the transferred total looks alarming. Bound the dirty set first, then size the limit against the largest single file.
+
+**A failure that a restart fixes is a ratchet, not a request.** If memory never returns after a peak, the resident floor is the high-water mark of the largest thing you have ever served, and the same request will succeed on a fresh process and die on a warm one. Measure one call per process start, or you are measuring your own sweep.
 
 **Prove device injection with a negative control.** Run the workload without the claim. If the device is still there, something else in your stack is providing it, and the claim you just wrote is decoration.
 

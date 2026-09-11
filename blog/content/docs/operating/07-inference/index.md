@@ -161,6 +161,39 @@ Embeddings are 1024-dimensional. A CPU-only arm of the same models on the same
 node runs ~1613 ms p50, so a sudden jump into the 1.5-2 s range is the signature
 of the GPU repository not being the one that loaded.
 
+The rerank batch is bounded in the graph, not by anything you can change from
+the Deployment. Confirm the bounds are live:
+
+```bash
+# Both fields must be present. Absent = a model image without the guard, and
+# an oversized call takes the whole server down instead of being refused.
+kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- \
+  grep -E 'max_allowed_chunks|max_position_embeddings' \
+  /models/bge-reranker-v2-m3/graph.pbtxt
+# -> max_allowed_chunks: 64
+# -> max_position_embeddings: 640
+```
+
+**Past the cap the caller gets HTTP 500, not a 4xx.** The guard raises a C++
+runtime error which the server maps to `InternalError`, so the response body
+names the limit but the status code says "server". That is refusal working, not
+failure: the `/v1/config` check above still reports both servables `AVAILABLE`
+and the restart counter does not move. The pair of signals is what tells the two
+apart — a refusal leaves the server up, an OOM-kill does not:
+
+```bash
+# Refused (good): both servables still AVAILABLE, restarts unchanged.
+kubectl -n retrieval get pod -l app.kubernetes.io/name=ovms-retrieval \
+  -o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[*].restartCount
+```
+
+Documents longer than 640 tokens minus the query are split into chunks, scored
+per chunk, and those chunks count against the same 64 — so a caller sending long
+passages hits the cap at fewer documents than one sending short ones. That is
+the intended behaviour, and it is also why relevance scores for long passages
+differ from the whole-document scores this endpoint returned before September
+2026.
+
 ## Recover
 
 ### Ollama Not Responding
@@ -200,6 +233,53 @@ kubectl exec -n ollama deploy/ollama -- sh -c 'cat /sys/fs/cgroup/memory.current
 ```
 
 If `memory.current` is within 1–2 GiB of `memory.max`, that's the constraint. We bumped the limit to 64 GiB to fit 24B+ models (commit `8a135bcc`). Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the {{< abbr "KV" >}} cache.
+
+### Out of Memory, A Third Kind: The Retrieval Pod's Floor Ratchets
+
+Different app from the two patterns above, same word, third root cause — and
+this is the only OOM on this page that a restart genuinely fixes.
+
+`ovms-retrieval` never gives memory back. `memory.current` after a large rerank
+call equals `memory.peak` and stays there: 2.21 GiB idle, 4.90 GiB resident
+after a single 50-document call, for the life of the container. The resident
+floor ratchets up to the high-water mark of the largest call the process has
+ever served, so **the same batch succeeds on a fresh pod and gets the pod
+OOM-killed once the floor has risen underneath it**. "It worked this morning" is
+the symptom, not a red herring.
+
+Both servables run in one process, so a rerank kill takes embeddings down with
+it for the ten seconds or so the pod takes to come back.
+
+```bash
+# The instrument. A 20s metrics scrape steps straight over these transients --
+# they last 0.1-2.5s -- so container_memory_working_set_bytes will show you a
+# comfortable idle figure for a call that reached the limit.
+kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- sh -c \
+  'cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max'
+
+# How often has it been killed? A counter climbing with no deploy is the ratchet.
+kubectl -n retrieval get pod -l app.kubernetes.io/name=ovms-retrieval \
+  -o jsonpath='{.items[*].status.containerStatuses[*].restartCount}'
+```
+
+**Restarting the pod is a legitimate mitigation, and always was.** It drops the
+floor back to idle and buys back the full headroom, until the next large call
+raises it again:
+
+```bash
+kubectl -n retrieval rollout restart deploy/ovms-retrieval
+```
+
+What stops it recurring is the graph's two bounds (`max_allowed_chunks: 64`,
+`max_position_embeddings: 640`) plus the 10Gi ceiling — the guard's own worst
+case is 6.36 GiB, and the ceiling was raised to 10Gi so that worst case cannot
+itself OOM. If you are tempted to raise the ceiling again, tighten
+`max_position_embeddings` instead: memory is near-quadratic in document length
+and only linear in document count, so length is the lever.
+
+Measure it on a **freshly restarted** container, one call at a time.
+`memory.peak` is monotonic, so an ascending sweep reports each size plus every
+size before it, and a kill part-way up is floor-plus-call rather than call.
 
 ### Reconciling LiteLLM Aliases vs. Ollama Tags
 
@@ -241,6 +321,8 @@ Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memo
 | Pod stuck `Pending`, no events | The `ResourceClaimTemplate` filters on capacity; the iGPU reports `memory: "0"` | Remove any capacity or CEL memory selector |
 | Stale weights after a model bump | Seed marker still matches an unchanged `MODELS_REV` | Bump `MODELS_REV` so tag and marker both move |
 | Rerank scores all ~1e-9, no error | Wrong model class being served | Confirm the reranker is a cross-encoder, not an LLM-style reranker |
+| Rerank kills the pod on a batch that worked before | Resident floor ratcheted to the high-water of the largest call since the last restart | `rollout restart deploy/ovms-retrieval` resets the floor; check the graph carries both bounds |
+| Rerank returns HTTP 500 with a message naming a limit | The guard refusing the request — upstream maps it to `InternalError`, not a 4xx | Nothing to fix. Send fewer or shorter documents; both servables stay `AVAILABLE` |
 
 ## Missteps
 
@@ -250,6 +332,7 @@ Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memo
 | Bumping container `resources.limits.memory` was unnecessary — 24B+ models would fit in the default limit | `OLLAMA_KEEP_ALIVE=24h` causes page cache from previously-loaded models to accumulate, leaving no room for new-model load buffers. The error looks like a VRAM problem but `nvidia-smi` shows free GPU memory. | Several rounds of quant-size debugging before discovering the cgroup was the constraint. |
 | LiteLLM's `ollama/` model prefix would work for tool-calling agents | The `ollama/` route prefix doesn't support native stream-safe tool calling — agents that called tools through it got garbled responses. | A cluster-wide consumption pattern fix (`ollama/` → `ollama_chat/`, commit `8277c154`) once the tool-calling use case emerged. |
 | OpenRouter free-tier models would provide a useful fallback | Free models had unreliable availability, inconsistent quality, and changing rate limits — they broke silently more often than they worked. | Retired entirely (commit `46f19ca2`). The complexity of managing the model list wasn't worth the never-working fallback. |
+| The retrieval pod's OOM-kills meant some request size was simply too big | Memory is never released, so the resident floor ratchets to the largest call ever served — the fatal batch fits comfortably on a fresh pod and only dies on a warm one. Request size explained neither the intermittency nor restarts climbing 1 → 9 over a week of light use. | Two wrong conclusions from sweep data, because a monotonic `memory.peak` over an ascending sweep measures the sweep. Bounded both terms in the graph and raised the ceiling to fit the guard's own worst case. |
 
 ## Quick Reference
 
@@ -267,6 +350,8 @@ Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memo
 | `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- curl -s http://127.0.0.1:8000/v1/config` | Per-servable state of the retrieval models |
 | `kubectl get resourceclaims -A` | Who currently holds a DRA-claimed device |
 | `kubectl -n retrieval logs deploy/ovms-retrieval -c seed-models` | Model-repository seed log (skip vs reseed) |
+| `kubectl -n retrieval rollout restart deploy/ovms-retrieval` | Reset the rerank memory floor after a ratcheted OOM-kill |
+| `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- cat /sys/fs/cgroup/memory.peak` | Peak memory since container start — the only instrument that sees a 0.1-2.5s spike |
 
 ## References
 
