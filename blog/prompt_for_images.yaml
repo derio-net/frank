@@ -153,19 +153,21 @@ images:
   aspect_ratio: '3:1'
   image_size: native
   output: blog/assets/images/banner-topics.png
-  description: Topics banner (/topics/ index and guides) — the map-table concept; same 3-stripe 3:1 sheet → 9:1 crop recipe as the other four. Not generated yet; the site-banner partial renders nothing until the crop lands at output.
+  description: Topics banner (/topics/ index and guides) — the map-table concept, generated 2026-09-12 as a native 3:1 sheet and cropped to 9:1 (middle stripe, seam-trimmed).
   codex_generation:
     workflow: Generate manually from Codex, then hard-gate dimensions before copying into the blog asset path.
     prompt_key: banner-topics-the-map-table
     reference_image: .reference-pool/building/reference/frank-server-torso.png
     source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
     crop_aspect_ratio: "9:1"
+    crop_dimensions: 2151x239
     crop_command_top: sips --cropToHeightWidth 241 2169 --cropOffset 0 1 SOURCE --out TOP
     crop_command_middle: sips --cropToHeightWidth 241 2169 --cropOffset 241 1 SOURCE --out MIDDLE
     crop_command_bottom: sips --cropToHeightWidth 241 2169 --cropOffset 482 1 SOURCE --out BOTTOM
     quality_gate: Reject any source that is not native 3:1 before cropping; never non-uniformly resize a failed source. The crop commands assume the 2172x724 source the other banners produced — re-derive them if the observed dimensions differ.
-    accepted_crop: null
-    status: documentation-only until the selected crop is copied to output
+    accepted_crop: middle — rows 245-483 of the sheet (the stripe seams are the bright rows 240-244 and 484-488, so the full 241-row stripe carries a white line at its top edge); 239 clean rows kept, width trimmed 10px per side to hold an exact 9:1 (sips --cropToHeightWidth 239 2151 --cropOffset 245 10).
+    status: generated and copied to output
   composition:
     reference_images:
       primary: .reference-pool/building/reference/frank-server-torso.png
