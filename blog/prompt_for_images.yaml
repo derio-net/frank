@@ -153,14 +153,65 @@ images:
   aspect_ratio: '3:1'
   image_size: native
   output: blog/assets/images/banner-topics.png
-  description: Topics banner (/topics/ index + guides) — the map-table concept; NOT YET GENERATED, the site-banner partial renders nothing until this file exists.
+  description: Topics banner (/topics/ index and guides) — the map-table concept; same 3-stripe 3:1 sheet → 9:1 crop recipe as the other four. Not generated yet; the site-banner partial renders nothing until the crop lands at output.
   codex_generation:
     workflow: Generate manually from Codex, then hard-gate dimensions before copying into the blog asset path.
-    prompt_key: idea-topics-1-the-map-table
-    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-topics-1-the-map-table.txt
+    prompt_key: banner-topics-the-map-table
     reference_image: .reference-pool/building/reference/frank-server-torso.png
     source_aspect_ratio: "3:1"
     crop_aspect_ratio: "9:1"
+    crop_command_top: sips --cropToHeightWidth 241 2169 --cropOffset 0 1 SOURCE --out TOP
+    crop_command_middle: sips --cropToHeightWidth 241 2169 --cropOffset 241 1 SOURCE --out MIDDLE
+    crop_command_bottom: sips --cropToHeightWidth 241 2169 --cropOffset 482 1 SOURCE --out BOTTOM
+    quality_gate: Reject any source that is not native 3:1 before cropping; never non-uniformly resize a failed source. The crop commands assume the 2172x724 source the other banners produced — re-derive them if the observed dimensions differ.
+    accepted_crop: null
+    status: documentation-only until the selected crop is copied to output
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-server-torso.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank's torso/body is exposed server hardware
+      
+      Frank's expression is focused — brow lowered, eyes narrowed a little, mouth set; attentive, deciding.
+      
+      Frank stands at the LEFT third of the ultra-wide frame, leaning both hands on the edge of a large glass-topped MAP TABLE — a chart-room plotting table, its surface glowing softly from below. From the table, FOUR distinct cable trays fan out across the remaining two-thirds of the frame like routes on a map, each carrying bundled cables of a single colour — red, green, violet, teal — running away into the darkness toward four separate silhouetted rack islands on the horizon, the trays reaching the right edge of the frame. Small glass markers and a brass magnifying lens rest on the glowing table; Frank's right index finger traces one of the four routes, his face lit from below by the table. Low, wide perspective so the four routes read as diverging roads. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, table and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers, no symbols on the map.
 - key: banner-building
   operator_generated: true
   generator: codex-imagegen
