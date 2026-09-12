@@ -1060,6 +1060,315 @@ data:
               summary: "L2 OS: control-plane node {{ $labels.node }} NotReady — HA at risk"
               runbook: "talosctl -n {{ $labels.node }} health; talosctl -n {{ $labels.node }} dmesg | tail -50"
 
+      # --- Layer 2 — etcd, the control plane's own quorum (frank-ops#2) ---
+      # Frank did not scrape its own etcd for 148 days. kubeEtcd.enabled is true
+      # by chart default and was never disabled, so a headless Service, a
+      # VMServiceScrape and an Endpoints object have existed since the cluster
+      # was built — the Endpoints object EMPTY the entire time, because the
+      # chart's Service selects pods labelled component=etcd (the kubeadm
+      # layout) and Talos runs etcd as a host system service. Zero endpoints,
+      # zero targets, zero series, and no error anywhere. An etcd problem was
+      # invisible until it became an apiserver problem.
+      #
+      # apps/victoria-metrics/values.yaml now pins a STATIC Endpoints object at
+      # the three minis on 2381, and patches/phase08-obs/omni-configpatch-etcd-
+      # metrics.yaml opens that listener (operator-applied through Omni). Spec:
+      # docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+      #
+      # ONLY QUORUM LOSS PAGES. layer-2-etcd-no-leader and layer-2-etcd-member-
+      # down are severity: critical with NO health_bridge_only, so they reach
+      # Telegram. The other four carry health_bridge_only="true", which the
+      # notification policy's escape-hatch route (ahead of the severity routes,
+      # continue: false) diverts to the Health Bridge alone. for: 10m on both
+      # pagers is the load-bearing number: a planned Talos rolling reboot takes
+      # one member down and elects a new leader entirely legitimately, and the
+      # 2026-08-02 control-plane roll took roughly 7 minutes while producing 48
+      # alerts against a completely healthy cluster. An etcd alert that fires on
+      # every planned roll gets muted inside a month, and a muted alert is worse
+      # than no alert because it still looks like coverage.
+      #
+      # layer-2-etcd-scrape-absent exists because the other five would otherwise
+      # recreate the bug being fixed. Every rule here uses noDataState: OK, so
+      # if the Endpoints object ever empties AGAIN — a chart bump changing the
+      # selector, a values merge dropping endpoints:, a node IP change — the
+      # up{job="kube-etcd"} series simply vanish, every rule goes NoData, every
+      # rule reads OK, and Frank is blind to etcd behind a green dashboard.
+      # absent() is the only expression that fires on a series DISAPPEARING.
+      # critical + health_bridge_only is deliberate: health-bridge's dead-to-
+      # bug-issue lifecycle needs critical, the escape-hatch route keeps it off
+      # Telegram, so a blind scrape becomes a tracked bug that auto-closes on
+      # heal without paging (blindness is not death).
+      #
+      # THESE ARE NOT THE ONLY etcd ALERTS IN THE CLUSTER — AND THE OTHERS ARE
+      # INERT. victoria-metrics-k8s-stack also renders a VMRule (victoria-
+      # metrics-victoria-metrics-k8s-stack-etcd) carrying 15 UPSTREAM etcd
+      # alerts: etcdNoLeader, etcdInsufficientMembers, etcdMembersDown,
+      # etcdHighFsyncDurations, etcdDatabaseQuotaLowSpace and more. Every one
+      # selects job=~".*etcd.*", which MATCHES kube-etcd, and four of them
+      # overlap the rules below at looser thresholds. That VMRule renders
+      # whether or not our kubeEtcd block exists (it follows kubeEtcd.enabled,
+      # true by chart default) and it is NOT a duplicate anyone forgot to
+      # delete: a VMRule is evaluated by vmalert, and apps/victoria-metrics/
+      # values.yaml sets vmalert.enabled: false — alerting on Frank is
+      # Grafana-managed. So those 15 never evaluate and never fire. If you have
+      # just discovered "duplicate etcd alerting", the rules BELOW are the live
+      # half; do not delete them in favour of the inert ones.
+      #
+      # METRICS: only etcd_server_* / etcd_disk_* / etcd_mvcc_* / etcd_network_*
+      # and up{job="kube-etcd"}. NEVER etcd_request_* / etcd_requests_* /
+      # etcd_lease_* / etcd_bookmark_* — those are the APISERVER's storage
+      # client, they were present in VMSingle throughout the 148 blind days, and
+      # mistaking them for etcd metrics is precisely why nobody noticed. A rule
+      # repointed at one of them goes green and measures the wrong process.
+      # Guarded by scripts/tests/test_etcd_scrape.py.
+      #
+      # NOTE: no < > & in annotations — Grafana's Telegram contact point sends
+      # HTML parse_mode, so a bare angle bracket makes Telegram reject the
+      # message with 400 and the alert fires but is never delivered (the
+      # 2026-06-08 layer-1-nic-link-flap incident). Hence NODE_IP, not a
+      # bracketed placeholder, and comparisons spelled out in words.
+      - orgId: 1
+        name: layer-2-etcd-health
+        folder: feature-health
+        interval: 1m
+        rules:
+          # 1/6 — PAGES. The quorum has no leader: no writes are being served.
+          - uid: layer-2-etcd-no-leader
+            title: Layer 2 etcd Quorum Has No Leader
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'etcd_server_has_leader'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: member {{ $labels.instance }} reports no leader for 10m — the quorum is not serving writes"
+              runbook: "talosctl -n NODE_IP etcd status (expect 3 members, one leader); talosctl -n NODE_IP service etcd status; docs/runbooks/frank-gotchas/grafana.md"
+
+          # 2/6 — PAGES. A member's scrape target is down. On a healthy cluster
+          # this is 3 series at 1; two of three still holds quorum, but the
+          # cluster is one failure from losing it.
+          - uid: layer-2-etcd-member-down
+            title: Layer 2 etcd Member Down
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'up{job="kube-etcd"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: member {{ $labels.instance }} unreachable for 10m — quorum is one failure from being lost"
+              runbook: "talosctl -n NODE_IP etcd status; talosctl -n NODE_IP service etcd status; check the 2381 metrics listener is still open (patches/phase08-obs/omni-configpatch-etcd-metrics.yaml); docs/runbooks/frank-gotchas/grafana.md"
+
+          # 3/6 — health-bridge only. The watchdog against this whole layer
+          # silently reverting. absent() returns EMPTY while the series exist,
+          # so NoData is the HEALTHY path here — inverted versus every other
+          # rule in this group. Same shape as tls-cert-canary-absent.
+          # for: 15m so a vmagent restart or a rolling etcd apply cannot trip it.
+          - uid: layer-2-etcd-scrape-absent
+            title: Layer 2 etcd Scrape Absent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'absent(up{job="kube-etcd"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: the kube-etcd scrape has produced no series for 15m — every other etcd rule is now blind and reading OK"
+              runbook: "Check the Endpoints object is populated: kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml (the chart labels the ENDPOINTS k8s-app; jobLabel is on the Service, so selecting on it here returns nothing and reads as a missing object). No subsets means the chart reverted to pod-selector discovery, which can never match on Talos. Then confirm the listener from the vmagent pod: wget -qO- http://192.168.55.21:2381/metrics. docs/runbooks/frank-gotchas/grafana.md"
+
+          # 4/6 — health-bridge only. Leader churn is the signal the iGPU
+          # retrieval acceptance row needs and could not measure. for: 0m
+          # because the query already integrates over an hour.
+          - uid: layer-2-etcd-leader-changes
+            title: Layer 2 etcd Leader Change Churn
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'increase(etcd_server_leader_changes_seen_total[1h])'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [3] }
+            noDataState: OK
+            execErrState: Error
+            for: 0m
+            labels:
+              severity: warning
+              health_bridge_only: "true"
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: more than 3 leader changes in an hour on {{ $labels.instance }} — the quorum is re-electing, usually disk or peer-network pressure"
+              runbook: "talosctl -n NODE_IP etcd status; compare WAL fsync p99 and peer round-trip on the etcd dashboard; correlate with workloads pinned to the control-plane minis. Threshold is a provisional first-pass value. docs/runbooks/frank-gotchas/grafana.md"
+
+          # 5/6 — health-bridge only. 50ms p99 is the widely-cited etcd health
+          # boundary; Frank's minis are NVMe-backed so this should sit far
+          # below it. Provisional until the dashboard has a baseline.
+          - uid: layer-2-etcd-wal-fsync-slow
+            title: Layer 2 etcd WAL Fsync Slow
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'histogram_quantile(0.99, sum by (le, instance) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0.05] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              health_bridge_only: "true"
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: WAL fsync p99 on {{ $labels.instance }} above 50ms for 15m — etcd commits are disk-bound and leader elections become likely"
+              runbook: "talosctl -n NODE_IP etcd status; check disk pressure and Longhorn replica traffic on that mini; see the etcd dashboard for the fsync and backend-commit panels. Threshold is a provisional first-pass value. docs/runbooks/frank-gotchas/grafana.md"
+
+          # 6/6 — health-bridge only. Ratio against the member's OWN advertised
+          # quota, so it stays correct if the quota is ever raised.
+          - uid: layer-2-etcd-db-quota
+            title: Layer 2 etcd Database Approaching Quota
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0.8] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              health_bridge_only: "true"
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 etcd: backend database on {{ $labels.instance }} is above 80 percent of its quota — at 100 percent etcd goes read-only cluster-wide"
+              runbook: "talosctl -n NODE_IP etcd status (shows DB size); defragment and revise the compaction settings before the quota is reached, because an exhausted backend puts the cluster into a NOSPACE alarm and refuses writes. Threshold is a provisional first-pass value. docs/runbooks/frank-gotchas/grafana.md"
+
       # --- Layer 3 — Networking / Cilium (frank-ops#3) ---
       # Per-workload alert when any cilium DaemonSet or the cilium-operator
       # Deployment has replicas unavailable.
