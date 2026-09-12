@@ -1,0 +1,55 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Validation harness + staging vCluster
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Provision manifest-validation toolchain (dev container has none)
+  steps:
+  - id: P1.T1.S1
+    text: |
+      The dev devcontainer has python3/uv/curl/node but NO helm/kubeconform/tkn/yamllint. Create `scripts/staging-gate/ensure-tools.sh` (idempotent) that installs PINNED binaries into a gitignored `.bin/` at repo root: helm (via get_helm.sh, pinned version), kubeconform (release tarball, pinned), tkn (release tarball, pinned); and `uv tool install yamllint`. Append `/.bin/` to `.gitignore`. Print each tool's version at the end.
+  - id: P1.T1.S2
+    text: |
+      Run it in-container and assert all tools resolve: `fr isolation exec --branch feat/staging-vcluster-gate -- bash -lc 'bash scripts/staging-gate/ensure-tools.sh && PATH=$PWD/.bin:$PATH helm version --short && kubeconform -v && tkn version --client && yamllint --version'`. Expected: versions print, exit 0. (All later validation runs `PATH=$PWD/.bin:$PATH` via the exec-bridge.)
+- number: 2
+  title: Staging vCluster manifests (TDD)
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED — assert the root App-of-Apps renders a staging vCluster. Run via exec: `PATH=$PWD/.bin:$PATH helm template apps/root | grep -c 'vcluster-staging'`. Expected NOW: 0 (the files don't exist) — RED.
+  - id: P1.T2.S2
+    text: |
+      GREEN — mirror the experiments pattern: (a) `apps/vclusters/staging/values.yaml` (header comment; all template defaults, like experiments); (b) `apps/root/templates/vcluster-staging.yaml` cloned from `vcluster-experiments.yaml` with releaseName `staging`, valueFiles template+`apps/vclusters/staging/values.yaml`, destination namespace `vcluster-staging`, and the StatefulSet `ignoreDifferences` name `staging`; (c) `apps/root/templates/ns-vcluster-staging.yaml` (PSA labels: enforce baseline / audit+warn restricted, matching ns-vcluster-experiments).
+  - id: P1.T2.S3
+    text: |
+      GREEN-verify — `PATH=$PWD/.bin:$PATH helm template apps/root` exits 0 and now emits the `vcluster-staging` Application + Namespace (grep count ≥ 2); pipe the rendered output through `kubeconform -strict -ignore-missing-schemas` (Application is a CRD → ignored) and `yamllint` the three new files. Expected: all pass.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T19:56:24+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T19:56:24+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-15T19:56:25+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-15T19:56:25+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-15T19:56:26+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T19:56:27+00:00'
+    note: null
+    observed_prs: []

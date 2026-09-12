@@ -1,0 +1,18 @@
+# staging-gate contract for runs-fr. Consumed by the Tekton staging-gate Pipeline.
+# Schema + field meanings: apps/staging-gate/README.md. Validated by
+# scripts/staging-gate/validate-contract.py.
+app: runs-fr
+sourceRepo: derio-net/runs-fr
+image: ghcr.io/derio-net/runs-fr
+chartRepo: https://github.com/derio-net/runs-fr.git
+chartPath: charts/runs-fr
+stagingApp: runs-fr-staging
+stagingValuesPath: apps/staging-gate/runs-fr/staging-values.yaml
+smokeImage: ghcr.io/derio-net/runs-fr-smoke
+smokeNamespace: runs-fr
+# Promote target — the runs-fr PROD wiring is a PAIRED FOLLOW-UP (Authentik/Ingress/
+# homepage). The contract records the target now; the promote task bumps prodValuesKey
+# in prodValuesPath once that app exists. The validator checks shape, not target existence.
+prodApp: runs-fr
+prodValuesPath: apps/runs-fr/values.yaml
+prodValuesKey: image.tag

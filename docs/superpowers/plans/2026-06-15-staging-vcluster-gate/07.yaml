@@ -1,0 +1,39 @@
+schema_version: 2
+phase:
+  number: 7
+  title: '[manual] Cluster Secret + end-to-end gate verification'
+  tag: manual
+  depends_on:
+  - 6
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Register staging vCluster + prove the gate end-to-end
+  steps:
+  - id: P7.T1.S1
+    text: |
+      (manual) Register the staging vCluster with ArgoCD: extract the `vc-staging` secret's `.data.config` kubeconfig, rewrite server `https://localhost:8443` → `https://staging.vcluster-staging.svc:443`, build an ArgoCD `cluster` Secret (label `argocd.argoproj.io/secret-type=cluster`, `stringData.name=staging`, `stringData.server=…svc:443`, `stringData.config` = JSON tlsClientConfig with the kubeconfig's CA + client cert/key), `sops -e` per `.sops.yaml`, store under `secrets/staging-vcluster/`, apply out-of-band. Verify: `argocd cluster list` shows staging; `runs-fr-staging` Application syncs Healthy in the vCluster.
+  - id: P7.T1.S2
+    text: |
+      (manual) GREEN path: trigger a real runs-fr `main` merge (or `repository_dispatch` action `staging-gate`) and observe the gate run flow build → bump-staging → await-sync → run-smoke (green) → promote (a commit bumping the prod image ref appears) → reset-staging. Capture evidence (PipelineRun logs + the promote commit).
+  - id: P7.T1.S3
+    text: |
+      (manual) RED path: feed a deliberately-broken image (e.g. a tag whose pod fails the smoke) and confirm the gate FAILS at run-smoke, leaves the prod ref UNTOUCHED, and fires a notification (Telegram/health-bridge). Record both outcomes on the PR.
+state:
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

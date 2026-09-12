@@ -1,0 +1,62 @@
+# staging-gate trigger plumbing (triggers.tekton.dev/v1beta1). The gate fires from the app's
+# GHA workflow via a GitHub `repository_dispatch` (event_type=staging-gate) delivered to the
+# existing github-listener (.223). RUNTIME (the EventListener trigger wiring + the GHA secret)
+# is finalised in the manual phase (P7); see eventlistener note below.
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: staging-gate-binding
+  namespace: tekton-pipelines
+spec:
+  params:
+    # GitHub repository_dispatch payload: {action, client_payload:{app,sha}, repository:{full_name}}
+    - name: app
+      value: $(body.client_payload.app)
+    - name: sha
+      value: $(body.client_payload.sha)
+    - name: repo-full-name
+      value: $(body.repository.full_name)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: staging-gate-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: app
+    - name: sha
+    - name: repo-full-name
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: staging-gate-$(tt.params.app)-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: staging-gate}
+        taskRunTemplate:
+          serviceAccountName: staging-gate
+          podTemplate:
+            securityContext:
+              fsGroup: 65532
+        params:
+          - {name: app, value: $(tt.params.app)}
+          - {name: sha, value: $(tt.params.sha)}
+        workspaces:
+          - name: ssh-creds
+            secret:
+              secretName: staging-gate-ssh-creds
+          - name: vcluster-kubeconfig
+            secret:
+              secretName: vcluster-staging-kubeconfig
+          - name: scratch
+            emptyDir: {}
+---
+# NOTE (manual P7): add a Trigger to the existing github-listener EventListener
+# (apps/tekton/triggers/eventlistener-github.yaml) referencing the binding+template above,
+# with interceptors: github (validate the webhook secret) → cel filtering
+#   header.match('X-GitHub-Event','repository_dispatch') && body.action == 'staging-gate'
+# It is added to the live EventListener there rather than here to keep all listener triggers
+# in one file. The GHA workflow (runs-fr sibling) POSTs the repository_dispatch.

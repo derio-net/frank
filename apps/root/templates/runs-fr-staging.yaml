@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: runs-fr-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    # The runs-fr chart lives in the runs-fr repo; staging values come from frank
+    # (the $values ref below). The gate bumps image.tag in the staging values file.
+    - repoURL: https://github.com/derio-net/runs-fr.git
+      targetRevision: main
+      path: charts/runs-fr
+      helm:
+        releaseName: runs-fr
+        valueFiles:
+          - $values/apps/staging-gate/runs-fr/staging-values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    # Deploys INTO the staging vCluster (registered as an ArgoCD external cluster;
+    # the cluster credential is created out-of-band — see the staging-gate manual phase).
+    server: https://staging.vcluster-staging.svc:443
+    namespace: runs-fr
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data
