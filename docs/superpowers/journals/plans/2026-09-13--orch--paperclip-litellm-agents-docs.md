@@ -75,3 +75,8 @@ With #787's mermaid 11.16.1 pin in, validate_mermaid_layout.mjs reports MERMAID 
 ### r3-rebase-review · review · Phase 3 review: rebase delta is exactly #787's description lines plus last_updated_commit (phase 3)
 
 git diff 1a80fcbb ed8af807 on both posts shows only: +description (building/15), +description and last_updated_commit 47697457->5279b4c6 (operating/18). No content lost or duplicated in conflict resolution. PR scope vs origin/main unchanged: the two posts plus spec, plan, journals, matrix row and regenerated reports. No findings.
+
+<!-- fr:journal kind=decision scope=plan id=p4-manual-not-executed created=2026-09-13T23:31:52 phase=4 -->
+### p4-manual-not-executed · decision · Phase 4 is manual and was NOT executed; run cursor resolved done so deliver can proceed (phase 4)
+
+Phase 4 is the post-merge rendered-page check plus the acceptance-row note. It needs a merged, deployed blog, so no agent can do it pre-merge, and fr-goal never dispatches a manual phase to an executor. The fr run cursor only accepts done or failed, and failed would wedge the run, so phase/4 implement-phase and review-phase were resolved done as bookkeeping. The PLAN phase 4 (04.yaml) remains open with no ticks and no completion. The PR ships it as operator work.
