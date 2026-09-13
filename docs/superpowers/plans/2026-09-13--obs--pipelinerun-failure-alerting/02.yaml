@@ -1,0 +1,153 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Failure-ratio rule - a pipeline that runs and never succeeds
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - pipeline-total-failure-alerts
+tasks:
+- number: 1
+  title: Pin the rule's identity and routing before writing its query
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Add `test_the_failure_ratio_rule_is_routed_and_identified`. Reuse the double-YAML load that
+      `scripts/tests/test_feature_health_workload_metrics.py` documents: the ConfigMap
+      `apps/grafana-alerting/manifests/alert-rules-cm.yaml` wraps the Grafana provisioning
+      document as a STRING under `data["alert-rules.yaml"]`, so reading a rule takes two loads.
+
+      Assert a rule with uid `layer-25-pipeline-failing` exists, in group
+      `layer-25-pipeline-outcomes`, folder `feature-health`, with `severity: warning`,
+      `github_issue: "frank-ops#25"`, and both `noDataState` and `execErrState` set explicitly.
+
+      The `github_issue` label is not decoration: the folder-wide guard
+      `test_layer_tracker_rules_carry_a_well_formed_github_issue_label` requires every `layer-*`
+      uid to carry a `frank-ops#N` label, so a uid in this namespace without one fails an
+      existing test in a different file.
+
+      Run `uv run --frozen pytest scripts/tests/test_pipelinerun_outcome_alerting.py -q`. RED.
+  - id: P2.T1.S2
+    text: |
+      Add the group `layer-25-pipeline-outcomes` (folder `feature-health`, `interval: 5m`) to
+      `alert-rules-cm.yaml`, immediately after the existing `layer-25-cicd-down` group so the two
+      layer-25 rules read together. Add the rule shell with the identity, labels and states above,
+      `for: 30m`, and a PLACEHOLDER query that simply selects
+      `tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines", status="failed"}`
+      with the standard A -> B(reduce last, dropNN) -> C(threshold) shape copied from
+      `layer-25-cicd-down`.
+
+      `for: 30m` and deliberately not `15m`: the folder guard
+      `test_the_fifteen_minute_window_is_reserved_for_daemonset_rules` rejects a 15m window on a
+      rule that does not query a DaemonSet metric, because that window exists to absorb node
+      drains and is not a general sensitivity dial.
+
+      Re-run. Expect GREEN on identity.
+  - id: P2.T1.S3
+    text: |
+      REFACTOR: extract `_rule_by_uid(uid)` and `_query_expr(rule)` helpers (the latter returning
+      the `model.expr` of the refId-A datasource query), mirroring the private helpers in
+      `test_feature_health_workload_metrics.py`. Every remaining task in phases 2 and 3 needs
+      both. Re-run; GREEN, unchanged.
+- number: 2
+  title: The query - unless, not "== 0"
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add `test_the_failure_ratio_rule_uses_unless_rather_than_a_zero_comparison`. Assert the
+      refId-A expression:
+        * contains the token `unless`;
+        * selects BOTH `status="failed"` and `status="success"`;
+        * aggregates each side with `sum by (pipeline)`;
+        * does NOT contain a `== 0` (or `==0`) comparison anywhere.
+
+      Write the docstring so the next reader understands the failure it prevents, not just the
+      rule it enforces: for a pipeline that has never succeeded since controller start there is NO
+      success series at all, so `failed >= 3 and success == 0` drops the entire result on the
+      vector match and can never fire - precisely for the pipelines it exists to catch. Same
+      family as the `metric == 0` trap already in `frank-gotchas.md`, where that is a filter
+      rather than a comparison. `unless` is set difference and handles an absent right-hand side.
+
+      Run. Expect RED against the placeholder query.
+  - id: P2.T2.S2
+    text: |
+      Replace the placeholder with the real expression:
+
+        sum by (pipeline) (increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines", status="failed"}[24h])) >= 3
+        unless
+        sum by (pipeline) (increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines", status="success"}[24h])) > 0
+
+      Set `relativeTimeRange: { from: 86400, to: 0 }` on all three refIds to match the range
+      selector, following the `tls-cert-expiry-1h` group's convention of tying the two together
+      rather than leaving the default 600.
+
+      Annotations: summary naming `{{ $labels.pipeline }}` and its failure count via
+      `{{ $values.B.Value | printf "%.0f" }}`; runbook giving the two commands an operator
+      actually needs - `kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline=<name>`
+      and `tkn pipelinerun logs`. Keep `<`, `>` and `&` out of both: the Telegram contact point
+      uses HTML parse_mode and a bare angle bracket makes Telegram reject the message with a 400,
+      so the rule fires, dispatches, and silently never delivers (`frank-gotchas.md`).
+
+      Re-run. Expect GREEN.
+- number: 3
+  title: Keep the threshold where it belongs
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Add `test_the_failure_threshold_lives_in_the_query_not_in_the_expression_threshold`. Assert
+      the refId-A expression contains `>= 3`, and that condition C's evaluator is
+      `{type: gt, params: [0]}`.
+
+      Docstring: Grafana's server-side expressions cannot express `unless`, so refId A carries the
+      whole filter and returns one series per OFFENDING pipeline; C asking `gt 0` means "did A
+      return anything at all". Moving the `>= 3` out of A and into C as `gt 2` reads like a
+      tidy-up and breaks the rule - A would then return every pipeline with zero successes,
+      including those with zero failures in the window.
+
+      Expect GREEN immediately (the previous step already satisfies it). This is a regression
+      tripwire, not a red-green pair; record `no-refactor-because: P2.T3` in the plan journal via
+      `fr journal add --scope plan --kind decision` noting that a test whose purpose is to freeze
+      a correct shape has nothing to refactor.
+  - id: P2.T3.S2
+    text: |
+      Run `uv run --frozen pytest scripts/tests/ -q` and confirm the folder-wide guards in
+      `test_feature_health_workload_metrics.py` still pass with the new rule present - in
+      particular the uid-uniqueness, known-severity, explicit-states and `frank-ops#N` checks, and
+      `test_feature_health_folder_is_populated` (which asserts a minimum rule count and so must
+      not regress).
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

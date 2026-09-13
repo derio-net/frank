@@ -1,0 +1,130 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Walking skeleton - scrape the controller, with captured data deciding the
+    cardinality drop
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - pipelinerun-outcomes-visible
+  skeleton: true
+tasks:
+- number: 1
+  title: Pin the VMServiceScrape contract with a failing test
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create `scripts/tests/test_pipelinerun_outcome_alerting.py`. It MUST run fully offline.
+      `.github/workflows/repo-tripwires.yml` says "Nothing in this suite talks to Frank or Hop -
+      by design", and that suite gates every PR, so a test needing a cluster would break the repo.
+      Everything needed is already committed: the two fixtures under `scripts/tests/fixtures/tekton/`
+      (captured 2026-09-13 from the live controller) and the manifests under `apps/`.
+
+      Write `test_the_scrape_manifest_targets_the_controller_metrics_port`: assert
+      `apps/tekton/manifests/vmservicescrape-pipelines-controller.yaml` exists, parses as one
+      `operator.victoriametrics.com/v1beta1` VMServiceScrape in namespace `tekton-pipelines`,
+      selects `matchLabels: {app: tekton-pipelines-controller}`, and has exactly one endpoint on
+      port `http-metrics`.
+
+      Assert the port NAME, not 9090. The VM operator resolves endpoints by Service port name and
+      `tekton-pipelines-controller` also publishes `http-profiling` (8008) and `probes` (8080) -
+      a scrape pointed at either is a target that comes up and returns no Tekton metrics at all.
+
+      Run `uv run --frozen pytest scripts/tests/test_pipelinerun_outcome_alerting.py -q`.
+      Expect RED - the manifest does not exist.
+  - id: P1.T1.S2
+    text: |
+      Create the manifest with the MINIMUM to pass: apiVersion, kind, `metadata.namespace:
+      tekton-pipelines`, the selector, one `- port: http-metrics` endpoint. Do NOT add
+      `metricRelabelConfigs` yet - that belongs to task 2 and adding it now makes task 2's test
+      green before it is written.
+
+      Add a header comment naming the owning Application: `tekton-extras`
+      (`apps/root/templates/tekton-extras.yaml`, `path: apps/tekton`, `recurse: true`,
+      `exclude: vendor/**`). The similarly-named `tekton-pipelines` Application serves
+      `apps/tekton/vendor/pipelines` and stays Synced/Healthy whatever happens to this file -
+      the same trap `frank-gotchas.md` records for `traefik` vs `traefik-extras`.
+
+      Re-run the focused test. Expect GREEN.
+  - id: P1.T1.S3
+    text: |
+      REFACTOR: factor the repeated "load a YAML manifest from a repo-relative path" logic into a
+      module-level `_load_yaml(path)` helper with a `REPO = pathlib.Path(__file__).resolve().parents[2]`
+      anchor, matching the shape `scripts/tests/test_feature_health_workload_metrics.py` already
+      uses. Later tasks in this plan add three more manifest and fixture readers, so the helper
+      pays for itself inside this phase. Re-run the focused test; expect GREEN, unchanged.
+- number: 2
+  title: Let the captured census choose the metric to drop
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Write `test_the_scrape_drops_the_unbounded_metric`. Do NOT hardcode the metric name as the
+      premise. Load `scripts/tests/fixtures/tekton/controller-series-census.json`, find the metric
+      holding the largest share of `total_series`, and assert (a) that share exceeds 50%, and
+      (b) the scrape manifest carries a `metricRelabelConfigs` entry with `action: drop`,
+      `source_labels: [__name__]` and a `regex` that matches exactly that metric name.
+
+      Deriving the name from the census is the point. It makes the test say "the manifest drops
+      whichever metric the measured data shows is unbounded" rather than "the manifest mentions a
+      string someone typed", so re-capturing the fixture after a Tekton upgrade re-checks the
+      premise instead of silently preserving a stale one.
+
+      The census records `tekton_pipelines_controller_taskruns_pod_latency_milliseconds` at
+      5721/6572 = 87.1%, labelled by TaskRun pod name - one permanent series per TaskRun ever
+      reconciled, on a 1-month retention.
+
+      Run the focused test. Expect RED - the manifest has no metricRelabelConfigs.
+  - id: P1.T2.S2
+    text: |
+      Add the drop to the manifest, with a comment explaining WHY rather than what: this is the
+      same growth curve that took kube-state-metrics to 21.6 MiB on 2026-07-27, tripped
+      `-promscrape.maxScrapeSize`, and - because vmagent discards an oversized response WHOLE -
+      silently blinded all 25 `kube_*` references in the alert rules, including the rule meant to
+      report a CronJob that had stopped succeeding.
+
+      Re-run the focused test. Expect GREEN. Also assert in the phase result the post-drop series
+      count implied by the census (6572 - 5721 = 851) so the PR body can state what was actually
+      added to VMSingle.
+- number: 3
+  title: Confirm the suite really is a PR gate
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Run the suite the way CI runs it: `uv run --frozen pytest scripts/tests/ -q`.
+
+      Expect the new tests to pass and no existing test to regress. The repo carries known
+      pre-existing failures; establish the baseline before attributing any of them to this phase by
+      running the same command against a clean tree (`git stash -u`, run, `git stash pop`) and
+      record in the phase result exactly which failures, if any, were already red. Do not "fix"
+      unrelated red tests in this phase.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

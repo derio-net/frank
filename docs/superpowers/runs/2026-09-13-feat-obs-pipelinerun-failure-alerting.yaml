@@ -2,7 +2,7 @@ run: 2026-09-13-feat-obs-pipelinerun-failure-alerting
 workflow: fr-goal@1
 branch: feat/obs-pipelinerun-failure-alerting
 started: '2026-09-13T19:29:29+00:00'
-cursor: spec-review
+cursor: plan
 steps:
   brainstorm:
     state: done
@@ -10,10 +10,11 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
   spec-review:
-    state: running
-    at: '2026-09-13T20:14:46+00:00'
+    state: done
+    at: '2026-09-13T20:19:26+00:00'
   plan:
-    state: pending
+    state: running
+    at: '2026-09-13T20:19:28+00:00'
   plan-review:
     state: pending
   implement:

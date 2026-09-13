@@ -1,0 +1,97 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Post-merge verification against the live cluster'
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+  acceptance:
+  - pipelinerun-outcomes-visible
+  - pipeline-total-failure-alerts
+  - critical-pipeline-idle-alerts
+tasks:
+- number: 1
+  title: Prove the scrape landed
+  steps:
+  - id: P5.T1.S1
+    text: |
+      MANUAL - needs the cluster, so it cannot run in CI or in an agent's offline suite.
+
+      After the PR merges and ArgoCD syncs, confirm the vmagent target is up:
+        kubectl -n monitoring exec <vmagent-pod> -c vmagent -- \
+          wget -qO- 127.0.0.1:8429/api/v1/targets | grep -i tekton
+
+      Then confirm the series reached storage - ask VMSingle, not vmagent:
+        wget -qO- 'http://vmsingle-...:8428/api/v1/label/__name__/values?match[]={__name__=~"tekton.*"}'
+
+      Assert on the ARTIFACT, never on ArgoCD's sync status. `frank-gotchas.md` records two
+      Applications in one session reporting Synced/Healthy at a stale revision minutes after
+      merge. Also check the RIGHT Application: this manifest belongs to `tekton-extras`, not the
+      similarly-named `tekton-pipelines`.
+  - id: P5.T1.S2
+    text: |
+      Confirm the cardinality drop actually applied:
+        the query above must NOT list
+        `tekton_pipelines_controller_taskruns_pod_latency_milliseconds`.
+
+      Record the resulting series count for the PR/plan record. The census predicts ~851 series
+      added; a number near 6572 means the drop did not apply and the scrape should be reverted
+      before it accumulates a month of per-pod series.
+- number: 2
+  title: Prove the rules evaluate, then prove they fire
+  steps:
+  - id: P5.T2.S1
+    text: |
+      Restart Grafana and confirm the rules are EVALUATING, not merely present:
+        kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana
+
+      Grafana reads provisioning files at BOOT, not on change, so a synced ConfigMap proves
+      nothing about what is being evaluated. Confirm all three rules appear in the feature-health
+      folder with no `Error` state.
+  - id: P5.T2.S2
+    text: |
+      The synthetic proof, per the brainstorm decision. Create a throwaway Pipeline whose single
+      Task runs `exit 1`, and run it three times. Within ~30 minutes
+      `layer-25-pipeline-failing` must fire, reach Telegram, and degrade the layer-25 tile.
+
+      Then run a passing variant ONCE and confirm the alert resolves - that proves the `unless`
+      clears on the first success rather than waiting out the 24h window, which is the behaviour
+      the design claims.
+
+      Delete the throwaway Pipeline and its PipelineRuns afterwards.
+  - id: P5.T2.S3
+    text: |
+      Confirm neither `layer-25-pipeline-idle-*` rule is firing, AND that each returns a NON-ZERO
+      value. A rule sitting quietly at 0 would mean the threshold, not the traffic, is keeping it
+      silent - which is the disarmed-dead-man state this whole phase exists to rule out.
+
+      Then flip the three acceptance rows from `not-implemented` to `skipped` (live manual proof),
+      recording the evidence in each row's notes, and run
+      `fr acceptance report --deterministic`.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
