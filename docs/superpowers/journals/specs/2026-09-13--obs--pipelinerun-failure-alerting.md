@@ -39,3 +39,18 @@ For a pipeline that has never succeeded since controller start there is NO succe
 ### fr-acceptance-add-bug · discovery · fr acceptance add (4.2.1) cannot append after a folded block scalar — rows added by hand
 
 All three acceptance rows were rejected with 'append produced an invalid matrix, rolled back', pointing at the preceding row orch-hermes-shell-js-runtime, whose notes use a folded block scalar (notes: >-). fr appended the new row at the scalar's continuation indent rather than at the sequence indent, produced invalid YAML, and correctly rolled back. Rows were therefore hand-written at column 0 matching the file's own style, then validated: yaml.safe_load parses, ids are unique, and fr acceptance check lists all three as well-formed not-implemented rows. Worth filing upstream against super-fr.
+
+<!-- fr:journal kind=review scope=spec id=review-or-vector-zero created=2026-09-13T22:19:08 -->
+### review-or-vector-zero · review · Spec review: the shared-regex dead-man was broken — 'or vector(0)' only engages when ALL watched pipelines are absent
+
+The first draft used one rule: sum by (pipeline) (increase(...{pipeline=~"a|b"}[24h])) or vector(0). vector(0) carries NO labels, and 'or' returns its right-hand side only where the left has no matching series at all — so with two watched pipelines, whichever one still has a series keeps the left side non-empty and the missing one contributes nothing. It would have been a dead-man that only works when both pipelines die at once. Fixed by splitting into one rule per pipeline, where sum() without 'by' genuinely collapses to empty. Guard test pins the split and forbids a multi-pipeline regex in an idle rule.
+
+<!-- fr:journal kind=review scope=spec id=review-measured-windows created=2026-09-13T22:19:10 -->
+### review-measured-windows · review · Spec review: a shared 24h dead-man window would have paged on the first quiet weekend
+
+Measured retained PipelineRuns rather than assuming: stoa-status-bridge runs 148/day with a max observed idle gap of 0.5h; github-pull-sync runs 10.4/day with a max observed gap of 15.7h — inside a 79h sample containing no quiet weekend. A shared 24h window gives the first 48x headroom and the second ~1.5x. Windows are now per-pipeline and derived from the measurement (6h and 72h). Also corrected a stale figure carried in from the issue text: stoa-status-bridge is 148/day measured, not the 96/day 39-day average, which changed the ratio rule's stated detection latency.
+
+<!-- fr:journal kind=review scope=spec id=review-sse-threshold-placement created=2026-09-13T22:19:13 -->
+### review-sse-threshold-placement · review · Spec review: documented why the >= 3 must stay in the query and not move to the SSE threshold
+
+Grafana SSE cannot express 'unless', so refId A carries the whole filter and C is 'gt 0' meaning 'did A return anything'. Moving the >= 3 into C as 'gt 2' reads as a tidy-up and breaks the rule — A would then return every pipeline with zero successes, including those with zero failures in the window. Written into the spec so the next reader does not re-derive it. Also pinned relativeTimeRange.from to 86400 to match the range selector, per the tls-cert-expiry-1h group's convention.

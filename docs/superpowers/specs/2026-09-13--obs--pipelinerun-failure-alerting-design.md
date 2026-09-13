@@ -115,7 +115,9 @@ sum by (pipeline) (
 
 **`unless`, not `and ... == 0`.** For a pipeline that has never succeeded since controller start there is **no success series at all**. `failed >= 3 and success == 0` drops the entire result on the vector match and can never fire — for exactly the pipelines it exists to catch. This is the same shape as the trap already in `frank-gotchas.md`, where `metric == 0` is a *filter* rather than a comparison. `unless` is the set-difference operator and handles the absent right-hand side correctly. A guard test pins it.
 
-**Thresholds.** `>= 3` is a noise floor separating "someone pushed a bad commit" from "this pipeline is broken". The discriminator is the **zero successes**, not the count. `stoa-status-bridge` at ~96 runs/day crosses 3 failures in well under an hour; `github-pull-sync` likewise. A 24h window with `for: 30m` means a genuinely broken pipeline is caught the same working day, and the alert **self-resolves on the first green run** (the `unless` clears immediately). A pipeline that fails 3× and then stops running entirely decays out of the window after 24h — which is the dead-man's job, not this rule's.
+**Thresholds.** `>= 3` is a noise floor separating "someone pushed a bad commit" from "this pipeline is broken". The discriminator is the **zero successes**, not the count. At measured cadence, `stoa-status-bridge` (148 runs/day) crosses 3 failures in under half an hour; `github-pull-sync` (10.4/day) takes roughly seven. Both are caught the same working day, and the alert **self-resolves on the first green run** — the `unless` clears immediately, with no dependence on the 24h window decaying. A pipeline that fails 3× and then stops running entirely decays out of the window after 24h, which is the dead-man's job and not this rule's.
+
+**The comparison lives in the query, not in the threshold.** Grafana's server-side expressions cannot express `unless`, so refId A carries the whole filter and returns one series per *offending* pipeline (value = its failure count). B is `reduce last` (`mode: dropNN`, house style), and C is `threshold gt 0` — meaning "did A return anything at all". Moving the `>= 3` out of A and into C as `gt 2` would look like a tidy-up and would break the rule: A would then return every pipeline with zero successes including those with zero failures in the window. `relativeTimeRange.from` is set to `86400` to match the range selector, following the `tls-cert-expiry-1h` group's convention of tying the two together rather than leaving the default 600.
 
 `for: 30m`, deliberately not `15m`: that window is reserved for DaemonSet-drain tolerance and the guard suite rejects borrowing it for general insensitivity.
 
@@ -123,39 +125,53 @@ Labels: `severity: warning`, `github_issue: "frank-ops#25"`. Routing follows the
 
 `noDataState: OK` — no completed runs at all is the dead-man's question, not this one's. `execErrState: Error`.
 
-### 3. Idle dead-man — `layer-25-pipeline-idle`
+### 3. Idle dead-man — one rule per watched pipeline
 
-Same group. Two named pipelines, per the brainstorm decision:
+Two rules, `layer-25-pipeline-idle-stoa-status-bridge` and `layer-25-pipeline-idle-github-pull-sync`, in the same group. Each asks the same question of one pipeline:
 
 ```promql
-sum by (pipeline) (
+sum(
   increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
-    namespace="tekton-pipelines",
-    pipeline=~"stoa-status-bridge|github-pull-sync"}[24h])
+    namespace="tekton-pipelines", pipeline="<name>"}[<window>])
 ) or vector(0)
 ```
 
-Fires on `lt 1`.
+Fires on `lt 1`. Note the selector carries **no `status` filter** — the question is "did this pipeline run at all", regardless of outcome. Failing runs are the ratio rule's business.
 
-**`or vector(0)` is load-bearing.** `sum()` over an absent series returns an **empty vector**, not zero — so without it, the one state the dead-man exists to detect (no runs, hence no series) produces no data, `noDataState: OK` swallows it, and the switch is silently disarmed. That is the same defect class as the `longhorn-manager-.*` regex that matched nothing and passed every structural assertion. A guard test pins this too.
+**Why one rule per pipeline, and not one rule with a regex.** The obvious shape — `sum by (pipeline) (increase(...{pipeline=~"a|b"}[24h])) or vector(0)` — is broken in a way that passes review. `vector(0)` produces a series with **no labels**, and `or` returns its right-hand side only where the left has *no matching series at all*. If `stoa-status-bridge` has a series and `github-pull-sync` does not, the left side is non-empty, the union keeps it unchanged, and the pipeline the dead-man exists to catch contributes nothing. It would be a switch that only works when **both** watched pipelines die simultaneously. Splitting per pipeline makes `sum()` (no `by`) genuinely collapse to an empty vector, which is the only condition under which the fallback engages. A guard test pins the split.
 
-**Why only these two.** A dead-man needs a known expected cadence. `stoa-status-bridge` (~96/day) and `github-pull-sync` (~250 since controller start) have one. `cnc-promotion`, `site-promotion`, `cnc-ci`, `content-factory-ci`, `hum-ci`, `stoa-blog-ci` are event-driven and legitimately idle for weeks — watching them would be a false-positive generator, which is how the previous attempt died.
+**Why `or vector(0)` at all.** `sum()` over an absent series returns an **empty vector**, not zero. Without the fallback, the one state the dead-man exists to detect produces no data, `noDataState: OK` swallows it, and the switch is silently disarmed — the same defect class as the `longhorn-manager-.*` selector that matched nothing and passed every structural assertion.
+
+**Why `absent_over_time()` is the wrong primitive here.** It answers "was the series missing", not "did the counter move". The controller keeps emitting a pipeline's histogram on every scrape once that pipeline has run, so a pipeline that ran ten hours ago and then stopped still has a present, unchanging series — `absent_over_time` reads 0 and sees nothing. `increase()` is the question we actually mean.
+
+**Windows are sized from measured cadence, not chosen round numbers.** Retained PipelineRuns on 2026-09-13:
+
+| pipeline | runs/day | **max observed gap** | window | `for` | headroom |
+|---|---:|---:|---:|---:|---:|
+| `stoa-status-bridge` | 148.1 | **0.5h** | `[6h]` | `1h` | 12× |
+| `github-pull-sync` | 10.4 | **15.7h** | `[72h]` | `2h` | 4.6× |
+
+A single shared 24h window — the obvious first instinct — gives `stoa-status-bridge` 48× headroom and `github-pull-sync` about 1.5×, measured against a 79-hour sample that contained no quiet weekend. It would have paged on the first Sunday nobody pushed. These are push-driven pipelines; their idle tolerance is a property of each one's traffic, and cannot be one number.
+
+**The `for` windows absorb a controller restart.** These counters are process-lifetime and reset when the controller pod restarts, so the series is briefly absent and `or vector(0)` reads 0. At 148 runs/day the first run lands within ~10 minutes, so `stoa-status-bridge` at `for: 1h` is comfortably safe. `github-pull-sync` at 10.4/day has a ~2.3h mean gap, so `for: 2h` **narrows but does not eliminate** a post-restart false positive. That is a deliberate, bounded trade: the worst case is one `severity: warning` Telegram message after a controller restart that coincides with a quiet period — roughly once a month at the observed restart rate, and only sometimes — which self-clears on the next sync. The alternative is 39 days of silence. The spec states this rather than hiding it, so a future reader meeting one such alert recognises it instead of re-deriving the cause.
+
+Labels as for the ratio rule (`severity: warning`, `github_issue: "frank-ops#25"`). `noDataState: OK` — unreachable by construction, since `or vector(0)` guarantees a value. `execErrState: Error`.
+
+**Why only these two pipelines.** A dead-man needs a known expected cadence. `cnc-promotion`, `site-promotion`, `cnc-ci`, `content-factory-ci`, `hum-ci`, `stoa-blog-ci` and `derio-homelab-pull-sync` are event-driven and legitimately idle for weeks — watching them would be a false-positive generator, which is how the previous attempt died.
 
 **Why it matters separately from the ratio rule.** `frank-gotchas.md` records the site→www promotion failure of 2026-07-26: a trigger that was "live, correct and unreachable" because the per-repo Gitea webhook was never created. It produced **zero PipelineRuns**. A ratio rule sees nothing there; only a dead-man does.
-
-`for: 1h`. A controller restart resets these counters, so immediately afterwards the series is briefly absent and `or vector(0)` reads 0. At 96 runs/day the first run lands within ~15 minutes, so a 1h window absorbs the restart without masking a real stall. Labels as above (`severity: warning`, `github_issue: "frank-ops#25"`), `noDataState: OK` (unreachable by construction), `execErrState: Error`.
 
 ### 4. Guards — `scripts/tests/test_pipelinerun_outcome_alerting.py`
 
 The existing folder-wide guards in `test_feature_health_workload_metrics.py` already cover uid uniqueness, folder placement, severity vocabulary, explicit `noDataState`/`execErrState`, and the `frank-ops#N` label shape for `layer-*` uids. The new file guards what is specific to these rules — the three defects that would ship green:
 
 1. The ratio rule uses `unless` and **not** `== 0` against the success series.
-2. The dead-man carries `or vector(0)`.
+2. Each dead-man rule carries `or vector(0)` **and** selects exactly one pipeline by equality — never a regex over several, which would disarm the fallback.
 3. The scrape carries the `taskruns_pod_latency_milliseconds` drop.
 4. Neither rule references `kube_pod_status_ready` (the 2026-05-14 trap, re-asserted at this rule's own scope).
-5. The dead-man's pipeline regex matches only pipelines that exist in `apps/tekton/pipelines/`, so a renamed pipeline fails a PR instead of silently disarming the switch.
+5. Every pipeline named by a dead-man rule exists in `apps/tekton/pipelines/`, so a renamed or deleted pipeline fails a PR instead of silently disarming the switch.
 
-Point 5 is the lesson from the `cilium-.*` / `longhorn-manager-.*` selector rewrite: a regex that matches nothing returns no series, passes every structural assertion, and is a rule deleted in all but name.
+Points 2 and 5 are the lesson from the `cilium-.*` / `longhorn-manager-.*` selector rewrite: a selector that matches nothing returns no series, passes every structural assertion, and is a rule deleted in all but name.
 
 ## Risks and traps
 
@@ -165,7 +181,7 @@ Point 5 is the lesson from the `cilium-.*` / `longhorn-manager-.*` selector rewr
 | ArgoCD reports `Synced` at a stale revision | Documented repo-wide. Assert on the artifact (`up{job=~".*tekton.*"}`, the series in VMSingle), never on sync status. |
 | Checking the wrong Application | The scrape is owned by **`tekton-extras`**, not `tekton-pipelines`. Named in the plan. |
 | Cardinality growth | The mandatory drop; Phase 1 records the post-drop series count as evidence. |
-| Counter resets on controller restart | `increase()` handles resets; the dead-man's `for: 1h` absorbs the post-restart gap. |
+| Counter resets on controller restart | `increase()` handles resets. `stoa-status-bridge`'s `for: 1h` fully absorbs the post-restart gap at 148 runs/day; `github-pull-sync`'s `for: 2h` narrows but does not eliminate it — accepted and documented in §3. |
 | Alert fires on a legitimately-broken-by-a-developer pipeline | Accepted. `>= 3` failures with **zero** successes in 24h is a broken pipeline, not a bad commit. |
 | Grafana reads provisioning files at boot | A ConfigMap change does not reload rules. Verification restarts the Grafana pod and confirms the rules are **evaluating**, not merely present. |
 
@@ -180,7 +196,7 @@ Per the brainstorm decision, a **synthetic always-failing PipelineRun**, because
 5. Confirm `layer-25-pipeline-failing` fires within ~30m, reaches Telegram, and degrades the layer-25 tile.
 6. Run a passing variant once; confirm the alert resolves on the first success.
 7. Delete the throwaway pipeline and its runs.
-8. Confirm `layer-25-pipeline-idle` is **not** firing (both named pipelines active).
+8. Confirm neither `layer-25-pipeline-idle-*` rule is firing, and that each returns a **non-zero** value (a rule returning 0 while not firing would mean the threshold, not the traffic, is keeping it quiet).
 
 ## Acceptance rows
 
