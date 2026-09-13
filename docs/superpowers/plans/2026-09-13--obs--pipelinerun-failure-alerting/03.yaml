@@ -47,6 +47,13 @@ tasks:
       all", regardless of outcome. Set `relativeTimeRange.from` to the window in seconds (21600
       and 259200).
 
+      The comment must cover BOTH cases, and the deploy-time one is the certain one:
+        * DEPLOY TIME - before the first run of that pipeline is scraped there is no series at all,
+          so `or vector(0)` reads 0 and the rule fires after its `for` window. At 10.4 runs/day
+          github-pull-sync's mean gap is ~2.3h against `for: 2h`, so expect this on roughly half of
+          all deploys. It clears itself the moment the first run lands.
+        * CONTROLLER RESTART - same mechanism, same clearing.
+
       Comment both `for` windows with what they absorb: these counters are process-lifetime and
       reset when the controller pod restarts, so the series is briefly absent and `or vector(0)`
       reads 0. At 148 runs/day the first run lands within ~10 minutes, so 1h is comfortable; at

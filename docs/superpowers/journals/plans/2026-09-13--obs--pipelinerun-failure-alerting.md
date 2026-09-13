@@ -34,3 +34,13 @@ test_the_scrape_drops_the_unbounded_metric derives the offending metric (tekton_
 ### 55b7558a4da0 · finding [fixed] · Acceptance row pipelinerun-outcomes-visible intentionally left not-implemented (phase 1)
 
 fr plan edit --complete-phase 1 warned that acceptance row 'pipelinerun-outcomes-visible' is still not-implemented. Left it as-is: the row's own notes say it is 'Verified post-merge by the series being present in VMSingle' — that needs the live cluster (phase 5, manual/post-merge), and phase 1 is tagged skeleton: true in 01.yaml. Flipping it now would be asserting something not yet observed. No plan change needed; noting so a later phase or reviewer doesn't re-raise this as a gap.
+
+<!-- fr:journal kind=finding scope=plan id=review-p1-selector-message created=2026-09-13T22:43:56 phase=1 state=fixed -->
+### review-p1-selector-message · finding [fixed] · Assertion message called the scrape selector a Deployment selector (phase 1)
+
+A VMServiceScrape discovers targets through a SERVICE's Endpoints; it never looks at a Deployment. The failure message said 'the tekton-pipelines-controller Deployment's labels', which is wrong in exactly the place someone reads it — while debugging a scrape that is not selecting. Behaviourally harmless, but the message is the documentation at the moment it matters most. Reworded to name the Service and the Endpoints mechanism. Verified alongside: the selector matches exactly ONE Service in tekton-pipelines (tekton-pipelines-webhook and tekton-events-controller carry different app labels), so there is no accidental second target.
+
+<!-- fr:journal kind=finding scope=plan id=review-p1-deploy-time-false-positive created=2026-09-13T22:43:58 phase=1 state=open -->
+### review-p1-deploy-time-false-positive · finding [open] · The github-pull-sync dead-man will probably fire once at deploy time — phase 3 must say so (phase 1)
+
+The spec documents a post-restart false-positive window for layer-25-pipeline-idle-github-pull-sync but missed its FIRST and most certain instance: the moment the scrape goes live. Before the first github-pull-sync run is scraped there is no series at all, so 'or vector(0)' reads 0, 'lt 1' is true, and after for:2h the rule fires. At 10.4 runs/day the mean gap between runs is ~2.3h, so this is roughly a coin flip on any given deploy — not a rare edge. stoa-status-bridge is unaffected (148/day, first run inside ~10 minutes, for:1h). Carrying forward: phase 3 step P3.T1.S2 now requires the rule comment to name the deploy-time case explicitly alongside the restart case, and phase 5 step P5.T2.S3 now tells the operator to expect it and to treat it as resolved once the first run lands rather than as a defect. Left open until phase 3 lands the comment.

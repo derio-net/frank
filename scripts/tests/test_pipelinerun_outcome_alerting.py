@@ -94,7 +94,10 @@ def test_the_scrape_manifest_targets_the_controller_metrics_port():
     selector = spec.get("selector", {}).get("matchLabels", {})
     assert selector == CONTROLLER_SELECTOR, (
         f"{SCRAPE_MANIFEST} selector must match {CONTROLLER_SELECTOR!r} — the "
-        f"tekton-pipelines-controller Deployment's labels — got {selector!r}"
+        "labels on the tekton-pipelines-controller SERVICE, which is what a "
+        "VMServiceScrape selects (it discovers targets through a Service's "
+        "Endpoints, never through a Deployment) — got "
+        f"{selector!r}"
     )
 
     endpoints = spec.get("endpoints", [])

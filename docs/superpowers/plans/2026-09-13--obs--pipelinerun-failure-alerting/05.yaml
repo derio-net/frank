@@ -62,6 +62,13 @@ tasks:
       Delete the throwaway Pipeline and its PipelineRuns afterwards.
   - id: P5.T2.S3
     text: |
+      EXPECT `layer-25-pipeline-idle-github-pull-sync` to be firing when you first look, and do not
+      treat that as a defect. Before the first github-pull-sync run is scraped there is no series,
+      `or vector(0)` reads 0, and the rule fires after `for: 2h` — on roughly half of deploys, given
+      a ~2.3h mean gap between runs. Wait for one real run and confirm it CLEARS by itself. A rule
+      that does NOT clear after a confirmed run is a genuine defect; one that fires before the first
+      run is the documented deploy-time window.
+
       Confirm neither `layer-25-pipeline-idle-*` rule is firing, AND that each returns a NON-ZERO
       value. A rule sitting quietly at 0 would mean the threshold, not the traffic, is keeping it
       silent - which is the disarmed-dead-man state this whole phase exists to rule out.
