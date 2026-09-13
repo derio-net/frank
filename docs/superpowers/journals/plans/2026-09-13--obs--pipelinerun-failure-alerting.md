@@ -19,3 +19,18 @@ One test function plus one deliberate red-then-revert demonstration. It consumes
 ### 746b1bab2f52 · discovery · no-refactor-because P4.T2
 
 Documentation and status bookkeeping: prose into docs/runbooks/frank-gotchas/grafana.md, a one-liner into agents/rules/frank-gotchas.md, a spec Status field, and a final full-suite run. No code is written, so red-green-refactor does not apply. The deliberate structural decision — prose in the per-topic file, one-liner in the hot file, never both — is stated in the step text rather than discovered by refactoring.
+
+<!-- fr:journal kind=discovery scope=plan id=4bf5761496e8 created=2026-09-13T22:40:44 phase=1 -->
+### 4bf5761496e8 · discovery · Baseline suite is fully green; phase adds 2 tests cleanly (phase 1)
+
+Clean-tree baseline (git stash -u, run, stash pop), confirmed twice: 789 passed, 1 xfailed, 0 failures — uv run --frozen pytest scripts/tests/ -q, ~150-235s wall time depending on machine load. Post-phase-1 tree: 791 passed, 1 xfailed, 0 failures (the +2 is exactly the new test_pipelinerun_outcome_alerting.py file; no other test's outcome changed). No pre-existing red tests to attribute or avoid touching.
+
+<!-- fr:journal kind=discovery scope=plan id=6e4e443fd378 created=2026-09-13T22:40:54 phase=1 -->
+### 6e4e443fd378 · discovery · Post-drop series count: 851 (6572 - 5721), per the 2026-09-13 census (phase 1)
+
+test_the_scrape_drops_the_unbounded_metric derives the offending metric (tekton_pipelines_controller_taskruns_pod_latency_milliseconds, 5721/6572 = 87.1%) from scripts/tests/fixtures/tekton/controller-series-census.json rather than hardcoding it. Once the manifest's metricRelabelConfigs drop lands on the cluster (phase 5, manual), the tekton-pipelines-controller scrape is expected to add 6572 - 5721 = 851 new series to VMSingle — useful for the PR body's 'what did this actually add' framing per the plan's task 2 step 2 note.
+
+<!-- fr:journal kind=finding scope=plan id=55b7558a4da0 created=2026-09-13T22:41:54 phase=1 state=fixed -->
+### 55b7558a4da0 · finding [fixed] · Acceptance row pipelinerun-outcomes-visible intentionally left not-implemented (phase 1)
+
+fr plan edit --complete-phase 1 warned that acceptance row 'pipelinerun-outcomes-visible' is still not-implemented. Left it as-is: the row's own notes say it is 'Verified post-merge by the series being present in VMSingle' — that needs the live cluster (phase 5, manual/post-merge), and phase 1 is tagged skeleton: true in 01.yaml. Flipping it now would be asserting something not yet observed. No plan change needed; noting so a later phase or reviewer doesn't re-raise this as a gap.

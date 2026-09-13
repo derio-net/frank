@@ -1,0 +1,36 @@
+# Owned by Application `tekton-extras` (apps/root/templates/tekton-extras.yaml,
+# path: apps/tekton, recurse: true, exclude: vendor/**). The similarly-named
+# `tekton-pipelines` Application serves apps/tekton/vendor/pipelines and stays
+# Synced/Healthy whatever happens to this file — the same traefik-vs-
+# traefik-extras trap frank-gotchas.md records.
+#
+# Scrapes port NAME `http-metrics`, not 9090: the controller Service also
+# publishes `http-profiling` (8008) and `probes` (8080), and the VM operator
+# resolves endpoints by Service port name, so a scrape pointed at the wrong
+# name comes up Ready with zero Tekton metrics and no error anywhere.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: tekton-pipelines-controller
+  namespace: tekton-pipelines
+spec:
+  selector:
+    matchLabels:
+      app: tekton-pipelines-controller
+  endpoints:
+    - port: http-metrics
+      # tekton_pipelines_controller_taskruns_pod_latency_milliseconds is
+      # labelled by TaskRun pod name — one permanent series per TaskRun ever
+      # reconciled, forever, on a 1-month retention (measured 2026-09-13:
+      # 5721/6572 = 87.1% of the controller's total series). That is the
+      # same unbounded-cardinality shape that took kube-state-metrics to
+      # 21.6 MiB on 2026-07-27, tripped -promscrape.maxScrapeSize, and
+      # silently blinded every kube_* alert rule because vmagent discards an
+      # oversized scrape response WHOLE rather than trimming it — including
+      # the rule meant to report a CronJob that had stopped succeeding (see
+      # frank-gotchas.md, Grafana section). Drop it before it does the same
+      # to this scrape.
+      metricRelabelConfigs:
+        - action: drop
+          source_labels: [__name__]
+          regex: tekton_pipelines_controller_taskruns_pod_latency_milliseconds
