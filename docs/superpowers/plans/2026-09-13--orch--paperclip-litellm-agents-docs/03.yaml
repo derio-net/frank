@@ -34,6 +34,6 @@ state:
       ticked_at: '2026-09-13T21:23:13+00:00'
       note: null
   completion:
-    at: '2026-09-13T21:23:24+00:00'
+    at: '2026-09-13T21:23:55+00:00'
     note: null
     observed_prs: []
