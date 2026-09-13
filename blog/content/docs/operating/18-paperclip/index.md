@@ -4,19 +4,19 @@ series: ["operating"]
 layer: orch
 date: 2026-04-09
 draft: false
-tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1"]
+tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1", "litellm", "opencode", "hermes"]
 summary: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
 weight: 19
-reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret sync, shell sidecar reconcile, and common failure recovery."
+reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret sync, shell sidecar reconcile, hiring and smoke-testing LiteLLM-backed opencode and hermes agents, and common failure recovery."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-09-13
 last_updated_commit: https://github.com/derio-net/frank/commit/47697457
 description: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
 ---
 
 {{< last-updated >}}
 
-This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< relref "/docs/building/15-paperclip" >}}). That post covers architecture and deployment. This one covers health checks, database access, the shell sidecar, and common failure modes.
+This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< relref "/docs/building/15-paperclip" >}}). That post covers architecture, deployment, and why the LiteLLM-backed agents are wired the way they are. This one covers health checks, database access, the shell sidecar, hiring agents on local inference, and common failure modes.
 
 ```mermaid
 graph LR
@@ -56,11 +56,12 @@ graph LR
 
 ## What Healthy Looks Like
 
-- The Paperclip pod is `1/1 Running` on `gpu-1`.
-- PostgreSQL pod is `1/1 Running`.
+- The Paperclip pod is `2/2 Running` on `gpu-1` (the app container plus the `paperclip-shell` sidecar).
+- PostgreSQL pod is `2/2 Running` (PostgreSQL plus the metrics exporter).
 - All four ExternalSecrets show `SecretSynced`.
 - The web UI responds at `http://192.168.55.212:3100`.
 - The shell sidecar {{< abbr "LB" >}} is reachable at `192.168.55.221`.
+- Both agent CLIs answer a one-line prompt through LiteLLM, and the requests show up in LiteLLM's access log from the Paperclip pod IP.
 
 ## Verify
 
@@ -79,6 +80,35 @@ kubectl exec -it -n paperclip-system \
 # Shell sidecar
 ssh agent@192.168.55.221 -t tmux new -A -s main
 ```
+
+### Verify the LiteLLM-backed agent CLIs
+
+Run these in the `paperclip` app container, not the shell sidecar — the adapters run in the app container, and only it carries `XDG_CONFIG_HOME`, `HERMES_HOME` and the `OLLAMA_*` env. Use the paths the adapters invoke:
+
+```bash
+# opencode — the provider-prefixed model shape is mandatory. Expect: ack
+kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
+  /usr/local/bin/opencode run -m litellm/qwen-coder-14b 'reply with the single word ack'
+
+# hermes — bare alias, exactly as the hermes_local adapter passes it.
+# Expect a short reply followed by a session_id line.
+kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
+  /paperclip/agent-bin/bin/hermes chat -q "say ack" -Q -m qwen-think-14b
+```
+
+A clean exit is not proof of routing. LiteLLM runs several replicas, so `kubectl logs deploy/litellm` reads only one of them, and the blackbox `litellm_chat` probe POSTs to the same endpoint all day. Grep every replica for the Paperclip pod's IP instead:
+
+```bash
+PC_IP=$(kubectl get pod -n paperclip-system -l app.kubernetes.io/name=paperclip \
+  -o jsonpath='{.items[0].status.podIP}')
+for p in $(kubectl get pods -n litellm -l app.kubernetes.io/name=litellm \
+    --field-selector=status.phase=Running -o name); do
+  kubectl logs -n litellm "$p" -c litellm --since=5m | grep -F "$PC_IP" | grep 'POST /v1/chat/completions'
+done
+# Expect: INFO: <PC_IP>:<port> - "POST /v1/chat/completions HTTP/1.1" 200 OK
+```
+
+One line per smoke call, possibly on different replicas.
 
 ## Steps
 
@@ -106,6 +136,52 @@ Use `kubectl exec`, not SSH — sshd scrubs the container env (no `FRANK_C2_TELE
 1. Add entry to the relevant section in `configmap-shell-inventory.yaml` (`mise:`, `npm-global:`, `pipx:`, `cargo:`).
 2. Commit and push (ArgoCD syncs the ConfigMap).
 3. Run `paperclip-shell-reconcile` on the live pod.
+
+### Hire a LiteLLM-Backed Agent
+
+In the Paperclip UI, set only the model field (and, for hermes, the command path). The two adapters want different model shapes:
+
+| Adapter | Model field | Other fields |
+|---|---|---|
+| `opencode_local` | `litellm/qwen-coder-14b` | none — the image binary and `XDG_CONFIG_HOME` config are picked up automatically |
+| `hermes_local` | `qwen-think-14b` (bare) | `hermesCommand: /paperclip/agent-bin/bin/hermes`, `persistSession: false` |
+
+The equivalent adapter config for a hermes hire:
+
+```json
+{
+  "adapterType": "hermes_local",
+  "adapterConfig": {
+    "model": "qwen-think-14b",
+    "hermesCommand": "/paperclip/agent-bin/bin/hermes",
+    "persistSession": false
+  }
+}
+```
+
+Leave the hermes **provider** and **extraArgs** fields blank:
+
+- `ollama-cloud` is not in the adapter's `VALID_PROVIDERS`, so selecting a provider there is silently ignored — or, worse, picking a real one like `openrouter` forces a cloud route with no key.
+- `extraArgs` is only honoured as a JSON array of strings. A plain string is dropped without a warning.
+
+`persistSession: false` is not optional for hermes — see [hermes agent fails from the second heartbeat](#hermes-agent-fails-from-the-second-heartbeat). Keep LiteLLM aliases for hermes away from the `claude`, `gpt-`, `o1-`/`o3-`, `hermes-`, `glm-` and `kimi` prefixes: the adapter maps those to a cloud provider and passes `--provider`, bypassing LiteLLM.
+
+### Recover the Agent CLIs on a Cold PVC
+
+On a freshly provisioned `paperclip-data` PVC the hermes venv is absent until the shell inventory reconciles, and the `hermes-init` initContainer only links the shim when the venv exists. opencode agents are unaffected, because the adapter uses the image-baked binary. The shell MOTD still prints a LiteLLM-backed-agents tip on login when either the hermes shim or the PVC copy of opencode is missing; a reconcile restores both.
+
+```bash
+# Is the hermes shim present, and does it resolve?
+kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
+  sh -c 'ls -la /paperclip/agent-bin/bin/hermes && /paperclip/agent-bin/bin/hermes --version'
+
+# If not, reconcile (installs land on the shared PVC), then restart so
+# hermes-init re-links the shim.
+kubectl exec -n paperclip-system deploy/paperclip -c paperclip-shell -- paperclip-shell-reconcile
+kubectl rollout restart deployment/paperclip -n paperclip-system
+```
+
+The hermes `config.yaml` needs no manual step: `hermes-init` copies it into `HERMES_HOME=/paperclip/agent-bin/.hermes` on every pod boot, so any hand edit there is overwritten on the next restart. Change `apps/paperclip/manifests/configmap-hermes.yaml` instead.
 
 ### Database Backup
 
@@ -161,6 +237,38 @@ Common causes:
 - **mise activation gap** — `mise install` downloads the runtime but doesn't activate it. Run `mise use -g python@3.12 node@20 rust@stable` first.
 - **Inventory typo** — fix the ConfigMap and re-reconcile.
 
+### hermes Agent Fails from the Second Heartbeat
+
+**Symptom:** a `hermes_local` agent's first heartbeat succeeds; every later one fails with `Session not found`, exit 1, in about two seconds. The agent is eventually flagged `Stranded`.
+
+**Cause:** an upstream session-ID round-trip bug ([derio-net/paperclip#1](https://github.com/derio-net/paperclip/issues/1), still open). The adapter truncates Hermes' 22-character session ID to a 16-character display ID, Paperclip stores the truncated value and replays it as `--resume`, and Hermes cannot find it. The adapter's output regex then captures the word `from` out of Hermes' error message and saves `{"sessionId":"from"}` as the task's session state.
+
+**Prevent it:** hire with `persistSession: false` (see [Hire a LiteLLM-Backed Agent](#hire-a-litellm-backed-agent)). The adapter then never passes `--resume`. You lose session continuity across heartbeats — fine for tool-heavy issue work, poor for long multi-turn conversations. opencode agents are unaffected.
+
+Check whether an agent is already poisoned:
+
+```bash
+kubectl exec -it -n paperclip-system \
+  $(kubectl get pod -n paperclip-system -l app.kubernetes.io/instance=paperclip-db -o name) \
+  -- psql -U paperclip -d paperclip -c \
+  "SELECT agent_id, task_key, session_display_id, session_params_json, last_error
+     FROM agent_task_sessions WHERE adapter_type = 'hermes_local'
+     ORDER BY updated_at DESC LIMIT 20;"
+```
+
+### Stranded hermes Agent
+
+The agent record is fine; only its per-task session row is corrupt. Clear the row, using the same psql connection as [Verify](#verify):
+
+```sql
+UPDATE agent_task_sessions
+   SET session_params_json = NULL, session_display_id = NULL
+ WHERE agent_id = '<uuid>' AND task_key = '<key>';
+-- Or delete the row to start the task clean.
+```
+
+Then set `persistSession: false` on the agent before its next heartbeat, or it re-poisons on the second run.
+
 ### LoadBalancer IP Not Assigned
 
 ```bash
@@ -177,6 +285,8 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 | `ssh agent@... paperclip-shell-reconcile` fires Telegram alerts on failure | sshd doesn't inherit K8s `envFrom` injections. The reconcile runs with no `FRANK_C2_TELEGRAM_*` — failures exit 0 silently. | Documentation now mandates `kubectl exec` for reconcile. |
 | Adding a service to the host allowlist is a simple config change | A regression from #534 dropped UI domains from the allowlist, breaking external access. | Hot-fix in #535 to restore the missing domains. |
 | `paperclip-anthropic` and `paperclip-ghcr` ExternalSecrets can be safely deleted | They were retired but their `optional: true` secretRef entries were still referenced. Deleting them caused `CreateContainerConfigError` on the next deploy. | Left in place with `optional: true`. |
+| The hermes hire form's provider and extraArgs fields can route an agent to LiteLLM | `ollama-cloud` is not a valid adapter provider, so the field is ignored; `extraArgs` typed as a string is dropped. Routing actually comes from the seeded `config.yaml` default. | A reverted wrapper (PR #296) and a documented "leave these blank" rule. |
+| `kubectl logs deploy/litellm \| grep POST` proves an agent call reached LiteLLM | `deploy/` reads one of several replicas, and the blackbox `litellm_chat` probe POSTs from its own IP around the clock. | A recipe that could show someone else's `200 OK`; replaced by the per-replica grep on the Paperclip pod IP. |
 
 ## Quick Reference
 
@@ -189,93 +299,12 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 | `kubectl logs -n paperclip-system -l app.kubernetes.io/name=paperclip --previous` | Last pod's logs |
 | `kubectl describe externalsecret -n paperclip-system <name>` | ExternalSecret sync status |
 | `kubectl top pods -n paperclip-system` | Resource usage (OOM check) |
-
-## LiteLLM-Backed Agents (opencode + hermes)
-
-Paperclip can hire agents that run on Frank's own inference — opencode and Hermes, both routed through LiteLLM (`litellm.litellm.svc:4000` → Ollama on gpu-1). The building post covers *why* the wiring looks the way it does; this section is the day-to-day.
-
-### Smoke-testing the CLIs against LiteLLM
-
-Run these from the `paperclip` workload container (not the shell sidecar — the sidecar doesn't carry the adapter env). Use absolute paths so you test the binary the adapter actually invokes:
-
-```bash
-# opencode — provider-prefixed model shape is mandatory.
-kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
-  /usr/local/bin/opencode run -m litellm/qwen-coder-14b '{"content":"ping"}'
-
-# hermes — bare model alias; the ollama-cloud/ default-provider prefix in
-# config.yaml is what makes the bare -m route to LiteLLM.
-kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
-  /paperclip/agent-bin/hermes-agent/venv/bin/hermes \
-  chat -q "say ack" -Q -m qwen-think-14b -t terminal,file,web --source tool
-```
-
-### Confirming the call actually reached LiteLLM
-
-A clean exit isn't proof of routing — confirm in LiteLLM's access log that the request came from the paperclip pod IP:
-
-```bash
-# Find the paperclip pod IP, then grep LiteLLM for a 200 from it.
-kubectl get pod -n paperclip-system -l app=paperclip -o jsonpath='{.items[0].status.podIP}'; echo
-kubectl logs -n litellm deploy/litellm --tail=200 | grep 'POST /v1/chat/completions'
-# Expect: "POST /v1/chat/completions HTTP/1.1" 200 OK from <paperclip pod IP>
-```
-
-### Cold-PV first boot
-
-On a freshly-provisioned PVC, the opencode PVC install and the hermes shim may be absent until a shell-inventory reconcile runs. The MOTD prints a LiteLLM-backed-agents tip on login whenever either CLI is missing — that's the signal to reconcile:
-
-```bash
-# Are both CLIs present?
-kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- \
-  sh -c 'ls /paperclip/agent-bin/node_modules/.bin/opencode /paperclip/agent-bin/bin/hermes'
-
-# If either is missing, run the shell-inventory reconcile (installs land on the PVC).
-kubectl exec -n paperclip-system deploy/paperclip -c paperclip-shell -- paperclip-shell-reconcile
-```
-
-The hermes `config.yaml` is re-seeded into `HERMES_HOME=/paperclip/agent-bin/.hermes/` by the `hermes-init` initContainer on **every** pod boot, so that part needs no manual step — bounce the pod and the template is back.
-
-### Hiring a LiteLLM-backed agent
-
-In the Paperclip UI, hire with the adapter's model field set to the **bare** alias and leave the provider/extraArgs fields alone:
-
-| Adapter | Model field | Notes |
-|---|---|---|
-| `opencode_local` | `litellm/qwen-coder-14b` | provider-prefixed form required |
-| `hermes_local` | `qwen-think-14b` | bare; `ollama-cloud/` prefix lives in the seeded `config.yaml`, not the hire payload |
-
-**Do not** set `provider` or `extraArgs` from the UI for `hermes_local`. Two traps live there: the adapter's `VALID_PROVIDERS` whitelist doesn't include `ollama-cloud` (so the field is a silent no-op), and the schema-driven config form stores `extraArgs` as a single argv token with an embedded space rather than the two tokens argparse expects. Both are documented as "leave blank" rather than worked around.
-
-### The hermes second-heartbeat trap
-
-`hermes_local` agents fail on their **2nd heartbeat onward** by default — `Session not found`, exit 1 in ~2s — because of an upstream session-ID truncation bug ([derio-net/paperclip#1](https://github.com/derio-net/paperclip/issues/1)): the adapter truncates hermes's 22-char session ID to 16 chars, Paperclip stores the truncated value and feeds it back as `--resume`, and hermes can't find it. The first heartbeat always works; everything after strands.
-
-Hire with `persistSession: false` so hermes starts fresh each heartbeat (no `--resume`, the bug never fires):
-
-```jsonc
-// adapterConfig on the hermes_local hire
-{ "persistSession": false }
-```
-
-You lose cross-heartbeat session continuity — fine for tool-heavy issue work, bad for long multi-turn conversations. opencode is unaffected.
-
-### Recovering an already-stranded hermes agent
-
-If an agent already got the poisoned `{"sessionId":"from"}` state, the agent itself is fine — only the per-task session row is corrupt. Clear it in the paperclip database:
-
-```bash
-# Open psql in the paperclip-db pod (see "Database Health" above for connection).
-# Then, for the affected (agent_id, task_key):
-UPDATE agent_task_sessions
-   SET session_params_json = NULL, session_display_id = NULL
- WHERE agent_id = '<uuid>' AND task_key = '<key>';
--- Or delete the task entirely to start clean.
-```
-
-After clearing, re-hire or re-assign with `persistSession: false` so it doesn't re-poison.
+| `kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- /usr/local/bin/opencode run -m litellm/qwen-coder-14b 'reply with the single word ack'` | opencode smoke test via LiteLLM |
+| `kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- /paperclip/agent-bin/bin/hermes chat -q "say ack" -Q -m qwen-think-14b` | hermes smoke test via LiteLLM |
+| `kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- cat /paperclip/agent-bin/.hermes/config.yaml` | Show the seeded hermes default provider |
 
 ## References
 
 - [Building Post — Paperclip]({{< relref "/docs/building/15-paperclip" >}})
 - [Paperclip GitHub](https://github.com/paperclipai/paperclip)
+- [derio-net/paperclip#1](https://github.com/derio-net/paperclip/issues/1) — hermes session-ID truncation
