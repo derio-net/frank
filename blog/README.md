@@ -98,13 +98,11 @@ sizes and browser performance on the deployed origin after review and release.
 
 ### Companion upstream change
 
-The reader experience shipped upstream as blog-craft v0.22.0 (derio-net/blog-craft#86),
-and frank is synced to **v0.22.1** (`blog_craft_version`). Three frank-only
-divergences in framework-owned templates are pending an upstream PR and are
-marked `frank divergence (pending upstream)` in the files: covers on operating
-posts (`reader/header.html`), image-aware series tiles
-(`shortcodes/reader-home.html`), and top-level section banners
-(`partials/site-banner.html`); `shortcodes/reader-topics.html` is frank-only and
-unshipped. `scripts/tests/test_reader_layout_local_fixes_present.py` fails the
-tripwires job if an update reverts any of them. Run the updater from a blog-craft
-checkout at or above the pinned release, never from an older installed plugin.
+The reader experience shipped upstream as blog-craft v0.22.0 (derio-net/blog-craft#86);
+frank's four consumer divergences followed as v0.22.2 (derio-net/blog-craft#87), and
+frank is synced to **v0.22.2** (`blog_craft_version`) with no local edits to
+framework-owned files. `scripts/tests/test_reader_layout_local_fixes_present.py`
+keeps asserting the shapes that were once frank-only, so a regression on either
+side fails the tripwires job. Run the updater from a blog-craft checkout at or
+above the pinned release, never from an older installed plugin. The general
+"consumers evolve framework files" problem is derio-net/blog-craft#88.

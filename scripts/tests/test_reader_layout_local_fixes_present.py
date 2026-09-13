@@ -8,11 +8,10 @@ files, so an update that runs before they land upstream (blog-craft#86)
 silently reverts them — no conflict, no diff on the merge, ArgoCD green.
 
 This test pins the fixes by shape so a revert fails the tripwires job. Since
-the v0.22.1 re-sync (2026-09-13) the first four are upstream verbatim and the
-assertions simply hold; the last three (operating covers, image-aware series
-tiles, top-level section banners) are frank divergences marked
-`frank divergence (pending upstream)` in the files, and an update WILL erase
-them until the upstream PR lands — that is what this test is for.
+the v0.22.2 re-sync (2026-09-13) every one of them is upstream (blog-craft#86
+and #87) and frank carries no local edit to a framework-owned file; the
+assertions now guard against a regression on EITHER side landing here through
+an update. (blog-craft#88 tracks making consumer divergence first-class.)
 """
 import os
 
@@ -36,8 +35,9 @@ def test_operating_posts_show_their_cover():
     # v0.22.x renders the reader cover from the shared reader/header.html partial.
     src = _read("layouts/partials/reader/header.html")
     assert 'if not (in .Params.series "operating")' not in src, (
-        "reader/header.html regressed to upstream's operating-series cover exclusion"
+        "reader/header.html regressed to the 0.22.0 hardcoded operating-series cover exclusion"
     )
+    assert "site.Params.reader.coverless" in src  # 0.22.2: the operator's list, empty on frank
     assert 'class="post-cover"' in src
 
 

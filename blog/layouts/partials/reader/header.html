@@ -1,7 +1,10 @@
-{{- /* The reader article header — summary, meta, then the cover (operating
-       posts omit decorative covers). ONE copy, shared by the reader bundle's
-       docs/single.html and the papers overlay's, so the two forks cannot drift.
-       Called with the page as context. */ -}}
+{{- /* The reader article header — summary, meta, then the cover. ONE copy,
+       shared by the reader bundle's docs/single.html and the papers overlay's,
+       so the two forks cannot drift. Called with the page as context.
+       Every series shows its cover unless the operator lists the series in
+       features.reader_experience.coverless_series (params.reader.coverless);
+       0.22.0 hardcoded `operating` there and the first consumer wanted the
+       covers back (frank#787). */ -}}
 {{ with or .Params.summary .Description }}<p class="reader-summary">{{ . }}</p>{{ end }}
 {{ partial "reader/meta.html" . }}
-{{/* frank divergence (pending upstream): every series shows its cover — upstream omits it for the operating series. */}}{{ with .Resources.GetMatch "cover.*" }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}
+{{ $coverless := site.Params.reader.coverless | default slice }}{{ $skip := false }}{{ range .Params.series }}{{ if in $coverless . }}{{ $skip = true }}{{ end }}{{ end }}{{ if not $skip }}{{ with .Resources.GetMatch "cover.*" }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}{{ end }}

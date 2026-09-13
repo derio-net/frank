@@ -12,7 +12,7 @@
 # COMMIT THIS FILE. Without it the updater falls back to the current config and
 # says so. Delete it only to deliberately forget what was last synced.
 version: 7
-blog_craft_version: "v0.22.1"   # blog-craft RELEASE frank is synced to (was 362e2be9, the #86 branch head).
+blog_craft_version: "v0.22.2"   # blog-craft RELEASE frank is synced to (was v0.22.1; #87 lifted the last frank divergences).
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump
