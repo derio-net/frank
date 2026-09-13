@@ -940,3 +940,36 @@ rows:
     a brain that DOES exist it would leave the schema silently un-migrated, which looks like a working install.
     `gbrain doctor` reports `no_url` / "No brain configured": correct and deliberate — `gbrain init` is NOT run
     here, that is Test Plan row 9 and belongs to the requesting repo.
+- id: pipelinerun-outcomes-visible
+  capability: CI/CD observability
+  acceptance: Tekton PipelineRun outcomes are queryable in VictoriaMetrics, broken down by pipeline and
+    success/failure.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels: {}
+  status: not-implemented
+  notes: New VMServiceScrape for tekton-pipelines-controller. Today the query returns empty — the controller
+    serves the metric on :9090 and nothing scrapes it. Verified post-merge by the series being present
+    in VMSingle with a pipeline label, and by the unbounded taskruns_pod_latency_milliseconds gauge being
+    absent (the cardinality drop).
+- id: pipeline-total-failure-alerts
+  capability: CI/CD observability
+  acceptance: A pipeline that runs repeatedly and never succeeds raises an alert that reaches the operator
+    within hours.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels: {}
+  status: not-implemented
+  notes: layer-25-pipeline-failing. Verified post-merge with a synthetic always-failing PipelineRun run
+    three times, then a passing variant to confirm the alert self-resolves on the first success.
+- id: critical-pipeline-idle-alerts
+  capability: CI/CD observability
+  acceptance: A high-cadence pipeline that stops running entirely raises an alert, even though it produces
+    no failures to count.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels: {}
+  status: not-implemented
+  notes: layer-25-pipeline-idle dead-man over stoa-status-bridge and github-pull-sync. Covers the "live,
+    correct and unreachable" trigger failure of 2026-07-26, which produced zero PipelineRuns and is therefore
+    invisible to a failure-ratio rule.
