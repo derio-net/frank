@@ -2085,7 +2085,7 @@ data:
         interval: 5m
         rules:
           - uid: layer-25-pipeline-failing
-            title: Pipeline failing with no successes
+            title: Layer 25 Pipeline Failing
             condition: C
             data:
               - refId: A
@@ -2127,7 +2127,7 @@ data:
               github_issue: "frank-ops#25"
             annotations:
               summary: "L25 pipeline failing: {{ $labels.pipeline }} has {{ $values.B.Value | printf \"%.0f\" }} failure(s) in 24h with zero successes"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }}; tkn pipelinerun logs -n tekton-pipelines -p {{ $labels.pipeline }} --last"
+              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; tkn pipeline logs {{ $labels.pipeline }} -n tekton-pipelines --last"
 
       # =====================================================================
       # GLOBAL TLS CERT-EXPIRY

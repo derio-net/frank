@@ -54,3 +54,13 @@ P2.T3.S1 adds one regression-tripwire test asserting the >= 3 floor lives in ref
 ### 8a34f71ccc46 · discovery · Isolation container disk ran out mid-phase (host docker VM, not repo-related) (phase 2)
 
 First test run failed with 'No space left on device' from uv (ENOSPC) inside the fr-isolation container; df showed the container's overlay root at 100% (59G/59G). Root cause was the HOST docker VM's build cache (docker system df: 5.5GB reclaimable build cache, 0 active), unrelated to this repo or plan. Fixed with 'docker builder prune -f' run from the host (outside the container) — freed ~7GB, brought the container to 90% and unblocked uv. Not a plan defect; noting for later phases/orchestrator in case the same environment hits it again — check 'docker system df' before assuming a real test failure.
+
+<!-- fr:journal kind=finding scope=plan id=review-p2-title-convention created=2026-09-13T23:01:26 phase=2 state=fixed -->
+### review-p2-title-convention · finding [fixed] · Rule title dropped the 'Layer NN' prefix every other layer-tracker rule carries (phase 2)
+
+Shipped as 'Pipeline failing with no successes'; every other layer-tracker rule in the folder reads 'Layer NN <thing>' (Layer 2 OS Control-Plane NotReady, Layer 24 Traefik Ingress Down, Layer 25 CI/CD Platform Degraded). The title is not cosmetic here: it is the Telegram message subject AND the health-bridge tile and bug-issue title, so an operator scanning a list of alerts loses the layer anchor that every neighbour provides. Renamed to 'Layer 25 Pipeline Failing'. No guard enforces this convention and I did not add one — inventing folder-wide policy is outside this PR's scope.
+
+<!-- fr:journal kind=finding scope=plan id=review-p2-invalid-tkn-flag created=2026-09-13T23:01:28 phase=2 state=fixed -->
+### review-p2-invalid-tkn-flag · finding [fixed] · The runbook shipped a tkn invocation that does not exist (phase 2)
+
+Shipped 'tkn pipelinerun logs -n tekton-pipelines -p <pipeline> --last'. 'tkn pipelinerun logs' has no -p flag — that belongs to 'tkn pipeline logs <name>', a different subcommand. The command would have failed on the spot for anyone who ran it, and a runbook is read under pressure, so a wrong command costs more than no command. tkn itself is legitimate here (the layer-22 operating post documents 'tkn pipelinerun logs -n tekton-pipelines --last'), so the fix keeps it and corrects the subcommand: 'tkn pipeline logs <pipeline> -n tekton-pipelines --last'. Also added --sort-by=.metadata.creationTimestamp to the kubectl half, since the useful run is the most recent and the default ordering is not chronological.
