@@ -70,3 +70,8 @@ The corrected detection query (run read-only 2026-09-13) returned one agent_task
 ### p3-mermaid-gate-local-chrome · discovery · Mermaid layout gate passes 186/186 after #787; locally it needs CHROME_BIN (phase 3)
 
 With #787's mermaid 11.16.1 pin in, validate_mermaid_layout.mjs reports MERMAID LAYOUT OK: 186 diagrams across 84 pages, widest 1363px (was 5 failures at 11.17.x). On the Mac it aborts with no Chrome/Chromium executable found, because it only searches PATH names; point CHROME_BIN at the Playwright cache Chrome for Testing binary (disposable headless, not the operator's profile).
+
+<!-- fr:journal kind=review scope=plan id=r3-rebase-review created=2026-09-13T23:22:48 phase=3 -->
+### r3-rebase-review · review · Phase 3 review: rebase delta is exactly #787's description lines plus last_updated_commit (phase 3)
+
+git diff 1a80fcbb ed8af807 on both posts shows only: +description (building/15), +description and last_updated_commit 47697457->5279b4c6 (operating/18). No content lost or duplicated in conflict resolution. PR scope vs origin/main unchanged: the two posts plus spec, plan, journals, matrix row and regenerated reports. No findings.
