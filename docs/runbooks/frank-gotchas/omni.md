@@ -246,6 +246,15 @@ and nothing mounted these volumes. Before the next node, wait for every attached
 volume to return to `healthy`. Otherwise rolling mini-2 while mini-3's replicas
 are still rebuilding can leave a 3-replica volume with one live copy.
 
+That wait is the longest part of the roll. After mini-3 came back, the
+replacement replica for `ollama/ollama` (200 GiB provisioned, ~80 GiB actual)
+landed on **mini-2**, and it took about 50 minutes to rebuild. Rebooting mini-2
+during that rebuild would have killed it. The per-node mechanics were short: on
+mini-2 (2026-09-13) the drain ran its 4-minute timeout against the pinned PDB,
+the reboot took 68s, etcd was `HEALTH OK` 25s after boot, and Longhorn reported
+every attached volume healthy 12 minutes later. Rebooting all three minis took
+about 1h50m, and nearly all of it was waiting for replicas to rebuild.
+
 To find these volumes before a roll:
 
 ```bash
