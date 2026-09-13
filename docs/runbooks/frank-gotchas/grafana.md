@@ -649,13 +649,16 @@ metrics; only one was in scope in May.
 (a histogram; `status` is `success` or `failed`) on its own `/metrics` endpoint.
 There was no `VMServiceScrape` for `tekton-pipelines` at all — not a wrong
 selector, not a wrong port, a namespace vmagent had simply never been pointed
-at. `{__name__=~"tekton.*"}` returned nothing in VMSingle for as long as the
-cluster has existed. Closing #790 was therefore two pieces of work, not one:
+at. `{__name__=~"tekton.*"}` returned an empty list from VMSingle when measured
+on 2026-09-13, and `git log -S VMServiceScrape -- apps/tekton/` shows no such
+manifest was ever declared — the strongest claim the evidence actually supports.
+(A hand-applied scrape would not appear in either check, but this repo is
+declarative-only bar documented bootstrap secrets.) Closing #790 was therefore two pieces of work, not one:
 make the signal visible, then alert on it (spec:
 `docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md`).
 
 **The scrape needs a mandatory drop, or it re-runs the kube-state-metrics
-incident against a different target.** Of the controller's ~6,563 series,
+incident against a different target.** Of the controller's 6,572 series,
 **5,721 (87.1%) are `tekton_pipelines_controller_taskruns_pod_latency_milliseconds`**,
 labelled by TaskRun **pod name** — one new, permanent series per TaskRun ever
 reconciled, on a 1-month retention, growing with CI volume forever. That is the
@@ -666,7 +669,7 @@ vmagent drops an oversized scrape response **whole**, not trimmed. Nothing
 queries that metric. The scrape ships with
 `metricRelabelConfigs: [{action: drop, source_labels: [__name__], regex:
 tekton_pipelines_controller_taskruns_pod_latency_milliseconds}]`, leaving
-~850 bounded series — not tidiness, the precondition for adding this scrape
+851 bounded series — not tidiness, the precondition for adding this scrape
 at all without walking straight back into the July incident.
 
 **Three PromQL traps, all present in the naive first draft of these rules:**
