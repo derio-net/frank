@@ -15,7 +15,7 @@ tasks:
       Red: confirm the failing baseline. `gh run view` on #382's blog-validate shows `MERMAID LAYOUT CHECK FAILED — 5 of 186`, none from this PR. Poll `gh pr view 787 --json state` until `MERGED`.
   - id: P3.T1.S2
     text: |
-      Green: `git fetch origin && git rebase origin/main`. Resolve any conflict in building/15-paperclip frontmatter (#787 adds a `description:` line) by keeping both. Re-run the phase 1 gate suite, then `git push --force-with-lease`.
+      Green: `git fetch origin && git rebase origin/main`. Resolve the expected frontmatter conflicts in BOTH building/15-paperclip and operating/18-paperclip (#787 adds a `description:` line next to the `last_updated` lines this PR changes) by keeping both. Then set operating/18's `last_updated_commit` to this PR's head commit URL and commit. Re-run the phase 1 gate suite, then `git push --force-with-lease`.
   - id: P3.T1.S3
     text: |
       Refactor: watch `gh pr checks 382` until blog-validate, build-pages and tripwires are all SUCCESS. If any fails, fix it and re-push rather than waiving.
