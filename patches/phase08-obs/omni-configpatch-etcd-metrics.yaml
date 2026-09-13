@@ -37,9 +37,20 @@
 # APPLY (operator, out of band — this is NOT GitOps):
 #   source .env && source .env_devops
 #   omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
-# It restarts etcd on each control-plane node in turn. Watch the roll ONE node
-# at a time, asserting quorum between nodes with `talosctl -n <ip> etcd status`
-# (3 members, one leader) before moving on.
+# The apply does NOT restart etcd. Talos rewrites each node's EtcdSpec and leaves
+# the running etcd process untouched, and etcd is not an API-restartable Talos
+# service (`talosctl service etcd restart` errors; siderolabs/talos#9605), so the
+# listener opens only when the node REBOOTS. Measured 2026-09-13: applied
+# 2026-08-03, EtcdSpec updated that same second on all three minis, :2381 still
+# refused 41 days later. After the apply, roll the control planes ONE node at a
+# time, non-leaders first:
+#   kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=15m
+#   talosctl -n <ip> reboot   # NOT --drain: through the Omni proxy its kubeconfig
+#                             # fetch is PermissionDenied, even for an Admin SA
+#   talosctl -n 192.168.55.21,192.168.55.22,192.168.55.23 etcd status  # 3 members, 1 leader
+#   kubectl uncordon <node>
+# Do not touch the next node until this one is Ready, etcd is HEALTH OK with
+# quorum, and <ip>:2381/metrics answers.
 #
 # ORDERING — THIS IS A PRE-MERGE GATE. APPLY IT *BEFORE* THE kubeEtcd VALUES
 # BLOCK MERGES.

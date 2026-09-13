@@ -162,6 +162,103 @@ That procedure is now scripted at `scripts/omni-legacy-recovery/` — `force-rec
 
 Guarded by `scripts/tests/test_omni_recovery_tooling.py`, which stubs `omnictl` and asserts on the rendered patches — including that every written path stays under `/var`, since a marker written outside it would re-cause the outage being recovered from.
 
+## An etcd `extraArgs` ConfigPatch does NOT restart etcd — only a reboot applies it
+
+### Symptom
+
+`omnictl apply` of a ConfigPatch touching `cluster.etcd.extraArgs` exits 0, every
+`clustermachineconfigstatus` reports an empty `lastconfigerror`, and the change
+never takes effect. Nothing reports a problem because nothing failed.
+
+Measured 2026-09-13 on `160-etcd-metrics-listener` (#762): applied 2026-08-03
+15:32:14Z, and 41 days later `:2381` still answered `Connection refused` on all
+three minis.
+
+### Cause
+
+The apply does reach the node: Talos's `etcd.SpecController` rewrites the
+`EtcdSpec` resource. But nothing restarts the running etcd to pick it up, and
+etcd is not an API-restartable Talos service — `Etcd` implements none of the
+`API*Allowed` hooks, so `talosctl service etcd restart` returns `service "etcd"
+doesn't support restart operation via API` (Talos v1.12.6,
+`internal/app/machined/pkg/system/system.go`). Upstream treats etcd config
+changes as reboot-only (siderolabs/talos#9605, closed not-planned). Several
+third-party guides claim `service etcd restart` works; against this code it
+cannot.
+
+### Diagnose
+
+The tell is a spec **newer than the process**:
+
+```bash
+source .env && source .env_devops
+talosctl -n 192.168.55.21 get etcdspec -o yaml | grep -E 'updated:|extraArgs' -A1
+talosctl -n 192.168.55.21 service etcd | grep 'Started task'
+# spec updated 2026-08-03T15:32:14Z, etcd "Started task … (1004h54m50s ago)"
+# = started 2026-08-02 — the process predates the spec it should be running.
+```
+
+If the `EtcdSpec` does NOT carry the new arg, the patch never reached the node —
+that is the Omni reconcile wedge above, not this.
+
+### Fix — drained rolling reboot, one control plane at a time
+
+Non-leaders first, leader last (`LEADER` column of `etcd status`). Between nodes,
+require: node `Ready` and uncordoned, `talosctl -n <ip> service etcd` `HEALTH OK`,
+3 members with exactly one leader, and the change observable (for #762,
+`<ip>:2381/metrics` answering).
+
+```bash
+talosctl -n <leader-ip> etcd snapshot <scratch-dir>/etcd.db   # restore point, outside the repo
+kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=15m
+talosctl -n <ip> reboot
+talosctl -n 192.168.55.21,192.168.55.22,192.168.55.23 etcd status
+kubectl uncordon <node>
+```
+
+**Drain with `kubectl`, not `talosctl reboot --drain`.** The latter fetches a
+kubeconfig through the Talos API, and Omni's proxy refuses it
+(`error fetching kubeconfig from Talos API: … PermissionDenied … not authorized`)
+even for the `devops` service account, whose Omni role is `Admin`. It fails in
+about a second, before cordoning anything, so it is harmless — but it is not a
+drain.
+
+Every node carries a Longhorn instance-manager PDB at `disruptionsAllowed=0`.
+Under `node-drain-policy: block-if-contains-last-replica` it lifts once no
+volume's **only** replica lives on the node. On mini-1 (21 workload pods, 6
+attached engines) the eviction was refused six times at 5s intervals, then went
+through; the whole drain took under two minutes and the reboot 68s.
+
+On mini-3 and mini-2 it **never** lifted. Each held six *detached* volumes from
+the 1-replica `longhorn-cicd` StorageClass, the workspace PVCs of finished
+`kid-laptops-ci` PipelineRuns 43–48 days old, never collected because
+`pipelinerun-ttl-gc` only covers `tekton-pipelines` (#791). A 1-replica volume's replica is
+always its last, so the guard pins the PDB for as long as the PVC exists.
+longhorn-manager says so outright:
+`removing mini-3 PDB is blocked: replica pvc-…-r-… has no pdb on another node`.
+A pre-flight that only checks attached volumes misses them: detached volumes
+report robustness `unknown`, so the healthy count comes back clean.
+
+Decision taken (2026-09-13): **reboot through it** once the drain has evicted
+everything except static control-plane pods and the instance-manager. A reboot
+does not delete a replica; it takes the on-disk copy offline for about a minute,
+and nothing mounted these volumes. Before the next node, wait for every attached
+volume to return to `healthy`. Otherwise rolling mini-2 while mini-3's replicas
+are still rebuilding can leave a 3-replica volume with one live copy.
+
+To find these volumes before a roll:
+
+```bash
+kubectl -n longhorn-system get replicas.longhorn.io -o json | jq -r '
+  [.items[] | {v: .spec.volumeName, n: .spec.nodeID}] | group_by(.v)[]
+  | select(all(.n == "<node>")) | .[0].v'
+```
+
+**If you script the roll**, poll `talosctl` with errors tolerated: for a few
+seconds after boot etcd is not yet registered and `talosctl service etcd` exits
+non-zero, which under `set -euo pipefail` kills the poll loop silently — with the
+node rebooted, still cordoned, and nothing logged.
+
 ## `OMNI_SERVICE_ACCOUNT_KEY` — the `devops` Omni service account (non-interactive auth)
 
 `OMNI_SERVICE_ACCOUNT_KEY` (in `.env_devops`) is what lets `omnictl` and

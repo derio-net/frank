@@ -32,7 +32,8 @@ together.
 **Half one** is a Talos ConfigPatch opening etcd's dedicated metrics listener on
 `0.0.0.0:2381` — plain HTTP, read-only, no key material. Applied through Omni to
 the control-plane machine set. This is operator work: it needs the Omni service
-account and it restarts etcd on each control-plane node in turn.
+account, and — since Talos applies an etcd arg change only at boot — a drained
+rolling reboot of the control planes, one node at a time.
 
 **Half two** is chart values pointing a static `Endpoints` object at the three
 mini IPs, six Grafana alert rules, and a five-panel dashboard. All GitOps, all

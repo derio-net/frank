@@ -110,9 +110,24 @@ source .env && source .env_devops
 omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
 ```
 
-It triggers a rolling **etcd restart** on each control-plane node in turn. Watch
-the roll one node at a time and assert quorum *between* nodes, not after all
-three.
+**The apply does NOT restart etcd**, despite what an earlier draft of this file
+said. Talos rewrites each node's `EtcdSpec` and leaves the running etcd process
+untouched, and etcd is not an API-restartable Talos service
+(`talosctl service etcd restart` errors; siderolabs/talos#9605). This patch was
+applied on 2026-08-03 and `:2381` was still refused 41 days later.
+
+The listener opens only when a control plane **reboots**. After the apply, roll
+them one node at a time, non-leaders first, and assert quorum *between* nodes,
+not after all three:
+
+```bash
+kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=15m
+talosctl -n <ip> reboot   # not --drain: its kubeconfig fetch is PermissionDenied via Omni
+talosctl -n 192.168.55.21,192.168.55.22,192.168.55.23 etcd status   # 3 members, one leader
+kubectl uncordon <node>
+```
+
+Full prose, the diagnosis, and the drain timings: `docs/runbooks/frank-gotchas/omni.md`.
 
 ## Rollback — revert BOTH halves, or the rollback is a pager
 
@@ -148,8 +163,8 @@ deliberate rollback.
 ## Manual operation
 
 The `omnictl` apply cannot be GitOps: Omni is outside the cluster, the apply
-needs the Omni service-account credential, and it restarts etcd on the machines
-that hold the quorum.
+needs the Omni service-account credential, and taking effect needs a drained
+reboot of each machine that holds the quorum.
 
 The block below is the **runbook source of truth for the apply as executed**, and
 an identical copy lives in the plan phase file
@@ -165,19 +180,23 @@ layer: obs
 app: victoria-metrics
 plan: docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane
 when: "BEFORE the PR carrying the kubeEtcd block in apps/victoria-metrics/values.yaml is merged. This is a pre-merge gate, not a post-merge follow-up. `up` is synthesised by the scraper for every configured target and reads 0 on a failed scrape, never absent — so merging first hands vmagent three targets dialling a refused port, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no health_bridge_only) pages Telegram every 3 minutes against a perfectly healthy quorum. Rollback reverts BOTH halves for the same reason."
-why_manual: "Omni lives outside the cluster and the apply needs the Omni service-account credential, so it cannot be driven by ArgoCD. It also restarts etcd on each control-plane node in turn, which must be watched one node at a time with quorum asserted between nodes — a rolling restart of the quorum is not something to fire and forget."
+why_manual: "Omni lives outside the cluster and the apply needs the Omni service-account credential, so it cannot be driven by ArgoCD. The apply alone does NOT restart etcd — Talos rewrites the EtcdSpec and leaves the running process untouched, and etcd has no API restart — so every control-plane node must then be drained and rebooted, one at a time, with quorum asserted between nodes. A rolling reboot of the quorum is not something to fire and forget."
 commands:
   - source .env && source .env_devops
   - omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
-  - "# Watch the roll ONE NODE AT A TIME. Do not proceed to the next node until"
-  - "# the previous one is back in the member list with a leader elected."
-  - talosctl -n 192.168.55.21 etcd status
-  - talosctl -n 192.168.55.22 etcd status
-  - talosctl -n 192.168.55.23 etcd status
-  - "# If nothing changes on the first node within a few minutes, Omni may have"
-  - "# wedged on a cold-boot clock jump: it keeps serving cached reads while its"
-  - "# reconcile runtime is stopped. Recovery is `docker restart omni` on the Omni"
-  - "# host, then refresh the stored talosconfig."
+  - "# 1. Confirm the patch REACHED each node. Empty output means Omni may have wedged on a"
+  - "#    cold-boot clock jump (cached reads, stopped reconcile): `docker restart omni` on the"
+  - "#    Omni host, then refresh the stored talosconfig."
+  - "for ip in 192.168.55.21 192.168.55.22 192.168.55.23; do talosctl -n $ip get etcdspec -o yaml | grep listen-metrics-urls; done"
+  - "# 2. The apply does NOT restart etcd (no API restart for it; siderolabs/talos#9605)."
+  - "#    Reboot the control planes ONE NODE AT A TIME, non-leaders first (LEADER column)."
+  - talosctl -n 192.168.55.21,192.168.55.22,192.168.55.23 etcd status
+  - kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=15m
+  - "# NOT `talosctl reboot --drain`: through the Omni proxy its kubeconfig fetch is PermissionDenied."
+  - talosctl -n <ip> reboot
+  - "# Do not touch the next node until this one is Ready, `talosctl -n <ip> service etcd` is HEALTH OK,"
+  - "# etcd status shows 3 members with one leader, and <ip>:2381/metrics answers (verify step 1)."
+  - kubectl uncordon <node>
 verify:
   - "# 1. The listener responds on ALL THREE minis. Ask from inside the cluster."
   - "VMAGENT=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o name | head -1)"

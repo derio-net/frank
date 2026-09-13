@@ -1,4 +1,4 @@
-# Journal: 2026-08-03-obs-etcd-scrape-control-plane
+# Journal: 2026-08-03--obs--etcd-scrape-control-plane
 
 <!-- fr:journal kind=decision scope=spec id=d1-exposure created=2026-08-03T11:15:42 -->
 ### d1-exposure · decision · etcd metrics listener binds 0.0.0.0:2381 via one machine-set-scoped ConfigPatch
@@ -53,3 +53,8 @@ Finding, spec corrected, decision NOT reversed. The batched Q&A offered 'reuse t
 It cannot be disabled independently (defaultDashboards.dashboards has three toggles, none of them etcd; the board follows kubeEtcd.enabled) and the Application is prune: false, so even a values-level disable would orphan the live ConfigMap.
 
 Judged NOT to warrant re-opening the operator Q&A: d3's intent was a Frank-curated board holding the acceptance evidence, and that intent is unaffected by the upstream board also existing. Proceeding means two etcd dashboards rather than one, which is cheap to reverse if the operator disagrees. Mitigations required of phase 3: distinct title + uid, a header comment naming the upstream board, and a gotchas entry saying which is which — so the duplicate is not resolved later by deleting the curated one.
+
+<!-- fr:journal kind=decision scope=spec id=skeleton-override-2026-08-03--obs--etcd-scrape-control-plane created=2026-09-13T21:03:56 -->
+### skeleton-override-2026-08-03--obs--etcd-scrape-control-plane · decision · No walking-skeleton marker: the plan predates the rule and every agentic phase is already implemented
+
+fr plan self-review now requires phase 1 to carry skeleton: true. This plan was authored 2026-08-03, before that rule shipped, and phases 1-4 were implemented and CI-green on this branch by 2026-08-03 (scripts/tests: 593 passed). Phase 1 is the file-boundary tripwire plus the wiring, not a trivial smoke, so marking it skeleton retroactively would claim a CI-smokes-first ordering that never happened. What the skeleton rule protects against (expensive phases running before CI proves the runtime) cannot occur here: nothing agentic remains, only the manual phase 5.

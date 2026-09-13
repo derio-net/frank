@@ -106,7 +106,10 @@ surface for a marginal gain, or a new DaemonSet standing between us and the very
 signal we are adding in order to trust the control plane.
 
 **This is operator work.** Applying it needs `omnictl` with the Omni service
-account, and it restarts etcd on each control-plane node in turn. It is the plan's
+account, and then — because Talos applies an etcd arg change only at boot, and
+etcd has no API restart (corrected 2026-09-13; an earlier draft said the apply
+restarts etcd itself) — a drained rolling reboot of the three control planes,
+one node at a time. It is the plan's
 manual phase — and it is a **pre-merge gate**, not a back-loaded one: see
 "Ordering is NOT safe in either direction" below for why the GitOps half pages
 Telegram every three minutes if it lands first.
@@ -373,11 +376,16 @@ evidence; the plan's phase 5 task 1 carries both steps for the same reason.
 
 **Steps 3–6 are post-merge** and produce the acceptance evidence (`d4-testplan`).
 
-1. **Apply the ConfigPatch.** *(pre-merge)* `omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml`
+1. **Apply the ConfigPatch, then roll the control planes.** *(pre-merge)* `omnictl apply -f patches/phase08-obs/omni-configpatch-etcd-metrics.yaml`
    (needs `source .env_devops` for the Omni service account, and `source .env`
-   from the repo root for the relative `TALOSCONFIG`). Watch the rolling etcd
-   restart **one node at a time**, asserting quorum between nodes:
+   from the repo root for the relative `TALOSCONFIG`). The apply alone does
+   **not** restart etcd — Talos rewrites the `EtcdSpec` and leaves the process
+   running, and etcd has no API restart (corrected 2026-09-13; this step
+   originally said to "watch the rolling etcd restart"). So drain
+   (`kubectl drain`, not `talosctl reboot --drain`) and reboot each control plane
+   **one node at a time**, non-leaders first, asserting quorum between nodes:
    `talosctl -n <ip> etcd status` — 3 members, one leader, before moving on.
+   Commands: the manual-operation block in `patches/phase08-obs/README.md`.
 
    *Not exercised during design:* `talosctl` against Frank goes through Omni and
    requires operator credentials this session did not hold — the command timed
