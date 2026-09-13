@@ -607,8 +607,8 @@ The cost is everything in §5, doubled when the cluster grows.
 
 **Single beefy server + VMs** wins when the goal is
 *Kubernetes-as-software* — you want to learn the scheduler, the API,
-the operators — and you don't want to maintain seven boards. Proxmox
-+ LXC is the rational homelab answer. It is a perfectly legitimate
+the operators — and you don't want to maintain seven boards. Proxmox +
+LXC is the rational homelab answer. It is a perfectly legitimate
 choice and Frank explicitly chose not to take it; nothing in this
 paper is an argument against it for the team whose hardware question
 is "I already have one box."

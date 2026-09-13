@@ -419,8 +419,8 @@ and the tax is paid on every request whether you are in the middle of a
 canary or not.
 
 **Metric provider lag and the empty-vector trap.** AnalysisTemplate
-intervals fight with Prometheus scrape intervals. At a 1-minute scrape
-+ 1-minute analysis interval, the first analysis sees roughly thirty
+intervals fight with Prometheus scrape intervals. At a 1-minute scrape +
+1-minute analysis interval, the first analysis sees roughly thirty
 seconds of canary traffic; below that scale, the analysis is noise. And
 when the metric you queried *does not exist at all*, Argo Rollouts'
 Prometheus provider returns an empty result vector — which causes the

@@ -597,8 +597,8 @@ the audit fines avoided.
 
 The third branch is cloud lock-in. A workload running exclusively on
 AWS has the cloud's identity system available for free, IRSA solves
-the bootstrap loop without any out-of-band step, and Secrets Manager
-+ CSI is the lowest-friction answer in the landscape — *provided you
+the bootstrap loop without any out-of-band step, and Secrets Manager +
+CSI is the lowest-friction answer in the landscape — *provided you
 are happy to be on AWS forever*. The same applies in shape (with
 different vendor names) on Azure and GCP.
 
