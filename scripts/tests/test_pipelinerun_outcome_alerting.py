@@ -208,6 +208,27 @@ def _provisioning_document() -> dict[str, Any]:
     return yaml.safe_load(data[PROVISIONING_KEY])
 
 
+def _all_rules() -> list[dict[str, Any]]:
+    """Every rule in the document, flattened, each enriched with `_group`/
+    `_folder` from its enclosing group.
+
+    Extracted at P4.T1.S3: `_rule_by_uid`, `_idle_rules` and `_rules_in_group`
+    each used to walk `groups[].rules[]` and enrich independently — three
+    copies of the same loop, one per way of *finding* a rule. This is the
+    same collapse `test_feature_health_workload_metrics.py` already made
+    (its own `_all_rules`); the three functions below are now filters over
+    one parse instead of three re-implementations of it.
+    """
+    rules: list[dict[str, Any]] = []
+    for group in _provisioning_document().get("groups", []):
+        for rule in group.get("rules", []):
+            enriched = dict(rule)
+            enriched["_group"] = group.get("name")
+            enriched["_folder"] = group.get("folder")
+            rules.append(enriched)
+    return rules
+
+
 def _rule_by_uid(uid: str) -> dict[str, Any]:
     """Return a rule (enriched with `_group`/`_folder` from its enclosing
     group) by uid, or raise if no rule carries it.
@@ -216,13 +237,9 @@ def _rule_by_uid(uid: str) -> dict[str, Any]:
     (`_all_rules` + a uid lookup) — extracted here because every remaining
     task in phases 2 and 3 needs to find a rule by uid, not just this one.
     """
-    for group in _provisioning_document().get("groups", []):
-        for rule in group.get("rules", []):
-            if rule.get("uid") == uid:
-                enriched = dict(rule)
-                enriched["_group"] = group.get("name")
-                enriched["_folder"] = group.get("folder")
-                return enriched
+    for rule in _all_rules():
+        if rule.get("uid") == uid:
+            return rule
     raise AssertionError(f"no rule with uid {uid!r} found in {ALERT_RULES_CM}")
 
 
@@ -366,18 +383,14 @@ def _idle_rules() -> dict[str, dict[str, Any]]:
 
     Mirrors `_rule_by_uid` above; extracted (P3.T1.S3) so tasks 2 and 3
     don't each re-walk the provisioning document looking for the same two
-    rules.
+    rules. Filters `_all_rules()` (P4.T1.S3) rather than re-walking the
+    document itself.
     """
-    found: dict[str, dict[str, Any]] = {}
-    for group in _provisioning_document().get("groups", []):
-        for rule in group.get("rules", []):
-            uid = rule.get("uid", "")
-            if uid.startswith(IDLE_UID_PREFIX):
-                enriched = dict(rule)
-                enriched["_group"] = group.get("name")
-                enriched["_folder"] = group.get("folder")
-                found[uid] = enriched
-    return found
+    return {
+        rule["uid"]: rule
+        for rule in _all_rules()
+        if rule.get("uid", "").startswith(IDLE_UID_PREFIX)
+    }
 
 
 def test_each_idle_rule_watches_exactly_one_pipeline():
@@ -527,3 +540,147 @@ def test_every_watched_pipeline_exists_in_the_repo():
             f"{actual_name!r} — these must match, or the rule is watching "
             "a name the Pipeline resource no longer carries."
         )
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting guards (phase 4) — re-assert the 2026-05-14 lesson at this
+# rule's own scope, and close the loop between the scrape and the rules.
+# ---------------------------------------------------------------------------
+
+CONTROLLER_METRICS_SAMPLE = (
+    REPO / "scripts" / "tests" / "fixtures" / "tekton" / "controller-metrics-sample.txt"
+)
+
+_METRIC_NAME_BEFORE_BRACE = re.compile(r"[A-Za-z_:][A-Za-z0-9_:]*(?=\{)")
+
+
+def _rule_text(rule: dict[str, Any]) -> str:
+    """A rule serialised back to YAML, for substring checks over its queries.
+
+    Mirrors the identically-named helper in `test_feature_health_workload_metrics.py`.
+    """
+    return yaml.safe_dump(rule, default_flow_style=False, sort_keys=False)
+
+
+def _rules_in_group(group_name: str) -> list[dict[str, Any]]:
+    """Every rule whose enclosing group is named `group_name`, each carrying
+    `_group`/`_folder` like `_rule_by_uid` and `_idle_rules` above. Filters
+    `_all_rules()` (P4.T1.S3) rather than re-walking the document itself."""
+    return [rule for rule in _all_rules() if rule["_group"] == group_name]
+
+
+def test_the_new_rules_never_ask_about_pod_readiness():
+    """The folder-wide `test_no_feature_health_rule_uses_pod_readiness` guard
+    in `test_feature_health_workload_metrics.py` already forbids
+    `kube_pod_status_ready` anywhere in the `feature-health` folder — so on
+    its face this is redundant. It earns its place anyway: that guard
+    protects the twelve rules MIGRATED in 2026-08, and it protects them as a
+    fact about the folder *as it stood* when it was written. This one is
+    attached to the `layer-25-pipeline-outcomes` group specifically, so it
+    keeps failing even in a hypothetical future where the folder-wide guard
+    is narrowed, relaxed, or scoped away from a new rule added here.
+
+    The scenario it exists to catch is not hypothetical phrasing: it is
+    precisely the mistake the 2026-05-14 `layer-25-cicd-down` rewrite was
+    made to escape (Tekton task pods report `Ready=False` by design once
+    complete, so counting them floods with false positives), and the
+    resulting hole is what let a 100%-failing pipeline run silently for 39
+    days (#790). A future edit to THIS group that "improves" pipeline
+    detection by going back to counting task pods would be reintroducing
+    the exact defect the group's own scrape was built to route around.
+    """
+    offenders = [
+        rule["uid"]
+        for rule in _rules_in_group(FAILURE_RATIO_GROUP)
+        if "kube_pod_status_ready" in _rule_text(rule)
+    ]
+    assert not offenders, (
+        f"a rule in group {FAILURE_RATIO_GROUP!r} references "
+        "kube_pod_status_ready — this group exists specifically to answer "
+        "pipeline-outcome questions from the controller's own metrics "
+        "instead of from pod readiness, which is the exact trap the "
+        "2026-05-14 layer-25-cicd-down rewrite escaped. Offending uid(s): "
+        f"{offenders}"
+    )
+
+
+def _pipeline_outcome_rule_uids() -> list[str]:
+    return [
+        FAILURE_RATIO_UID,
+        IDLE_UID_STOA_STATUS_BRIDGE,
+        IDLE_UID_GITHUB_PULL_SYNC,
+    ]
+
+
+def _referenced_metric_names() -> set[str]:
+    """Every metric name immediately followed by `{` in any of the three new
+    rules' refId-A expressions.
+
+    The character class stops at `(`, so this naturally skips PromQL
+    functions (`sum(`, `increase(`) and only matches identifiers that are
+    themselves being selected — i.e. metric names, not operators.
+    """
+    names: set[str] = set()
+    for uid in _pipeline_outcome_rule_uids():
+        expr = _query_expr(_rule_by_uid(uid))
+        found = _METRIC_NAME_BEFORE_BRACE.findall(expr)
+        assert found, f"{uid} refId-A expression has no metric selector at all: {expr!r}"
+        names.update(found)
+    return names
+
+
+def _dropped_metric_regexes() -> list[str]:
+    manifest = _scrape_manifest()
+    endpoints = manifest.get("spec", {}).get("endpoints", [])
+    assert endpoints, f"{SCRAPE_MANIFEST} has no endpoints"
+    return [
+        cfg["regex"]
+        for cfg in endpoints[0].get("metricRelabelConfigs", [])
+        if cfg.get("action") == "drop" and cfg.get("source_labels") == ["__name__"]
+    ]
+
+
+def test_the_scrape_and_the_rules_agree_on_the_metric_name():
+    """Both halves of this change are in git — the scrape manifest and the
+    alert rules — and nothing forces them to stay consistent with each
+    other. A rule querying a metric the scrape's `metricRelabelConfigs`
+    drops is a rule that can never fire, and nothing else in the repo would
+    notice: the manifest would still apply cleanly, the rule would still
+    parse and pass every other structural guard, and Grafana would report
+    it `Error`-free while it silently evaluates against a metric that never
+    lands in VictoriaMetrics. That is the same "passes every structural
+    assertion while doing nothing" shape as the `longhorn-manager-.*`
+    selector and the `cilium-.*` pod-vs-workload regex documented in
+    `frank-gotchas.md`.
+
+    This closes the loop two ways, both offline and exact because both
+    halves are committed:
+
+    1. every metric name the three new rules query must appear in the
+       captured scrape fixture (`controller-metrics-sample.txt`) — proving
+       the controller actually emits it;
+    2. none of those metric names may match the scrape's own drop regex —
+       proving the scrape does not discard the one thing the rules need.
+    """
+    metric_names = _referenced_metric_names()
+    sample_text = CONTROLLER_METRICS_SAMPLE.read_text(encoding="utf-8")
+    dropped_regexes = _dropped_metric_regexes()
+    assert dropped_regexes, (
+        f"{SCRAPE_MANIFEST} carries no drop `metricRelabelConfigs` to check "
+        "against — has the mandatory cardinality drop been removed?"
+    )
+
+    for name in sorted(metric_names):
+        assert f"{name}{{" in sample_text, (
+            f"{name!r} is queried by a layer-25 pipeline-outcome rule but "
+            f"does not appear in {CONTROLLER_METRICS_SAMPLE} — a rule "
+            "querying a metric the scrape never sees can never fire, and "
+            "nothing else in the repo would notice."
+        )
+        for regex in dropped_regexes:
+            assert not re.fullmatch(regex, name), (
+                f"{name!r} is queried by a layer-25 pipeline-outcome rule "
+                f"AND matches the scrape's drop regex {regex!r} "
+                f"({SCRAPE_MANIFEST}) — that rule can never fire because "
+                "the scrape discards the only series it depends on."
+            )
