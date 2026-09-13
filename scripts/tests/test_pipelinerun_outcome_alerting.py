@@ -43,10 +43,26 @@ SCRAPE_MANIFEST = (
 SERIES_CENSUS = (
     REPO / "scripts" / "tests" / "fixtures" / "tekton" / "controller-series-census.json"
 )
+ALERT_RULES_CM = REPO / "apps" / "grafana-alerting" / "manifests" / "alert-rules-cm.yaml"
 
 CONTROLLER_METRICS_PORT = "http-metrics"
 CONTROLLER_SELECTOR = {"app": "tekton-pipelines-controller"}
 CONTROLLER_NAMESPACE = "tekton-pipelines"
+
+# The ConfigMap key holding the Grafana provisioning document. The document is
+# embedded as a YAML *string* under this key, so reading a rule out of
+# `alert-rules-cm.yaml` takes two `yaml.safe_load`s — one for the ConfigMap,
+# one for the value under this key. See
+# `test_feature_health_workload_metrics.py`, which documents this shape and
+# whose folder-wide guards (uid uniqueness, known severity, explicit
+# noDataState/execErrState, the `frank-ops#N` github_issue label, the 15m
+# DaemonSet-only window) apply to any rule added to that same folder,
+# including the one this file adds below.
+PROVISIONING_KEY = "alert-rules.yaml"
+
+FEATURE_HEALTH_FOLDER = "feature-health"
+FAILURE_RATIO_GROUP = "layer-25-pipeline-outcomes"
+FAILURE_RATIO_UID = "layer-25-pipeline-failing"
 
 # The share a metric's series must hold of the controller's total before this
 # suite treats it as "the unbounded one" worth dropping. Set well above any
@@ -167,4 +183,166 @@ def test_the_scrape_drops_the_unbounded_metric():
         "cardinality shape that took kube-state-metrics to 21.6 MiB and "
         "silently blinded every `kube_*` alert rule on 2026-07-27. Found: "
         f"{relabel_configs!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The failure-ratio rule — `layer-25-pipeline-failing`, group
+# `layer-25-pipeline-outcomes`, folder `feature-health`.
+# ---------------------------------------------------------------------------
+
+
+def _provisioning_document() -> dict[str, Any]:
+    """Return the inner Grafana provisioning document (double YAML load)."""
+    configmap = _load_yaml(ALERT_RULES_CM)
+    assert configmap.get("kind") == "ConfigMap", (
+        f"{ALERT_RULES_CM} is expected to be a ConfigMap wrapping the Grafana "
+        "provisioning document"
+    )
+    data = configmap.get("data", {})
+    assert PROVISIONING_KEY in data, (
+        f"{ALERT_RULES_CM} has no `data.{PROVISIONING_KEY}` key — the "
+        f"provisioning document moved. Keys present: {sorted(data)}"
+    )
+    return yaml.safe_load(data[PROVISIONING_KEY])
+
+
+def _rule_by_uid(uid: str) -> dict[str, Any]:
+    """Return a rule (enriched with `_group`/`_folder` from its enclosing
+    group) by uid, or raise if no rule carries it.
+
+    Mirrors the private helper shape in `test_feature_health_workload_metrics.py`
+    (`_all_rules` + a uid lookup) — extracted here because every remaining
+    task in phases 2 and 3 needs to find a rule by uid, not just this one.
+    """
+    for group in _provisioning_document().get("groups", []):
+        for rule in group.get("rules", []):
+            if rule.get("uid") == uid:
+                enriched = dict(rule)
+                enriched["_group"] = group.get("name")
+                enriched["_folder"] = group.get("folder")
+                return enriched
+    raise AssertionError(f"no rule with uid {uid!r} found in {ALERT_RULES_CM}")
+
+
+def _query_expr(rule: dict[str, Any]) -> str:
+    """Return the refId-A datasource query's `model.expr` for a rule.
+
+    RefId A is where this rule's whole filter lives (see the module-level
+    note in the design spec: Grafana's server-side expressions can't express
+    `unless`, so A carries it and B/C only reduce and threshold on top).
+    """
+    for datum in rule.get("data", []):
+        if datum.get("refId") == "A":
+            return datum.get("model", {}).get("expr", "")
+    raise AssertionError(f"rule {rule.get('uid')!r} has no refId-A datasource query")
+
+
+def test_the_failure_ratio_rule_is_routed_and_identified():
+    rule = _rule_by_uid(FAILURE_RATIO_UID)
+
+    assert rule["_group"] == FAILURE_RATIO_GROUP, (
+        f"{FAILURE_RATIO_UID} must live in group {FAILURE_RATIO_GROUP!r}, "
+        f"got {rule['_group']!r}"
+    )
+    assert rule["_folder"] == FEATURE_HEALTH_FOLDER, (
+        f"{FAILURE_RATIO_UID}'s group must live in folder "
+        f"{FEATURE_HEALTH_FOLDER!r}, got {rule['_folder']!r}"
+    )
+
+    labels = rule.get("labels") or {}
+    assert labels.get("severity") == "warning", (
+        f"{FAILURE_RATIO_UID} severity must be 'warning' (routes through the "
+        f"existing Telegram warning policy), got {labels.get('severity')!r}"
+    )
+    assert labels.get("github_issue") == "frank-ops#25", (
+        "the folder-wide guard "
+        "test_layer_tracker_rules_carry_a_well_formed_github_issue_label "
+        "requires every layer-* uid to carry a frank-ops#N label — got "
+        f"{labels.get('github_issue')!r}"
+    )
+
+    assert rule.get("noDataState"), (
+        f"{FAILURE_RATIO_UID} must set noDataState explicitly — Grafana "
+        "defaults an omitted value to NoData, which fires the rule"
+    )
+    assert rule.get("execErrState"), (
+        f"{FAILURE_RATIO_UID} must set execErrState explicitly"
+    )
+
+
+def test_the_failure_ratio_rule_uses_unless_rather_than_a_zero_comparison():
+    """`unless`, not `failed >= 3 and success == 0`.
+
+    For a pipeline that has never succeeded since controller start there is
+    NO `success` series at all for it. `and ... == 0` is a vector match: the
+    right-hand side has to return a series (with value 0) for the match to
+    hold, and an absent series is not a zero-valued one. So `failed >= 3 and
+    success == 0` silently drops the entire result for exactly the pipelines
+    this rule exists to catch — the ones that have never once succeeded. This
+    is the same family as the `metric == 0` trap already in
+    `frank-gotchas.md`, where `== 0` is a *filter* over existing series
+    rather than a comparison that can be true or false for an absent one.
+    `unless` is PromQL's set-difference operator: "every series on the left
+    whose label set has no match on the right", which is true whether the
+    right side returns zero series or a nonzero-count one — so an absent
+    success series behaves exactly like the "no successes" case it needs to.
+    """
+    expr = _query_expr(_rule_by_uid(FAILURE_RATIO_UID))
+
+    assert "unless" in expr, (
+        f"{FAILURE_RATIO_UID} refId-A expression must use `unless`, not an "
+        f"`and ... == 0` comparison — got: {expr!r}"
+    )
+    assert 'status="failed"' in expr, (
+        f"{FAILURE_RATIO_UID} refId-A expression must select "
+        f'status="failed", got: {expr!r}'
+    )
+    assert 'status="success"' in expr, (
+        f"{FAILURE_RATIO_UID} refId-A expression must also select "
+        f'status="success" (the unless right-hand side), got: {expr!r}'
+    )
+    assert expr.count("sum by (pipeline)") >= 2, (
+        f"{FAILURE_RATIO_UID} refId-A expression must aggregate BOTH the "
+        f"failed and success sides with `sum by (pipeline)`, got: {expr!r}"
+    )
+    assert "== 0" not in expr and "==0" not in expr, (
+        f"{FAILURE_RATIO_UID} refId-A expression must not compare against "
+        "`== 0` anywhere — an absent series is not a zero-valued one, so "
+        "`and success == 0` can never fire for a pipeline with zero "
+        f"successes ever recorded. Got: {expr!r}"
+    )
+
+
+def test_the_failure_threshold_lives_in_the_query_not_in_the_expression_threshold():
+    """Regression tripwire, not a red-green pair (see plan journal
+    `no-refactor-because: P2.T3`).
+
+    Grafana's server-side expressions cannot express `unless`, so refId A
+    carries the WHOLE filter — including the `>= 3` noise floor — and
+    returns one series per OFFENDING pipeline (value = its failure count).
+    C asking `gt 0` means "did A return anything at all". Moving the `>= 3`
+    out of A and into C as `gt 2` reads like a tidy-up and breaks the rule:
+    A would then return every pipeline with zero successes, INCLUDING those
+    with zero failures in the window (0 is still "no successes"), and C
+    could never distinguish them from a genuinely failing pipeline.
+    """
+    rule = _rule_by_uid(FAILURE_RATIO_UID)
+    expr = _query_expr(rule)
+
+    assert ">= 3" in expr, (
+        f"{FAILURE_RATIO_UID} refId-A expression must carry the `>= 3` "
+        f"noise floor itself, not defer it to C's threshold. Got: {expr!r}"
+    )
+
+    condition_c = next(
+        (datum for datum in rule.get("data", []) if datum.get("refId") == "C"),
+        None,
+    )
+    assert condition_c is not None, f"{FAILURE_RATIO_UID} has no refId-C condition"
+    conditions = condition_c.get("model", {}).get("conditions", [])
+    evaluators = [c.get("evaluator") for c in conditions]
+    assert {"type": "gt", "params": [0]} in evaluators, (
+        f"{FAILURE_RATIO_UID} refId-C evaluator must be {{type: gt, params: "
+        f"[0]}} — \"did A return anything at all\" — got: {evaluators!r}"
     )

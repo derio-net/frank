@@ -26,9 +26,11 @@ steps:
       '
   implement:
     state: running
-    at: '2026-09-13T20:26:47+00:00'
+    at: '2026-09-13T20:45:50+00:00'
     items:
-      phase/1/implement-phase: running
+      phase/1/implement-phase: done
+      phase/1/review-phase: done
+      phase/2/implement-phase: running
     members:
     - implement-phase
     - review-phase
@@ -36,9 +38,23 @@ steps:
     state: pending
 accounting:
   phase/1/implement-phase:
-    at: '2026-09-13T20:26:47+00:00'
-    journal_entries: 4
-    journal_lines: 21
-    handoff_chars: 2344
+    at: '2026-09-13T20:45:11+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
     spec_bytes: 18120
-    plan_bytes: 34246
+    plan_bytes: 35462
+  phase/1/review-phase:
+    at: '2026-09-13T20:45:39+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
+    spec_bytes: 18120
+    plan_bytes: 35462
+  phase/2/implement-phase:
+    at: '2026-09-13T20:45:50+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
+    spec_bytes: 18120
+    plan_bytes: 35462

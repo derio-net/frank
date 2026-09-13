@@ -44,3 +44,13 @@ A VMServiceScrape discovers targets through a SERVICE's Endpoints; it never look
 ### review-p1-deploy-time-false-positive · finding [open] · The github-pull-sync dead-man will probably fire once at deploy time — phase 3 must say so (phase 1)
 
 The spec documents a post-restart false-positive window for layer-25-pipeline-idle-github-pull-sync but missed its FIRST and most certain instance: the moment the scrape goes live. Before the first github-pull-sync run is scraped there is no series at all, so 'or vector(0)' reads 0, 'lt 1' is true, and after for:2h the rule fires. At 10.4 runs/day the mean gap between runs is ~2.3h, so this is roughly a coin flip on any given deploy — not a rare edge. stoa-status-bridge is unaffected (148/day, first run inside ~10 minutes, for:1h). Carrying forward: phase 3 step P3.T1.S2 now requires the rule comment to name the deploy-time case explicitly alongside the restart case, and phase 5 step P5.T2.S3 now tells the operator to expect it and to treat it as resolved once the first run lands rather than as a defect. Left open until phase 3 lands the comment.
+
+<!-- fr:journal kind=decision scope=plan id=ba2a677a78af created=2026-09-13T22:56:02 phase=2 -->
+### ba2a677a78af · decision · no-refactor-because: P2.T3 (phase 2)
+
+P2.T3.S1 adds one regression-tripwire test asserting the >= 3 floor lives in refId A and C's evaluator is {type: gt, params: [0]}. It is a freeze test for a shape already correct after P2.T2 — nothing to extract or restructure, per the plan's own note that a test whose purpose is to pin a correct shape has no refactor step.
+
+<!-- fr:journal kind=discovery scope=plan id=8a34f71ccc46 created=2026-09-13T22:58:49 phase=2 -->
+### 8a34f71ccc46 · discovery · Isolation container disk ran out mid-phase (host docker VM, not repo-related) (phase 2)
+
+First test run failed with 'No space left on device' from uv (ENOSPC) inside the fr-isolation container; df showed the container's overlay root at 100% (59G/59G). Root cause was the HOST docker VM's build cache (docker system df: 5.5GB reclaimable build cache, 0 active), unrelated to this repo or plan. Fixed with 'docker builder prune -f' run from the host (outside the container) — freed ~7GB, brought the container to 90% and unblocked uv. Not a plan defect; noting for later phases/orchestrator in case the same environment hits it again — check 'docker system df' before assuming a real test failure.
