@@ -1,0 +1,246 @@
+# Curated etcd dashboard — Layer 2, obs layer plan
+# docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+#
+# FRANK ALREADY HAS AN UPSTREAM ETCD DASHBOARD, AND IT IS LIVE. The chart
+# victoria-metrics-k8s-stack renders a ConfigMap
+# (victoria-metrics-victoria-metrics-k8s-stack-etcd) carrying a dashboard
+# titled "etcd" (a chart-generated uid), labelled grafana_dashboard: "1", and
+# Grafana runs a grafana-sc-dashboard sidecar that consumes any ConfigMap
+# carrying that label. It has been sitting there rendering nothing for 148
+# days, for the same reason the alerts in alert-rules-cm.yaml could not exist:
+# no series. It will start populating once the operator applies the Talos
+# ConfigPatch (patches/phase08-obs/omni-configpatch-etcd-metrics.yaml).
+#
+# IT CANNOT BE DISABLED INDEPENDENTLY. defaultDashboards.dashboards exposes
+# exactly three toggles (victoriametrics-vmalert, victoriametrics-operator,
+# node-exporter-full) — none of them etcd. The etcd board follows
+# kubeEtcd.enabled, so the only levers are defaultDashboards.enabled: false
+# (removes all 15 default boards) or kubeEtcd.enabled: false (removes the
+# scrape this whole plan exists to add). Neither is acceptable, and with the
+# victoria-metrics Application at prune: false a values-level disable would
+# leave the live ConfigMap orphaned on the cluster anyway. Do NOT attempt to
+# disable, prune, or override it.
+#
+# So Frank ends up with TWO etcd dashboards on purpose. THIS ONE — title
+# "Frank Layer 2 — etcd (curated)", uid "frank-l2-etcd" — is the curated
+# board where the acceptance re-run's before/under-load evidence lives (the
+# spec's Half 2c). It is deliberately distinct in both title and uid from the
+# upstream "etcd" board so the two are never confused. If you are reading
+# this because you found duplicate etcd dashboards in Grafana: the upstream
+# one (title "etcd", chart-rendered) is the inert-by-default, now-also-live
+# copy that came free with the chart; THIS ConfigMap is the one Frank
+# actually curates and the one the gotchas / runbook entries reference. Do
+# not delete this one believing it to be the redundant copy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-etcd-dashboard
+  namespace: monitoring
+data:
+  etcd-dashboard-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: etcd
+        folder: etcd
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/etcd
+  etcd-dashboard.json: |
+    {
+      "uid": "frank-l2-etcd",
+      "title": "Frank Layer 2 — etcd (curated)",
+      "tags": ["etcd", "layer-2", "obs"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "etcd quorum has-leader, per node",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "etcd_server_has_leader",
+              "legendFormat": "{{instance}}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "NO LEADER", "color": "red" }, "1": { "text": "leader ok", "color": "green" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+          }
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "etcd leader changes (1h window)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "increase(etcd_server_leader_changes_seen_total[1h])",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 3 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" },
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max"] }
+          }
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "etcd WAL fsync p99",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "histogram_quantile(0.99, sum by (le, instance) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.05 },
+                  { "color": "red", "value": 0.1 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" },
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max"] }
+          }
+        },
+        {
+          "id": 4,
+          "type": "gauge",
+          "title": "etcd DB size vs backend quota",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes",
+              "legendFormat": "{{instance}}",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.8 },
+                  { "color": "red", "value": 0.95 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+          }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "etcd peer round-trip p99",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "histogram_quantile(0.99, sum by (le, instance, To) (rate(etcd_network_peer_round_trip_time_seconds_bucket[5m])))",
+              "legendFormat": "{{instance}} -> {{To}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null }
+                ]
+              }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" },
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max"] }
+          }
+        }
+      ]
+    }
