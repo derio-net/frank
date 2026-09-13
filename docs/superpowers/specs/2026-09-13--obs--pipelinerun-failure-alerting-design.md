@@ -1,7 +1,7 @@
 # PipelineRun Outcome Alerting (Frank)
 
 **Layer:** obs (Frank — one VMServiceScrape under `apps/tekton/manifests/`, two Grafana rules under `apps/grafana-alerting/manifests/`)
-**Status:** Draft
+**Status:** In Progress
 **Date:** 2026-09-13
 **Repo:** `derio-net/frank`
 **Motivated by:** [#790](https://github.com/derio-net/frank/issues/790) — `stoa-status-bridge` failed **100% of its runs for 39 days** (2026-08-02 → 2026-09-10, 298 PipelineRuns) and nothing anywhere registered it. Found by eye, from the pod count. Root cause of the bridge failure itself is fixed in #789; this spec closes the detection gap that let it run.
