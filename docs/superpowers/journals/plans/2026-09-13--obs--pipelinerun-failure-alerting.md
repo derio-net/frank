@@ -40,10 +40,12 @@ fr plan edit --complete-phase 1 warned that acceptance row 'pipelinerun-outcomes
 
 A VMServiceScrape discovers targets through a SERVICE's Endpoints; it never looks at a Deployment. The failure message said 'the tekton-pipelines-controller Deployment's labels', which is wrong in exactly the place someone reads it — while debugging a scrape that is not selecting. Behaviourally harmless, but the message is the documentation at the moment it matters most. Reworded to name the Service and the Endpoints mechanism. Verified alongside: the selector matches exactly ONE Service in tekton-pipelines (tekton-pipelines-webhook and tekton-events-controller carry different app labels), so there is no accidental second target.
 
-<!-- fr:journal kind=finding scope=plan id=review-p1-deploy-time-false-positive created=2026-09-13T22:43:58 phase=1 state=open -->
-### review-p1-deploy-time-false-positive · finding [open] · The github-pull-sync dead-man will probably fire once at deploy time — phase 3 must say so (phase 1)
+<!-- fr:journal kind=finding scope=plan id=review-p1-deploy-time-false-positive created=2026-09-13T22:43:58 phase=1 state=fixed -->
+### review-p1-deploy-time-false-positive · finding [fixed] · The github-pull-sync dead-man will probably fire once at deploy time — phase 3 must say so (phase 1)
 
 The spec documents a post-restart false-positive window for layer-25-pipeline-idle-github-pull-sync but missed its FIRST and most certain instance: the moment the scrape goes live. Before the first github-pull-sync run is scraped there is no series at all, so 'or vector(0)' reads 0, 'lt 1' is true, and after for:2h the rule fires. At 10.4 runs/day the mean gap between runs is ~2.3h, so this is roughly a coin flip on any given deploy — not a rare edge. stoa-status-bridge is unaffected (148/day, first run inside ~10 minutes, for:1h). Carrying forward: phase 3 step P3.T1.S2 now requires the rule comment to name the deploy-time case explicitly alongside the restart case, and phase 5 step P5.T2.S3 now tells the operator to expect it and to treat it as resolved once the first run lands rather than as a defect. Left open until phase 3 lands the comment.
+
+**Fixed (phase 3):** the layer-25-pipeline-outcomes group comment and the block comment directly above the two idle rules in `apps/grafana-alerting/manifests/alert-rules-cm.yaml` now name DEPLOY TIME explicitly as the certain false-positive case (no series exists before the first scrape, so `or vector(0)` reads 0 and the rule fires after its `for` window) alongside CONTROLLER RESTART as the same mechanism, quantify github-pull-sync's exposure (~half of deploys, ~1 in 10 restarts at the observed cadence) and state both self-clear on the first post-event run. No rule-shape change was needed — only the comment was missing this case.
 
 <!-- fr:journal kind=decision scope=plan id=ba2a677a78af created=2026-09-13T22:56:02 phase=2 -->
 ### ba2a677a78af · decision · no-refactor-because: P2.T3 (phase 2)
@@ -64,3 +66,8 @@ Shipped as 'Pipeline failing with no successes'; every other layer-tracker rule 
 ### review-p2-invalid-tkn-flag · finding [fixed] · The runbook shipped a tkn invocation that does not exist (phase 2)
 
 Shipped 'tkn pipelinerun logs -n tekton-pipelines -p <pipeline> --last'. 'tkn pipelinerun logs' has no -p flag — that belongs to 'tkn pipeline logs <name>', a different subcommand. The command would have failed on the spot for anyone who ran it, and a runbook is read under pressure, so a wrong command costs more than no command. tkn itself is legitimate here (the layer-22 operating post documents 'tkn pipelinerun logs -n tekton-pipelines --last'), so the fix keeps it and corrects the subcommand: 'tkn pipeline logs <pipeline> -n tekton-pipelines --last'. Also added --sort-by=.metadata.creationTimestamp to the kubectl half, since the useful run is the most recent and the default ordering is not chronological.
+
+<!-- fr:journal kind=decision scope=plan id=9de08f9f9ae6 created=2026-09-13T23:09:17 phase=3 -->
+### 9de08f9f9ae6 · decision · no-refactor-because: P3.T2 (phase 3)
+
+test_each_idle_rule_carries_a_zero_fallback and test_the_idle_rules_fire_below_a_floor_not_above_a_ceiling are regression tripwires for a shape P3.T1.S2 already wrote correctly; both went GREEN immediately, nothing to extract.

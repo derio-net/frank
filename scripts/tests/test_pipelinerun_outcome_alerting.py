@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from typing import Any
 
 import yaml
@@ -346,3 +347,183 @@ def test_the_failure_threshold_lives_in_the_query_not_in_the_expression_threshol
         f"{FAILURE_RATIO_UID} refId-C evaluator must be {{type: gt, params: "
         f"[0]}} — \"did A return anything at all\" — got: {evaluators!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The idle dead-man rules — one per watched pipeline, same group.
+# ---------------------------------------------------------------------------
+
+IDLE_UID_STOA_STATUS_BRIDGE = "layer-25-pipeline-idle-stoa-status-bridge"
+IDLE_UID_GITHUB_PULL_SYNC = "layer-25-pipeline-idle-github-pull-sync"
+IDLE_UID_PREFIX = "layer-25-pipeline-idle-"
+
+PIPELINES_DIR = REPO / "apps" / "tekton" / "pipelines"
+
+
+def _idle_rules() -> dict[str, dict[str, Any]]:
+    """Return every feature-health rule whose uid starts with
+    `layer-25-pipeline-idle-`, keyed by uid.
+
+    Mirrors `_rule_by_uid` above; extracted (P3.T1.S3) so tasks 2 and 3
+    don't each re-walk the provisioning document looking for the same two
+    rules.
+    """
+    found: dict[str, dict[str, Any]] = {}
+    for group in _provisioning_document().get("groups", []):
+        for rule in group.get("rules", []):
+            uid = rule.get("uid", "")
+            if uid.startswith(IDLE_UID_PREFIX):
+                enriched = dict(rule)
+                enriched["_group"] = group.get("name")
+                enriched["_folder"] = group.get("folder")
+                found[uid] = enriched
+    return found
+
+
+def test_each_idle_rule_watches_exactly_one_pipeline():
+    """The obvious shape is broken in a way that passes review.
+
+    A single rule of the shape
+    `sum by (pipeline) (increase(...{pipeline=~"a|b"}[24h])) or vector(0)`
+    looks like a dead-man for both watched pipelines and is not one.
+    `vector(0)` produces a series with NO labels, and PromQL's `or` returns
+    its right-hand side only where the left has no matching series AT ALL.
+    If `stoa-status-bridge` still has a series and `github-pull-sync` does
+    not, the left side is non-empty, the union keeps it unchanged, and the
+    dead pipeline contributes nothing to the result. It would be a switch
+    that only fires when BOTH watched pipelines die simultaneously — which
+    is exactly the failure mode a per-pipeline dead-man exists to avoid.
+
+    So this asserts the split itself, not just that alerting "exists":
+    exactly two idle rules, each carrying exactly one `pipeline="..."`
+    equality selector and NO `pipeline=~` regex selector.
+    """
+    rules = _idle_rules()
+
+    assert set(rules) == {IDLE_UID_STOA_STATUS_BRIDGE, IDLE_UID_GITHUB_PULL_SYNC}, (
+        f"expected exactly two idle rules, {IDLE_UID_STOA_STATUS_BRIDGE!r} and "
+        f"{IDLE_UID_GITHUB_PULL_SYNC!r}, got uids: {sorted(rules)}"
+    )
+
+    for uid, rule in rules.items():
+        expr = _query_expr(rule)
+        assert "pipeline=~" not in expr, (
+            f"{uid} refId-A expression must not use a `pipeline=~` regex "
+            "selector — that is the broken one-rule-with-a-regex shape "
+            f"documented above. Got: {expr!r}"
+        )
+        equality_matches = re.findall(r'pipeline="[^"]+"', expr)
+        assert len(equality_matches) == 1, (
+            f"{uid} refId-A expression must contain exactly ONE "
+            f'`pipeline="..."` equality selector, got {equality_matches!r} '
+            f"in: {expr!r}"
+        )
+
+
+def test_each_idle_rule_carries_a_zero_fallback():
+    """`or vector(0)`, over a bare `sum(` — not `sum by (`.
+
+    Both halves matter and the second is the subtle one. `sum()` over an
+    absent series returns an EMPTY vector, not zero, which is the only
+    condition under which `or vector(0)` engages. Add `by (pipeline)` and
+    the aggregation still returns empty for an absent series — but a
+    reviewer reading `sum by (pipeline) (...) or vector(0)` sees a labelled
+    fallback that does not exist, which is exactly how the broken
+    one-rule-with-a-regex shape (see
+    `test_each_idle_rule_watches_exactly_one_pipeline`) survived the first
+    draft. Asserting the bare `sum(` keeps the rule readable as what it is.
+
+    Without the fallback, the one state the dead-man exists to detect
+    produces no data, `noDataState: OK` swallows it, and the switch is
+    silently disarmed — the same defect class as the `longhorn-manager-.*`
+    selector that matched nothing and passed every structural assertion.
+
+    Expected GREEN immediately — P3.T1.S2 already wrote the fallback when
+    it wrote the rules. This is a regression tripwire, not a red/green
+    pair (plan journal: `no-refactor-because: P3.T2`).
+    """
+    for uid, rule in _idle_rules().items():
+        expr = _query_expr(rule)
+        assert "or vector(0)" in expr, (
+            f"{uid} refId-A expression must fall back to `or vector(0)` — "
+            "without it an absent series produces no data at all, which "
+            f"`noDataState: OK` swallows silently. Got: {expr!r}"
+        )
+        assert "sum by (" not in expr, (
+            f"{uid} refId-A expression must aggregate with a bare `sum(`, "
+            "not `sum by (...)` — a labelled aggregation still collapses "
+            "to empty over an absent series (so the rule would still "
+            "work), but reads as carrying a fallback that isn't actually "
+            f"reachable. Got: {expr!r}"
+        )
+        assert re.search(r"\bsum\(", expr), (
+            f"{uid} refId-A expression must aggregate with `sum(` at all, "
+            f"got: {expr!r}"
+        )
+
+
+def test_the_idle_rules_fire_below_a_floor_not_above_a_ceiling():
+    """A dead-man counting RUNS is a floor question: `lt 1`, not `gt 0`.
+
+    `frank-gotchas.md` records that `gt 0` is the convention for
+    UNAVAILABILITY COUNTERS in this folder and explicitly warns against
+    generalising it — folder-wide there are 27 `gt` against 12 `lt`, and
+    probes, heartbeats and cert countdowns all ask "below a floor?".
+    "Tidying" this rule to `gt 0` would invert it into one that fires
+    whenever the pipeline is healthy and goes silent when it dies.
+    """
+    for uid, rule in _idle_rules().items():
+        condition_c = next(
+            (datum for datum in rule.get("data", []) if datum.get("refId") == "C"),
+            None,
+        )
+        assert condition_c is not None, f"{uid} has no refId-C condition"
+        conditions = condition_c.get("model", {}).get("conditions", [])
+        evaluators = [c.get("evaluator") for c in conditions]
+        assert {"type": "lt", "params": [1]} in evaluators, (
+            f"{uid} refId-C evaluator must be {{type: lt, params: [1]}} — "
+            f"a floor, not a ceiling — got: {evaluators!r}"
+        )
+
+
+def test_every_watched_pipeline_exists_in_the_repo():
+    """The `cilium-.*` / `longhorn-manager-.*` lesson, re-applied here.
+
+    A selector that matches nothing returns no series, passes every
+    structural assertion, and is a rule deleted in all but name — and
+    under `noDataState: OK` it is perfectly quiet about it. Matching the
+    metric label against the Pipeline resource committed in git is the
+    only offline check that can catch a rename or deletion — a live
+    cluster check would also work, but this file's guards stay offline by
+    convention.
+    """
+    for uid, rule in _idle_rules().items():
+        expr = _query_expr(rule)
+        matches = re.findall(r'pipeline="([^"]+)"', expr)
+        assert len(matches) == 1, (
+            f"{uid} refId-A expression must name exactly one pipeline by "
+            f"equality, got {matches!r} in: {expr!r}"
+        )
+        pipeline_name = matches[0]
+
+        pipeline_manifest = PIPELINES_DIR / f"{pipeline_name}.yaml"
+        assert pipeline_manifest.exists(), (
+            f"{uid} watches pipeline {pipeline_name!r}, but "
+            f"{pipeline_manifest} does not exist — a renamed or deleted "
+            "Pipeline resource silently disarms this dead-man rather than "
+            f"failing a PR. Files present in {PIPELINES_DIR}: "
+            f"{sorted(p.name for p in PIPELINES_DIR.glob('*.yaml'))}"
+        )
+
+        manifest = _load_yaml(pipeline_manifest)
+        assert manifest.get("kind") == "Pipeline", (
+            f"{pipeline_manifest} must be a Pipeline resource, got "
+            f"{manifest.get('kind')!r}"
+        )
+        actual_name = manifest.get("metadata", {}).get("name")
+        assert actual_name == pipeline_name, (
+            f"{uid} watches pipeline {pipeline_name!r} via its metric "
+            f"selector, but {pipeline_manifest} declares metadata.name: "
+            f"{actual_name!r} — these must match, or the rule is watching "
+            "a name the Pipeline resource no longer carries."
+        )
