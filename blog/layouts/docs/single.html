@@ -26,7 +26,7 @@
           {{ if site.Params.reader.enabled }}
           {{ with or .Params.summary .Description }}<p class="reader-summary">{{ . }}</p>{{ end }}
           {{ partial "reader/meta.html" . }}
-          {{ if not (in .Params.series "operating") }}{{ with $cover }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}{{ end }}
+          {{/* Every series shows its cover; upstream skipped the operating series and the operator wants them back. */}}{{ with $cover }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}
           {{ end }}
           <div data-article-body>{{ .Content }}{{ if and site.Params.reader.enabled (in .Params.series "papers") }}{{ partial "papers/references.html" . }}{{ end }}</div>
         </div>
