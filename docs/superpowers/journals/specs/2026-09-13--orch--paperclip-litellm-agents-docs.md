@@ -48,3 +48,8 @@ fr 4.2.1 appends at the wrong indentation and rolls back; the matrix is intact (
 ### r1-spec-review · review · Spec review against Q&A and codebase reality
 
 All four decisions reflected. Codebase checks: configmap-opencode.yaml, configmap-hermes.yaml, building/16-media-generation exist; apps/paperclip-extras does NOT (building References cited it) -> fixed. MOTD tip also fires on a missing PVC opencode copy -> operating cold-PVC text corrected. Building post lacked a what-transfers section (pre-existing lint warning) -> added. Em-dash density fell vs main on both posts (28.5->22.8, 24.2->16.4).
+
+<!-- fr:journal kind=discovery scope=spec id=g7-acceptance-added created=2026-09-13T22:16:16 -->
+### g7-acceptance-added · discovery · Supersedes g6: acceptance row added via an indent/add/dedent round-trip around super-fr#470
+
+The matrix is flush-left (66 rows at column 0), which is exactly the #470 trigger. I indented the rows two spaces, let fr acceptance add write and validate the row, then stripped the indent back. Verified with PyYAML: non-row keys unchanged, the first 66 rows identical, exactly one row appended; git diff shows 14 added and 0 removed lines. A permanent re-indent was rejected because open PRs #794 and #762 also edit the matrix. fr acceptance check still exits 1 on 13 pre-existing staleness errors; none cite this spec.

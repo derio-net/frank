@@ -1,0 +1,39 @@
+schema_version: 2
+phase:
+  number: 3
+  title: 'Rebase after #787 merges and reach green CI'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: 'Rebase onto main once #787 lands'
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Red: confirm the failing baseline. `gh run view` on #382's blog-validate shows `MERMAID LAYOUT CHECK FAILED — 5 of 186`, none from this PR. Poll `gh pr view 787 --json state` until `MERGED`.
+  - id: P3.T1.S2
+    text: |
+      Green: `git fetch origin && git rebase origin/main`. Resolve any conflict in building/15-paperclip frontmatter (#787 adds a `description:` line) by keeping both. Re-run the phase 1 gate suite, then `git push --force-with-lease`.
+  - id: P3.T1.S3
+    text: |
+      Refactor: watch `gh pr checks 382` until blog-validate, build-pages and tripwires are all SUCCESS. If any fails, fix it and re-push rather than waiving.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

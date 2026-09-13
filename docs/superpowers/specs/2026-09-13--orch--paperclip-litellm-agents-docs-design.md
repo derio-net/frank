@@ -3,6 +3,12 @@
 **Layer:** orch · **Kind:** layer extension (docs-only) · **PR:** derio-net/frank#382
 **Branch:** `chore/paperclip-doc-touchups`
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-09-13--orch--paperclip-litellm-agents-docs | `derio-net/frank` | `2026-09-13--orch--paperclip-litellm-agents-docs` | — |
+
 ## Goal
 
 PR #382 appended two old-layout sections to the Paperclip posts. They document how
