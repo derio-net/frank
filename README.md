@@ -4,7 +4,7 @@
 
 Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware, managed with GitOps via ArgoCD.
 
-**Blog:** [Building Frank, the Talos Cluster](https://derio-net.github.io/frank/) — A tutorial series documenting the build process.
+**Blog:** [Building Frank, the Talos Cluster](https://blog.derio.net/frank/) — A tutorial series documenting the build process.
 
 ## Architecture
 

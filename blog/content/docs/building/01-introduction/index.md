@@ -10,6 +10,7 @@ weight: 2
 reader_goal: "Decide whether this cluster architecture suits your own homelab goals and map its two-layer management model"
 diataxis: explanation
 last_updated: 2026-08-01
+description: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building interesting projects on your own hardware."
 ---
 
 I knew Kubernetes from the cloud. {{< abbr "EKS" >}}, {{< abbr "GKE" >}} — they hand you a cluster with networking, storage, and GPU scheduling already wired. You push a manifest, it works, and you have no idea how. The abstraction is the point if your job is shipping features. But if your job is understanding infrastructure, the abstraction is the obstacle.

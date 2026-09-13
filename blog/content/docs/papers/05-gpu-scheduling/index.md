@@ -30,6 +30,7 @@ tags: ["gpu", "nvidia", "intel", "dra", "kubernetes"]
 capabilities: ["gpu"]
 related_building: "docs/building/04-gpu-compute"
 related_operating: "docs/operating/04-gpu-compute"
+description: "GPU scheduling on Kubernetes is a four-job problem — driver lifecycle, device discovery, allocation, partitioning — and the six contenders in 2026 (NVIDIA GPU Operator, Intel…"
 ---
 
 ## TL;DR

@@ -28,6 +28,7 @@ tags: ["secrets", "infisical", "external-secrets", "sops", "vault", "kubernetes"
 capabilities: ["secrets"]
 related_building: "docs/building/09-secrets"
 related_operating: "docs/operating/06-secrets"
+description: "Secrets management is a five-job problem — storage, distribution, rotation, audit, and the bootstrap chicken-and-egg — and the six contenders in 2026 (Infisical, ESO +…"
 ---
 
 ## TL;DR
@@ -596,8 +597,8 @@ the audit fines avoided.
 
 The third branch is cloud lock-in. A workload running exclusively on
 AWS has the cloud's identity system available for free, IRSA solves
-the bootstrap loop without any out-of-band step, and Secrets Manager
-+ CSI is the lowest-friction answer in the landscape — *provided you
+the bootstrap loop without any out-of-band step, and Secrets Manager +
+CSI is the lowest-friction answer in the landscape — *provided you
 are happy to be on AWS forever*. The same applies in shape (with
 different vendor names) on Azure and GCP.
 

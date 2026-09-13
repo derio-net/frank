@@ -60,4 +60,49 @@ The reference image is resolved automatically from `.blog-craft.yaml` (`image.re
 
 ## Deploy
 
-blog-craft does not ship a deploy pipeline. Pick whatever fits — GitHub Pages, Netlify, Cloudflare Pages, or container-into-cluster (Frank's pattern). The static site is whatever `hugo --minify` produces in `public/`.
+blog-craft does not ship a deploy pipeline. Pick whatever fits — GitHub Pages, Netlify, Cloudflare Pages, or container-into-cluster (Frank's pattern). Build with `python3 scripts/build-site.py` and deploy the complete `public/` directory. This includes the configured agent exports; plain `hugo` alone does not create the Markdown endpoints.
+
+## Reader experience and blog-craft ownership
+
+The reader feature is enabled in the repository's `.blog-craft.yaml`. Curated
+starting points and topic mappings live in `blog/data/reader.yaml`; the home,
+About and topic pages are ordinary operator-owned content. Edit these locally.
+Reusable layouts, CSS, image behavior and the Markdown exporter are supplied by
+blog-craft. Keep changes to framework-owned templates upstream so `/update` does
+not overwrite them. Hugo configuration and CSS are three-way merged; commit
+`.blog-craft.sync.yaml` with each successful update.
+
+Build from `blog/` with `python3 scripts/build-site.py`, then run
+`python3 scripts/check_blog_reader.py blog/public` from the repository root.
+GitHub Pages and the container deploy the same rendered pages and exports. The
+canonical URL is `https://blog.derio.net/frank/`, including when mirrored on
+GitHub Pages. The committed Hextra module pin remains authoritative.
+
+The new public endpoints are `content-index.json`, `llms.txt`, and a rendered
+`index.md` beside each published regular page. RSS is at `index.xml`. The catalog
+includes summaries, canonical URLs, source paths, series/layers, editorial dates,
+optional evidence fields and a digest of each complete Markdown response. It does
+not include private dossiers, drafts or future/expired content. Paper exports do
+include their public reference lists. A plain `hugo` preview does not generate
+Markdown: use the build helper when checking those links.
+
+Write a concise frontmatter `description` for new articles. Add `last_verified`,
+`tested_versions`, `prerequisites` and `commands_change_state` only when supported
+by actual checks. `last_updated` is an editorial date, not evidence of runtime
+verification. Missing verification is represented explicitly; no existing posts
+were assigned invented verification dates. LinkedIn generation remains deferred.
+
+`Caddyfile` enables gzip/Zstandard compression, five-minute content caching and
+one-year immutable caching for fingerprinted assets only. Verify actual transfer
+sizes and browser performance on the deployed origin after review and release.
+
+### Companion upstream change
+
+The reader experience shipped upstream as blog-craft v0.22.0 (derio-net/blog-craft#86);
+frank's four consumer divergences followed as v0.22.2 (derio-net/blog-craft#87), and
+frank is synced to **v0.22.2** (`blog_craft_version`) with no local edits to
+framework-owned files. `scripts/tests/test_reader_layout_local_fixes_present.py`
+keeps asserting the shapes that were once frank-only, so a regression on either
+side fails the tripwires job. Run the updater from a blog-craft checkout at or
+above the pinned release, never from an older installed plugin. The general
+"consumers evolve framework files" problem is derio-net/blog-craft#88.

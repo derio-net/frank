@@ -10,6 +10,7 @@ weight: 8
 reader_goal: "Deploy VictoriaMetrics, VictoriaLogs, and Fluent Bit on a Talos cluster and troubleshoot the three most common deployment pitfalls"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Deploying a resource-efficient observability stack with VictoriaMetrics, VictoriaLogs, and Grafana — and the three gotchas that made it interesting."
 ---
 
 A cluster without observability is a box of mystery. Pods crash silently. Memory leaks hide behind restart counts. Network blips become finger-pointing exercises. Layer 7 fixes that: a full metrics and logging stack built around VictoriaMetrics, VictoriaLogs, and Grafana, managed by ArgoCD, backed by Longhorn storage.

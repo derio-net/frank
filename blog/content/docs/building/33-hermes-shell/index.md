@@ -10,6 +10,7 @@ weight: 34
 reader_goal: "Rebuild an agent pod on the official upstream image with three containers, self-hosted Hindsight memory backend, and five layered failure fixes"
 diataxis: tutorial
 last_updated: 2026-07-16
+description: "Retiring the custom agent-shell image and rebuilding hermes on Nous Research's official hermes-agent image as a three-container pod — bare official image, an SSH sidecar, and a…"
 ---
 
 The hermes shell that first answered a question on 2026-06-06 was scaffolding wrapped around a small CLI. It ran on the custom `agent-shell-base` lineage, carrying two patches: a relocatable-venv-on-{{< abbr "PVC" >}} dance and an auto-continue gate-widening patch. Both were real fixes. Both were mine to re-apply forever.

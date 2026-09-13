@@ -142,8 +142,7 @@ jobs:
 
       - name: Hugo build
         working-directory: blog
-        run: hugo --minify
-
+        run: python3 scripts/build-site.py
       # Mermaid width gate: a diagram measuring wider than 1400px fails
       # CI (waive one with a `%% blog-craft: wide-ok — …` comment inside the
       # fence). Needs public/ to exist, so it runs after the Hugo build step

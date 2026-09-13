@@ -31,6 +31,7 @@ tags: ["edge", "headscale", "cloudflare-tunnel", "tailscale", "talos", "caddy", 
 capabilities: ["edge"]
 related_building: "docs/building/17-public-edge"
 related_operating: "docs/operating/11-public-edge"
+description: "Public exposure from a home cluster is a five-job problem: NAT traversal, TLS termination, DNS, reverse proxy, mesh coordination. The 2026 vendor space splits on one question —…"
 ---
 
 ## TL;DR
@@ -38,13 +39,13 @@ related_operating: "docs/operating/11-public-edge"
 Public exposure from a home cluster is a five-job problem: {{< abbr "NAT" >}} traversal,
 {{< abbr "TLS" >}} termination, DNS, reverse proxy, mesh coordination. The 2026 vendor
 space splits on one question — cede the edge to someone else (Cloudflare
-Tunnel, Tailscale Funnel, ngrok) or run your own (tiny {{< abbr "VPS" >}} with Headscale
-+ Caddy, or a multi-region cluster with Rancher Fleet).
+Tunnel, Tailscale Funnel, ngrok) or run your own (tiny {{< abbr "VPS" >}} with Headscale +
+Caddy, or a multi-region cluster with Rancher Fleet).
 
 Frank runs the middle path: a single-node Talos cluster called Hop on a
 Hetzner CX23 (~€5/month), Caddy on hostPort 80/443 terminating TLS via
-Cloudflare DNS-01, Headscale as mesh control plane. The scars: hostPort
-+ RollingUpdate deadlocks, a Headplane v0.5 rewrite that silently dropped
+Cloudflare DNS-01, Headscale as mesh control plane. The scars: hostPort +
+RollingUpdate deadlocks, a Headplane v0.5 rewrite that silently dropped
 env-var config, Tailscale needing kernel mode for source-IP visibility.
 
 Frank's answer doesn't generalize. One blog → Cloudflare Tunnel.

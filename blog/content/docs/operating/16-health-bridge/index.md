@@ -11,6 +11,7 @@ reader_goal: "Test the alert-to-GitHub webhook path, manage alert rule labels fo
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for managing the health-bridge service — testing webhooks, managing alert labels, recovering stranded board tiles, and auto-closing healed bug issues."
 ---
 
 {{< last-updated >}}

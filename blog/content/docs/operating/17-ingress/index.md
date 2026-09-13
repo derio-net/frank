@@ -11,6 +11,7 @@ reader_goal: "Diagnose a failing ingress route, renew a TLS certificate, and res
 diataxis: [how-to, reference]
 last_updated: 2026-08-03
 last_updated_commit: https://github.com/derio-net/frank/commit/99baf9dc
+description: "Checking Traefik routes, renewing ACME certificates, restarting Homepage, and debugging HTTP routing failures."
 ---
 
 {{< last-updated >}}

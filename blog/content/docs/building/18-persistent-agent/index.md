@@ -10,6 +10,7 @@ weight: 19
 reader_goal: "Deploy a persistent Kali container on gpu-1 with SSH access, PVC-backed home directory, and headless Claude Code sessions"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Deploying a persistent Kali Linux container on gpu-1 as an always-on Claude Code workstation — because laptops sleep and mobile apps have limits."
 ---
 
 My laptop is not always online. The Claude mobile app is useful but cannot run terminal commands, install tools, or maintain a persistent workspace. This post covers deploying a persistent Kali Linux container on gpu-1 as an always-on development workstation, accessible via SSH from anywhere on the network.

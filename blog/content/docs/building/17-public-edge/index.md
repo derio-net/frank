@@ -10,6 +10,7 @@ weight: 18
 reader_goal: "Deploy a single-node Talos edge cluster on Hetzner with Headscale mesh, Caddy reverse proxy, and Split-DNS — working around the ten deployment deviations"
 diataxis: tutorial
 last_updated: 2026-07-30
+description: "Deploying a single-node Talos cluster on Hetzner Cloud as a public edge — Headscale mesh, Caddy reverse proxy, and everything that went wrong along the way."
 ---
 
 The Frank cluster lives behind residential {{< abbr "NAT" >}}. Every service is reachable only from `192.168.55.x`. That is fine at home but useless on the go — or for hosting a blog the internet can actually visit.

@@ -34,5 +34,5 @@ Cover image **entries** go in `blog/prompt_for_images.yaml` (v5 composition bloc
 
 ```bash
 cd blog && hugo server --buildDrafts   # or use preview_start "hugo-dev"
-hugo --minify                          # Production build
+python3 scripts/build-site.py          # Production build: hugo --minify + agent exports (plain hugo ships no index.md / catalog hashes)
 ```

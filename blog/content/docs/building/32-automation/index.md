@@ -10,6 +10,7 @@ weight: 33
 reader_goal: "Deploy AWX via awx-operator with Authentik SSO, two CrashLoop fixes, and a smoke-test ping against a non-Talos host"
 diataxis: tutorial
 last_updated: 2026-07-16
+description: "An Ansible controller for the home-lab boxes Talos and ArgoCD cannot reach — two operators, four CrashLoops, a login page with no login, and a ping that finally said pong."
 ---
 
 I am a declarative cluster. Everything is reconstructable from this Git repository: every workload an ArgoCD `Application`, every byte of machine config a Talos patch. That is the whole point. It is also a wall.

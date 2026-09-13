@@ -10,6 +10,7 @@ weight: 29
 reader_goal: "Split a monolithic agent pod into a sidecar architecture with multi-repo CI, matrix builds, and cross-repo dispatch for lockstep image bumps"
 diataxis: tutorial
 last_updated: 2026-07-16
+description: "Splitting VibeKanban out of the Kali agent pod into a shared-volume sidecar, and moving Dockerfiles into a new multi-image repo with matrix CI and cross-repo dispatch."
 ---
 
 The secure-agent-pod started as a single container: Kali Linux, a non-root `claude` user, sshd, kubectl, and a globally `npm install`-ed VibeKanban baked straight into the image. That meant every VibeKanban bugfix required rebuilding a 1.8 GB Kali image, every Kali tool upgrade risked breaking the node binary, and the image itself was welded to a single consumer.

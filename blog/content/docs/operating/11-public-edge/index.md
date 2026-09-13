@@ -10,6 +10,7 @@ weight: 12
 reader_goal: "Manage Hop day-to-day: talosctl, Headscale mesh operations, Caddy TLS, CrowdSec, and emergency recovery."
 diataxis: [how-to, reference]
 last_updated: 2026-07-30
+description: "Managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and CrowdSec."
 ---
 
 {{< last-updated >}}

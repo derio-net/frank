@@ -11,6 +11,7 @@ reader_goal: "Query metrics and logs, diagnose missing data, and fix alert deliv
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for querying metrics and logs, managing Grafana dashboards, debugging alert delivery failures, and fixing the observability pipeline on Frank."
 ---
 
 {{< last-updated >}}

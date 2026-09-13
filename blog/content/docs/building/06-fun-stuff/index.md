@@ -11,6 +11,7 @@ reader_goal: "Understand how to expose USB HID devices to Kubernetes pods and wh
 diataxis: explanation
 quality_exempt: "Novelty layer with no operational surface. The LEDs are firmware write-locked, so there is nothing to verify, restart or recover: no alert rule references OpenRGB, docs/runbooks/manual-operations.yaml has no entry for it, and scripts/ has no test guarding it. A verification section here would be manufactured rather than found."
 last_updated: 2026-07-28
+description: "The most over-engineered RGB setup — controlling ARGB case fans from a Kubernetes DaemonSet via USB HID."
 ---
 
 Every serious infrastructure project needs a completely unnecessary feature. This was ours: controlling the ARGB LED fans on gpu-1 from a Kubernetes DaemonSet, managed by ArgoCD, triggered by a git push. GitOps for RGB.

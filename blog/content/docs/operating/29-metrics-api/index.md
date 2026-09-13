@@ -10,6 +10,7 @@ weight: 30
 reader_goal: "Verify metrics-server health, add a CPU/mem HPA, and diagnose an empty kubectl top."
 diataxis: [how-to, reference]
 last_updated: 2026-08-03
+description: "How to check the resource Metrics API is healthy, add a CPU/mem HPA, and diagnose the one failure mode where the pod is Ready but top is empty."
 ---
 
 {{< last-updated >}}
