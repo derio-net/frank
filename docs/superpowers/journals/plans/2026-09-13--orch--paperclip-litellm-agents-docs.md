@@ -60,3 +60,13 @@ The row already exists; prose now matches 04.yaml.
 ### d-live-poisoned-row · discovery · A poisoned hermes_local session row exists on the live cluster (phase 2)
 
 The corrected detection query (run read-only 2026-09-13) returned one agent_task_sessions row: session_display_id=from, session_params_json={"sessionId": "from"}, last_error=run_failed. This is the exact paperclip#1 stranded shape, left over although no hermes_local agent is hired now. Not cleared: mutating live DB state is the operator's call. It also proves the recipe detects the real failure.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-rebase-one-conflict created=2026-09-13T23:19:04 phase=3 -->
+### p3-rebase-one-conflict · discovery · Rebase onto #787 conflicted only in building/15; operating/18 auto-merged (phase 3)
+
+#787 (0babd93b) touched each post only by adding a description: line. In building/15 that line sits directly after last_updated, so it conflicted; resolved as last_updated 2026-09-13 plus #787's description. In operating/18 the description line lands after last_updated_commit, leaving a context line between hunks, so git merged it cleanly with no conflict (rv9 anticipated one). operating/18 last_updated_commit then set to the rebased head 5279b4c6.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-mermaid-gate-local-chrome created=2026-09-13T23:19:11 phase=3 -->
+### p3-mermaid-gate-local-chrome · discovery · Mermaid layout gate passes 186/186 after #787; locally it needs CHROME_BIN (phase 3)
+
+With #787's mermaid 11.16.1 pin in, validate_mermaid_layout.mjs reports MERMAID LAYOUT OK: 186 diagrams across 84 pages, widest 1363px (was 5 failures at 11.17.x). On the Mac it aborts with no Chrome/Chromium executable found, because it only searches PATH names; point CHROME_BIN at the Playwright cache Chrome for Testing binary (disposable headless, not the operator's profile).
