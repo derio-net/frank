@@ -154,6 +154,14 @@ Reverting the ConfigPatch restored the correct desired config but did not recove
 
 Recovery used temporary per-machine ConfigPatches that created a harmless marker under `/var`. The real hash change forced Omni to send each node's full corrected config. After all seven machines were Running, Ready, applied, and config-up-to-date, deleting the temporary patches returned the fleet to the clean legacy desired state. Do not accept one healthy sample: Omni can report config applied immediately before a scheduled reboot. Require every machine at stage 4 for several consecutive samples.
 
+That procedure is now scripted at `scripts/omni-legacy-recovery/` — `force-recovery.sh --dry-run|--apply`, then `wait-recovery.sh`, then `remove-recovery.sh` (see its README). Three things the scripted version fixes relative to the scratch scripts used on the night:
+
+- **The marker content is timestamped.** The mechanism is the config-hash change, so identical content means Omni sees no divergence and resends nothing. The originals hardcoded the string and were hand-bumped `-v1`/`-v2`/`-v3` across attempts — each bump is an attempt that silently did nothing.
+- **Machines are derived from Omni, not hardcoded.** The originals pinned seven UUIDs. Those are hardware-derived and survived the Omni rebuild, so they would still work today — which is the trap: the list keeps working until a node is replaced, then silently skips it, and the wait loop measures "all recovered" against the wrong denominator.
+- **`wait-recovery.sh` exits non-zero on timeout** and requires `STABLE_SAMPLES` consecutive clean polls, so "not stable yet" cannot be mistaken for success by a script that ignores exit codes.
+
+Guarded by `scripts/tests/test_omni_recovery_tooling.py`, which stubs `omnictl` and asserts on the rendered patches — including that every written path stays under `/var`, since a marker written outside it would re-cause the outage being recovered from.
+
 ## `OMNI_SERVICE_ACCOUNT_KEY` — the `devops` Omni service account (non-interactive auth)
 
 `OMNI_SERVICE_ACCOUNT_KEY` (in `.env_devops`) is what lets `omnictl` and
