@@ -1,0 +1,7 @@
+{{- /* The reader article header — summary, meta, then the cover (operating
+       posts omit decorative covers). ONE copy, shared by the reader bundle's
+       docs/single.html and the papers overlay's, so the two forks cannot drift.
+       Called with the page as context. */ -}}
+{{ with or .Params.summary .Description }}<p class="reader-summary">{{ . }}</p>{{ end }}
+{{ partial "reader/meta.html" . }}
+{{/* frank divergence (pending upstream): every series shows its cover — upstream omits it for the operating series. */}}{{ with .Resources.GetMatch "cover.*" }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}

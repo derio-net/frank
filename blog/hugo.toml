@@ -1,5 +1,4 @@
 baseURL = "https://blog.derio.net/frank/"
-enableRobotsTXT = true
 languageCode = "en-us"
 title = "Frank, the Talos Cluster"
 
@@ -41,18 +40,24 @@ title = "Frank, the Talos Cluster"
     maxWidth = 1600
     bannerMaxWidth = 2560
 
-  # Pin the mermaid bundle Hextra fetches at build time. Its default is
-  # `mermaid@latest`, so diagram layout floated between builds: mermaid 11.17.0
-  # pushed 8 diagrams past the 1400px width gate with no repo change (#787).
-  # 11.16.1 is the release the gate was last green against. Bump deliberately,
-  # rebuild, and re-run validate_mermaid_layout.mjs — never `latest`.
-  # Guarded by scripts/tests/test_mermaid_bundle_pinned.py.
-  [params.mermaid]
-    base = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist"
-
 # `series` must be a taxonomy or Hextra's opengraph partial fails on
 # series-tagged pages (`first 6 $series.Pages`). capabilities/references
 # back the papers content-type's cross-referencing.
+# Hextra's home feed (layouts/list.rss.xml) lists `params.rss.sections`, whose
+# theme default is ["blog"] — a section no blog-craft blog has, so the feed was
+# empty. Posts live under content/docs/<series>/.
+[params.rss]
+  sections = ["docs"]
+
+# Pin the mermaid bundle Hextra fetches at build time (_partials/scripts/mermaid.html
+# GetRemotes `mermaid@latest` by default, so diagram layout floated between builds:
+# mermaid 11.17 pushed 8 of frank's 186 diagrams past the 1400px width gate with
+# no diagram edits — frank#787). Bump deliberately, rebuild, and re-run
+# validate_mermaid_layout.mjs; never `latest`. imageZoom / asciinema / katex have
+# the same `@latest` default in Hextra if a blog turns them on.
+[params.mermaid]
+  base = "https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist"
+
 [taxonomies]
   series = "series"
   capabilities = "capabilities"
@@ -110,7 +115,7 @@ title = "Frank, the Talos Cluster"
     noClasses = false
 
 [outputs]
-  home = ["HTML", "RSS", "JSON", "Catalog", "LLMS"]
+  home = ["HTML", "RSS", "JSON", "Catalog", "llms"]
 
 # Hugo 0.158+ default security.http.urls excludes URLs containing "@", which
 # blocks Hextra's flexsearch CDN load (cdn.jsdelivr.net/npm/flexsearch@<ver>).
@@ -120,9 +125,13 @@ title = "Frank, the Talos Cluster"
     urls = ['(?i)^https?://[a-z]', '! (?i)localhost']
 
 
+# Reader experience (features.reader_experience). The editorial "Updated" date
+# resolves from `last_updated` (which must therefore be a date on a reader
+# blog), then lastmod, then date. Reader blogs only: elsewhere `last_updated`
+# stays the free-text key the {{< last-updated >}} shortcode prints, and
+# Hugo keeps its default chain (incl. :git under enableGitInfo).
 [frontmatter]
   lastmod = ["last_updated", "lastmod", "date"]
-
 
 [params.reader]
   enabled = true
@@ -132,13 +141,14 @@ title = "Frank, the Talos Cluster"
   name = "derio-net"
   url = "https://github.com/derio-net"
 
+# Agent exports. The catalog is blog-craft's; `llms` is Hextra's own output
+# format (it defines it but does not enable it), and the feature's
+# home.llms.txt overrides the theme's generic llms.txt with a catalog-first one.
+# Do NOT add Hextra's `markdown` format to outputs.page: it also writes
+# index.md and would race scripts/export-content.py for the same file.
 [outputFormats.Catalog]
   mediaType = "application/json"
   baseName = "content-index"
-  isPlainText = true
-[outputFormats.LLMS]
-  mediaType = "text/plain"
-  baseName = "llms"
   isPlainText = true
 
 

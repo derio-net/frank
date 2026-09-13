@@ -1,5 +1,4 @@
 {{ if site.Params.reader.enabled }}
-{{ with resources.Get "css/reader.css" }}<link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">{{ end }}
 {{ $image := .Resources.GetMatch "cover.*" }}{{ if not $image }}{{ $image = resources.Get "images/banner-landing.png" }}{{ end }}
 {{/* Hextra's own opengraph partial emits og:image from .Params.images / site.Params.images; emit ours only when neither is set so a page never carries two competing tags. */}}
 {{ if or .Params.images site.Params.images }}{{ $image = nil }}{{ end }}

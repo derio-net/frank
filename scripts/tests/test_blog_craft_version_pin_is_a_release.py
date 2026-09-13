@@ -25,12 +25,9 @@ RELEASE = re.compile(r"v\d+\.\d+\.\d+")
 
 # sha -> why it is tolerated. Delete the row when the re-pin lands.
 EXCEPTIONS = {
-    "362e2be9fe81306eab35f3540fc37f91748e4470": (
-        "head of blog-craft#86 (reader experience), adopted by frank#787 before "
-        "v0.22.0 existed. Re-pin to v0.22.0 as soon as it is tagged, BEFORE the "
-        "branch is deleted; if it already is, the commit is still fetchable via "
-        "`git fetch origin refs/pull/86/head` in a blog-craft clone."
-    ),
+    # (empty since the v0.22.1 re-pin on 2026-09-13; the 362e2be9 row that tracked
+    #  blog-craft#86 pre-merge is retired — the commit is still fetchable via
+    #  `git fetch origin refs/pull/86/head` in a blog-craft clone if ever needed)
 }
 
 

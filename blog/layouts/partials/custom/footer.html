@@ -2,4 +2,4 @@
   Clear read history
 </a>
 
-{{ partial "reader/footer.html" . }}
+{{ if templates.Exists "partials/reader/footer.html" }}{{ partial "reader/footer.html" . }}{{ end }}

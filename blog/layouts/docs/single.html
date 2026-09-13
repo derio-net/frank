@@ -23,12 +23,12 @@
             {{ partial "components/page-context-menu" . }}
           </div>
           {{ end }}
-          {{ if site.Params.reader.enabled }}
-          {{ with or .Params.summary .Description }}<p class="reader-summary">{{ . }}</p>{{ end }}
-          {{ partial "reader/meta.html" . }}
-          {{/* Every series shows its cover; upstream skipped the operating series and the operator wants them back. */}}{{ with $cover }}<div class="post-cover">{{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "eager" "fetchpriority" "high") }}</div>{{ end }}
-          {{ end }}
-          <div data-article-body>{{ .Content }}{{ if and site.Params.reader.enabled (in .Params.series "papers") }}{{ partial "papers/references.html" . }}{{ end }}</div>
+          {{ if site.Params.reader.enabled }}{{ partial "reader/header.html" . }}{{ end }}
+          {{- /* The reader wraps the body so the Markdown exporter can find it (and
+                 carries the references inside it). Without the reader the body
+                 renders exactly as before: no wrapper, references after the
+                 forward links below. */}}
+          {{ if site.Params.reader.enabled }}<div data-article-body>{{ .Content }}{{ if in .Params.series "papers" }}{{ partial "papers/references.html" . }}{{ end }}</div>{{ else }}{{ .Content }}{{ end }}
         </div>
         {{- if in .Params.series "papers" }}
           {{- partial "papers-forwardlinks.html" . }}

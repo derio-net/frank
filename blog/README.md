@@ -60,7 +60,7 @@ The reference image is resolved automatically from `.blog-craft.yaml` (`image.re
 
 ## Deploy
 
-blog-craft does not ship a deploy pipeline. Pick whatever fits — GitHub Pages, Netlify, Cloudflare Pages, or container-into-cluster (Frank's pattern). Build with `python3 scripts/build-site.py` and deploy the complete `public/` directory. This includes configured agent exports; plain `hugo` alone does not create Markdown endpoints.
+blog-craft does not ship a deploy pipeline. Pick whatever fits — GitHub Pages, Netlify, Cloudflare Pages, or container-into-cluster (Frank's pattern). Build with `python3 scripts/build-site.py` and deploy the complete `public/` directory. This includes the configured agent exports; plain `hugo` alone does not create the Markdown endpoints.
 
 ## Reader experience and blog-craft ownership
 
@@ -98,9 +98,13 @@ sizes and browser performance on the deployed origin after review and release.
 
 ### Companion upstream change
 
-This change pins the exact companion blog-craft reader-experience commit. Push
-that branch first; the pin must be reachable in `derio-net/blog-craft` before a
-fresh updater checkout can resolve it. After the upstream change is merged and
-its `v0.22.0` release exists, change the pin to that release, run the updater dry
-run and apply, then commit the refreshed sync snapshot. Do not run the update
-from an older installed blog-craft plugin against this newer pin.
+The reader experience shipped upstream as blog-craft v0.22.0 (derio-net/blog-craft#86),
+and frank is synced to **v0.22.1** (`blog_craft_version`). Three frank-only
+divergences in framework-owned templates are pending an upstream PR and are
+marked `frank divergence (pending upstream)` in the files: covers on operating
+posts (`reader/header.html`), image-aware series tiles
+(`shortcodes/reader-home.html`), and top-level section banners
+(`partials/site-banner.html`); `shortcodes/reader-topics.html` is frank-only and
+unshipped. `scripts/tests/test_reader_layout_local_fixes_present.py` fails the
+tripwires job if an update reverts any of them. Run the updater from a blog-craft
+checkout at or above the pinned release, never from an older installed plugin.

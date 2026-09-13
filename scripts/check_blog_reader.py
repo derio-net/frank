@@ -46,6 +46,13 @@ def check(public):
     assert 'reader-topic-index' in topics and topics.count('reader-chip') >= 4, 'topics index lost its tiles/chips'
     home = (public / 'index.html').read_text(encoding='utf-8')
     assert home.count('reader-series-card') == 3, 'home page must render three series image tiles'
+    # Hextra's menu.js dereferences this container unconditionally: without it the
+    # home page has no mobile nav and no footer theme toggle (frank#787 review).
+    assert 'hextra-sidebar-container' in home, 'home page lost its sidebar container (mobile nav + theme toggle)'
+    # Every docs page with a cover resource renders it — operating posts included.
+    missing = [str(p.relative_to(public)) for p in public.glob('docs/*/*/index.html')
+               if (p.parent / 'cover.png').exists() and 'post-cover' not in p.read_text(encoding='utf-8')]
+    assert not missing, f'pages with a cover.png but no rendered cover: {missing}'
     print(f'OK: {len(markdown_paths)} canonical Markdown exports, hashes, share images and populated RSS')
 
 
