@@ -21,9 +21,10 @@ spec:
       targetRevision: {{ .Values.targetRevision }}
       ref: values
   destination:
-    # Deploys INTO the staging vCluster (registered as an ArgoCD external cluster;
-    # the cluster credential is created out-of-band — see the staging-gate manual phase).
-    server: https://staging.vcluster-staging.svc:443
+    # Deploys INTO the staging vCluster, addressed BY NAME (like cnc-staging) —
+    # it is registered out-of-band as ArgoCD cluster 'staging' (the cluster
+    # credential is created out-of-band — see the staging-gate manual phase).
+    name: staging
     namespace: runs-fr
   syncPolicy:
     automated:
