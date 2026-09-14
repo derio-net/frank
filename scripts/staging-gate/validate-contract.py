@@ -30,9 +30,18 @@ REQUIRED: dict[str, type] = {
     "stagingValuesPath": str,  # frank path to the staging values file (image.tag bumped here)
     "smokeImage": str,     # in-cluster smoke-test image (exit 0 = pass)
     "smokeNamespace": str,  # namespace in the staging vCluster to run the smoke Job
-    "prodApp": str,        # ArgoCD Application name for prod (promote target)
-    "prodValuesPath": str,  # frank path to the prod values file
-    "prodValuesKey": str,  # dotted key in prodValuesPath to bump on promote (e.g. image.tag)
+    "smokeRbacUrl": str,   # the app's smoke RBAC manifest, containing the literal {sha}
+    "promotedRecordPath": str,  # frank path to the gate-owned last-green record
+}
+
+# Retired by the 2026-09-14 spec revision: runs-fr has no prod app yet, so promote
+# now records the last-green sha at `promotedRecordPath` instead of bumping a
+# not-yet-existing prod values file. See the Revision table in
+# docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md.
+RETIRED: dict[str, str] = {
+    "prodApp": "replaced by 'promotedRecordPath' (spec revision 2026-09-14)",
+    "prodValuesPath": "replaced by 'promotedRecordPath' (spec revision 2026-09-14)",
+    "prodValuesKey": "replaced by 'promotedRecordPath' (spec revision 2026-09-14)",
 }
 
 REGISTRY_GLOB = "apps/staging-gate/registry/*.yaml"
@@ -51,6 +60,13 @@ def validate_one(path: str) -> list[str]:
             errs.append(f"{path}: missing required key '{key}'")
         elif not isinstance(doc[key], typ) or (typ is str and not doc[key].strip()):
             errs.append(f"{path}: key '{key}' must be a non-empty {typ.__name__}")
+    for key, reason in RETIRED.items():
+        if key in doc:
+            errs.append(
+                f"{path}: key '{key}' is retired and must be removed — {reason}. "
+                "See docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md "
+                "(Revision 2026-09-14 table)."
+            )
     return errs
 
 

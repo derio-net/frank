@@ -10,9 +10,10 @@ stagingApp: runs-fr-staging
 stagingValuesPath: apps/staging-gate/runs-fr/staging-values.yaml
 smokeImage: ghcr.io/derio-net/runs-fr-smoke
 smokeNamespace: runs-fr
-# Promote target — the runs-fr PROD wiring is a PAIRED FOLLOW-UP (Authentik/Ingress/
-# homepage). The contract records the target now; the promote task bumps prodValuesKey
-# in prodValuesPath once that app exists. The validator checks shape, not target existence.
-prodApp: runs-fr
-prodValuesPath: apps/runs-fr/values.yaml
-prodValuesKey: image.tag
+# The smoke Job's RBAC manifest, fetched pinned to the gated sha at run time.
+# {sha} is a literal placeholder — phase 9's run-smoke task substitutes it.
+smokeRbacUrl: https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml?ref={sha}
+# Promote records last-green — the runs-fr PROD wiring is a PAIRED FOLLOW-UP
+# (Authentik/Ingress/homepage) that doesn't exist yet (spec revision 2026-09-14).
+# promote writes {sha, image, pipelineRun, promotedAt} here; nothing else touches it.
+promotedRecordPath: apps/staging-gate/runs-fr/promoted.yaml
