@@ -173,57 +173,89 @@ inline-script assertion if no StepAction exists. Every other P8.T2.S1 test (reti
 scan, promote's write shape, resolve-contract's v2 results, the RBAC role's secret name) is
 behaviour-level and needed no change — confirming the plan's prediction.
 
-<!-- fr:journal kind=finding scope=plan id=p8-c1-stepaction-script-params created=2026-09-14T23:59:33 phase=8 state=open -->
-### p8-c1-stepaction-script-params · finding [open] · C1: StepAction script uses $(params.*) — rejected by Tekton v1.6.0 (phase 8)
+<!-- fr:journal kind=finding scope=plan id=p8-c1-stepaction-script-params created=2026-09-14T23:59:33 phase=8 state=fixed -->
+### p8-c1-stepaction-script-params · finding [fixed] · C1: StepAction script uses $(params.*) — rejected by Tekton v1.6.0 (phase 8)
 
 stepactions.yaml splices $(params.mode/scratchPath/message/path) into the script. v1beta1 stepaction_validation rejects "param substitution in scripts is not allowed", so the StepAction is never admitted and every ref step fails. Also a shell-injection path: message embeds app/sha from the repository_dispatch body inside a pod holding the push token. Fix: pass params through env and read "$VAR". Add an offline tripwire: no StepAction spec.script contains $(params.
 
-<!-- fr:journal kind=finding scope=plan id=p8-c2-dag-when-status created=2026-09-14T23:59:35 phase=8 state=open -->
-### p8-c2-dag-when-status · finding [open] · C2: promote when-guard reads $(tasks.run-smoke.status) in a DAG task (phase 8)
+**Fixed in 9e364aa1.** StepAction env now carries MODE/SCRATCH/MSG/TARGET; script reads only "$VAR". Re-verified admitted: `kubectl apply --dry-run=server --validate=strict -f apps/staging-gate/tekton/stepactions.yaml` -> `stepaction.tekton.dev/staging-gate-git created (server dry run)`. New tripwire: test_stepaction_scripts_never_splice_params_directly.
+
+<!-- fr:journal kind=finding scope=plan id=p8-c2-dag-when-status created=2026-09-14T23:59:35 phase=8 state=fixed -->
+### p8-c2-dag-when-status · finding [fixed] · C2: promote when-guard reads $(tasks.run-smoke.status) in a DAG task (phase 8)
 
 Confirmed by kubectl apply --dry-run=server: "pipeline tasks can not refer to execution status ... spec.tasks[4].when[0]". Present since June; never admitted because the branch never merged. Fix: remove the when block; runAfter [run-smoke] already skips promote when run-smoke fails. Add an offline tripwire: no spec.tasks entry references $(tasks.*.status) or .reason.
 
-<!-- fr:journal kind=finding scope=plan id=p8-i1-regate-noop-commit created=2026-09-14T23:59:37 phase=8 state=open -->
-### p8-i1-regate-noop-commit · finding [open] · I1: re-gating the same sha fails on an empty commit (phase 8)
+**Fixed in 9e364aa1.** Removed the when block from promote; runAfter: [run-smoke] is unchanged and sufficient. Re-verified admitted: `kubectl apply --dry-run=server --validate=strict -f apps/staging-gate/tekton/pipeline.yaml` -> `pipeline.tekton.dev/staging-gate created (server dry run)`. New tripwire: test_no_pipeline_task_reads_another_tasks_status_outside_finally.
+
+<!-- fr:journal kind=finding scope=plan id=p8-i1-regate-noop-commit created=2026-09-14T23:59:37 phase=8 state=fixed -->
+### p8-i1-regate-noop-commit · finding [fixed] · I1: re-gating the same sha fails on an empty commit (phase 8)
 
 push mode runs git commit with no no-op guard, so bump-staging exits 1 when staging-values already holds sha-<sha>. Fix: git add -- "$TARGET"; git diff --cached --quiet && exit 0, as cnc-promotion does.
 
-<!-- fr:journal kind=finding scope=plan id=p8-i2-stepaction-computeresources created=2026-09-14T23:59:39 phase=8 state=open -->
-### p8-i2-stepaction-computeresources · finding [open] · I2: computeResources is not a StepAction field — apply fails (phase 8)
+**Fixed in 9e364aa1.** Push mode now does exactly that (git add -- "$TARGET"; git diff --cached --quiet => exit 0) before committing. New tripwire: test_stepaction_push_mode_is_a_noop_on_an_unchanged_file_and_retries_the_push.
+
+<!-- fr:journal kind=finding scope=plan id=p8-i2-stepaction-computeresources created=2026-09-14T23:59:39 phase=8 state=fixed -->
+### p8-i2-stepaction-computeresources · finding [fixed] · I2: computeResources is not a StepAction field — apply fails (phase 8)
 
 Confirmed by kubectl apply --dry-run=server --validate=strict: strict decoding error: unknown field "spec.computeResources". Worse than silently pruned: the whole StepAction fails to apply. Fix: move computeResources onto each calling ref step (allowed there).
 
-<!-- fr:journal kind=finding scope=plan id=p8-m1-token-in-git-config created=2026-09-14T23:59:41 phase=8 state=open -->
-### p8-m1-token-in-git-config · finding [open] · M1: token persisted in .git/config; comments claim otherwise (phase 8)
+**Fixed in 9e364aa1.** Removed from the StepAction; added to each of the five `ref: {name: staging-gate-git}` steps across pipeline.yaml and tasks.yaml. Re-verified admitted (see p8-c1). New tripwires: test_stepaction_has_no_computeresources_field, test_ref_steps_calling_the_stepaction_carry_their_own_computeresources.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m1-token-in-git-config created=2026-09-14T23:59:41 phase=8 state=fixed -->
+### p8-m1-token-in-git-config · finding [fixed] · M1: token persisted in .git/config; comments claim otherwise (phase 8)
 
 Cloning https://x-access-token:${TOKEN}@... stores it as remote.origin.url in the per-TaskRun emptyDir. Low severity (pod-local, ~1h TTL) but the comments are false and set +x is a no-op. Fix: clone the plain URL with a credential.helper reading GITHUB_TOKEN from env; correct the comments.
 
-<!-- fr:journal kind=finding scope=plan id=p8-m2-push-race-no-retry created=2026-09-14T23:59:43 phase=8 state=open -->
-### p8-m2-push-race-no-retry · finding [open] · M2: non-fast-forward push to main fails the run with no retry (phase 8)
+**Fixed in 9e364aa1.** Both clone and push modes authenticate via `git -c credential.helper='!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f'` (clone, transient) / `git config credential.helper "$helper"` (push, persisted to the scratch clone's .git/config — but only the env-var NAME, never the value). Comments in stepactions.yaml and tasks.yaml corrected to describe this instead of the false `set +x`/no-`git remote -v` framing. New tripwire: test_no_clone_or_push_url_embeds_the_token.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m2-push-race-no-retry created=2026-09-14T23:59:43 phase=8 state=fixed -->
+### p8-m2-push-race-no-retry · finding [fixed] · M2: non-fast-forward push to main fails the run with no retry (phase 8)
 
 A concurrent push to main between clone and push loses a green promote record. apps/tekton/pipelines/site-promotion.yaml already has a bounded fetch/reset/re-edit/push retry loop to copy.
 
-<!-- fr:journal kind=finding scope=plan id=p8-m3-unneeded-secret-role created=2026-09-14T23:59:44 phase=8 state=open -->
-### p8-m3-unneeded-secret-role · finding [open] · M3: staging-gate-secrets-read Role is unneeded privilege (phase 8)
+**Fixed in 9e364aa1.** Push mode retries up to 5 times: on a rejected push, fetch origin/main and `git rebase origin/main` (replays the one local commit — no re-edit needed, unlike site-promotion's reset+re-edit shape), then retry; aborts and fails loudly on a real rebase conflict. Design choice recorded as a separate decision entry (retry-rebases-not-reapply, phase 8). New tripwire: test_stepaction_push_mode_is_a_noop_on_an_unchanged_file_and_retries_the_push.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m3-unneeded-secret-role created=2026-09-14T23:59:44 phase=8 state=fixed -->
+### p8-m3-unneeded-secret-role · finding [fixed] · M3: staging-gate-secrets-read Role is unneeded privilege (phase 8)
 
 secretKeyRef env is resolved by the kubelet, not the pod ServiceAccount, so the Role only widens who can read frank-gitops-push via the automounted SA token in third-party step images. Plan issue (P8.T2.S1 mandated it). Fix: drop the Role and its assertion.
 
-<!-- fr:journal kind=finding scope=plan id=p8-m4-weak-assertions created=2026-09-14T23:59:46 phase=8 state=open -->
-### p8-m4-weak-assertions · finding [open] · M4: two phase-8 test assertions are weak (phase 8)
+**Fixed in 9e364aa1.** Role and RoleBinding staging-gate-secrets-read removed from serviceaccount-rbac.yaml (the argocd-read Role/RoleBinding, which IS needed for the await-sync API read, stays). test_rbac_secrets_role_names_the_github_app_push_secret replaced by test_no_secrets_read_role_exists, which requires absence. Plan text corrected in commit ce310e99 (P8.T2.S1 note; state stays ticked, per instruction).
+
+<!-- fr:journal kind=finding scope=plan id=p8-m4-weak-assertions created=2026-09-14T23:59:46 phase=8 state=fixed -->
+### p8-m4-weak-assertions · finding [fixed] · M4: two phase-8 test assertions are weak (phase 8)
 
 The .sha check is satisfied by the text $(params.sha) even with the yq write deleted; the git-token test returns early once the StepAction exists, skipping the inline-step scan. No test would have caught C1, C2 or I2.
 
-<!-- fr:journal kind=finding scope=plan id=p8-m5-sha-placeholder-cli created=2026-09-14T23:59:48 phase=8 state=open -->
-### p8-m5-sha-placeholder-cli · finding [open] · M5: {sha} placeholder enforced only in pytest, not the validator CLI (phase 8)
+**Fixed in 9e364aa1.** test_promote_task_writes_the_last_green_record now asserts on ".sha = strenv(" / ".image = strenv(" / ".pipelineRun = strenv(" / ".promotedAt = strenv(" (the real yq write forms) instead of bare ".sha" etc. test_git_pushing_steps_read_the_github_app_token no longer `return`s once the StepAction is found — the inline-step scan runs unconditionally now. Root cause noted separately as a discovery (m4-sha-substring, phase 8). C1/C2/I2 are now separately guarded by their own new tripwires (see those findings).
+
+<!-- fr:journal kind=finding scope=plan id=p8-m5-sha-placeholder-cli created=2026-09-14T23:59:48 phase=8 state=fixed -->
+### p8-m5-sha-placeholder-cli · finding [fixed] · M5: {sha} placeholder enforced only in pytest, not the validator CLI (phase 8)
 
 Onboarders run validate-contract.py, which accepts a smokeRbacUrl without {sha}. Move the check into validate_one.
 
-<!-- fr:journal kind=finding scope=plan id=p8-m6-promotedat-readme created=2026-09-14T23:59:51 phase=8 state=open -->
-### p8-m6-promotedat-readme · finding [open] · M6: README misdescribes promotedAt (phase 8)
+**Fixed in 833c0ed2.** validate_one now rejects a smokeRbacUrl missing the literal `{sha}` placeholder. New fixture test: test_validate_one_rejects_a_smoke_rbac_url_missing_the_sha_placeholder.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m6-promotedat-readme created=2026-09-14T23:59:51 phase=8 state=fixed -->
+### p8-m6-promotedat-readme · finding [fixed] · M6: README misdescribes promotedAt (phase 8)
 
 Says "UTC timestamp of the promote commit"; it is the time of the record step.
 
-<!-- fr:journal kind=finding scope=plan id=p8-rec-validate-inputs created=2026-09-14T23:59:52 phase=8 state=open -->
-### p8-rec-validate-inputs · finding [open] · Recommendation: validate sha and app inside the pipeline (phase 8)
+**Fixed in b98a6eb0.** README now says "UTC timestamp of when the `record` step ran (not the promote commit)".
+
+<!-- fr:journal kind=finding scope=plan id=p8-rec-validate-inputs created=2026-09-14T23:59:52 phase=8 state=fixed -->
+### p8-rec-validate-inputs · finding [fixed] · Recommendation: validate sha and app inside the pipeline (phase 8)
 
 app builds a filesystem path and a Job name; sha reaches scripts. Phase 10 CEL validates at the trigger, but a manual PipelineRun bypasses CEL. Defence in depth: resolve-contract rejects sha not matching ^[a-f0-9]{7,40}$ and app not a DNS label before use.
+
+**Fixed in 9e364aa1.** resolve-contract's taskSpec gained a `sha` param (passed from the pipeline) and a first `validate-inputs` step that greps SHA against `^[a-f0-9]{7,40}$` and APP against `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, both read via env — not spliced with $(params.*). New tripwire: test_resolve_contract_validates_app_and_sha_before_use.
+
+<!-- fr:journal kind=decision scope=plan id=d8fc89034b06 created=2026-09-15T00:15:08 phase=8 -->
+### d8fc89034b06 · decision · Push retry rebases the single commit onto origin/main, rather than re-applying the caller's edit (phase 8)
+
+Chose the 'git pull --rebase'-shaped option from the two offered (p8-m2). The StepAction's push mode now: git add -- $TARGET; no-op exit 0 if git diff --cached --quiet (p8-i1); else commit once; then retry the push up to 5 times, and on a non-fast-forward rejection fetch origin/main and 'git rebase origin/main' (which REPLAYS the already-made local commit — no re-edit needed) before retrying. This keeps the StepAction generic: it never needs to know the caller's yq expression, unlike the 'pass the edit through env' alternative, which would have coupled the shared plumbing to yq and to each caller's specific field-write. A rebase conflict (two callers touching the same file+region in the retry window) aborts the rebase and fails loudly rather than looping forever — accepted as out of scope for a first pass, since every current caller (bump-staging: image.tag; promote: sha/image/pipelineRun/promotedAt) writes its OWN app's registry-scoped file, so a same-file collision needs two concurrent gate runs for the SAME app, which the design does not yet guard against (no PipelineRun concurrency limit) but is unchanged risk from before this fix, not introduced by it.
+
+<!-- fr:journal kind=discovery scope=plan id=03f98450119b created=2026-09-15T00:15:17 phase=8 -->
+### 03f98450119b · discovery · M4's own weak assertion: '.sha' is a substring of '$(params.sha)' (phase 8)
+
+The original test_promote_task_writes_the_last_green_record asserted 'assert ".sha" in scripts' to prove the record step writes .sha into the promoted record. But every promote step's script also contains the literal text '$(params.sha)' (e.g. in the push step's commit message param) — which itself contains the substring '.sha' — so the assertion passed even with the yq write line deleted. Fixed by asserting on the actual yq write form '.sha = strenv(' etc. Generalises: a substring assertion on a short dotted-field name is unsafe near any Tekton $(...) reference containing the same field name.
