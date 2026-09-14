@@ -105,6 +105,19 @@ def test_validate_one_requires_the_v2_keys(tmp_path, missing_key):
     assert any(missing_key in e for e in errs), f"expected a {missing_key!r} error, got: {errs}"
 
 
+def test_validate_one_rejects_a_smoke_rbac_url_missing_the_sha_placeholder(tmp_path):
+    """P8 review (p8-m5-sha-placeholder-cli): the {sha} check previously lived
+    only in test_registry_entries_reference_real_paths_and_the_sha_placeholder
+    (pytest, against the live registry) — an onboarder running the CLI validator
+    directly got no warning. Move the check into validate_one itself."""
+    doc = _valid_v2_contract()
+    doc["smokeRbacUrl"] = "https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml"
+    errs = validate_contract.validate_one(_write(tmp_path, doc))
+    assert any("smokeRbacUrl" in e and "{sha}" in e for e in errs), (
+        f"expected a smokeRbacUrl/{{sha}} error, got: {errs}"
+    )
+
+
 def _registry_docs() -> dict:
     return {p: yaml.safe_load(p.read_text()) for p in sorted(REPO.glob(REGISTRY_GLOB))}
 

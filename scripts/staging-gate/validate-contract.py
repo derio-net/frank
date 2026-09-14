@@ -67,6 +67,15 @@ def validate_one(path: str) -> list[str]:
                 "See docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md "
                 "(Revision 2026-09-14 table)."
             )
+    # P8 review (p8-m5-sha-placeholder-cli): run-smoke substitutes {sha} into
+    # smokeRbacUrl. Enforced here (not only in the pytest fixture) so the CLI
+    # itself catches an onboarder's typo before a gate run does.
+    smoke_rbac_url = doc.get("smokeRbacUrl")
+    if isinstance(smoke_rbac_url, str) and "{sha}" not in smoke_rbac_url:
+        errs.append(
+            f"{path}: key 'smokeRbacUrl' must contain the literal placeholder '{{sha}}': "
+            f"{smoke_rbac_url!r}"
+        )
     return errs
 
 
