@@ -229,8 +229,10 @@ So the correct reading of all four is one rerank graph per exported repository, 
 
 Recording it because the phrase all four graphs reads like an instruction to widen the loop, and widening it turns a working build into a build that cannot succeed.
 
-<!-- fr:journal kind=finding scope=plan id=p4-build-job-unobserved created=2026-09-11T14:02:48 phase=4 state=open -->
-### p4-build-job-unobserved · finding [open] · P4.T1.S4 is half done: the suite is green, the real build has not been run (phase 4)
+<!-- fr:journal kind=finding scope=plan id=p4-build-job-unobserved created=2026-09-11T14:02:48 phase=4 state=fixed -->
+### p4-build-job-unobserved · finding [fixed] · P4.T1.S4 is half done: the suite is green, the real build has not been run (phase 4)
+
+CLOSED 2026-09-14 by the PR's own build job (run 34876437959), which is the evidence this finding asked for rather than a green tick. The log shows the injector running against the REAL exported graphs in both repositories — 'inject_rerank_guard: /out/gpu/bge-reranker-v2-m3/graph.pbtxt: max_allowed_chunks=64 max_position_embeddings=640' and the same for /out/cpu — and the build's own read-back verification (grep for each field, exit 1 on absence) passed, so the fields are present in the emitted graphs rather than merely attempted. The CPU arm matters here too: it is the benchmark's control, and a control guarded differently from the arm it controls measures the guard.
 
 uv run --frozen pytest scripts/tests -q gives 848 passed, 1 xfailed on the branch as committed (840 passed, 1 xfailed before this phase; eight new tests). That is the local half.
 
