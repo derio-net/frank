@@ -70,4 +70,4 @@ Gate-owned, never hand-edited. `promote` overwrites it in place after a green `r
 | `sha` | the gated commit sha |
 | `image` | the full image ref that passed (`<image>:sha-<sha>`) |
 | `pipelineRun` | the `staging-gate` PipelineRun name that promoted it |
-| `promotedAt` | UTC timestamp of the promote commit |
+| `promotedAt` | UTC timestamp of when the `record` step ran (not the promote commit) |
