@@ -88,10 +88,12 @@ metadata:
   name: ovms-pool-watchdog
   namespace: retrieval
 spec:
-  # Every 5 minutes. The pool only moves when a request is served, so this is
-  # about bounding how long an elevated pool sits exposed, not about sampling
-  # rate.
-  schedule: "*/5 * * * *"
+  # Every 2 minutes, tightened from 5 on 2026-09-14. Test Plan row 10 reached
+  # 84.9% of the old 10Gi limit by firing three ascending requests within
+  # SECONDS — faster than any tick. No schedule prevents an ascent inside one
+  # tick; a shorter one only narrows the window in which the next burst starts
+  # from an already-elevated pool.
+  schedule: "*/2 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -120,15 +122,18 @@ spec:
                 requests: {cpu: 20m, memory: 64Mi}
                 limits: {cpu: 200m, memory: 128Mi}
               env:
-                # Restart regardless of whether the server looks busy. Above
-                # this, a single cap-sized request (3.40 GiB measured at
-                # 64 documents x 600 tokens) can no longer fit under the
-                # limit, so the next caller is going to take the process down
+                # Restart regardless of whether the server looks busy. 60 ->
+                # 50 on 2026-09-14, alongside the 16Gi ceiling: the measured
+                # worst case is an ASCENDING sequence (8.49 GiB at the old
+                # limit), not a single call, so the trigger wants to sit below
+                # where an ascent has already committed most of the budget.
+                # Above this a further cap-sized request (3.40 GiB measured at
+                # 64 documents x 600 tokens) is going to take the process down
                 # anyway — and an OOM costs the in-flight request PLUS ~10s of
                 # refused connections, which is strictly worse than a
                 # controlled 11s restart.
                 - name: CRITICAL_PERCENT
-                  value: "60"
+                  value: "50"
                 # Below this the pool is at or near its post-boot baseline
                 # (1.71 GiB of model weights on the GPU) and there is nothing
                 # worth reclaiming.

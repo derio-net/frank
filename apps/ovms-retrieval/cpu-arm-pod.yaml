@@ -132,7 +132,7 @@ spec:
       # important line in the file, and it is a line that is not here.
       #
       # The envelope must TRACK the Deployment's, which is why it moved 6Gi ->
-      # 10Gi with it (2026-09-11). This arm exists to isolate the DEVICE: if
+      # 10Gi -> 16Gi with it (2026-09-14). This arm exists to isolate the DEVICE: if
       # the two arms have different ceilings, a batch that the GPU arm serves
       # and this one OOMs has measured the limit, not the CPU. Provenance for
       # the number lives beside the Deployment's copy — do not change one
@@ -143,7 +143,7 @@ spec:
           memory: 2Gi
         limits:
           cpu: "2"
-          memory: 10Gi
+          memory: 16Gi
       readinessProbe:
         httpGet:
           path: /v2/models/bge-reranker-v2-m3/ready

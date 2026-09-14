@@ -278,8 +278,8 @@ kubectl -n retrieval rollout restart deploy/ovms-retrieval
 ```
 
 What stops it recurring is the graph's two bounds (`max_allowed_chunks: 64`,
-`max_position_embeddings: 640`) plus the 10Gi ceiling — the guard's own worst
-case is 6.36 GiB, and the ceiling was raised to 10Gi so that worst case cannot
+`max_position_embeddings: 640`) plus the 16Gi ceiling — the guard's own worst
+case is 8.49 GiB as an ascending sequence, and the ceiling was raised so it cannot
 itself OOM. If you are tempted to raise the ceiling again, tighten
 `max_position_embeddings` instead: memory is near-quadratic in document length
 and only linear in document count, so length is the lever.

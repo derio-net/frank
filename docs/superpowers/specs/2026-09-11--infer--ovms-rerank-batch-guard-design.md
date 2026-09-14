@@ -235,7 +235,8 @@ fails if the fields are not present.
 
 ### 3. Raise the memory limit to support the batch the client sends
 
-`limits.memory` on the `ovms` container: **6Gi → 10Gi**. `requests.memory`
+`limits.memory` on the `ovms` container: **6Gi → 10Gi → 16Gi** (see the
+Test Plan outcome below). `requests.memory`
 stays at 2Gi, so the scheduler's view of mini-1 is unchanged; only the ceiling
 moves. CPU is untouched at 500m / 2.
 
@@ -418,11 +419,17 @@ bounding, which is why this ships a cap **and** a watchdog.
 | `max_allowed_chunks` | **64** | Above the client's 50-document default with headroom, and it caps total chunks too, so a request of long documents is refused rather than allocated. |
 | `max_position_embeddings` | **640** | ≈212 words of natural text per chunk, so a typical candidate passage is scored whole; longer ones chunk and count against the 64. |
 
-Predicted worst case: 64 × 0.0202 × (640/332)^1.78 = **4.15 GiB**, totalling
-**6.36 GiB — 64% of a 10Gi limit**, and 76% even if the fit under-predicts by
-30%. It is **106% of the current 6Gi limit**, which is the measured
-justification for raising the ceiling: the guard's own worst case must not
-itself OOM, or the guard is decorative.
+~~Predicted worst case: 64 × 0.0202 × (640/332)^1.78 = **4.15 GiB**, totalling
+**6.36 GiB — 64% of a 10Gi limit**.~~ **Superseded by measurement** (see "Test
+Plan outcome" above). The prediction was close for the case it described — a
+single call on a fresh pool measures **5.67 GiB** — but that is not the
+expensive case. An **ascending sequence** of shapes peaks at **8.49 GiB**,
+because an older pool is still held while the new one is allocated, and it was
+not measurable until the raised limit existed. The ceiling is **16Gi**.
+
+The principle behind the raise is unchanged and is the thing to carry forward:
+the guard's own worst case must not itself OOM, or the guard is decorative.
+What changed is which worst case counts.
 
 
 The 30-document call's 6.72 s is itself a datum worth resolving: if latency is
@@ -488,6 +495,54 @@ change, no scoring impact. Rejected on the mechanism: the tensor is B × T, T
 comes from the longest document, and the model context is ~8194 — so a
 document-only cap leaves a guard that one long passage walks straight past.
 
+## Test Plan outcome — run 2026-09-14, post-merge
+
+Ten of eleven rows pass. Row 10 does not, and it is the reason `limits.memory`
+moved again.
+
+| row | result |
+|---|---|
+| 1–4 | 10Gi, seed marker `2`, both bounds present in the **served** `graph.pbtxt`, both servables `AVAILABLE` |
+| 5 | 50 documents → **200**, 2.32 s |
+| 6 | 65 documents (cap+1) → **HTTP 400 in 7 ms**, body `Number of documents exceeds max_allowed_chunks` |
+| 7 | 3 documents immediately after → **200**, 0.26 s |
+| 8 | restart count across 5–7 → **0 → 0** |
+| 9 | a chunked document scores **0.9987** against **0.0000162** for an irrelevant one — ~61,700× separation |
+| 13 | watchdog emits `action=none reason=pool-at-baseline shmem=1836507136` |
+| **10** | **FAILED.** Ascending 20 → 40 → 64 documents at 600 tokens peaked at **8.49 GiB = 84.9% of 10Gi**, against a ~70% threshold. No OOM; 1.5 GiB of headroom. |
+
+**Row 6 is better than this spec predicted.** It says the refusal would be a
+500, reasoning from `std::runtime_error` → `absl::InternalError` and asserting
+that "conventionally maps to HTTP 500". OVMS returns **400**. The mapping was
+never verified — only the *source path* was. Because the row was written to
+**record** the observed code rather than assert 4xx, this surfaced as a better
+result instead of a failed assertion. Issue #793 asked for "4xx rather than
+taking the process down"; it got exactly that.
+
+**Row 10 failed because the original sizing measured the wrong case.** 6Gi →
+10Gi was sized on the cap as a *single call on a fresh pool*: 5.67 GiB, 57%.
+The expensive case is an **ascending sequence**, where an older pool is still
+held while a new one is allocated. That could not be measured before merge —
+the 10Gi limit did not exist yet, and the live patch to create it was refused
+by the permission layer.
+
+Two remedies were measured, same ascent, fresh pod each time:
+
+| bound | peak | of 10Gi | of 16Gi |
+|---|---|---|---|
+| `max_position_embeddings: 640` (shipped) | 8.49 GiB | 84.9% | 53.1% |
+| `max_position_embeddings: 512` | 6.96 GiB | 69.6% | 43.5% |
+
+The operator chose **16Gi**: a one-line manifest change rather than a model
+rebuild and reseed, and no change to scoring for long passages. The cost is
+real and recorded in the manifest — this memory is pinned and unevictable on a
+control-plane node running etcd, and mini-1's sum of memory *limits* goes from
+71% to 81% of allocatable (actual use was 23%). The watchdog tick also went
+`*/5` → `*/2` and its critical threshold 60% → 50%, because no schedule can
+prevent an ascent *inside* one tick — row 10 reached 84.9% in seconds.
+
+**A third raise should tighten the graph bound instead.**
+
 ## Before merging — publish the image first
 
 **Merging this without publishing `:2` first takes the retrieval tier down for
@@ -516,7 +571,7 @@ first-push-is-private trap does not apply.
 
 | # | Action | Expected |
 |---|---|---|
-| 1 | `kubectl -n retrieval get deploy ovms-retrieval -o jsonpath='{.spec.template.spec.containers[?(@.name=="ovms")].resources.limits.memory}'` | `10Gi` |
+| 1 | `kubectl -n retrieval get deploy ovms-retrieval -o jsonpath='{.spec.template.spec.containers[?(@.name=="ovms")].resources.limits.memory}'` | `16Gi` |
 | 2 | `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- cat /models/.seed-rev` | `2` |
 | 3 | `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- cat /models/bge-reranker-v2-m3/graph.pbtxt` | carries both `max_allowed_chunks` and `max_position_embeddings` at the chosen values |
 | 4 | `GET /v1/config` | both servables `AVAILABLE` — the new fields did not break loading |
