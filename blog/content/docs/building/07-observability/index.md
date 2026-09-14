@@ -456,7 +456,7 @@ There is no results paragraph here yet, on purpose. The soak re-run that this un
 
 The chart's `kubeEtcd` block also renders an upstream etcd dashboard and a 15-alert `VMRule`. Neither has a toggle of its own; both follow `kubeEtcd.enabled`. The `VMRule` was always inert here, because `vmalert` is disabled and alerting is Grafana-managed. The dashboard had been sitting in Grafana rendering nothing for the same 148 days.
 
-Switching `kubeEtcd.enabled` off removes both from the chart's render. The Application runs `prune: false`, though, so their live copies stay until someone deletes them by hand. Until then the cluster has two etcd dashboards, and the copy that looks canonical, titled `etcd`, is the dead one. The curated board is `Frank Layer 2 — etcd (curated)`.
+Switching `kubeEtcd.enabled` off removes both from the chart's render. The Application runs `prune: false`, though, so their live copies stayed until they were deleted by hand, after the change synced (2026-09-14). If a board titled `etcd` ever reappears, it is that orphan come back, and the copy that looks canonical is the dead one. The curated board is `Frank Layer 2 — etcd (curated)`.
 
 ## What Is Visible Now
 
