@@ -35,6 +35,7 @@ import subprocess
 from fnmatch import fnmatch
 from pathlib import Path
 
+import pytest
 import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not skip
 
 REPO = Path(__file__).resolve().parents[2]
@@ -42,6 +43,10 @@ ARGOCD_VALUES = REPO / "apps/argocd/values.yaml"
 CHART_REPO = "https://argoproj.github.io/argo-helm"
 CHART_VERSION = "9.4.6"
 VCLUSTER_URL = "https://cnc-staging.cnc-staging-vcluster.svc:443"
+# staging-gate's own vCluster (Phase 7, plan 2026-06-15-staging-vcluster-gate) —
+# same argo-cd#26529 panic applies to any remote vCluster with a LimitRange, so
+# it must be added to the SAME scoped entry, not a new global one.
+STAGING_GATE_VCLUSTER_URL = "https://staging.vcluster-staging.svc:443"
 MAIN_CLUSTER_URL = "https://kubernetes.default.svc"
 
 
@@ -98,14 +103,35 @@ def _pod_exclusion_entries(entries: list) -> list:
     return hits
 
 
-def test_argocd_excludes_vcluster_pods():
-    """A Pod exclusion scoped to the cnc-staging vCluster URL is present."""
+@pytest.mark.parametrize("url", [VCLUSTER_URL, STAGING_GATE_VCLUSTER_URL])
+def test_argocd_excludes_vcluster_pods(url: str):
+    """A Pod exclusion scoped to each vCluster URL is present."""
     pods = _pod_exclusion_entries(_exclusions())
     assert pods, "no Pod exclusion entry found in resource.exclusions"
     assert any(
-        any(fnmatch(VCLUSTER_URL, g) for g in (e.get("clusters") or []))
+        any(fnmatch(url, g) for g in (e.get("clusters") or []))
         for e in pods
-    ), f"no Pod exclusion scoped to the vCluster URL {VCLUSTER_URL}"
+    ), f"no Pod exclusion scoped to the vCluster URL {url}"
+
+
+def test_both_vcluster_urls_share_the_same_entry():
+    """Both vClusters hit the identical argo-cd#26529 panic, so they belong in
+    the SAME scoped entry — not a second global-shaped one."""
+    pods = _pod_exclusion_entries(_exclusions())
+    entry = next(
+        (
+            e
+            for e in pods
+            if any(fnmatch(VCLUSTER_URL, g) for g in (e.get("clusters") or []))
+        ),
+        None,
+    )
+    assert entry, "no Pod exclusion entry found scoped to the cnc-staging vCluster"
+    clusters = entry.get("clusters") or []
+    assert any(fnmatch(STAGING_GATE_VCLUSTER_URL, g) for g in clusters), (
+        "the staging-gate vCluster URL must be added to the SAME entry as "
+        f"cnc-staging, not a separate one: {entry}"
+    )
 
 
 def test_pod_exclusion_is_never_global():

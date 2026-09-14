@@ -184,15 +184,17 @@ configs:
       ### ArgoCD v3.3.2 (kubectl v0.34.0) panics `assignment to entry in nil map`
       ### in populatePodInfo when caching a Pod from a remote vCluster that ships a
       ### LimitRange, crashing the application-controller cluster-wide. Skip Pods on
-      ### the cnc-staging vCluster ONLY (scoped by `clusters`) so the main cluster
-      ### keeps full per-pod visibility. Remove when ArgoCD ships >= 3.5 (client-go
-      ### 1.36.1, the upstream fix).
+      ### the cnc-staging AND staging-gate (Phase 7, plan 2026-06-15-staging-vcluster-
+      ### gate) vClusters ONLY (scoped by `clusters`) so the main cluster keeps full
+      ### per-pod visibility. Remove when ArgoCD ships >= 3.5 (client-go 1.36.1, the
+      ### upstream fix).
       - apiGroups:
         - ''
         kinds:
         - Pod
         clusters:
         - https://cnc-staging.cnc-staging-vcluster.svc:443
+        - https://staging.vcluster-staging.svc:443
   rbac:
     policy.csv: |
       g, root-admins, role:admin
