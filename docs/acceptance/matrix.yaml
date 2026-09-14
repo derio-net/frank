@@ -1000,12 +1000,19 @@ rows:
     success/failure.
   origin:
   - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
-  levels: {}
-  status: not-implemented
-  notes: New VMServiceScrape for tekton-pipelines-controller. Today the query returns empty — the controller
-    serves the metric on :9090 and nothing scrapes it. Verified post-merge by the series being present
-    in VMSingle with a pipeline label, and by the unbounded taskruns_pod_latency_milliseconds gauge being
-    absent (the cardinality drop).
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: skipped
+  notes: 'Live manual proof 2026-09-14 (post-merge, #797). vmagent target health=up job=tekton-pipelines-controller
+    ns=tekton-pipelines, lastError empty. VMSingle stores 66 tekton metric names including
+    tekton_pipelines_controller_pipelinerun_duration_seconds_count with a pipeline label, queried live
+    per pipeline and status. The cardinality drop applied: taskruns_pod_latency_milliseconds is ABSENT
+    from VMSingle. 689 tekton series stored against the census prediction of 851 — lower because the
+    controller had restarted ~12h earlier and has seen fewer distinct taskruns since, not because the
+    scrape is partial. Asserted on the artifacts, not on ArgoCD: tekton-extras reported Synced/Healthy
+    at the PRE-merge revision dcb31fe6 while the VMServiceScrape did not exist at all, and only a
+    refresh moved it to 8dc7df49.'
 - id: pipeline-total-failure-alerts
   capability: CI/CD observability
   acceptance: A pipeline that runs repeatedly and never succeeds raises an alert that reaches the operator
