@@ -80,3 +80,8 @@ git diff 1a80fcbb ed8af807 on both posts shows only: +description (building/15),
 ### p4-manual-not-executed · decision · Phase 4 is manual and was NOT executed; run cursor resolved done so deliver can proceed (phase 4)
 
 Phase 4 is the post-merge rendered-page check plus the acceptance-row note. It needs a merged, deployed blog, so no agent can do it pre-merge, and fr-goal never dispatches a manual phase to an executor. The fr run cursor only accepts done or failed, and failed would wedge the run, so phase/4 implement-phase and review-phase were resolved done as bookkeeping. The PLAN phase 4 (04.yaml) remains open with no ticks and no completion. The PR ships it as operator work.
+
+<!-- fr:journal kind=discovery scope=plan id=p4-poisoned-row-cleared created=2026-09-14T15:18:40 phase=4 -->
+### p4-poisoned-row-cleared · discovery · Operator-authorized: the stuck hermes_local session row was cleared on 2026-09-14 (phase 4)
+
+Row 70cd6878 (agent Media Pipeline Engineer, company Stoa, task 20b5bce4) was created 2026-05-18 10:27:45 when a second hermes heartbeat hit the paperclip#1 truncation. Run history: 10:27:07 succeeded, 10:27:40 and 10:27:42 failed 'Adapter failed', then the row was written as {"sessionId": "from"}. The row was inert because the agent had switched back to codex_local and session rows are keyed by adapter_type. It was cleared by one guarded transaction: an UPDATE that matched id + adapter_type + sessionId='from', committed only when exactly that row ended up NULL. Afterwards session_params_json and session_display_id are NULL and 0 poisoned hermes_local rows remain. Deliberately left alone: the agent's own status (error, stale since the May failures), adapter (codex_local) and last_error on the row.
