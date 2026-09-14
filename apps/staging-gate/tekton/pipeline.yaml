@@ -20,11 +20,13 @@ spec:
     - name: resolve-contract
       params:
         - {name: app, value: $(params.app)}
+        - {name: sha, value: $(params.sha)}
       workspaces:
         - {name: scratch, workspace: scratch}
       taskSpec:
         params:
           - {name: app, type: string}
+          - {name: sha, type: string}
         workspaces:
           - {name: scratch}
         results:
@@ -36,13 +38,38 @@ spec:
           - {name: image}
           - {name: promotedRecordPath}
         steps:
+          - name: validate-inputs
+            # Defence in depth (P8 review, finding p8-rec-validate-inputs): phase 10's
+            # CEL trigger filter validates app/sha at the EventListener, but a manual
+            # PipelineRun bypasses it entirely. app builds a filesystem path (the
+            # registry lookup below) and a Job name (run-smoke); sha reaches shell
+            # scripts throughout the pipeline. Read via env, never $(params.*)
+            # splicing, for the same injection reason as the StepAction (p8-c1).
+            image: alpine/git:2.45.2
+            env:
+              - {name: APP, value: $(params.app)}
+              - {name: SHA, value: $(params.sha)}
+            computeResources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 32Mi}}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              echo "$SHA" | grep -Eq '^[a-f0-9]{7,40}$' || { echo "invalid sha: $SHA" >&2; exit 1; }
+              echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "invalid app: $APP" >&2; exit 1; }
           - name: clone
             ref: {name: staging-gate-git}
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
             params:
               - {name: mode, value: clone}
               - {name: scratchPath, value: $(workspaces.scratch.path)}
           - name: read
             image: mikefarah/yq:4.44.3
+            env:
+              - {name: APP, value: $(params.app)}
             computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
             securityContext:
               allowPrivilegeEscalation: false
@@ -52,7 +79,7 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              f="$(workspaces.scratch.path)/frank/apps/staging-gate/registry/$(params.app).yaml"
+              f="$(workspaces.scratch.path)/frank/apps/staging-gate/registry/${APP}.yaml"
               # Each result path is a genuine Tekton substitution; values written newline-free.
               printf '%s' "$(yq '.stagingApp' "$f")" > "$(results.stagingApp.path)"
               printf '%s' "$(yq '.stagingValuesPath' "$f")" > "$(results.stagingValuesPath.path)"
@@ -85,11 +112,12 @@ spec:
       workspaces:
         - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}
     - name: promote
+      # P8 review (p8-c2-dag-when-status, Critical): a DAG task cannot read
+      # $(tasks.<x>.status) — Tekton rejects it ("pipeline tasks can not refer
+      # to execution status ... of any other pipeline task"). runAfter already
+      # skips promote whenever run-smoke fails; that when-guard is redundant
+      # AND inadmissible.
       runAfter: [run-smoke]
-      when:
-        - input: "$(tasks.run-smoke.status)"
-          operator: in
-          values: ["Succeeded"]
       taskRef: {name: staging-gate-promote}
       params:
         - {name: app, value: $(params.app)}

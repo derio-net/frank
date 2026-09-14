@@ -6,9 +6,28 @@
 # workspace path as a param — a StepAction has no `workspaces.*` variable namespace of its own.
 #
 # mode: clone  — (re)clone frank into `scratchPath`/frank.
-# mode: push   — commit `path` with `message` (inside `scratchPath`/frank) and push to main.
-# Both modes authenticate over HTTPS with the frank-gitops-push App token (never echoed via
-# `set +x`; never left inspectable in a remote URL — no `git remote -v` after clone).
+# mode: push   — stage `path` (git add); no-op (exit 0) if nothing changed; else commit `message`
+#                and push to main with a bounded retry: on a non-fast-forward rejection, fetch
+#                origin/main and rebase the single local commit onto it, then retry (up to 5
+#                attempts) — same shape as apps/tekton/pipelines/site-promotion.yaml's push loop,
+#                minus its re-edit step, because rebase replays our one commit for us.
+#
+# Params are read ONLY through env (MODE/SCRATCH/MSG/TARGET) and the script touches only "$VAR" —
+# Tekton v1beta1 REJECTS `$(params.*)` substitution inside a StepAction `script` ("param
+# substitution in scripts is not allowed"), and splicing untrusted values (app/sha/message
+# ultimately derive from a GitHub repository_dispatch payload) straight into a shell script would
+# also be a command-injection path (P8 review, finding p8-c1-stepaction-script-params).
+#
+# Both modes authenticate over HTTPS via a `credential.helper` that reads GITHUB_TOKEN from the
+# process env AT CALL TIME — the helper is a shell one-liner NAMING the env var, so only that
+# name (never the token value) is what git ever persists, in `.git/config`, for `push` mode (P8
+# review, finding p8-m1-token-in-git-config; the previous `set +x`/"no git remote -v" framing was
+# not the actual protection — the fix is not embedding the token in a URL at all).
+#
+# `computeResources` is NOT a StepActionSpec field in v1beta1 — confirmed live via
+# `kubectl apply --dry-run=server --validate=strict`: "unknown field spec.computeResources" (this
+# fails the WHOLE StepAction, not just that field). Every calling `ref:` step sets its own
+# computeResources instead (P8 review, finding p8-i2-stepaction-computeresources).
 apiVersion: tekton.dev/v1beta1
 kind: StepAction
 metadata:
@@ -24,27 +43,55 @@ spec:
   image: alpine/git:2.45.2
   env:
     - {name: HOME, value: /tekton/home}
+    - {name: MODE, value: $(params.mode)}
+    - {name: SCRATCH, value: $(params.scratchPath)}
+    - {name: MSG, value: $(params.message)}
+    - {name: TARGET, value: $(params.path)}
     - name: GITHUB_TOKEN
       valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-  computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
   securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
   script: |
     #!/bin/sh
     set -eu
     set +x
-    case "$(params.mode)" in
+    # Names the env var only — never the token value — so `git config` (push mode,
+    # written to .git/config in the scratch clone) never persists the secret itself.
+    helper='!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f'
+    case "$MODE" in
       clone)
-        rm -rf "$(params.scratchPath)/frank"
-        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(params.scratchPath)/frank"
+        rm -rf "$SCRATCH/frank"
+        git -c "credential.helper=$helper" clone --depth 1 https://github.com/derio-net/frank.git "$SCRATCH/frank"
         ;;
       push)
-        cd "$(params.scratchPath)/frank"
-        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
-          commit -m "$(params.message)" -- "$(params.path)"
-        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
+        cd "$SCRATCH/frank"
+        git config credential.helper "$helper"
+        git -c user.email=staging-gate@derio.net -c user.name=staging-gate add -- "$TARGET"
+        if git diff --cached --quiet; then
+          echo "no-op — $TARGET already matches; nothing to commit"
+          exit 0
+        fi
+        git -c user.email=staging-gate@derio.net -c user.name=staging-gate commit -m "$MSG"
+        i=1
+        while [ "$i" -le 5 ]; do
+          if git push origin HEAD:main; then
+            echo "pushed on attempt $i"
+            exit 0
+          fi
+          echo "push rejected (attempt $i/5) — retrying after rebase onto origin/main" >&2
+          git fetch origin main
+          if ! git rebase origin/main; then
+            git rebase --abort
+            echo "rebase conflict against origin/main — giving up" >&2
+            exit 1
+          fi
+          sleep $((i * 2))
+          i=$((i + 1))
+        done
+        echo "failed to push after 5 attempts" >&2
+        exit 1
         ;;
       *)
-        echo "staging-gate-git: unknown mode '$(params.mode)'" >&2
+        echo "staging-gate-git: unknown mode '$MODE'" >&2
         exit 1
         ;;
     esac

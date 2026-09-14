@@ -10,9 +10,10 @@
 # Git plumbing: every clone/push step `ref:`s the shared `staging-gate-git` StepAction
 # (stepactions.yaml, P8.T2 REFACTOR) — one script authenticating over HTTPS with the
 # frank-gitops-push App token (GITHUB_TOKEN, secretKeyRef key `token`), like
-# cnc-promotion/site-promotion — no SSH key, no workspace-mounted credential. `set +x` and no
-# post-clone `git remote -v`/URL printing keep the token out of PipelineRun logs (P8, spec
-# Revision 2026-09-14 default: push credential).
+# cnc-promotion/site-promotion — no SSH key, no workspace-mounted credential. Auth goes through a
+# `credential.helper` naming the env var (never a URL-embedded token, never the value written to
+# .git/config — P8 review, finding p8-m1-token-in-git-config); `set +x` keeps the token out of
+# PipelineRun logs.
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -29,6 +30,7 @@ spec:
   steps:
     - name: clone
       ref: {name: staging-gate-git}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       params:
         - {name: mode, value: clone}
         - {name: scratchPath, value: $(workspaces.scratch.path)}
@@ -45,6 +47,7 @@ spec:
         echo "staged image.tag -> $TAG"; yq '.image' "$f"
     - name: push
       ref: {name: staging-gate-git}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       params:
         - {name: mode, value: push}
         - {name: scratchPath, value: $(workspaces.scratch.path)}
@@ -102,12 +105,17 @@ spec:
       env:
         - {name: HOME, value: /tekton/home}
         - {name: KUBECONFIG, value: $(workspaces.vcluster-kubeconfig.path)/config}
+        # app/sha derive from the GHA repository_dispatch payload — read via env
+        # rather than splicing $(params.app)/$(params.sha) straight into the
+        # script (P8 review scope check).
+        - {name: APP, value: $(params.app)}
+        - {name: SHA, value: $(params.sha)}
       computeResources: {requests: {cpu: 100m, memory: 128Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        ns="$(params.smokeNamespace)"; job="smoke-$(params.app)-$(params.sha)"
+        ns="$(params.smokeNamespace)"; job="smoke-${APP}-${SHA}"
         kubectl -n "$ns" delete job "$job" --ignore-not-found
         cat <<EOF | kubectl -n "$ns" apply -f -
         apiVersion: batch/v1
@@ -121,7 +129,7 @@ spec:
               restartPolicy: Never
               containers:
                 - name: smoke
-                  image: $(params.smokeImage):sha-$(params.sha)
+                  image: $(params.smokeImage):sha-${SHA}
         EOF
         end=$(( $(date +%s) + $(params.timeoutSeconds) ))
         while [ "$(date +%s)" -lt "$end" ]; do
@@ -157,6 +165,7 @@ spec:
   steps:
     - name: clone
       ref: {name: staging-gate-git}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       params:
         - {name: mode, value: clone}
         - {name: scratchPath, value: $(workspaces.scratch.path)}
@@ -177,6 +186,7 @@ spec:
         echo "promoted sha-$(params.sha)"; yq '.' "$f"
     - name: push
       ref: {name: staging-gate-git}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       params:
         - {name: mode, value: push}
         - {name: scratchPath, value: $(workspaces.scratch.path)}
