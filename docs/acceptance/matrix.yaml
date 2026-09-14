@@ -1019,10 +1019,19 @@ rows:
     within hours.
   origin:
   - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
-  levels: {}
-  status: not-implemented
-  notes: layer-25-pipeline-failing. Verified post-merge with a synthetic always-failing PipelineRun run
-    three times, then a passing variant to confirm the alert self-resolves on the first success.
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: skipped
+  notes: 'Live manual proof 2026-09-14 (post-merge, #797 + #801). Synthetic end-to-end: three failing runs
+    of a throwaway pipeline produced counters failed=3 with NO success series at all — the genuine-absence
+    case the `unless` exists for, and the one `and success == 0` would silently drop. ngalert.sender.router
+    dispatched at 10:33:35Z, a 30-minute gap matching `for: 30m` exactly, with zero integration=telegram
+    error lines in the window. One passing run wrote the success sample at 11:38:00Z and the instance went
+    Normal at 11:38:30Z — cleared by the `unless`, not by the 24h window expiring, which was the specific
+    behavioural claim. Grafana''s rule API then reported state=inactive health=ok. Note the resolve path
+    runs through NoData (the instance reads "Normal (NoData)") because `unless` removes the only series,
+    so `noDataState: OK` is load-bearing for RESOLUTION on this rule, not merely for a quiet startup.'
 - id: critical-pipeline-idle-alerts
   capability: CI/CD observability
   acceptance: A high-cadence pipeline that stops running entirely raises an alert, even though it produces

@@ -1152,3 +1152,41 @@ pod, then land the real fix in git and re-enable `selfHeal`. Restore the
 `automated` map *exactly* as it was (`{"selfHeal": true}` — a `--type=merge`
 patch REPLACES that nested map, so passing `prune: false` alongside silently
 adds drift).
+
+
+### A rule that FILTERS resolves through NoData — so `noDataState: OK` is load-bearing for resolution
+
+`layer-25-pipeline-failing` was proven end-to-end on 2026-09-14 with a synthetic
+always-failing pipeline: it dispatched at 10:33:35Z (a 30-minute gap matching
+`for: 30m` exactly) and cleared at 11:38:30Z on the first passing run.
+
+The interesting part is *how* it cleared. Grafana's rule API reports the
+resolved instance as **`Normal (NoData)`**, not plain `Normal`. That is
+structural, not incidental: the rule's refId A is a FILTER —
+
+```promql
+sum by (pipeline) (increase(...{status="failed"}[24h])) >= 3
+unless
+sum by (pipeline) (increase(...{status="success"}[24h])) > 0
+```
+
+— so when the first success lands, `unless` subtracts the only series A was
+returning and **A returns nothing at all**. Nothing is NoData, and
+`noDataState: OK` is what turns that into `Normal`.
+
+**Consequence.** Hardening this rule to `noDataState: Alerting` is a plausible
+change — NoData genuinely can mean the datasource went blind, and several rules
+in this folder would be improved by it. Here it would ship a rule that fires
+correctly and then **can never stop firing**, because its own success condition
+is byte-for-byte indistinguishable from its datasource dying. Any rule whose
+query filters rather than thresholds has this property.
+
+The two idle rules are immune by construction: `or vector(0)` guarantees they
+always return a value, so their instances read plain `Normal` and their
+`noDataState` is genuinely unreachable.
+
+**Also observed:** the alert named a pipeline that no longer existed, because
+the throwaway Pipeline object had been deleted while its counters lived on. The
+rule reads the controller's in-memory counters, not live Pipeline objects, so a
+deleted pipeline keeps alerting until it succeeds once or the controller pod
+restarts. Harmless, but worth recognising rather than chasing.
