@@ -794,14 +794,10 @@ rows:
   acceptance: A warm inference workload pinned to a control-plane mini leaves etcd quorum and API-server
     latency unchanged relative to the two untouched peers.
   origin:
-  - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
+  - frank:docs/superpowers/implemented/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
   status: skipped
-  notes: 'PARTIALLY MET 2026-08-03. 7500 rerank requests over 240s (~31/s) from mini-1: apiserver p99
-    (WATCH/CONNECT excluded) 23.4ms before vs 22.1ms under load; all three minis Ready, no Memory/DiskPressure;
-    ovms working set 2254Mi of 6Gi. NOT VERIFIABLE: etcd leader changes and WAL fsync -- Frank does not
-    scrape etcd (no etcd scrape job; the etcd_* series present are the apiserver''s etcd CLIENT metrics).
-    Tracked as a follow-up; the row is deliberately NOT marked fully met.'
+  notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for an operator-measured row), superseding the 2026-08-03 PARTIAL, whose etcd half was unmeasurable because Frank did not scrape etcd. Two soaks of 7500 rerank requests were generated on mini-1 against ovms-retrieval (POST /v3/rerank, 20 candidates, the bench script''s payload). Each was measured over its last 240s against a 60s idle baseline taken just before. Soak 1 (16 workers): 16.59 req/s over 452s, all 200, p50 787ms / p99 2613ms. Soak 2 (48 workers): 16.49 req/s over 455s, all 200, p50 2227ms / p99 10843ms. More workers only lengthened the queue, so throughput is SERVER-bound at ~16.5/s, not a loader artefact. etcd: 0 leader changes on all three members in both baselines and both load windows; etcd_server_has_leader min 1 throughout; WAL fsync p99 on mini-1 (the loaded node) 2.0->3.4 and 2.0->3.5 ms, peers flat near 2.0 ms (alert threshold 50 ms). apiserver p99 (WATCH/CONNECT excluded), cluster: 23.5->23.8 and 22.2->24.0 ms; mini-1 (.21): 23.9->24.1 and 22.3->24.2 ms. mini-2 (.22) read ~40-42 ms in both load windows but 43.8 ms in an idle sample too, so that is not attributable to the load. mini-1 stayed Ready with no Memory/Disk/PID pressure; ovms working set max 2299 MiB of 10 GiB; the pool watchdog read busy and did not restart the pod. NOT LIKE-FOR-LIKE with 2026-08-03: that run reached ~31/s from a curl loop, and the server now tops out at ~16.5/s (same 7500 requests, ~1.9x the duration). The throughput drop is an open follow-up, unexplained here (candidate: the rerank batch/sequence guard from #794, unverified).'
 - id: gpu-igpu-claim-documented
   capability: GPU documentation
   acceptance: Operators have accurate documentation of how to claim a mini iGPU that matches what is actually
@@ -949,11 +945,8 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
-  status: not-implemented
-  notes: 'New row with the spec. Live half: up{job="kube-etcd"} == 1 on all three control-plane nodes and etcd_server_has_leader
-    / etcd_disk_wal_fsync_duration_seconds / etcd_mvcc_db_total_size_in_bytes present in VMSingle (Test Plan step
-    3). CI half: scripts/tests/test_etcd_scrape.py asserts the ConfigPatch port, the static endpoints and the plain-http
-    vmScrape stay coherent -- they live in different files and nothing else connects them. PHASE 1 LANDED THE CI HALF (4 tests, green): test_configpatch_opens_the_metrics_listener, test_kube_etcd_values_target_the_control_planes, test_listener_port_matches_the_scrape_target_port, test_endpoints_match_the_documented_control_plane_ips -- the last two mutation-checked. Chart render at the pinned 0.72.4 confirms the values produce a headless Service on 2381, a static Endpoints with the three mini IPs, and job="kube-etcd". STATUS STAYS not-implemented on purpose: the listener is still connection-refused on .21/.22/.23 (the ConfigPatch is the back-loaded operator phase), so nothing is scraped yet and no series exist. Flips to skipped-with-evidence after Test Plan step 3.'
+  status: skipped
+  notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for an operator-measured row). up{job="kube-etcd"} = 1 on 192.168.55.21/22/23:2381, and etcd_server_has_leader (3 series), etcd_disk_wal_fsync_duration_seconds_bucket (45) and etcd_mvcc_db_total_size_in_bytes (3) are present in VMSingle. The scrape is apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml (#804). #762''s first version, a static Endpoints object from kubeEtcd.endpoints, deployed nothing: ArgoCD resource.exclusions exclude Endpoints, so the app read Synced/Healthy with an ExcludedResourceWarning and zero targets. The :2381 listener comes from the Omni ConfigPatch, which only took effect after a drained rolling reboot of the three minis, because Talos does not restart etcd for an extraArgs change. CI half: scripts/tests/test_etcd_scrape.py asserts listener port vs scrape target ports, targets vs the machine table, kubeEtcd.enabled false, and no ArgoCD-excluded kind in the scrape path (plus a repo-wide excluded-kind tripwire); mutation-checked.'
 - id: obs-etcd-quorum-loss-pages
   capability: Control-plane observability
   acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane maintenance does not.
@@ -963,17 +956,7 @@ rows:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
   status: not-implemented
-  notes: 'New row with the spec. The CI guard covers the wiring that makes this true: the two critical rules exist,
-    carry for: >= 10m, and are NOT labelled health_bridge_only, so the notification policy routes them to Telegram.
-    The live half needs an actual quorum event and is not safely manufacturable on a three-node quorum. The 10m
-    window is defended by the 2026-08-02 control-plane roll, which took ~7 minutes and produced 48 alerts against
-    a healthy cluster under the previous sensitivity. PHASE 2 LANDED THE CI HALF (green): the six rules exist
-    in alert-rules-cm.yaml and test_only_quorum_loss_pages asserts layer-2-etcd-no-leader and
-    layer-2-etcd-member-down carry severity: critical, for: >= 10m and NO health_bridge_only, while the other
-    four carry health_bridge_only true -- which the notification policy diverts to the Health Bridge ahead of
-    the severity routes. STATUS STAYS not-implemented on purpose: nothing is scraped yet (the listener is the
-    back-loaded operator phase), so the rules cannot have evaluated even once, and the live half needs a real
-    quorum event that is not safely manufacturable on a three-node quorum.'
+  notes: 'Wiring live since 2026-09-14: layer-2-etcd-no-leader and layer-2-etcd-member-down evaluate against real series and read Normal (state inactive, health ok), with etcd_server_has_leader = 1 on all three members. CI half (green): test_only_quorum_loss_pages asserts both carry severity critical, for: >= 10m and NO health_bridge_only (so they route to Telegram), while the other four etcd rules carry health_bridge_only true. The 10m window is defended by the 2026-08-02 control-plane roll, which took ~7 minutes and produced 48 alerts against a healthy cluster. STATUS STAYS not-implemented on purpose: the acceptance claim is that a real quorum loss reaches the operator, and no such event has occurred. It is not safely manufacturable on a three-node quorum.'
 - id: obs-etcd-blindness-is-tracked
   capability: Control-plane observability
   acceptance: If Frank stops scraping its own etcd, that silence is itself detected rather than reading as health.
@@ -982,18 +965,8 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
-  status: not-implemented
-  notes: 'New row with the spec, and the reason the spec carries a sixth rule. Every etcd rule uses noDataState:
-    OK, so a re-emptied Endpoints object would make all of them read OK -- the exact 148-day failure being fixed,
-    reintroduced one layer up. absent(up{job="kube-etcd"}) is the only expression that fires on a series disappearing.
-    Evidenced by pausing the scrape deliberately and observing the watchdog reach health-bridge without paging
-    Telegram. PHASE 2 LANDED THE CI HALF (green): layer-2-etcd-scrape-absent exists at severity: critical +
-    health_bridge_only, and test_absent_watchdog_selects_the_job_the_chart_renders derives the job name from a
-    live helm template of the pinned chart (VMServiceScrape.spec.jobLabel names a Service label key; that
-    Service label carries the value) rather than comparing the rule to a constant -- a watchdog naming a job
-    that never exists fires permanently and gets muted, which is this same defect a third time.
-    Mutation-checked. STATUS STAYS not-implemented on purpose: the deliberate scrape pause is operator work in
-    Test Plan step 5 / P5.T2.S2, and until then nothing has demonstrated the watchdog actually firing.'
+  status: skipped
+  notes: 'MET on a REAL blindness event (operator decision: stands in for the planned deliberate scrape pause, P5.T2.S2). After #762 merged the scrape had zero targets. layer-2-etcd-scrape-absent went pending 2026-09-13T21:29:50Z and fired 21:44:50Z, exactly its for: 15m. health-bridge opened frank-ops#126 and set frank-ops#2 dead at 21:45:30Z, with no Telegram page (health_bridge_only). When the VMStaticScrape fix went live the rule resolved, and health-bridge auto-closed frank-ops#126 at 2026-09-14T16:00:19Z (frank-ops#2 healthy). CI half: test_absent_watchdog_selects_the_job_the_scrape_declares derives the job name from the VMStaticScrape jobName rather than a constant; mutation-checked.'
 - id: pipelinerun-outcomes-visible
   capability: CI/CD observability
   acceptance: Tekton PipelineRun outcomes are queryable in VictoriaMetrics, broken down by pipeline and

@@ -117,7 +117,7 @@ tasks:
         - "#    NOT evidence: etcd_request_*, etcd_requests_*, etcd_lease_*, etcd_bookmark_* — those existed throughout the 148 blind days."
         - "# omnictl exiting 0 proves the patch was ACCEPTED, not that etcd restarted with it. Assert on the series, not the exit status."
         - "# 4. All six layer-2-etcd-* rules read Normal in Grafana — not NoData, not Error."
-      status: pending
+      status: done
       ```
   - id: P5.T1.S2
     text: |
@@ -184,7 +184,7 @@ tasks:
         - "kubectl -n monitoring get vmstaticscrape kube-etcd   # still present: this is the live scrape"
         - "# up{job=\"kube-etcd\"} still returns 3 series, all 1, after the deletions"
         - "# Grafana: no dashboard titled etcd remains; frank-l2-etcd still renders 5 panels"
-      status: pending
+      status: done
       ```
   - id: P5.T2.S2
     text: |
@@ -273,30 +273,39 @@ state:
       ticked_at: '2026-09-13T20:45:09+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:32:21+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:32:34+00:00'
       note: null
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:40:33+00:00'
       note: null
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:40:36+00:00'
       note: null
     P5.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:40:38+00:00'
       note: null
     P5.T3.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T20:43:46+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-09-14T20:44:38+00:00'
+    note: 'Manual phase executed 2026-09-13/14. Pre-merge gate: the Omni ConfigPatch
+      never took effect (Talos does not restart etcd for an extraArgs change), so
+      a drained rolling reboot opened :2381 on all three minis. Post-merge: #762''s
+      static Endpoints was ArgoCD-excluded (zero targets), so #804 moved the scrape
+      to a VMStaticScrape. #804 needed a forced sync; the five chart-era orphans were
+      deleted; Grafana was reloaded; up{job=kube-etcd} = 3x1 and all six rules Normal.
+      Watchdog lifecycle on the real event: frank-ops#126 fired, then auto-closed.
+      Acceptance soak re-run: quorum preserved (0 leader changes, mini-1 fsync p99
+      2.0->3.5 ms) at the server-bound ~16.5 req/s. Not like-for-like with 2026-08-03
+      (~31/s); follow-up open.'
     observed_prs: []

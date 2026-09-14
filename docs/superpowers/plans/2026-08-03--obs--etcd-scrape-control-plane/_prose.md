@@ -3,7 +3,7 @@
 **Spec:** `docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md`
 **Issue:** frank#755
 **Layer:** `obs` (8) — Observability
-**Status:** In Progress — phases 1-4 complete; phase 5 pending operator apply (task 1 is a PRE-MERGE gate, tasks 2-3 are post-merge evidence)
+**Status:** Deployed — all five phases complete (2026-09-14). The etcd scrape shipped as a VMStaticScrape (#804) after #762's static Endpoints object proved undeployable under ArgoCD's resource.exclusions. The acceptance soak was re-run with etcd evidence.
 
 ## What this fixes
 

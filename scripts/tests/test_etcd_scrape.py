@@ -1228,10 +1228,11 @@ def test_etcd_dashboard_is_provisioned_and_mounted():
     assert title and str(title).strip(), (
         f"{ETCD_DASHBOARD_CM.relative_to(REPO)} dashboard json has no `title`"
     )
-    # Frank already has an upstream etcd dashboard (chart-rendered, title
-    # "etcd", a chart-generated uid) that cannot be disabled independently —
-    # see the module docstring above this section. A near-collision here is
-    # exactly how a future reader concludes the curated board is the
+    # Frank used to carry an upstream etcd dashboard (chart-rendered, title
+    # "etcd", a chart-generated uid) for as long as kubeEtcd.enabled was true.
+    # It was retired with the VMStaticScrape move and deleted on 2026-09-14, but
+    # a stray orphan could still reappear under prune: false. A near-collision
+    # here is exactly how a future reader concludes the curated board is the
     # redundant copy and deletes the wrong one.
     assert str(title).strip().lower() != "etcd", (
         f"dashboard title {title!r} collides with the upstream chart-rendered "
