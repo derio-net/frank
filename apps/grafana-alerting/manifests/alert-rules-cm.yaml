@@ -2478,7 +2478,7 @@ data:
           # controller restarts — both self-clear the moment the first
           # post-event run lands. That is a deliberate, bounded trade: one
           # warning-severity Telegram message versus weeks of silence.
-          - uid: layer-25-pipeline-idle-stoa-status-bridge
+          - uid: layer-25-idle-stoa-status-bridge
             title: Layer 25 Pipeline Idle stoa-status-bridge
             condition: C
             data:
@@ -2518,7 +2518,7 @@ data:
               summary: "L25 pipeline idle: stoa-status-bridge has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 6h — expected ~148/day"
               runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-gitea-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the Gitea org-level webhook, which is forge state with no IaC in this repo."
 
-          - uid: layer-25-pipeline-idle-github-pull-sync
+          - uid: layer-25-idle-github-pull-sync
             title: Layer 25 Pipeline Idle github-pull-sync
             condition: C
             data:

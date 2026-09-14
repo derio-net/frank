@@ -370,16 +370,16 @@ def test_the_failure_threshold_lives_in_the_query_not_in_the_expression_threshol
 # The idle dead-man rules — one per watched pipeline, same group.
 # ---------------------------------------------------------------------------
 
-IDLE_UID_STOA_STATUS_BRIDGE = "layer-25-pipeline-idle-stoa-status-bridge"
-IDLE_UID_GITHUB_PULL_SYNC = "layer-25-pipeline-idle-github-pull-sync"
-IDLE_UID_PREFIX = "layer-25-pipeline-idle-"
+IDLE_UID_STOA_STATUS_BRIDGE = "layer-25-idle-stoa-status-bridge"
+IDLE_UID_GITHUB_PULL_SYNC = "layer-25-idle-github-pull-sync"
+IDLE_UID_PREFIX = "layer-25-idle-"
 
 PIPELINES_DIR = REPO / "apps" / "tekton" / "pipelines"
 
 
 def _idle_rules() -> dict[str, dict[str, Any]]:
     """Return every feature-health rule whose uid starts with
-    `layer-25-pipeline-idle-`, keyed by uid.
+    `layer-25-idle-`, keyed by uid.
 
     Mirrors `_rule_by_uid` above; extracted (P3.T1.S3) so tasks 2 and 3
     don't each re-walk the provisioning document looking for the same two

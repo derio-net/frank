@@ -1024,7 +1024,7 @@ rows:
   - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
   levels: {}
   status: not-implemented
-  notes: 'Two rules, layer-25-pipeline-idle-stoa-status-bridge (6h window) and layer-25-pipeline-idle-github-pull-sync
+  notes: 'Two rules, layer-25-idle-stoa-status-bridge (6h window) and layer-25-idle-github-pull-sync
     (72h window), sized from measured max idle gaps of 0.5h and 15.7h. One rule per pipeline is load-bearing:
     a shared rule with a regex would leave `or vector(0)` disarmed for whichever pipeline still has a series.
     Covers the "live, correct and unreachable" trigger failure of 2026-07-26, which produced zero PipelineRuns
