@@ -941,7 +941,7 @@ rows:
   acceptance: Frank scrapes its own etcd and the etcd server metric surface is queryable, so an etcd fault is visible
     before it becomes an API-server fault.
   origin:
-  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  - frank:docs/superpowers/implemented/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
@@ -951,7 +951,7 @@ rows:
   capability: Control-plane observability
   acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane maintenance does not.
   origin:
-  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  - frank:docs/superpowers/implemented/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
@@ -961,7 +961,7 @@ rows:
   capability: Control-plane observability
   acceptance: If Frank stops scraping its own etcd, that silence is itself detected rather than reading as health.
   origin:
-  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  - frank:docs/superpowers/implemented/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
