@@ -1,6 +1,7 @@
 # staging-gate Pipeline (tekton.dev/v1). Reusable: params are {app, sha}; resolve-contract reads
-# apps/staging-gate/registry/<app>.yaml (ssh-cloned — frank is private) and emits each field as a
-# result. promote runs ONLY when run-smoke Succeeded; reset always (finally). RUNTIME → P7.
+# apps/staging-gate/registry/<app>.yaml (https-cloned with the frank-gitops-push App token — frank
+# is private). promote runs ONLY when run-smoke Succeeded and records last-green; reset always
+# (finally). RUNTIME → P7 (staging/vCluster wiring), Component 4 registry → P8.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -11,7 +12,6 @@ spec:
     - {name: app, type: string}
     - {name: sha, type: string}
   workspaces:
-    - {name: ssh-creds}
     - {name: vcluster-kubeconfig}
     - {name: scratch}
   tasks:
@@ -19,25 +19,27 @@ spec:
       params:
         - {name: app, value: $(params.app)}
       workspaces:
-        - {name: ssh-creds, workspace: ssh-creds}
         - {name: scratch, workspace: scratch}
       taskSpec:
         params:
           - {name: app, type: string}
         workspaces:
-          - {name: ssh-creds}
           - {name: scratch}
         results:
           - {name: stagingApp}
           - {name: stagingValuesPath}
           - {name: smokeImage}
           - {name: smokeNamespace}
-          - {name: prodValuesPath}
-          - {name: prodValuesKey}
+          - {name: smokeRbacUrl}
+          - {name: image}
+          - {name: promotedRecordPath}
         steps:
           - name: clone
             image: alpine/git:2.45.2
-            env: [{name: HOME, value: /tekton/home}]
+            env:
+              - {name: HOME, value: /tekton/home}
+              - name: GITHUB_TOKEN
+                valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
             computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
             securityContext:
               allowPrivilegeEscalation: false
@@ -47,11 +49,9 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              install -m 0700 -d "$HOME/.ssh"
-              install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
-              export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+              set +x
               rm -rf "$(workspaces.scratch.path)/frank"
-              git clone --depth 1 git@github.com:derio-net/frank.git "$(workspaces.scratch.path)/frank"
+              git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
           - name: read
             image: mikefarah/yq:4.44.3
             computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
@@ -69,8 +69,9 @@ spec:
               printf '%s' "$(yq '.stagingValuesPath' "$f")" > "$(results.stagingValuesPath.path)"
               printf '%s' "$(yq '.smokeImage' "$f")" > "$(results.smokeImage.path)"
               printf '%s' "$(yq '.smokeNamespace' "$f")" > "$(results.smokeNamespace.path)"
-              printf '%s' "$(yq '.prodValuesPath' "$f")" > "$(results.prodValuesPath.path)"
-              printf '%s' "$(yq '.prodValuesKey' "$f")" > "$(results.prodValuesKey.path)"
+              printf '%s' "$(yq '.smokeRbacUrl' "$f")" > "$(results.smokeRbacUrl.path)"
+              printf '%s' "$(yq '.image' "$f")" > "$(results.image.path)"
+              printf '%s' "$(yq '.promotedRecordPath' "$f")" > "$(results.promotedRecordPath.path)"
     - name: bump-staging
       runAfter: [resolve-contract]
       taskRef: {name: staging-gate-bump-staging}
@@ -78,7 +79,6 @@ spec:
         - {name: sha, value: $(params.sha)}
         - {name: stagingValuesPath, value: $(tasks.resolve-contract.results.stagingValuesPath)}
       workspaces:
-        - {name: ssh-creds, workspace: ssh-creds}
         - {name: scratch, workspace: scratch}
     - name: await-sync
       runAfter: [bump-staging]
@@ -103,11 +103,12 @@ spec:
           values: ["Succeeded"]
       taskRef: {name: staging-gate-promote}
       params:
+        - {name: app, value: $(params.app)}
         - {name: sha, value: $(params.sha)}
-        - {name: prodValuesPath, value: $(tasks.resolve-contract.results.prodValuesPath)}
-        - {name: prodValuesKey, value: $(tasks.resolve-contract.results.prodValuesKey)}
+        - {name: image, value: $(tasks.resolve-contract.results.image)}
+        - {name: promotedRecordPath, value: $(tasks.resolve-contract.results.promotedRecordPath)}
+        - {name: pipelineRun, value: $(context.pipelineRun.name)}
       workspaces:
-        - {name: ssh-creds, workspace: ssh-creds}
         - {name: scratch, workspace: scratch}
   finally:
     - name: reset

@@ -6,6 +6,11 @@
 # non-root (securityContext inlined per step — YAML anchors do NOT cross `---` doc boundaries).
 # Image tag convention is `sha-<commit>` (spec Component 1): params.sha is the SHORT commit sha
 # the GHA repository_dispatch sends; the tag is `sha-$(params.sha)`.
+#
+# Git plumbing: every clone/push step authenticates over HTTPS with the frank-gitops-push App
+# token (GITHUB_TOKEN, secretKeyRef key `token`), like cnc-promotion/site-promotion — no SSH
+# key, no workspace-mounted credential. `set +x` and no post-clone `git remote -v`/URL printing
+# keep the token out of PipelineRun logs (P8, spec Revision 2026-09-14 default: push credential).
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -18,22 +23,22 @@ spec:
     - {name: sha, type: string}
     - {name: stagingValuesPath, type: string}
   workspaces:
-    - {name: ssh-creds}
     - {name: scratch}
   steps:
     - name: clone
       image: alpine/git:2.45.2
-      env: [{name: HOME, value: /tekton/home}]
+      env:
+        - {name: HOME, value: /tekton/home}
+        - name: GITHUB_TOKEN
+          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        install -m 0700 -d "$HOME/.ssh"
-        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
-        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        set +x
         rm -rf "$(workspaces.scratch.path)/frank"
-        git clone --depth 1 git@github.com:derio-net/frank.git "$(workspaces.scratch.path)/frank"
+        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
     - name: bump
       image: mikefarah/yq:4.44.3
       env: [{name: TAG, value: "sha-$(params.sha)"}]
@@ -47,19 +52,20 @@ spec:
         echo "staged image.tag -> $TAG"; yq '.image' "$f"
     - name: push
       image: alpine/git:2.45.2
-      env: [{name: HOME, value: /tekton/home}]
+      env:
+        - {name: HOME, value: /tekton/home}
+        - name: GITHUB_TOKEN
+          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        install -m 0700 -d "$HOME/.ssh"
-        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
-        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        set +x
         cd "$(workspaces.scratch.path)/frank"
         git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
           commit -m "gate: stage sha-$(params.sha) [skip ci]" -- "$(params.stagingValuesPath)"
-        git push origin HEAD:main
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -151,55 +157,67 @@ metadata:
   name: staging-gate-promote
   namespace: tekton-pipelines
 spec:
-  description: Promote — set the gated sha-<sha> as the prod image ref and push (smoke-gated).
+  description: >-
+    Promote — record the gated sha as last-green in $(params.promotedRecordPath) (smoke-gated;
+    the pipeline only runs this Task when run-smoke Succeeded) and push. There is no prod app
+    yet (spec Revision 2026-09-14), so this writes a record rather than bumping a prod values
+    file.
   params:
+    - {name: app, type: string}
     - {name: sha, type: string}
-    - {name: prodValuesPath, type: string}
-    - {name: prodValuesKey, type: string, description: "dotted key, e.g. image.tag"}
+    - {name: image, type: string, description: "contract's base image ref, e.g. ghcr.io/derio-net/runs-fr"}
+    - {name: promotedRecordPath, type: string}
+    - {name: pipelineRun, type: string}
   workspaces:
-    - {name: ssh-creds}
     - {name: scratch}
   steps:
     - name: clone
       image: alpine/git:2.45.2
-      env: [{name: HOME, value: /tekton/home}]
+      env:
+        - {name: HOME, value: /tekton/home}
+        - name: GITHUB_TOKEN
+          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        install -m 0700 -d "$HOME/.ssh"
-        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
-        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        set +x
         rm -rf "$(workspaces.scratch.path)/frank"
-        git clone --depth 1 git@github.com:derio-net/frank.git "$(workspaces.scratch.path)/frank"
-    - name: bump-prod
+        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
+    - name: record
       image: mikefarah/yq:4.44.3
-      env: [{name: TAG, value: "sha-$(params.sha)"}, {name: KEY, value: "$(params.prodValuesKey)"}]
+      env:
+        - {name: SHA, value: "$(params.sha)"}
+        - {name: IMAGE_REF, value: "$(params.image):sha-$(params.sha)"}
+        - {name: PIPELINE_RUN, value: "$(params.pipelineRun)"}
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        f="$(workspaces.scratch.path)/frank/$(params.prodValuesPath)"
-        # Structure-aware edit of the exact dotted key (no last-segment sed ambiguity).
-        yq -i "(.${KEY}) = strenv(TAG)" "$f"
-        echo "promoted ${KEY} -> $TAG"
+        f="$(workspaces.scratch.path)/frank/$(params.promotedRecordPath)"
+        export NOW="$(date -u +%FT%TZ)"
+        yq -i '.sha = strenv(SHA) | .image = strenv(IMAGE_REF) | .pipelineRun = strenv(PIPELINE_RUN) | .promotedAt = strenv(NOW)' "$f"
+        echo "promoted sha-$(params.sha)"; yq '.' "$f"
     - name: push
       image: alpine/git:2.45.2
-      env: [{name: HOME, value: /tekton/home}]
+      env:
+        - {name: HOME, value: /tekton/home}
+        - {name: APP, value: "$(params.app)"}
+        - {name: SHA, value: "$(params.sha)"}
+        - name: GITHUB_TOKEN
+          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
-        install -m 0700 -d "$HOME/.ssh"
-        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
-        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        set +x
         cd "$(workspaces.scratch.path)/frank"
         git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
-          commit -m "gate: promote sha-$(params.sha) to prod [skip ci]" -- "$(params.prodValuesPath)"
-        git push origin HEAD:main
+          commit -m "gate: last-green ${APP} sha-${SHA} [skip ci]" -- "$(params.promotedRecordPath)"
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
 ---
 apiVersion: tekton.dev/v1
 kind: Task

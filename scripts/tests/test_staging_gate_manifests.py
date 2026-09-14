@@ -223,6 +223,137 @@ def test_repo_credential_manifests_are_wired_into_an_argocd_ns_application():
         )
 
 
+TEKTON_DIR = REPO / "apps/staging-gate/tekton"
+RETIRED_SSH_NEEDLES = ("staging-gate-ssh-creds", "id_rsa", "git@github.com")
+PUSH_SECRET_NAME = "frank-gitops-push"
+PUSH_SECRET_KEY = "token"
+
+
+def _tekton_docs() -> list[dict]:
+    """Every YAML doc under apps/staging-gate/tekton/, tagged with `_path` (raw
+    manifests — this dir is applied directly by ArgoCD's directory recurse, not
+    templated through apps/root)."""
+    docs = []
+    for path in sorted(TEKTON_DIR.glob("*.yaml")):
+        for doc in yaml.safe_load_all(path.read_text()):
+            if doc:
+                doc["_path"] = path
+                docs.append(doc)
+    return docs
+
+
+def _iter_steps(docs: list[dict]):
+    """Yield (doc, step) for every step in every Task/Pipeline (incl. finally and
+    inline taskSpecs), so a git-plumbing assertion catches the step wherever it
+    currently lives."""
+    for doc in docs:
+        kind = doc.get("kind")
+        task_specs: list[dict] = []
+        if kind == "Task":
+            task_specs.append(doc.get("spec", {}))
+        elif kind == "Pipeline":
+            for entry in doc.get("spec", {}).get("tasks", []) + doc.get("spec", {}).get("finally", []):
+                if entry.get("taskSpec"):
+                    task_specs.append(entry["taskSpec"])
+        for spec in task_specs:
+            for step in spec.get("steps", []):
+                yield doc, step
+
+
+def _find_task(docs: list[dict], name: str) -> dict:
+    for doc in docs:
+        if doc.get("kind") == "Task" and doc.get("metadata", {}).get("name") == name:
+            return doc
+    raise AssertionError(f"no Task/{name} found under {TEKTON_DIR}")
+
+
+def _find_pipeline(docs: list[dict]) -> dict:
+    for doc in docs:
+        if doc.get("kind") == "Pipeline":
+            return doc
+    raise AssertionError(f"no Pipeline found under {TEKTON_DIR}")
+
+
+def _pipeline_task(pipeline: dict, name: str) -> dict:
+    for t in pipeline["spec"]["tasks"]:
+        if t["name"] == name:
+            return t
+    raise AssertionError(f"no pipeline task {name!r} in {pipeline['metadata']['name']}")
+
+
+def test_no_manifest_references_the_retired_ssh_credential():
+    for path in sorted(TEKTON_DIR.glob("*.yaml")):
+        text = path.read_text()
+        for needle in RETIRED_SSH_NEEDLES:
+            assert needle not in text, (
+                f"{path.relative_to(REPO)} still references retired SSH plumbing: {needle!r}"
+            )
+
+
+def test_git_pushing_steps_read_the_github_app_token():
+    docs = _tekton_docs()
+    found_push = False
+    for doc, step in _iter_steps(docs):
+        if "git push" not in step.get("script", ""):
+            continue
+        found_push = True
+        env = {e["name"]: e for e in step.get("env", [])}
+        assert "GITHUB_TOKEN" in env, (
+            f"{doc['_path'].name}/{step.get('name')}: git-pushing step has no GITHUB_TOKEN env"
+        )
+        ref = env["GITHUB_TOKEN"].get("valueFrom", {}).get("secretKeyRef", {})
+        assert ref == {"name": PUSH_SECRET_NAME, "key": PUSH_SECRET_KEY}, (
+            f"{doc['_path'].name}/{step.get('name')}: GITHUB_TOKEN must come from "
+            f"{PUSH_SECRET_NAME}/{PUSH_SECRET_KEY}, got: {ref}"
+        )
+    assert found_push, "expected at least one git-pushing step under apps/staging-gate/tekton"
+
+
+def test_promote_task_writes_the_last_green_record():
+    promote = _find_task(_tekton_docs(), "staging-gate-promote")
+    params = {p["name"] for p in promote["spec"]["params"]}
+    assert "prodValuesKey" not in params, (
+        f"staging-gate-promote must not carry the retired prodValuesKey param: {params}"
+    )
+    assert "promotedRecordPath" in params, (
+        f"staging-gate-promote must take promotedRecordPath: {params}"
+    )
+    scripts = "\n".join(s.get("script", "") for s in promote["spec"]["steps"])
+    for field in (".sha", ".image", ".pipelineRun", ".promotedAt"):
+        assert field in scripts, (
+            f"staging-gate-promote steps must write {field!r} into the record: {scripts}"
+        )
+    assert "$(params.promotedRecordPath)" in scripts, (
+        "staging-gate-promote steps must reference $(params.promotedRecordPath)"
+    )
+
+
+def test_resolve_contract_exposes_the_v2_results():
+    pipeline = _find_pipeline(_tekton_docs())
+    resolve = _pipeline_task(pipeline, "resolve-contract")
+    results = {r["name"] for r in resolve["taskSpec"]["results"]}
+    for name in ("promotedRecordPath", "smokeRbacUrl"):
+        assert name in results, (
+            f"resolve-contract must expose a {name!r} result, got: {sorted(results)}"
+        )
+
+
+def test_rbac_secrets_role_names_the_github_app_push_secret():
+    role = next(
+        d for d in _tekton_docs()
+        if d.get("kind") == "Role" and d.get("metadata", {}).get("name") == "staging-gate-secrets-read"
+    )
+    resource_names: set[str] = set()
+    for rule in role["rules"]:
+        resource_names.update(rule.get("resourceNames", []))
+    assert PUSH_SECRET_NAME in resource_names, (
+        f"staging-gate-secrets-read must name {PUSH_SECRET_NAME}: {resource_names}"
+    )
+    assert "staging-gate-ssh-creds" not in resource_names, (
+        f"staging-gate-secrets-read must not name the retired ssh secret: {resource_names}"
+    )
+
+
 def test_repo_credential_comment_documents_the_consumer_namespace_pem():
     """ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's
     namespace, which hid frank-gitops-push for seven days. The COMMENT (not the

@@ -45,9 +45,6 @@ spec:
           - {name: app, value: $(tt.params.app)}
           - {name: sha, value: $(tt.params.sha)}
         workspaces:
-          - name: ssh-creds
-            secret:
-              secretName: staging-gate-ssh-creds
           - name: vcluster-kubeconfig
             secret:
               secretName: vcluster-staging-kubeconfig
