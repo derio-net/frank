@@ -25,7 +25,7 @@ re-registration is a RUNTIME fact, proven by the manual on-cluster spike, NOT
 here (helm template proves schema only; trusting schema over runtime is exactly
 the #651 trap).
 
-LOCAL guards (frank does not run scripts/tests/ in CI); they shell out to
+These run in CI (`.github/workflows/repo-tripwires.yml`); they shell out to
 `helm template --repo https://argoproj.github.io/argo-helm` and are fail-closed
 (non-zero return / missing render -> assertion error, never a false-green). In a
 runner without helm or without egress they go red on infra, not logic.

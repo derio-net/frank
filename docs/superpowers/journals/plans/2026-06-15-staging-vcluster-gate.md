@@ -79,3 +79,58 @@ Steps installed git/yq at runtime as a non-root user, which cannot write the pac
 ### b740f189ad2b · decision · ArgoCD runs-fr repo credential lives in apps/argocd-extras (phase 7)
 
 Placed the new repo-runs-fr ExternalSecret in apps/argocd-extras/manifests/ (existing Application, already targets ns argocd, already houses exactly this shape of credential — repo-stoa-companies) rather than creating a new apps/staging-gate/argocd/ Application. staging-gate's own Application targets tekton-pipelines only; widening it to argocd would have been unnecessary scope creep. No new ClusterGenerator: github-app-derio's installation already covers all derio-net repos including runs-fr. ESO resolves privateKey.secretRef in the CONSUMING namespace (argocd), so the PEM must also be copied there — manual op cicd-staging-gate-argocd-runs-fr-repo-key.
+
+<!-- fr:journal kind=finding scope=plan id=p7-docstring-ci created=2026-09-14T23:08:25 phase=7 state=open -->
+### p7-docstring-ci · finding [open] · test_staging_gate_manifests.py docstring claims scripts/tests is not run in CI (phase 7)
+
+The module docstring says "LOCAL guards (frank does not run scripts/tests/ in CI)". repo-tripwires.yml has run the suite on every PR since #707, so the claim is stale (copied from an older test).
+
+<!-- fr:journal kind=finding scope=plan id=p7-es-comment-evidence created=2026-09-14T23:08:28 phase=7 state=open -->
+### p7-es-comment-evidence · finding [open] · repo-runs-fr ExternalSecret comment misstates its evidence (phase 7)
+
+It says "verified live: argocd repo list has no runs-fr entry"; the verification was a kubectl listing of argocd repository Secrets. It also says "same pattern as repo-stoa-companies above" although that precedent is a different file.
+
+<!-- fr:journal kind=finding scope=plan id=p7-vacuous-argocd-assert created=2026-09-14T23:08:31 phase=7 state=open -->
+### p7-vacuous-argocd-assert · finding [open] · Consumer-namespace test asserts "argocd" in raw, which is always true (phase 7)
+
+test_repo_credential_manifest_documents_the_consumer_namespace_key checks `"argocd" in raw`; the `namespace: argocd` line always satisfies it, so only the manual-op-name half of the assertion can fail.
+
+<!-- fr:journal kind=discovery scope=plan id=p7-suite-baseline created=2026-09-14T23:13:24 phase=7 -->
+### p7-suite-baseline · discovery · Tripwire baseline is 933 after the rebase, not 776 (phase 7)
+
+Measured: 776 passed + 1 xfailed was the PRE-rebase count; the 16 main commits pulled in by the 2026-09-14 rebase added 157 tests (933 collected at e582012a). Phase 7 added 8 (6 new in test_staging_gate_manifests.py, +1 parametrized URL case, +1 same-entry test) -> 940 passed + 1 xfailed at b08d0f37, re-run independently by the orchestrator (6m21s). The phase-7 executor reported the right count with a wrong explanation (phase 6 added nothing since the baseline). Use 941 collected as the pre-phase-8 baseline.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-install-coverage created=2026-09-14T23:21:06 phase=7 state=refuted -->
+### p7-review-install-coverage · finding [refuted] · Review: nothing shows the App install covers runs-fr (phase 7)
+
+Refuted with evidence: `gh api orgs/derio-net/installations` shows derio-fr-automation (138773908) repository_selection=all, re-checked 2026-09-14. The reviewer was misled by a stale "10 repos" comment in clustergenerator-github-app.yaml, now corrected. The install check was still added to the manual op verify list, because selection can change later.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-weak-generator-guard created=2026-09-14T23:21:09 phase=7 state=fixed -->
+### p7-review-weak-generator-guard · finding [fixed] · Review: generator guard only rejected names containing runs-fr (phase 7)
+
+Replaced by test_no_unintended_cluster_generator_is_added: the generator set must equal the pre-plan baseline plus exactly github-app-derio-argocd-read, and the shared github-app-derio must stay unscoped.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-name-rationale created=2026-09-14T23:21:11 phase=7 state=fixed -->
+### p7-review-name-rationale · finding [fixed] · Review: name-vs-server rationale was inaccurate (phase 7)
+
+Docstring now says both forms resolve against registered clusters; name is chosen for consistency with cnc-staging.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-syncwave-comment created=2026-09-14T23:21:13 phase=7 state=fixed -->
+### p7-review-syncwave-comment · finding [fixed] · Review: argocd-extras sync-wave comment named only one consumer (phase 7)
+
+Comment now lists repo-stoa-companies for stoa-live-mirror-sync and repo-runs-fr plus its scoped generator for runs-fr-staging.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-manualop-placeholders created=2026-09-14T23:21:15 phase=7 state=fixed -->
+### p7-review-manualop-placeholders · finding [fixed] · Review: manual op shipped placeholders with known values (phase 7)
+
+cicd-staging-gate-argocd-runs-fr-repo-key now commits secrets/github-app/github-app-derio-key-argocd.yaml via decrypt | yq namespace | sops --encrypt from stdin (PEM never on disk decrypted), applies it, force-syncs repo-runs-fr, and verifies install selection, ES SecretSynced and argocd repo list.
+
+<!-- fr:journal kind=finding scope=plan id=p7-review-overprivileged-token created=2026-09-14T23:21:17 phase=7 state=fixed -->
+### p7-review-overprivileged-token · finding [fixed] · Review: ArgoCD credential carried the full install privilege (phase 7)
+
+The unscoped github-app-derio token has contents/issues/pull_requests/workflows write on every derio-net repo. Fixed with ClusterGenerator github-app-derio-argocd-read on the same App and install, repositories [runs-fr], permissions {contents: read}; the live ESO v2.1.0 CRD schema accepts both fields.
+
+<!-- fr:journal kind=decision scope=plan id=d-scoped-argocd-read-generator created=2026-09-14T23:21:20 phase=7 -->
+### d-scoped-argocd-read-generator · decision · ArgoCD repository credentials use a scoped read-only generator (phase 7)
+
+Supersedes the executor note that reused the unscoped github-app-derio. Placement in apps/argocd-extras stands. One generic generator (github-app-derio-argocd-read) serves every future gated private chart repo by extending its repositories list, rather than one generator per app. No new App, no new PEM; the PEM still has to exist in argocd because ESO resolves secretRef in the consumer namespace.

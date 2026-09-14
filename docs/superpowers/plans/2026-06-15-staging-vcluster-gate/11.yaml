@@ -69,10 +69,16 @@ tasks:
       when: "Post-merge, before registering the staging vCluster"
       why_manual: "ESO resolves the GithubAccessToken generator's privateKey.secretRef in the CONSUMER namespace, so the derio-fr-automation PEM must exist in argocd; the PEM is a bootstrap credential applied out-of-band."
       commands:
-        - sops --decrypt secrets/github-app/<derio-fr-automation key file> | yq '.metadata.namespace = "argocd"' | kubectl apply -f -
-        - kubectl -n argocd annotate externalsecret <runs-fr repo ES name> force-sync=$(date +%s) --overwrite
+        # Commit a per-namespace SOPS copy (same pattern as github-app-derio-key-tekton.yaml).
+        # metadata is plaintext under the .sops.yaml encrypted_regex, so it is re-namespaced
+        # before re-encryption; the PEM never lands on disk decrypted.
+        - sops --decrypt secrets/github-app/github-app-derio-key-tekton.yaml | yq '.metadata.namespace = "argocd"' | sops --encrypt --input-type yaml --output-type yaml --filename-override secrets/github-app/github-app-derio-key-argocd.yaml /dev/stdin > secrets/github-app/github-app-derio-key-argocd.yaml
+        - sops --decrypt secrets/github-app/github-app-derio-key-argocd.yaml | kubectl apply -f -
+        - kubectl -n argocd annotate externalsecret repo-runs-fr force-sync=$(date +%s) --overwrite
       verify:
-        - argocd repo list --port-forward --port-forward-namespace argocd | grep runs-fr
+        - env -u GITHUB_TOKEN gh api orgs/derio-net/installations --jq '.installations[]|select(.id==138773908)|.repository_selection'   # expect all (or runs-fr in the selected list)
+        - kubectl -n argocd get externalsecret repo-runs-fr -o jsonpath='{.status.conditions[0].reason}'   # expect SecretSynced
+        - argocd repo list --port-forward --port-forward-namespace argocd | grep runs-fr   # expect Successful
       status: pending
       ```
 
