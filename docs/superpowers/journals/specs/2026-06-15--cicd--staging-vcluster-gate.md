@@ -24,3 +24,8 @@ After the operator applies manual-op secrets, the agent drives green (real merge
 ### skeleton-override-2026-06-15-staging-vcluster-gate · decision · Phase 1 carries no skeleton marker (predates the rule)
 
 Phases 1-6 completed 2026-06-15, before the skeleton-marker lint. CI (repo-tripwires: 776 passed / 1 xfailed on the rebased branch) already smokes every push, and phases 7-10 extend that suite rather than add a new runtime, so re-marking a completed phase adds no smoke.
+
+<!-- fr:journal kind=review scope=spec id=spec-review-2026-09-14 created=2026-09-14T22:37:58 -->
+### spec-review-2026-09-14 · review · Spec re-reviewed against Q&A answers and current main
+
+Every revision-table row cites live evidence gathered 2026-09-14 (ArgoCD v3.3.2 image, argocd-cm exclusion list, runs-fr build.yml 403 logs, argocd repository Secrets, GHCR anonymous manifest fetches, #797 rule body). Named files verified present: apps/argocd/values.yaml Pod exclusion, scripts/tests/test_argocd_vcluster_pod_exclusion.py, apps/tekton/webhooks.yaml + test_webhook_delivery_paths.py, externalsecret-frank-gitops-push.yaml, ClusterGenerator github-app-derio, derio-homelab webhook ExternalSecret precedent, vcluster 0.32.1 exportKubeConfig.additionalSecrets. All four operator answers are reflected (d-promote-last-green, d-dedicated-vcluster, d-dispatch-webhook, d-test-plan). Open risk carried into implementation: additionalSecrets behaviour and StepAction availability are verified by helm render / read-only CRD check in the phase, not assumed.

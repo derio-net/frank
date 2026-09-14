@@ -17,7 +17,10 @@ steps:
   plan-review:
     state: done
   implement:
-    state: pending
+    state: running
+    at: '2026-09-14T20:39:06+00:00'
+    emitted:
+      journal:plan: docs/superpowers/journals/plans/2026-06-15-staging-vcluster-gate.md
     items:
       phase/1/implement-phase: done
       phase/2/implement-phase: done
@@ -25,9 +28,65 @@ steps:
       phase/4/implement-phase: done
       phase/5/implement-phase: done
       phase/6/implement-phase: done
-      phase/7/implement-phase: pending
+      phase/7/implement-phase: running
+      phase/1/review-phase: done
+      phase/2/review-phase: done
+      phase/3/review-phase: done
+      phase/4/review-phase: done
+      phase/5/review-phase: done
+      phase/6/review-phase: done
     members:
     - implement-phase
     - review-phase
   deliver:
     state: pending
+accounting:
+  phase/1/review-phase:
+    at: '2026-09-14T20:37:40+00:00'
+    journal_entries: 11
+    journal_lines: 56
+    handoff_chars: 3440
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/2/review-phase:
+    at: '2026-09-14T20:38:42+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 3831
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/3/review-phase:
+    at: '2026-09-14T20:38:47+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 3831
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/4/review-phase:
+    at: '2026-09-14T20:38:51+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 3831
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/5/review-phase:
+    at: '2026-09-14T20:38:56+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 4982
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/6/review-phase:
+    at: '2026-09-14T20:39:01+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 4982
+    spec_bytes: 15040
+    plan_bytes: 40584
+  phase/7/implement-phase:
+    at: '2026-09-14T20:39:06+00:00'
+    journal_entries: 15
+    journal_lines: 76
+    handoff_chars: 3831
+    spec_bytes: 15040
+    plan_bytes: 40584

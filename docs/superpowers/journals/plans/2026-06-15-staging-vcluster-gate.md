@@ -54,3 +54,28 @@ Completed June task authoring one TriggerBinding + TriggerTemplate; its follow-o
 ### nrb-p9t2 · discovery · no-refactor-because P9.T2
 
 Adds one curl fetch step and a contract key to run-smoke; the shared git plumbing is already extracted by P8.T2.S3.
+
+<!-- fr:journal kind=finding scope=plan id=june-c1-smoke-wait created=2026-09-14T22:38:24 phase=5 state=fixed -->
+### june-c1-smoke-wait · finding [fixed] · C1: run-smoke dual-watcher wait -n PID (phase 5)
+
+June milestone review (fresh context). Two background watchers + wait -n raced and could report the wrong verdict. Fixed: deterministic poll loop over .status.succeeded/.status.failed with a timeout.
+
+<!-- fr:journal kind=finding scope=plan id=june-c2-results-path created=2026-09-14T22:38:26 phase=5 state=fixed -->
+### june-c2-results-path · finding [fixed] · C2: $(results.{k}.path) is not a Tekton substitution (phase 5)
+
+resolve-contract wrote results through a templated name Tekton never expands, so no result was ever populated. Fixed: one explicit $(results.<name>.path) write per result.
+
+<!-- fr:journal kind=finding scope=plan id=june-c3-sha-tag created=2026-09-14T22:38:28 phase=5 state=fixed -->
+### june-c3-sha-tag · finding [fixed] · C3: bare sha vs sha-<commit> image tag (phase 5)
+
+Tasks used the bare sha while the spec and runs-fr build publish sha-<short>, which would ImagePullBackOff. Fixed: sha-$(params.sha) end to end.
+
+<!-- fr:journal kind=finding scope=plan id=june-i4-apk-nonroot created=2026-09-14T22:38:31 phase=5 state=fixed -->
+### june-i4-apk-nonroot · finding [fixed] · I4: apk add as nonroot 65532 fails (phase 5)
+
+Steps installed git/yq at runtime as a non-root user, which cannot write the package db. Fixed: alpine/git for git and mikefarah/yq for structured edits (also removed a fragile sed).
+
+<!-- fr:journal kind=decision scope=plan id=b740f189ad2b created=2026-09-14T22:57:40 phase=7 -->
+### b740f189ad2b · decision · ArgoCD runs-fr repo credential lives in apps/argocd-extras (phase 7)
+
+Placed the new repo-runs-fr ExternalSecret in apps/argocd-extras/manifests/ (existing Application, already targets ns argocd, already houses exactly this shape of credential — repo-stoa-companies) rather than creating a new apps/staging-gate/argocd/ Application. staging-gate's own Application targets tekton-pipelines only; widening it to argocd would have been unnecessary scope creep. No new ClusterGenerator: github-app-derio's installation already covers all derio-net repos including runs-fr. ESO resolves privateKey.secretRef in the CONSUMING namespace (argocd), so the PEM must also be copied there — manual op cicd-staging-gate-argocd-runs-fr-repo-key.
