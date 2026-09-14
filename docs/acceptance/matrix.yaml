@@ -940,6 +940,128 @@ rows:
     a brain that DOES exist it would leave the schema silently un-migrated, which looks like a working install.
     `gbrain doctor` reports `no_url` / "No brain configured": correct and deliberate — `gbrain init` is NOT run
     here, that is Test Plan row 9 and belongs to the requesting repo.
+- id: obs-etcd-server-metrics-scraped
+  capability: Control-plane observability
+  acceptance: Frank scrapes its own etcd and the etcd server metric surface is queryable, so an etcd fault is visible
+    before it becomes an API-server fault.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec. Live half: up{job="kube-etcd"} == 1 on all three control-plane nodes and etcd_server_has_leader
+    / etcd_disk_wal_fsync_duration_seconds / etcd_mvcc_db_total_size_in_bytes present in VMSingle (Test Plan step
+    3). CI half: scripts/tests/test_etcd_scrape.py asserts the ConfigPatch port, the static endpoints and the plain-http
+    vmScrape stay coherent -- they live in different files and nothing else connects them. PHASE 1 LANDED THE CI HALF (4 tests, green): test_configpatch_opens_the_metrics_listener, test_kube_etcd_values_target_the_control_planes, test_listener_port_matches_the_scrape_target_port, test_endpoints_match_the_documented_control_plane_ips -- the last two mutation-checked. Chart render at the pinned 0.72.4 confirms the values produce a headless Service on 2381, a static Endpoints with the three mini IPs, and job="kube-etcd". STATUS STAYS not-implemented on purpose: the listener is still connection-refused on .21/.22/.23 (the ConfigPatch is the back-loaded operator phase), so nothing is scraped yet and no series exist. Flips to skipped-with-evidence after Test Plan step 3.'
+- id: obs-etcd-quorum-loss-pages
+  capability: Control-plane observability
+  acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane maintenance does not.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec. The CI guard covers the wiring that makes this true: the two critical rules exist,
+    carry for: >= 10m, and are NOT labelled health_bridge_only, so the notification policy routes them to Telegram.
+    The live half needs an actual quorum event and is not safely manufacturable on a three-node quorum. The 10m
+    window is defended by the 2026-08-02 control-plane roll, which took ~7 minutes and produced 48 alerts against
+    a healthy cluster under the previous sensitivity. PHASE 2 LANDED THE CI HALF (green): the six rules exist
+    in alert-rules-cm.yaml and test_only_quorum_loss_pages asserts layer-2-etcd-no-leader and
+    layer-2-etcd-member-down carry severity: critical, for: >= 10m and NO health_bridge_only, while the other
+    four carry health_bridge_only true -- which the notification policy diverts to the Health Bridge ahead of
+    the severity routes. STATUS STAYS not-implemented on purpose: nothing is scraped yet (the listener is the
+    back-loaded operator phase), so the rules cannot have evaluated even once, and the live half needs a real
+    quorum event that is not safely manufacturable on a three-node quorum.'
+- id: obs-etcd-blindness-is-tracked
+  capability: Control-plane observability
+  acceptance: If Frank stops scraping its own etcd, that silence is itself detected rather than reading as health.
+  origin:
+  - frank:docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_etcd_scrape.py
+  status: not-implemented
+  notes: 'New row with the spec, and the reason the spec carries a sixth rule. Every etcd rule uses noDataState:
+    OK, so a re-emptied Endpoints object would make all of them read OK -- the exact 148-day failure being fixed,
+    reintroduced one layer up. absent(up{job="kube-etcd"}) is the only expression that fires on a series disappearing.
+    Evidenced by pausing the scrape deliberately and observing the watchdog reach health-bridge without paging
+    Telegram. PHASE 2 LANDED THE CI HALF (green): layer-2-etcd-scrape-absent exists at severity: critical +
+    health_bridge_only, and test_absent_watchdog_selects_the_job_the_chart_renders derives the job name from a
+    live helm template of the pinned chart (VMServiceScrape.spec.jobLabel names a Service label key; that
+    Service label carries the value) rather than comparing the rule to a constant -- a watchdog naming a job
+    that never exists fires permanently and gets muted, which is this same defect a third time.
+    Mutation-checked. STATUS STAYS not-implemented on purpose: the deliberate scrape pause is operator work in
+    Test Plan step 5 / P5.T2.S2, and until then nothing has demonstrated the watchdog actually firing.'
+- id: pipelinerun-outcomes-visible
+  capability: CI/CD observability
+  acceptance: Tekton PipelineRun outcomes are queryable in VictoriaMetrics, broken down by pipeline and
+    success/failure.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: skipped
+  notes: 'Live manual proof 2026-09-14 (post-merge, #797). vmagent target health=up job=tekton-pipelines-controller
+    ns=tekton-pipelines, lastError empty. VMSingle stores 66 tekton metric names including
+    tekton_pipelines_controller_pipelinerun_duration_seconds_count with a pipeline label, queried live
+    per pipeline and status. The cardinality drop applied: taskruns_pod_latency_milliseconds is ABSENT
+    from VMSingle. 689 tekton series stored against the census prediction of 851 — lower because the
+    controller had restarted ~12h earlier and has seen fewer distinct taskruns since, not because the
+    scrape is partial. Asserted on the artifacts, not on ArgoCD: tekton-extras reported Synced/Healthy
+    at the PRE-merge revision dcb31fe6 while the VMServiceScrape did not exist at all, and only a
+    refresh moved it to 8dc7df49.'
+- id: pipeline-total-failure-alerts
+  capability: CI/CD observability
+  acceptance: A pipeline that runs repeatedly and never succeeds raises an alert that reaches the operator
+    within hours.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: skipped
+  notes: 'Live manual proof 2026-09-14 (post-merge, #797 + #801). Synthetic end-to-end: three failing runs
+    of a throwaway pipeline produced counters failed=3 with NO success series at all — the genuine-absence
+    case the `unless` exists for, and the one `and success == 0` would silently drop. ngalert.sender.router
+    dispatched at 10:33:35Z, a 30-minute gap matching `for: 30m` exactly, with zero integration=telegram
+    error lines in the window. One passing run wrote the success sample at 11:38:00Z and the instance went
+    Normal at 11:38:30Z — cleared by the `unless`, not by the 24h window expiring, which was the specific
+    behavioural claim. Grafana''s rule API then reported state=inactive health=ok. Note the resolve path
+    runs through NoData (the instance reads "Normal (NoData)") because `unless` removes the only series,
+    so `noDataState: OK` is load-bearing for RESOLUTION on this rule, not merely for a quiet startup.'
+- id: critical-pipeline-idle-alerts
+  capability: CI/CD observability
+  acceptance: A high-cadence pipeline that stops running entirely raises an alert, even though it produces
+    no failures to count.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  levels: {}
+  status: not-implemented
+  notes: 'Two rules, layer-25-idle-stoa-status-bridge (6h window) and layer-25-idle-github-pull-sync
+    (72h window), sized from measured max idle gaps of 0.5h and 15.7h. One rule per pipeline is load-bearing:
+    a shared rule with a regex would leave `or vector(0)` disarmed for whichever pipeline still has a series.
+    Covers the "live, correct and unreachable" trigger failure of 2026-07-26, which produced zero PipelineRuns
+    and is therefore invisible to a failure-ratio rule.' 
+- id: paperclip-litellm-agents-operable
+  capability: Paperclip agents on local inference
+  acceptance: An operator can smoke-test, hire and recover opencode_local and hermes_local
+    Paperclip agents that run through LiteLLM by following operating/18-paperclip,
+    with every command matching the live cluster.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--orch--paperclip-litellm-agents-docs-design.md
+  levels: {}
+  status: skipped
+  notes: 'Manual live proof 2026-09-13 against image sha-8e6edcd: opencode smoke returned
+    ack; hermes bare-alias smoke returned a reply and session_id; a per-replica LiteLLM
+    grep found POSTs from the paperclip pod IP; agent_task_sessions matches the recovery
+    SQL. Docs-only, no automated test. Row appended via an indent/add/dedent round-trip
+    around super-fr#470. Post-merge live check 2026-09-14 against blog image 034ef965
+    (merge of #382): both posts on blog.derio.net serve every new section anchor, zero
+    dangling in-page links, building/operating cross-links resolve, and the smoke commands
+    appear in both Verify and Quick Reference.'
 - id: infer-rerank-supported-batch-succeeds
   capability: Retrieval models
   acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default and receive scored
@@ -970,12 +1092,14 @@ rows:
   levels: {}
   status: not-implemented
   notes: >-
-    PARTIALLY MET 2026-09-11. A curve WAS measured live, at the current 6Gi limit, with the sweep mode this
-    plan adds — cost per row = 0.0202 GiB x (T/332)^1.78 from three clean single-call measurements, plus the
-    finding that matters more than the curve. Memory is never released, so the resident floor ratchets to the
-    high-water of the largest call, and that (not request size) is what makes the failure intermittent. NOT
-    met, the shipped pair 64 / 640 is a short extrapolation from those anchors rather than a measurement at
-    the 10Gi limit it ships with. The live 10Gi patch was refused by the harness permission layer and the
-    operator elected to ship the raise through git and verify afterwards, so the row closes on Test Plan row
-    10 post-merge. Recorded rather than flipped, because "evidence rather than an estimate" is exactly the
-    clause still outstanding.
+    PARTIALLY MET 2026-09-14. A curve WAS measured live, and the mechanism behind it settled from the
+    container's own cgroup: the memory is PINNED iGPU BUFFERS (shmem 5.11 GiB == unevictable 5.11 GiB, with
+    inactive_file and active_file both zero and swap disabled), so limits.memory is the GPU's memory budget
+    and the kernel may reclaim nothing. Baseline 1.71 GiB; a call allocates by request shape, 3.40 GiB at 64
+    documents by 600 tokens; repeating a shape or sending a smaller one grows nothing; an ascending sequence
+    costs more than the largest alone; nothing is released while the container lives. The same 60x500 request
+    dies on a warm pool and succeeds on a fresh one, proven both ways. NOT met, the shipped pair 64 / 640 was
+    measured at the OLD 6Gi limit (worst case 5.67 GiB there, 94.5 percent) rather than at the 10Gi it ships
+    with — the live patch that would have measured the raised arm was refused by the harness permission layer
+    and the operator elected to ship the raise through git and verify afterwards. Closes on Test Plan row 10,
+    which must run on a freshly restarted pod or the pool overstates every size after the first.

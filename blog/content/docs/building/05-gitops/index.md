@@ -10,6 +10,7 @@ weight: 6
 reader_goal: "Deploy ArgoCD with App-of-Apps and adopt existing Helm releases via annotation-based resource tracking"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Migrating from Flux to ArgoCD with an App-of-Apps pattern — adopting existing workloads without downtime."
 ---
 
 This blog builds one cluster in numbered layers, each layer a post. By the fifth of them, the cluster had working networking, storage and GPU compute, all of it installed by hand or through ad-hoc Helm commands. Cilium was a `helm install` I ran from a laptop that left no trace in Git. Longhorn was the same. If that laptop died, or if I needed to rebuild the cluster from scratch, I would have to reconstruct every `helm install` from memory.

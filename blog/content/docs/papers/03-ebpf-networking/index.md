@@ -27,6 +27,7 @@ tags: ["cilium", "ebpf", "kubernetes", "service-mesh", "networking"]
 capabilities: ["net"]
 related_building: "docs/building/02-foundation"
 related_operating: "docs/operating/01-cluster-nodes"
+description: "Six options dominate Kubernetes networking in 2026 — Cilium, Calico, kube-proxy + iptables, Istio, Linkerd2, and the cloud-managed VPC CNI — and they split on two axes:…"
 ---
 
 ## TL;DR

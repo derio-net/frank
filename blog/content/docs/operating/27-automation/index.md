@@ -11,6 +11,7 @@ reader_goal: "Onboard a new host to AWX, read a failed job, rotate the OIDC secr
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/14d0b674
+description: "Onboarding a new host, reading a failed job, rotating the OIDC secret, and getting back in when SSO is the thing that broke."
 ---
 
 {{< last-updated >}}

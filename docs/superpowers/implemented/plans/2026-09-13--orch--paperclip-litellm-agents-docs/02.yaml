@@ -1,0 +1,75 @@
+schema_version: 2
+phase:
+  number: 2
+  title: 'Fold #382 content into the house structure with verified facts'
+  tag: agentic
+  depends_on:
+  - 1
+  acceptance:
+  - paperclip-litellm-agents-operable
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Building post - tutorial section, Missteps, Recovery Path, What Transfers
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Red: diff the #382 section `## Two CLIs Through One Gateway` against the live cluster (image sha-8e6edcd). Record the drifted claims in the spec's Verified reality table: the opencode version flip, the adapter's always-on `--provider` rule, extraArgs being array-only, and the missing apps/paperclip-extras.
+  - id: P2.T1.S2
+    text: |
+      Green: replace the appended section with `## Hiring Agents on Local Inference` (three H3s: opencode, hermes, model shapes) before `## Missteps`. Add three Missteps rows (the #296 wrapper, the probe of the wrong path, session-ID truncation), four Recovery Path rows, and `## What Transfers`. Bump `last_updated`, tags and `reader_goal`. Fix References.
+  - id: P2.T1.S3
+    text: |
+      Refactor: re-run validate_educational on the post; require `POST QUALITY OK`, no what-transfers warning, and em-dash density below main's 28.5. Tighten prose until it is.
+- number: 2
+  title: Operating post - Verify, Steps, Recover, Missteps, Quick Reference
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Red: run the #382 recipes live. `-l app=paperclip` selects no pod. `kubectl logs deploy/litellm` reads one of 5 replicas, and its only POST came from blackbox-exporter (10.244.10.241), not paperclip (10.244.10.187). "Database Health above" is a dangling reference.
+  - id: P2.T2.S2
+    text: |
+      Green: remove `## LiteLLM-Backed Agents`. Add `### Verify the LiteLLM-backed agent CLIs` (both smoke commands plus a per-replica grep on the pod IP) and Steps for `Hire a LiteLLM-Backed Agent` and `Recover the Agent CLIs on a Cold PVC`. Add Recover sections for the second-heartbeat trap (with a detection query) and the stranded agent. Add two Missteps rows and three Quick Reference rows. Fix the healthy-state list to `2/2`.
+  - id: P2.T2.S3
+    text: |
+      Refactor: re-run every new command read-only against the cluster (smoke calls return `ack` and a session_id; the grep shows two POSTs from the paperclip IP). Re-run validate_educational and the actionable-sections tripwire; require green.
+- number: 3
+  title: Commit
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Commit both posts, the spec and the spec journal with a `docs(orch):` message listing the corrections. Push `chore/paperclip-doc-touchups`. Do not open a new PR — #382 already exists.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-09-13T20:18:49+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-09-13T20:18:51+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-09-13T20:18:54+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-09-13T20:18:56+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-09-13T20:18:59+00:00'
+      note: null
+    P2.T2.S3:
+      state: x
+      ticked_at: '2026-09-13T20:19:02+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-09-13T20:19:05+00:00'
+      note: null
+  completion:
+    at: '2026-09-13T20:19:11+00:00'
+    note: null
+    observed_prs: []

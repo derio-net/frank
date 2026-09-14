@@ -1,0 +1,38 @@
+schema_version: 2
+phase:
+  number: 4
+  title: '[manual] Post-merge rendered-page check'
+  tag: manual
+  depends_on:
+  - 3
+  acceptance:
+  - paperclip-litellm-agents-operable
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator verifies the live posts
+  steps:
+  - id: P4.T1.S1
+    text: |
+      After the operator merges #382 and the blog deploys, open `building/15-paperclip` and `operating/18-paperclip` on the live blog. Confirm the new sections render, the cross-post relref links and #anchor links resolve, and the Quick Reference commands match the post body.
+  - id: P4.T1.S2
+    text: |
+      If the live check in S1 passes, append the date and the deployed blog commit to the `notes` of acceptance row `paperclip-litellm-agents-operable`, and leave its status `skipped` (the proof is manual; no automated test exists). If any post command no longer matches the cluster, set the row to `failing` and open a fix PR against the post.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-09-14T13:19:02+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-09-14T13:19:04+00:00'
+      note: null
+  completion:
+    at: '2026-09-14T13:19:25+00:00'
+    note: 'Post-merge Test Plan verified live on 2026-09-14 against blog image 034ef965
+      (merge of #382). Both posts on blog.derio.net serve every new section anchor,
+      with zero dangling in-page links. The building/operating cross-links resolve,
+      and the smoke commands appear in both Verify and Quick Reference. The acceptance
+      row notes were updated; status stays skipped.'
+    observed_prs: []

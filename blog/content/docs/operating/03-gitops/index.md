@@ -11,6 +11,7 @@ reader_goal: "Navigate the full ArgoCD lifecycle on Frank — observe, sync, dif
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
+description: "Day-to-day commands for managing ArgoCD applications, syncing, debugging drift, handling degraded apps, and navigating the gotchas that have bitten Frank."
 ---
 
 {{< last-updated >}}

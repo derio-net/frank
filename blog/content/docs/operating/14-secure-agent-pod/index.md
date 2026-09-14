@@ -11,6 +11,7 @@ reader_goal: "Connect to the secure agent pod via SSH and mosh, check s6-supervi
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for managing the secure agent pod — SSH access, process health, s6-overlay supervision, VibeKanban, GitHub App token auth, and recovering from the gotchas…"
 ---
 
 {{< last-updated >}}

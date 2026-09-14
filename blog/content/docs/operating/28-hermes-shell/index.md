@@ -11,6 +11,7 @@ reader_goal: "Verify Hindsight memory health, back up and restore the memory dat
 diataxis: [how-to, reference]
 last_updated: 2026-07-27
 last_updated_commit: https://github.com/derio-net/frank/commit/4541ee68
+description: "Checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider, and the pg_restore mechanic."
 ---
 
 {{< last-updated >}}

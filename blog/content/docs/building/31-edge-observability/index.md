@@ -10,6 +10,7 @@ weight: 32
 reader_goal: "Deploy cross-cluster observability with log shipping, blog analytics, CrowdSec edge security, Falco runtime security, and an AI alert helper"
 diataxis: tutorial
 last_updated: 2026-07-16
+description: "Collectors on Hop, backend on Frank, AI alert enrichment that knows when 12x baseline is a scraper and when it is Hacker News."
 ---
 
 The blog at `blog.derio.net/frank` had no observability. Hop is a single Hetzner CX23 with 4 GB RAM and no Grafana. Caddy's stdout had the answer to every question — nothing was reading it.

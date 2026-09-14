@@ -8,6 +8,7 @@ weight: 1
 reader_goal: "Understand Frank's capability layers and how they map to hardware zones"
 diataxis: reference
 last_updated: 2026-08-01
+description: "The index to Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, cluster state, and the commands to check any of it."
 ---
 
 The **Frank, the Talos Cluster** series is a walkthrough of building an AI-hybrid Kubernetes homelab from scratch, one layer per post. This post is not part of that walkthrough. It is the index to it: the roadmap, the capability map, the hardware, and a set of commands for checking whether any of it is still true.

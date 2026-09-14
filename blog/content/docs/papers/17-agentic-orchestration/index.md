@@ -30,6 +30,7 @@ tags: ["agents", "orchestration", "secure-workstation", "vibekanban", "paperclip
 capabilities: ["orch"]
 related_building: "docs/building/21-secure-agent-pod"
 related_operating: "docs/operating/14-secure-agent-pod"
+description: "Agent orchestration is a four-job problem — isolation, persistent state, access, and fleet dispatch — and the six contenders in 2026 (secure-agent-pod, VibeKanban, Paperclip +…"
 ---
 
 ## TL;DR

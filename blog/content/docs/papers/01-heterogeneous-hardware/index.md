@@ -30,6 +30,7 @@ tags: ["hardware", "heterogeneous", "node-pools", "kubernetes", "talos", "raspbe
 capabilities: ["hw"]
 related_building: "docs/building/01-introduction"
 related_operating: "docs/operating/01-cluster-nodes"
+description: "Same boxes or different boxes? Six fleet shapes split on that one question — all-RPi, all-NUC, heterogeneous bare metal, edge+core, single beefy server + VMs, full-cloud…"
 ---
 
 ## TL;DR
@@ -606,8 +607,8 @@ The cost is everything in §5, doubled when the cluster grows.
 
 **Single beefy server + VMs** wins when the goal is
 *Kubernetes-as-software* — you want to learn the scheduler, the API,
-the operators — and you don't want to maintain seven boards. Proxmox
-+ LXC is the rational homelab answer. It is a perfectly legitimate
+the operators — and you don't want to maintain seven boards. Proxmox +
+LXC is the rational homelab answer. It is a perfectly legitimate
 choice and Frank explicitly chose not to take it; nothing in this
 paper is an argument against it for the team whose hardware question
 is "I already have one box."

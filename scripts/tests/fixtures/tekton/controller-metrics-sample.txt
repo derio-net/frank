@@ -1,0 +1,429 @@
+# Verbatim sample of the tekton-pipelines-controller /metrics response.
+# Captured 2026-09-13 from the live Frank cluster (Tekton v1.6.0); see
+# controller-series-census.json for provenance and the true series counts.
+#
+# Complete for every pipelinerun_* series (the ones the alert rules query).
+# Every other metric is truncated to its first 3 samples — enough to pin
+# label SHAPE without committing 5700 per-pod series. The census file, not
+# this one, is the source of truth for cardinality.
+#
+# HELP tekton_pipelines_controller_client_latency How long Kubernetes API requests take
+# TYPE tekton_pipelines_controller_client_latency histogram
+tekton_pipelines_controller_client_latency_bucket{name="",le="1e-05"} 0
+tekton_pipelines_controller_client_latency_bucket{name="",le="0.0001"} 0
+tekton_pipelines_controller_client_latency_bucket{name="",le="0.001"} 0
+tekton_pipelines_controller_client_latency_sum{name=""} 23116.28236169971
+tekton_pipelines_controller_client_latency_count{name=""} 1.447385e+06
+# HELP tekton_pipelines_controller_client_results Total number of API requests (broken down by status code)
+# TYPE tekton_pipelines_controller_client_results counter
+tekton_pipelines_controller_client_results{name=""} 1.520369e+06
+# HELP tekton_pipelines_controller_go_alloc The number of bytes of allocated heap objects.
+# TYPE tekton_pipelines_controller_go_alloc gauge
+tekton_pipelines_controller_go_alloc{name=""} 1.05612824e+08
+# HELP tekton_pipelines_controller_go_bucket_hash_sys The number of bytes of memory in profiling bucket hash tables.
+# TYPE tekton_pipelines_controller_go_bucket_hash_sys gauge
+tekton_pipelines_controller_go_bucket_hash_sys{name=""} 6.023484e+06
+# HELP tekton_pipelines_controller_go_frees The cumulative count of heap objects freed.
+# TYPE tekton_pipelines_controller_go_frees gauge
+tekton_pipelines_controller_go_frees{name=""} 3.3110568018e+10
+# HELP tekton_pipelines_controller_go_gc_cpu_fraction The fraction of this program's available CPU time used by the GC since the program started.
+# TYPE tekton_pipelines_controller_go_gc_cpu_fraction gauge
+tekton_pipelines_controller_go_gc_cpu_fraction{name=""} 3.0383939916974933e-05
+# HELP tekton_pipelines_controller_go_gc_sys The number of bytes of memory in garbage collection metadata.
+# TYPE tekton_pipelines_controller_go_gc_sys gauge
+tekton_pipelines_controller_go_gc_sys{name=""} 5.975856e+06
+# HELP tekton_pipelines_controller_go_heap_alloc The number of bytes of allocated heap objects.
+# TYPE tekton_pipelines_controller_go_heap_alloc gauge
+tekton_pipelines_controller_go_heap_alloc{name=""} 1.05612824e+08
+# HELP tekton_pipelines_controller_go_heap_idle The number of bytes in idle (unused) spans.
+# TYPE tekton_pipelines_controller_go_heap_idle gauge
+tekton_pipelines_controller_go_heap_idle{name=""} 3.6724736e+07
+# HELP tekton_pipelines_controller_go_heap_in_use The number of bytes in in-use spans.
+# TYPE tekton_pipelines_controller_go_heap_in_use gauge
+tekton_pipelines_controller_go_heap_in_use{name=""} 1.49430272e+08
+# HELP tekton_pipelines_controller_go_heap_objects The number of allocated heap objects.
+# TYPE tekton_pipelines_controller_go_heap_objects gauge
+tekton_pipelines_controller_go_heap_objects{name=""} 1.340828e+06
+# HELP tekton_pipelines_controller_go_heap_released The number of bytes of physical memory returned to the OS.
+# TYPE tekton_pipelines_controller_go_heap_released gauge
+tekton_pipelines_controller_go_heap_released{name=""} 2.1487616e+07
+# HELP tekton_pipelines_controller_go_heap_sys The number of bytes of heap memory obtained from the OS.
+# TYPE tekton_pipelines_controller_go_heap_sys gauge
+tekton_pipelines_controller_go_heap_sys{name=""} 1.86155008e+08
+# HELP tekton_pipelines_controller_go_last_gc The time the last garbage collection finished, as nanoseconds since 1970 (the UNIX epoch).
+# TYPE tekton_pipelines_controller_go_last_gc gauge
+tekton_pipelines_controller_go_last_gc{name=""} 1.7893307915630904e+18
+# HELP tekton_pipelines_controller_go_lookups The number of pointer lookups performed by the runtime.
+# TYPE tekton_pipelines_controller_go_lookups gauge
+tekton_pipelines_controller_go_lookups{name=""} 0
+# HELP tekton_pipelines_controller_go_mallocs The cumulative count of heap objects allocated.
+# TYPE tekton_pipelines_controller_go_mallocs gauge
+tekton_pipelines_controller_go_mallocs{name=""} 3.3111908846e+10
+# HELP tekton_pipelines_controller_go_mcache_in_use The number of bytes of allocated mcache structures.
+# TYPE tekton_pipelines_controller_go_mcache_in_use gauge
+tekton_pipelines_controller_go_mcache_in_use{name=""} 16912
+# HELP tekton_pipelines_controller_go_mcache_sys The number of bytes of memory obtained from the OS for mcache structures.
+# TYPE tekton_pipelines_controller_go_mcache_sys gauge
+tekton_pipelines_controller_go_mcache_sys{name=""} 31408
+# HELP tekton_pipelines_controller_go_mspan_in_use The number of bytes of allocated mspan structures.
+# TYPE tekton_pipelines_controller_go_mspan_in_use gauge
+tekton_pipelines_controller_go_mspan_in_use{name=""} 2.72064e+06
+# HELP tekton_pipelines_controller_go_mspan_sys The number of bytes of memory obtained from the OS for mspan structures.
+# TYPE tekton_pipelines_controller_go_mspan_sys gauge
+tekton_pipelines_controller_go_mspan_sys{name=""} 3.0192e+06
+# HELP tekton_pipelines_controller_go_next_gc The target heap size of the next GC cycle.
+# TYPE tekton_pipelines_controller_go_next_gc gauge
+tekton_pipelines_controller_go_next_gc{name=""} 1.34978922e+08
+# HELP tekton_pipelines_controller_go_num_forced_gc The number of GC cycles that were forced by the application calling the GC function.
+# TYPE tekton_pipelines_controller_go_num_forced_gc gauge
+tekton_pipelines_controller_go_num_forced_gc{name=""} 0
+# HELP tekton_pipelines_controller_go_num_gc The number of completed GC cycles.
+# TYPE tekton_pipelines_controller_go_num_gc gauge
+tekton_pipelines_controller_go_num_gc{name=""} 37720
+# HELP tekton_pipelines_controller_go_other_sys The number of bytes of memory in miscellaneous off-heap runtime allocations.
+# TYPE tekton_pipelines_controller_go_other_sys gauge
+tekton_pipelines_controller_go_other_sys{name=""} 3.028044e+06
+# HELP tekton_pipelines_controller_go_stack_in_use The number of bytes in stack spans.
+# TYPE tekton_pipelines_controller_go_stack_in_use gauge
+tekton_pipelines_controller_go_stack_in_use{name=""} 2.588672e+06
+# HELP tekton_pipelines_controller_go_stack_sys The number of bytes of stack memory obtained from the OS.
+# TYPE tekton_pipelines_controller_go_stack_sys gauge
+tekton_pipelines_controller_go_stack_sys{name=""} 2.588672e+06
+# HELP tekton_pipelines_controller_go_sys The total bytes of memory obtained from the OS.
+# TYPE tekton_pipelines_controller_go_sys gauge
+tekton_pipelines_controller_go_sys{name=""} 2.06821672e+08
+# HELP tekton_pipelines_controller_go_total_alloc The cumulative bytes allocated for heap objects.
+# TYPE tekton_pipelines_controller_go_total_alloc gauge
+tekton_pipelines_controller_go_total_alloc{name=""} 1.680619548856e+12
+# HELP tekton_pipelines_controller_go_total_gc_pause_ns The cumulative nanoseconds in GC stop-the-world pauses since the program started.
+# TYPE tekton_pipelines_controller_go_total_gc_pause_ns gauge
+tekton_pipelines_controller_go_total_gc_pause_ns{name=""} 3.718029981e+09
+# HELP tekton_pipelines_controller_pipelinerun_duration_seconds The pipelinerun execution time in seconds
+# TYPE tekton_pipelines_controller_pipelinerun_duration_seconds histogram
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="10"} 0
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="30"} 0
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="60"} 1
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="300"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="900"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="1800"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="3600"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="5400"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="10800"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="21600"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="43200"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="86400"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",le="+Inf"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="cnc-ci",status="success"} 371.91486709
+tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines",pipeline="cnc-ci",status="success"} 3
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="10"} 0
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="30"} 22
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="60"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="300"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="900"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="1800"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="3600"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="5400"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="10800"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="21600"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="43200"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="86400"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",le="+Inf"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed"} 558.8559420539999
+tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed"} 24
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="10"} 0
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="30"} 240
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="60"} 246
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="300"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="900"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="1800"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="3600"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="5400"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="10800"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="21600"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="43200"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="86400"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",le="+Inf"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success"} 6529.767950652004
+tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success"} 247
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="10"} 3702
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="30"} 3704
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="60"} 3706
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="300"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="900"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="1800"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="3600"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="5400"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="10800"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="21600"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="43200"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="86400"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",le="+Inf"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed"} 23716.168763849055
+tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed"} 3708
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="10"} 1615
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="30"} 1729
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="60"} 1731
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="300"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="900"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="1800"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="3600"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="5400"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="10800"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="21600"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="43200"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="86400"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",le="+Inf"} 1732
+tekton_pipelines_controller_pipelinerun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success"} 12872.021200810013
+tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success"} 1732
+# HELP tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds The pipelinerun's taskrun execution time in seconds
+# TYPE tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds histogram
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="10"} 2
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="30"} 2
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="60"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="300"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="900"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="1800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="3600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="5400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="10800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="21600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="43200"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="86400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status",le="+Inf"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status"} 64.385391804
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="gitea-status"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="10"} 2
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="30"} 2
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="60"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="300"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="900"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="1800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="3600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="5400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="10800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="21600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="43200"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="86400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status",le="+Inf"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status"} 51.751660718000004
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="github-status"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="10"} 0
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="30"} 2
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="60"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="300"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="900"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="1800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="3600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="5400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="10800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="21600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="43200"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="86400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror",le="+Inf"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror"} 78.770634973
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="mirror"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="10"} 0
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="30"} 1
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="60"} 1
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="300"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="900"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="1800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="3600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="5400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="10800"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="21600"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="43200"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="86400"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test",le="+Inf"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test"} 205.10921144
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="cnc-ci",status="success",task="test"} 3
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="10"} 0
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="30"} 22
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="60"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="300"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="900"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="1800"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="3600"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="5400"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="10800"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="21600"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="43200"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="86400"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push",le="+Inf"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push"} 557.4457910110001
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="derio-homelab-pull-sync",status="failed",task="pull-and-push"} 24
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="10"} 0
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="30"} 240
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="60"} 246
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="300"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="900"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="1800"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="3600"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="5400"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="10800"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="21600"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="43200"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="86400"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push",le="+Inf"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push"} 6515.119518802
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="github-pull-sync",status="success",task="pull-and-push"} 247
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="10"} 3702
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="30"} 3705
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="60"} 3706
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="300"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="900"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="1800"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="3600"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="5400"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="10800"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="21600"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="43200"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="86400"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status",le="+Inf"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status"} 23541.28826202495
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="failed",task="github-status"} 3708
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="10"} 1643
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="30"} 1731
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="60"} 1731
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="300"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="900"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="1800"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="3600"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="5400"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="10800"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="21600"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="43200"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="86400"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status",le="+Inf"} 1732
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status"} 12586.985644392002
+tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{namespace="tekton-pipelines",pipeline="stoa-status-bridge",status="success",task="github-status"} 1732
+# HELP tekton_pipelines_controller_pipelinerun_total Number of pipelineruns
+# TYPE tekton_pipelines_controller_pipelinerun_total counter
+tekton_pipelines_controller_pipelinerun_total{status="failed"} 3732
+tekton_pipelines_controller_pipelinerun_total{status="success"} 1982
+# HELP tekton_pipelines_controller_reconcile_count Number of reconcile operations
+# TYPE tekton_pipelines_controller_reconcile_count counter
+tekton_pipelines_controller_reconcile_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false"} 13
+tekton_pipelines_controller_reconcile_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="true"} 2524
+tekton_pipelines_controller_reconcile_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.resolutionrequest.Reconciler",success="false"} 85
+# HELP tekton_pipelines_controller_reconcile_latency Latency of reconcile operations
+# TYPE tekton_pipelines_controller_reconcile_latency histogram
+tekton_pipelines_controller_reconcile_latency_bucket{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false",le="10"} 13
+tekton_pipelines_controller_reconcile_latency_bucket{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false",le="100"} 13
+tekton_pipelines_controller_reconcile_latency_bucket{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false",le="1000"} 13
+tekton_pipelines_controller_reconcile_latency_sum{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false"} 0
+tekton_pipelines_controller_reconcile_latency_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="false"} 13
+tekton_pipelines_controller_reconcile_latency_sum{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="true"} 322906
+tekton_pipelines_controller_reconcile_latency_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler",success="true"} 2524
+tekton_pipelines_controller_reconcile_latency_sum{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.resolutionrequest.Reconciler",success="false"} 0
+tekton_pipelines_controller_reconcile_latency_count{namespace_name="kid-laptops-ci",reconciler="github.com.tektoncd.pipeline.pkg.reconciler.resolutionrequest.Reconciler",success="false"} 85
+# HELP tekton_pipelines_controller_running_pipelineruns Number of pipelineruns executing currently
+# TYPE tekton_pipelines_controller_running_pipelineruns gauge
+tekton_pipelines_controller_running_pipelineruns 0
+# HELP tekton_pipelines_controller_running_pipelineruns_waiting_on_pipeline_resolution Number of pipelineruns executing currently that are waiting on resolution requests for their pipeline references.
+# TYPE tekton_pipelines_controller_running_pipelineruns_waiting_on_pipeline_resolution gauge
+tekton_pipelines_controller_running_pipelineruns_waiting_on_pipeline_resolution 0
+# HELP tekton_pipelines_controller_running_pipelineruns_waiting_on_task_resolution Number of pipelineruns executing currently that are waiting on resolution requests for the task references of their taskrun children.
+# TYPE tekton_pipelines_controller_running_pipelineruns_waiting_on_task_resolution gauge
+tekton_pipelines_controller_running_pipelineruns_waiting_on_task_resolution 0
+# HELP tekton_pipelines_controller_running_taskruns Number of taskruns executing currently
+# TYPE tekton_pipelines_controller_running_taskruns gauge
+tekton_pipelines_controller_running_taskruns 0
+# HELP tekton_pipelines_controller_running_taskruns_throttled_by_node Number of taskruns executing currently, but whose underlying Pods or Containers are suspended by k8s because of Node level constraints. Such suspensions can occur as part of initial scheduling of the Pod, or scheduling of any of the subsequent Container(s) in the Pod after the first Container is started
+# TYPE tekton_pipelines_controller_running_taskruns_throttled_by_node gauge
+tekton_pipelines_controller_running_taskruns_throttled_by_node 0
+# HELP tekton_pipelines_controller_running_taskruns_throttled_by_quota Number of taskruns executing currently, but whose underlying Pods or Containers are suspended by k8s because of defined ResourceQuotas.  Such suspensions can occur as part of initial scheduling of the Pod, or scheduling of any of the subsequent Container(s) in the Pod after the first Container is started
+# TYPE tekton_pipelines_controller_running_taskruns_throttled_by_quota gauge
+tekton_pipelines_controller_running_taskruns_throttled_by_quota 0
+# HELP tekton_pipelines_controller_running_taskruns_waiting_on_task_resolution_count Number of taskruns executing currently that are waiting on resolution requests for their task references.
+# TYPE tekton_pipelines_controller_running_taskruns_waiting_on_task_resolution_count gauge
+tekton_pipelines_controller_running_taskruns_waiting_on_task_resolution_count 0
+# HELP tekton_pipelines_controller_taskrun_duration_seconds The taskrun's execution time in seconds
+# TYPE tekton_pipelines_controller_taskrun_duration_seconds histogram
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="10"} 0
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="30"} 0
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="60"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="300"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="900"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="1800"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="3600"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="5400"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="10800"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="21600"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="43200"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="86400"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_bucket{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook",le="+Inf"} 1
+tekton_pipelines_controller_taskrun_duration_seconds_sum{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook"} 34.706036316
+tekton_pipelines_controller_taskrun_duration_seconds_count{namespace="tekton-pipelines",status="failed",task="fire-paperclip-webhook"} 1
+# HELP tekton_pipelines_controller_taskrun_total Number of taskruns
+# TYPE tekton_pipelines_controller_taskrun_total counter
+tekton_pipelines_controller_taskrun_total{status="failed"} 3733
+tekton_pipelines_controller_taskrun_total{status="success"} 1991
+# HELP tekton_pipelines_controller_taskruns_pod_latency_milliseconds scheduling latency for the taskruns pods
+# TYPE tekton_pipelines_controller_taskruns_pod_latency_milliseconds gauge
+tekton_pipelines_controller_taskruns_pod_latency_milliseconds{namespace="tekton-pipelines",pod="agentic-stoa-main-sync-2bv6k-pull-and-push-pod",task="pull-and-push"} 2000
+tekton_pipelines_controller_taskruns_pod_latency_milliseconds{namespace="tekton-pipelines",pod="agentic-stoa-main-sync-2gcjm-pull-and-push-pod",task="pull-and-push"} 2000
+tekton_pipelines_controller_taskruns_pod_latency_milliseconds{namespace="tekton-pipelines",pod="agentic-stoa-main-sync-2gmgb-pull-and-push-pod",task="pull-and-push"} 2000
+# HELP tekton_pipelines_controller_work_queue_depth Depth of the work queue
+# TYPE tekton_pipelines_controller_work_queue_depth gauge
+tekton_pipelines_controller_work_queue_depth{reconciler="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler"} 0
+tekton_pipelines_controller_work_queue_depth{reconciler="github.com.tektoncd.pipeline.pkg.reconciler.resolutionrequest.Reconciler"} 0
+tekton_pipelines_controller_work_queue_depth{reconciler="github.com.tektoncd.pipeline.pkg.reconciler.taskrun.Reconciler"} 0
+# HELP tekton_pipelines_controller_workqueue_adds_total Total number of adds handled by workqueue
+# TYPE tekton_pipelines_controller_workqueue_adds_total counter
+tekton_pipelines_controller_workqueue_adds_total{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 145976
+tekton_pipelines_controller_workqueue_adds_total{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 194584
+tekton_pipelines_controller_workqueue_adds_total{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 647
+# HELP tekton_pipelines_controller_workqueue_depth Current depth of workqueue
+# TYPE tekton_pipelines_controller_workqueue_depth gauge
+tekton_pipelines_controller_workqueue_depth{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 0
+tekton_pipelines_controller_workqueue_depth{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 0
+tekton_pipelines_controller_workqueue_depth{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 0
+# HELP tekton_pipelines_controller_workqueue_longest_running_processor_seconds How long in seconds the longest outstanding workqueue item has been in flight.
+# TYPE tekton_pipelines_controller_workqueue_longest_running_processor_seconds histogram
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-08"} 7.283314e+06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-07"} 7.283314e+06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-06"} 7.283314e+06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 2082.103215610974
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 7.285949e+06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 4.047000000000037e-06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 7.285949e+06
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 0
+tekton_pipelines_controller_workqueue_longest_running_processor_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 7.285949e+06
+# HELP tekton_pipelines_controller_workqueue_queue_latency_seconds How long in seconds an item stays in workqueue before being requested.
+# TYPE tekton_pipelines_controller_workqueue_queue_latency_seconds histogram
+tekton_pipelines_controller_workqueue_queue_latency_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-08"} 0
+tekton_pipelines_controller_workqueue_queue_latency_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-07"} 0
+tekton_pipelines_controller_workqueue_queue_latency_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-06"} 0
+tekton_pipelines_controller_workqueue_queue_latency_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 131647.71937218803
+tekton_pipelines_controller_workqueue_queue_latency_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 145976
+tekton_pipelines_controller_workqueue_queue_latency_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 362.0121642019911
+tekton_pipelines_controller_workqueue_queue_latency_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 194584
+tekton_pipelines_controller_workqueue_queue_latency_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 13.430340929000007
+tekton_pipelines_controller_workqueue_queue_latency_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 647
+# HELP tekton_pipelines_controller_workqueue_retries_total Total number of retries handled by workqueue
+# TYPE tekton_pipelines_controller_workqueue_retries_total counter
+tekton_pipelines_controller_workqueue_retries_total{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 45666
+tekton_pipelines_controller_workqueue_retries_total{name="github.com.tektoncd.pipeline.pkg.reconciler.taskrun.Reconciler-fast"} 65979
+# HELP tekton_pipelines_controller_workqueue_unfinished_work_seconds How long in seconds the outstanding workqueue items have been in flight (total).
+# TYPE tekton_pipelines_controller_workqueue_unfinished_work_seconds histogram
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-08"} 7.283314e+06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-07"} 7.283314e+06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-06"} 7.283314e+06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 2987.82906465104
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 7.285949e+06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 4.047000000000037e-06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 7.285949e+06
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 0
+tekton_pipelines_controller_workqueue_unfinished_work_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 7.285949e+06
+# HELP tekton_pipelines_controller_workqueue_work_duration_seconds How long in seconds processing an item from workqueue takes.
+# TYPE tekton_pipelines_controller_workqueue_work_duration_seconds histogram
+tekton_pipelines_controller_workqueue_work_duration_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-08"} 0
+tekton_pipelines_controller_workqueue_work_duration_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-07"} 0
+tekton_pipelines_controller_workqueue_work_duration_seconds_bucket{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer",le="1e-06"} 0
+tekton_pipelines_controller_workqueue_work_duration_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 2001.6531086209939
+tekton_pipelines_controller_workqueue_work_duration_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-consumer"} 145976
+tekton_pipelines_controller_workqueue_work_duration_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 1.6369219489999842
+tekton_pipelines_controller_workqueue_work_duration_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-fast"} 194584
+tekton_pipelines_controller_workqueue_work_duration_seconds_sum{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 0.012169987000000002
+tekton_pipelines_controller_workqueue_work_duration_seconds_count{name="github.com.tektoncd.pipeline.pkg.reconciler.pipelinerun.Reconciler-slow"} 647

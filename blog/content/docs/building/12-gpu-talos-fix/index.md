@@ -10,6 +10,7 @@ weight: 13
 reader_goal: "Fix the four Talos-specific issues that keep GPU containers stuck at Init, ContainerCreating, or CrashLoopBackOff after the NVIDIA GPU Operator is deployed"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Getting NVIDIA GPU containers to actually run on Talos Linux — validation markers, machine-specific patches, nvidia default runtime, and the postStart hook trap."
 ---
 
 Layer 4 deployed the NVIDIA GPU Operator. Layer 10 deployed Ollama. Between those two milestones lay four distinct issues that kept every GPU container stuck — first at `Init:0/1`, then `ContainerCreating`, then crashing in a 3-second loop. Each issue was specific to the Talos Linux intersection with the NVIDIA stack, and each had to be solved in sequence before a single model ran.

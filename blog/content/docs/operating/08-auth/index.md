@@ -11,6 +11,7 @@ reader_goal: "Add users, rotate OIDC client secrets, and fix the most common for
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for managing Authentik SSO, checking OIDC flows, rotating client secrets, and debugging the forward-auth redirect loop that redirects to 0.0.0.0."
 ---
 
 {{< last-updated >}}

@@ -11,6 +11,7 @@ reader_goal: "Query VictoriaLogs, ban an IP via CrowdSec, tune Falco noise, chec
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/2755dfda
+description: "Querying the blog log stream, banning a scraper before lunch, tuning Falco out of kube-system noise, and triggering a digest by hand."
 ---
 
 {{< last-updated >}}

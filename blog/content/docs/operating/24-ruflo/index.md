@@ -11,6 +11,7 @@ reader_goal: "Connect to Ruflo, run a claude-flow swarm, manage shell tools, and
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/c4d9305c
+description: "Connecting via SSH/Mosh, curating the inventory ConfigMap, bumping images, backups, and a worked swarm-run cookbook."
 ---
 
 {{< last-updated >}}

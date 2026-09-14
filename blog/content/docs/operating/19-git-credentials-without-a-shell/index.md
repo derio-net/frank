@@ -11,6 +11,7 @@ reader_goal: "Fix git authentication in VS Code and non-interactive contexts ins
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/f0c46c7d
+description: "Why $GITHUB_TOKEN is set in your terminal but missing in VS Code's git — and a credential helper that fixes it permanently by reading /proc/1/environ."
 ---
 
 {{< last-updated >}}

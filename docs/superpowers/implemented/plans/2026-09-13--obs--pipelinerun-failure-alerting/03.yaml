@@ -1,0 +1,163 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Idle dead-man - one rule per watched pipeline
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - critical-pipeline-idle-alerts
+tasks:
+- number: 1
+  title: Two rules, each watching exactly one pipeline
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Add `test_each_idle_rule_watches_exactly_one_pipeline`. Collect every feature-health rule
+      whose uid starts with `layer-25-pipeline-idle-`. Assert there are exactly two, with uids
+      `layer-25-pipeline-idle-stoa-status-bridge` and `layer-25-pipeline-idle-github-pull-sync`,
+      and that each expression contains exactly ONE `pipeline="..."` equality selector and NO
+      `pipeline=~` regex selector.
+
+      Docstring - this is the finding that made the design change, so state it plainly: the
+      obvious shape, one rule with `sum by (pipeline) (increase(...{pipeline=~"a|b"}[24h])) or
+      vector(0)`, is broken in a way that passes review. `vector(0)` carries NO labels, and `or`
+      returns its right-hand side only where the left has no matching series AT ALL. If one
+      watched pipeline still has a series and the other does not, the left side is non-empty, the
+      union keeps it unchanged, and the dead pipeline contributes nothing. It would be a dead-man
+      that only fires when both watched pipelines die simultaneously.
+
+      Run. Expect RED - neither rule exists.
+  - id: P3.T1.S2
+    text: |
+      Add both rules to the `layer-25-pipeline-outcomes` group. Each:
+
+        sum(increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{namespace="tekton-pipelines", pipeline="<name>"}[<window>])) or vector(0)
+
+      with condition C `{type: lt, params: [1]}`, `severity: warning`,
+      `github_issue: "frank-ops#25"`, explicit `noDataState: OK` and `execErrState: Error`.
+
+      Windows and `for` come from measured cadence, not round numbers (retained PipelineRuns,
+      2026-09-13):
+        * stoa-status-bridge - 148.1 runs/day, max observed idle gap 0.5h -> `[6h]`, `for: 1h`
+        * github-pull-sync   -  10.4 runs/day, max observed idle gap 15.7h -> `[72h]`, `for: 2h`
+
+      Note the selector carries NO `status` filter: the question is "did this pipeline run at
+      all", regardless of outcome. Set `relativeTimeRange.from` to the window in seconds (21600
+      and 259200).
+
+      The comment must cover BOTH cases, and the deploy-time one is the certain one:
+        * DEPLOY TIME - before the first run of that pipeline is scraped there is no series at all,
+          so `or vector(0)` reads 0 and the rule fires after its `for` window. At 10.4 runs/day
+          github-pull-sync's mean gap is ~2.3h against `for: 2h`, so expect this on roughly half of
+          all deploys. It clears itself the moment the first run lands.
+        * CONTROLLER RESTART - same mechanism, same clearing.
+
+      Comment both `for` windows with what they absorb: these counters are process-lifetime and
+      reset when the controller pod restarts, so the series is briefly absent and `or vector(0)`
+      reads 0. At 148 runs/day the first run lands within ~10 minutes, so 1h is comfortable; at
+      10.4/day the mean gap is ~2.3h, so `for: 2h` NARROWS but does not eliminate a post-restart
+      false positive. Say so in the comment - the worst case is one warning-severity Telegram
+      message after a controller restart coinciding with a quiet period, which self-clears on the
+      next sync, and a future reader meeting one should recognise it rather than re-derive it.
+
+      Re-run. Expect GREEN.
+  - id: P3.T1.S3
+    text: |
+      REFACTOR: the two rules differ only in pipeline name, window, and `for`. Do NOT templatise
+      them in the YAML - Grafana provisioning has no templating and the folder's house style is
+      explicit rules. Instead refactor the TEST side: extract the idle-rule collection into a
+      `_idle_rules()` helper returning `{uid: rule}` so tasks 2 and 3 do not each re-walk the
+      document. Re-run; GREEN, unchanged.
+- number: 2
+  title: The zero fallback, and proof it can engage
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Add `test_each_idle_rule_carries_a_zero_fallback`. Assert every idle rule's expression
+      contains `or vector(0)`, and that its aggregation is a bare `sum(` - NOT `sum by (`.
+
+      Both halves matter and the second is the subtle one: `sum()` over an absent series returns
+      an EMPTY vector, not zero, which is the only condition under which `or vector(0)` engages.
+      Add `by (pipeline)` and the aggregation still returns empty for an absent series - but a
+      reviewer reading `sum by (pipeline) (...) or vector(0)` sees a labelled fallback that does
+      not exist, which is exactly how the broken shape survived the first draft. Asserting the
+      bare `sum(` keeps the rule readable as what it is.
+
+      Without the fallback, the one state the dead-man exists to detect produces no data,
+      `noDataState: OK` swallows it, and the switch is silently disarmed - the same defect class
+      as the `longhorn-manager-.*` selector that matched nothing and passed every structural
+      assertion.
+
+      Expect GREEN immediately (step P3.T1.S2 already wrote the fallback). Regression tripwire;
+      record `no-refactor-because: P3.T2` in the plan journal.
+  - id: P3.T2.S2
+    text: |
+      Add `test_the_idle_rules_fire_below_a_floor_not_above_a_ceiling`. Assert each idle rule's
+      condition C evaluator is `lt` with params `[1]`.
+
+      Docstring: `frank-gotchas.md` records that `gt 0` is the convention for UNAVAILABILITY
+      COUNTERS in this folder and explicitly warns against generalising it - folder-wide there are
+      27 `gt` against 12 `lt`, and probes, heartbeats and cert countdowns all ask "below a floor?".
+      A dead-man counting RUNS is a floor question. "Tidying" it to `gt 0` would invert it into a
+      rule that fires whenever the pipeline is healthy and goes silent when it dies.
+
+      Run the focused file. Expect GREEN.
+- number: 3
+  title: A watched pipeline that no longer exists must fail a PR
+  steps:
+  - id: P3.T3.S1
+    text: |
+      Add `test_every_watched_pipeline_exists_in_the_repo`. Extract the `pipeline="..."` value
+      from each idle rule and assert a file `apps/tekton/pipelines/<name>.yaml` exists whose
+      `metadata.name` equals that value. Assert the same for every `pipeline=` selector, so a
+      renamed Pipeline resource fails here rather than silently disarming the switch.
+
+      Docstring: this is the `cilium-.*` / `longhorn-manager-.*` lesson. A selector that matches
+      nothing returns no series, passes every structural assertion, and is a rule deleted in all
+      but name - and under `noDataState: OK` it is perfectly quiet about it. Matching the metric
+      label against the Pipeline resource in git is the only offline check that can catch a rename.
+
+      Run. Expect GREEN - both names exist and match today. To prove the test can actually fail,
+      temporarily rewrite one uid's selector to a nonexistent pipeline, confirm RED, then revert.
+      Record the observed RED output in the phase result: a guard nobody has watched fail is a
+      guard nobody has tested.
+  - id: P3.T3.S2
+    text: |
+      Run `uv run --frozen pytest scripts/tests/ -q`. Confirm the full suite is green and that
+      `test_feature_health_workload_metrics.py` still passes with three new rules in the folder.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-09-13T21:08:01+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-09-13T21:08:03+00:00'
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-09-13T21:08:05+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-09-13T21:08:51+00:00'
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-09-13T21:08:53+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-09-13T21:10:51+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-09-13T21:13:07+00:00'
+      note: null
+  completion:
+    at: '2026-09-13T21:14:40+00:00'
+    note: null
+    observed_prs: []

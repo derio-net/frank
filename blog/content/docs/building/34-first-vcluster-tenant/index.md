@@ -10,6 +10,7 @@ weight: 35
 reader_goal: "Register a vCluster as an ArgoCD cluster target — and get the workloads deployed into it — without crashing the application-controller, plus recover if it already crashed."
 diataxis: [how-to, reference, explanation]
 last_updated: 2026-07-20
+description: "Registering a vCluster as an ArgoCD cluster target crashed every app I run. The fix is six lines, and the order you apply them in matters."
 ---
 
 In [Layer 14](../14-multi-tenancy/) I grew virtual clusters. They booted, they

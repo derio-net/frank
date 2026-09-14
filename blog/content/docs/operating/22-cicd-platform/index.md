@@ -11,6 +11,7 @@ reader_goal: "Check CI/CD health, trigger a pipeline run, verify an image signat
 diataxis: [how-to, reference]
 last_updated: 2026-07-29
 last_updated_commit: https://github.com/derio-net/frank/commit/ad7c94af
+description: "Gitea mirror syncs, Tekton pipeline runs, Zot registry health, cosign verification, and webhook delivery debugging."
 ---
 
 {{< last-updated >}}

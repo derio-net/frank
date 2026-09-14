@@ -11,6 +11,7 @@ reader_goal: "Create, connect to, and troubleshoot vCluster virtual clusters, in
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
+description: "Day-to-day commands for managing vCluster virtual clusters, checking tenant health, creating and deleting vClusters, and debugging sync issues."
 ---
 
 {{< last-updated >}}

@@ -10,6 +10,7 @@ weight: 10
 reader_goal: "Deploy Infisical and External Secrets Operator on Talos, working around three Infisical standalone chart bugs"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Replacing the SOPS-only secrets workflow with Infisical + ESO — and the three Infisical chart bugs that forced splitting one app into three."
 ---
 
 Layer 8 established that {{< abbr "SOPS" >}}-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix — apply them out-of-band with `sops --decrypt | kubectl apply` — works for bootstrap secrets that exist before anything else runs. It does not work for runtime secrets that applications consume daily.

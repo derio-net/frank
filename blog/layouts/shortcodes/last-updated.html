@@ -9,6 +9,9 @@
        Emits nothing if last_updated is absent, so it's safe to drop on any post. */ -}}
 {{- with .Page.Params.last_updated -}}
 {{- $date := . -}}
+{{- /* On a reader blog `[frontmatter] lastmod` makes Hugo parse last_updated as a
+       date, so this arrives as time.Time; elsewhere it is the string as written. */ -}}
+{{- if eq (printf "%T" $date) "time.Time" }}{{ $date = $date.Format "2006-01-02" }}{{ end -}}
 {{- $commit := $.Page.Params.last_updated_commit -}}
 <p class="last-updated">
   <em>Last updated {{ $date }}{{ with $commit }} ·

@@ -11,6 +11,7 @@ reader_goal: "Verify the VK relay tunnel is up, re-pair a browser, diagnose 502s
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/eff627fb
+description: "VK relay server health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection."
 ---
 
 {{< last-updated >}}

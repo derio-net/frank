@@ -619,3 +619,15 @@
   list-style: none;
   padding-left: 1rem;
 }
+
+/* === Covers fit their frames (no cropping) === */
+/* Covers are 16:9 (1376x768 / 1408x768). reader.css caps the post cover at
+   300px tall while the 672px column wants 375px, so object-fit: cover shaved
+   ~20% off every image; the featured cards forced 16:9 with cover-fit. Let the
+   frame take the image's own aspect instead. */
+/* reader.css loads AFTER custom.css, so these must out-rank its selectors
+   (.reader-post .post-cover img / .reader-card img), not merely repeat them —
+   at equal specificity the later cap wins and the image is squashed, not
+   freed. */
+article.reader-post .post-cover img { max-height: none; height: auto; object-fit: unset; }
+.reader-home .reader-card img, .reader-home .reader-series-card img { aspect-ratio: auto; height: auto; object-fit: unset; }

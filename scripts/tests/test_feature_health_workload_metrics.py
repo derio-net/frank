@@ -787,6 +787,39 @@ FIFTEEN_MINUTE_EXEMPTIONS: dict[str, str] = {
         "watches is binary (replicas are 0 or they are not), so 15m buys "
         "tolerance for a transition rather than blunting a threshold."
     ),
+    "layer-2-etcd-scrape-absent": (
+        "The watchdog against the etcd scrape silently disappearing, which is "
+        "the failure the whole etcd layer exists to stop recurring (the chart's "
+        "Endpoints object was empty for 148 days and nothing reported it). Its "
+        "window absorbs the two legitimate ways the series pause: a vmagent "
+        "restart, and the drained rolling reboot of the control planes that the "
+        "Talos ConfigPatch needs to take effect. Both are minutes, not seconds, and "
+        "neither is a real blindness event — but absent() has no `for`-like "
+        "tolerance of its own, so the window IS the tolerance. It is not a "
+        "sensitivity dial: the condition is binary (the series exist or they "
+        "do not) and 15m does not blunt it, it only waits."
+    ),
+    "layer-2-etcd-wal-fsync-slow": (
+        "A p99 disk-latency quantile is spiky by nature: a single etcd "
+        "compaction, a Longhorn replica rebuild on the same mini, or a backup "
+        "window can put one 5m sample over 50ms without the quorum being at "
+        "any risk. 15m requires the elevation to persist across three "
+        "evaluation windows before it is called, which is what distinguishes "
+        "sustained disk pressure (the thing that actually causes leader "
+        "elections) from a transient. The THRESHOLD carries the sensitivity "
+        "here and is documented provisional in the spec pending a baseline; "
+        "the window is only there to reject spikes."
+    ),
+    "layer-2-etcd-db-quota": (
+        "The etcd backend database grows over hours and days, never in "
+        "seconds, so detection latency is irrelevant to this signal — at 80 "
+        "percent of quota there is a long runway before the cluster hits the "
+        "NOSPACE alarm and goes read-only. The window exists to reject the "
+        "transient ratio spikes seen around compaction and defragmentation, "
+        "when db_total_size briefly moves while the quota does not. A shorter "
+        "window would buy no useful warning time and would report those "
+        "compaction artefacts as incidents."
+    ),
 }
 
 
@@ -1624,4 +1657,48 @@ def test_collectors_rule_deliberately_does_page():
         f"{COLLECTORS_DOWN} carries Telegram escape-hatch label(s) {present}, so a "
         "collector dying would no longer page. That is a deliberate difference "
         f"from {SCALE_TO_ZERO}, not an inconsistency to tidy away."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Grafana's own limits. Folder-agnostic on purpose: a violation anywhere in the
+# provisioning document takes the WHOLE document down, not one folder.
+# ---------------------------------------------------------------------------
+
+GRAFANA_MAX_UID_LENGTH = 40
+
+
+def test_no_rule_uid_exceeds_grafanas_forty_character_limit():
+    """A rule uid longer than 40 characters CRASHES Grafana at boot.
+
+    Not "that rule is skipped" — the whole provisioning step fails, the
+    `grafana` container exits non-zero, and it CrashLoopBackOffs. Every
+    dashboard, every datasource and every alert rule goes down with it, which
+    means the cluster's entire alerting surface is dark until someone edits
+    the ConfigMap. There is no partial-success mode:
+
+        Failed to provision alerting error="alert rules: invalid alert rule
+        cannot create rule with UID '...': UID is longer than 40 symbols"
+
+    Shipped exactly once, in #797: `layer-25-pipeline-idle-stoa-status-bridge`
+    at 41 characters. Eleven rule-specific guards, the folder-wide guards in
+    this file, `fr plan self-review` and a green CI run all passed it, because
+    every one of them asked whether the rule was well-FORMED and none asked
+    whether Grafana would accept it. The limit is Grafana's, so no amount of
+    reasoning about the rule's content can surface it — only the number can.
+
+    Scoped to the entire provisioning document rather than the feature-health
+    folder, because the blast radius is the document.
+    """
+    offenders = {
+        rule["uid"]: len(rule["uid"])
+        for rule in _all_rules()
+        if len(rule.get("uid", "")) > GRAFANA_MAX_UID_LENGTH
+    }
+    assert not offenders, (
+        f"rule uid(s) longer than Grafana's {GRAFANA_MAX_UID_LENGTH}-character "
+        f"limit (uid -> length): {offenders}. Grafana does not skip an "
+        "over-long rule — it fails the whole provisioning step and the "
+        "container CrashLoops, taking all alerting down with it. Shorten the "
+        "uid; it is an identifier, not a description."
     )

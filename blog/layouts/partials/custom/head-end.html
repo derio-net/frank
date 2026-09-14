@@ -23,6 +23,11 @@
 {{- with resources.Get "css/mermaid-view.css" }}
 <link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">
 {{- end }}
+{{- /* reader.css — present only when features.reader_experience materialized
+       it. BEFORE custom.css, same reason as the two sheets above. */}}
+{{- with resources.Get "css/reader.css" }}
+<link rel="stylesheet" href="{{ (. | minify | fingerprint).RelPermalink }}">
+{{- end }}
 {{ $customCSS := resources.Get "css/custom.css" | minify | fingerprint }}
 <link rel="stylesheet" href="{{ $customCSS.RelPermalink }}">
 {{- /* mermaid-init.js — present only when features.mermaid_csp_init materialized
@@ -64,4 +69,10 @@
 {{- /* goatcounter — partial present only when features.analytics materialized it */}}
 {{- if templates.Exists "partials/custom/goatcounter.html" }}
 {{- partial "custom/goatcounter.html" . }}
+{{- end }}
+
+{{- /* reader experience (features.reader_experience) — the partial exists only
+       when that bundle was rendered, so guard the include like goatcounter above. */ -}}
+{{- if templates.Exists "partials/reader/head.html" }}
+{{- partial "reader/head.html" . }}
 {{- end }}

@@ -10,6 +10,7 @@ weight: 23
 reader_goal: "Deploy Blackbox Exporter + Pushgateway + Grafana alerting to monitor feature-level health (HTTP endpoints, cron heartbeats) and route alerts to Telegram"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Adding feature-level health monitoring to the cluster — Blackbox probes for endpoints, Pushgateway for cron heartbeats, and Grafana alerting that fires to Telegram when things…"
 ---
 
 The observability layer gave Frank cluster-wide metrics and logs. But knowing nodes are healthy and pods are running is not the same as knowing that *features* are working. A cron job can be Running with 0 restarts and still have silently stopped doing its actual job three hours ago.
