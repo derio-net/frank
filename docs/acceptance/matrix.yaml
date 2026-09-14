@@ -1029,3 +1029,17 @@ rows:
     a shared rule with a regex would leave `or vector(0)` disarmed for whichever pipeline still has a series.
     Covers the "live, correct and unreachable" trigger failure of 2026-07-26, which produced zero PipelineRuns
     and is therefore invisible to a failure-ratio rule.' 
+- id: paperclip-litellm-agents-operable
+  capability: Paperclip agents on local inference
+  acceptance: An operator can smoke-test, hire and recover opencode_local and hermes_local
+    Paperclip agents that run through LiteLLM by following operating/18-paperclip,
+    with every command matching the live cluster.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-13--orch--paperclip-litellm-agents-docs-design.md
+  levels: {}
+  status: skipped
+  notes: 'Manual live proof 2026-09-13 against image sha-8e6edcd: opencode smoke returned
+    ack; hermes bare-alias smoke returned a reply and session_id; a per-replica LiteLLM
+    grep found POSTs from the paperclip pod IP; agent_task_sessions matches the recovery
+    SQL. Docs-only, no automated test. Row appended via an indent/add/dedent round-trip
+    around super-fr#470.'
