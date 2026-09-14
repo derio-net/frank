@@ -1,0 +1,38 @@
+# Read-only GitHub App installation-token generator for ArgoCD repository
+# credentials (plan 2026-06-15-staging-vcluster-gate, phase 7).
+#
+# Same App (derio-fr-automation, 3994132) and installation (138773908) as
+# github-app-derio, so no new App and no new PEM. The installation itself holds
+# contents/issues/pull_requests/workflows WRITE across every derio-net repo
+# (repository_selection: all, verified 2026-09-14). ArgoCD only needs to clone,
+# so the token is scoped at mint time: only the listed repos, contents:read
+# only. A leaked ArgoCD repository Secret can therefore read the gated charts and
+# nothing else — it cannot push, open PRs, or edit workflows.
+#
+# Onboarding another private chart repo to the staging gate = add it to
+# `repositories` below (names only, no owner prefix).
+#
+# NOTE: ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's
+# namespace and IGNORES secretRef.namespace. Its consumer is the argocd
+# ExternalSecret repo-runs-fr, so Secret github-app-derio-key must exist in
+# argocd (manual op cicd-staging-gate-argocd-runs-fr-repo-key). Guarded by
+# scripts/tests/test_staging_gate_manifests.py.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-argocd-read
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      repositories:
+        - runs-fr
+      permissions:
+        contents: read
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key

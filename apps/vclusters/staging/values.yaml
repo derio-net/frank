@@ -1,0 +1,47 @@
+# vCluster "staging" — the release-gate's staging cluster.
+# Base values come from apps/vclusters/template/values.yaml (loaded first in ArgoCD).
+# This file contains only instance-specific overrides.
+#
+# Chart: loft-sh/vcluster v0.32.1
+# Namespace: vcluster-staging
+#
+# Purpose: gate-owned, reset-able cluster that the Tekton staging-gate deploys each
+# release candidate into for the in-cluster e2e smoke-test. Distinct from the
+# `experiments` sandbox so gate runs never collide with ad-hoc experimentation.
+
+# Currently using all template defaults (same envelope as experiments), except for
+# the gate's own kubeconfig export below.
+# To override, add only the keys that differ. Examples:
+#
+# controlPlane:
+#   statefulSet:
+#     persistence:
+#       volumeClaim:
+#         size: 10Gi
+#
+# isolation:
+#   resourceQuota:
+#     quota:
+#       pods: "100"
+
+# P9.T1 (staging-vcluster-gate): a second, gate-owned kubeconfig. The chart's
+# DEFAULT export (exportKubeConfig.secret, unset here) would write a Secret
+# named `vc-staging` pointing at `https://localhost:8443` -- fine for `vcluster
+# connect` from a laptop, useless for the Tekton gate, which talks to the
+# vCluster from inside the SAME cluster over its in-cluster Service DNS name.
+# `additionalSecrets` (not the deprecated singular `secret` field) writes an
+# EXTRA Secret alongside whatever `secret`/the default would produce, so this
+# does not disturb any other consumer of the default kubeconfig.
+#
+# No `namespace` override -- the vCluster writes it into its own host
+# namespace (vcluster-staging), which is where the gate's RBAC Role reads it
+# from (apps/staging-gate/tekton/serviceaccount-rbac.yaml).
+#
+# Verified against the chart's own Go source (loft-sh/vcluster v0.32.1,
+# pkg/util/kubeconfig/kubeconfig.go), not guessed: the Secret's kubeconfig
+# bytes land at data key `config` (KubeconfigSecretKey = "config"), which is
+# what apps/staging-gate/tekton/tasks.yaml's fetch-kubeconfig step reads.
+exportKubeConfig:
+  additionalSecrets:
+    - name: vc-staging-gate
+      server: https://staging.vcluster-staging.svc:443

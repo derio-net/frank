@@ -1103,3 +1103,31 @@ rows:
     with — the live patch that would have measured the raised arm was refused by the harness permission layer
     and the operator elected to ship the raise through git and verify afterwards. Closes on Test Plan row 10,
     which must run on a freshly restarted pod or the pool overstates every size after the first.
+- id: staging-gate-green-records-last-green
+  capability: staging-vCluster release gate
+  acceptance: A runs-fr merge to main whose in-cluster smoke-test passes in the staging vCluster is recorded as
+    last-green on frank main, with no human step.
+  origin:
+  - frank:docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md
+  levels: {}
+  status: not-implemented
+  notes: 'Proven by Test Plan green path after merge + manual-op registration. Appended by hand: fr acceptance add
+    rolls back on this column-0 matrix (super-fr#470).'
+- id: staging-gate-red-blocks-and-notifies
+  capability: staging-vCluster release gate
+  acceptance: A runs-fr merge whose smoke-test fails leaves last-green untouched and sends a Telegram notification.
+  origin:
+  - frank:docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md
+  levels: {}
+  status: not-implemented
+  notes: Proven by Test Plan red path (deliberately broken smoke image). Appended by hand (super-fr#470).
+- id: staging-gate-registration-keeps-argocd-up
+  capability: staging-vCluster release gate
+  acceptance: Registering the staging vCluster as an ArgoCD cluster does not crash the application-controller, including
+    across a controller restart.
+  origin:
+  - frank:docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md
+  levels: {}
+  status: not-implemented
+  notes: Structure guarded by scripts/tests/test_argocd_vcluster_pod_exclusion.py; runtime proven at manual-op registration.
+    Appended by hand (super-fr#470).
