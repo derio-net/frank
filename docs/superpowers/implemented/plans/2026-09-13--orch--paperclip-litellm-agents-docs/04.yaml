@@ -21,14 +21,18 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T13:19:02+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T13:19:04+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-09-14T13:19:25+00:00'
+    note: 'Post-merge Test Plan verified live on 2026-09-14 against blog image 034ef965
+      (merge of #382). Both posts on blog.derio.net serve every new section anchor,
+      with zero dangling in-page links. The building/operating cross-links resolve,
+      and the smoke commands appear in both Verify and Quick Reference. The acceptance
+      row notes were updated; status stays skipped.'
     observed_prs: []

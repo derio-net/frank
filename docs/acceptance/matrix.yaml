@@ -1058,4 +1058,7 @@ rows:
     ack; hermes bare-alias smoke returned a reply and session_id; a per-replica LiteLLM
     grep found POSTs from the paperclip pod IP; agent_task_sessions matches the recovery
     SQL. Docs-only, no automated test. Row appended via an indent/add/dedent round-trip
-    around super-fr#470.'
+    around super-fr#470. Post-merge live check 2026-09-14 against blog image 034ef965
+    (merge of #382): both posts on blog.derio.net serve every new section anchor, zero
+    dangling in-page links, building/operating cross-links resolve, and the smoke commands
+    appear in both Verify and Quick Reference.'

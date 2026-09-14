@@ -10,7 +10,7 @@ weight: 19
 reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret sync, shell sidecar reconcile, hiring and smoke-testing LiteLLM-backed opencode and hermes agents, and common failure recovery."
 diataxis: [how-to, reference]
 last_updated: 2026-09-13
-last_updated_commit: https://github.com/derio-net/frank/commit/5279b4c6
+last_updated_commit: https://github.com/derio-net/frank/commit/034ef965
 description: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
 ---
 
