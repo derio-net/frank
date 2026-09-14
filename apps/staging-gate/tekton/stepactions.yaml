@@ -11,6 +11,10 @@
 #                origin/main and rebase the single local commit onto it, then retry (up to 5
 #                attempts) — same shape as apps/tekton/pipelines/site-promotion.yaml's push loop,
 #                minus its re-edit step, because rebase replays our one commit for us.
+#                The committer identity is set IN-REPO before add/commit: rebase needs it too, and
+#                the pod cannot auto-detect one (reproduced in alpine/git as uid 65532; guarded by
+#                scripts/tests/test_staging_gate_git_stepaction_behaviour.py, which EXECUTES this
+#                script against a raced bare remote with identity auto-detection disabled).
 #
 # Params are read ONLY through env (MODE/SCRATCH/MSG/TARGET) and the script touches only "$VAR" —
 # Tekton v1beta1 REJECTS `$(params.*)` substitution inside a StepAction `script` ("param
@@ -65,12 +69,17 @@ spec:
       push)
         cd "$SCRATCH/frank"
         git config credential.helper "$helper"
-        git -c user.email=staging-gate@derio.net -c user.name=staging-gate add -- "$TARGET"
+        # In-repo identity, not per-command -c flags: the retry's `git rebase` rewrites the
+        # commit and needs a committer too, and the pod (uid 65532, no passwd entry, no
+        # gitconfig) cannot auto-detect one.
+        git config user.email staging-gate@derio.net
+        git config user.name staging-gate
+        git add -- "$TARGET"
         if git diff --cached --quiet; then
           echo "no-op — $TARGET already matches; nothing to commit"
           exit 0
         fi
-        git -c user.email=staging-gate@derio.net -c user.name=staging-gate commit -m "$MSG"
+        git commit -m "$MSG"
         i=1
         while [ "$i" -le 5 ]; do
           if git push origin HEAD:main; then
@@ -80,8 +89,8 @@ spec:
           echo "push rejected (attempt $i/5) — retrying after rebase onto origin/main" >&2
           git fetch origin main
           if ! git rebase origin/main; then
-            git rebase --abort
-            echo "rebase conflict against origin/main — giving up" >&2
+            git rebase --abort || true
+            echo "rebase onto origin/main failed (conflict or git error, see output above) — giving up" >&2
             exit 1
           fi
           sleep $((i * 2))
