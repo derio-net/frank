@@ -1,0 +1,39 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Walking skeleton - blog gate suite runs green on the PR branch
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  skeleton: true
+tasks:
+- number: 1
+  title: Prove the local blog gates execute against the two Paperclip posts
+  steps:
+  - id: P1.T1.S1
+    text: |
+      From the worktree, run `python3 blog/scripts/validate_educational.py --config .blog-craft.yaml blog/content/docs/building/15-paperclip/index.md blog/content/docs/operating/18-paperclip/index.md`. Against origin/main copies of the posts, expect `POST QUALITY OK` plus lint warnings (em-dash density 28.5 and 24.2 per 1000 words; building post has no what-transfers section). This is the baseline.
+  - id: P1.T1.S2
+    text: |
+      Run `uv run --quiet --with pytest --with pyyaml pytest -q scripts/tests/test_actionable_sections_carry_commands.py`; expect all tests pass. Run `cd blog && hugo --minify -d <scratch>/public`; expect exit 0 with no REF_NOT_FOUND.
+  - id: P1.T1.S3
+    text: |
+      no-refactor-because: this task only exercises existing gates; no code or content is written.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-09-13T20:18:41+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-09-13T20:18:43+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-09-13T20:18:46+00:00'
+      note: null
+  completion:
+    at: '2026-09-13T20:19:08+00:00'
+    note: null
+    observed_prs: []
