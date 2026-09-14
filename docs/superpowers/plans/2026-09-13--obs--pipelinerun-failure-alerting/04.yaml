@@ -1,0 +1,99 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Cross-cutting guards and the written record
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - pipelinerun-outcomes-visible
+  - pipeline-total-failure-alerts
+  - critical-pipeline-idle-alerts
+tasks:
+- number: 1
+  title: Re-assert the 2026-05-14 lesson at this rule's own scope
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Add `test_the_new_rules_never_ask_about_pod_readiness`. Assert no rule in the
+      `layer-25-pipeline-outcomes` group references `kube_pod_status_ready` anywhere in its query.
+
+      The folder-wide guard already covers this, so state in the docstring why a second,
+      narrower assertion earns its place: the folder guard protects the twelve rules MIGRATED in
+      2026-08, and its scope is the folder as it was. This one is attached to the group that would
+      be edited if somebody ever tried to "improve" pipeline detection by counting task pods
+      again - which is precisely the mistake the 2026-05-14 rewrite was made to escape, and whose
+      comment in `alert-rules-cm.yaml` is the reason the blind spot in #790 existed at all.
+
+      Run. Expect GREEN.
+  - id: P4.T1.S2
+    text: |
+      Add `test_the_scrape_and_the_rules_agree_on_the_metric_name`. Parse every metric name
+      referenced by the three new rules' queries; assert each appears in
+      `scripts/tests/fixtures/tekton/controller-metrics-sample.txt`, and that none of them matches
+      the regex the scrape manifest drops.
+
+      This closes the loop the two halves of this change could otherwise leave open: a rule
+      querying a metric the scrape drops is a rule that can never fire, and nothing else in the
+      repo would notice. Both halves are in git, so the check is offline and exact.
+
+      Run. Expect GREEN. As in P3.T3.S1, prove it can fail: temporarily point one rule at
+      `tekton_pipelines_controller_taskruns_pod_latency_milliseconds`, confirm RED, revert.
+  - id: P4.T1.S3
+    text: |
+      REFACTOR: the file now has several tests re-parsing the provisioning document. Confirm the
+      helpers extracted in P1.T1.S3 and P2.T1.S3 are doing that work once and that no test body
+      re-implements a loader. Collapse any duplication found. Re-run the focused file; GREEN,
+      unchanged.
+- number: 2
+  title: Write down what the next person needs to know
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Add the full prose to `docs/runbooks/frank-gotchas/grafana.md`: the blind spot #790 names,
+      why the 2026-05-14 pod-readiness rewrite was right AND left this hole, the three PromQL
+      traps (`unless` vs `== 0`; `or vector(0)` versus `sum by`; `absent_over_time` being the
+      wrong primitive because the controller keeps emitting a stopped pipeline's histogram), the
+      measured cadence table behind the two dead-man windows, and the documented post-restart
+      false-positive window on `github-pull-sync`.
+
+      Add a matching ONE-LINER to `agents/rules/frank-gotchas.md` under the Grafana section,
+      pointing at that file. Per `repo-workflows.md` the hot file gets the one-liner and the
+      per-topic file gets the prose - do not put the prose in both.
+  - id: P4.T2.S2
+    text: |
+      Update the spec's `**Status:**` from `Draft` to `In Progress`, and confirm the
+      `## Implementation Plans` table row that `fr plan create` appended points at this plan.
+
+      Do NOT write blog posts. Per `plan-post-deploy-checklist.md` this is a fix/extension to an
+      existing layer, not a new layer: the building and operating posts for layer 25 are updated
+      in place during post-deploy, and that is the `/post-deploy` skill's job after the merge.
+
+      Run `uv run --frozen pytest scripts/tests/ -q` one final time and confirm green.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-09-13T21:53:22+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-09-13T21:54:18+00:00'
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: '2026-09-13T21:55:53+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-09-13T21:59:55+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-09-13T22:02:53+00:00'
+      note: null
+  completion:
+    at: '2026-09-13T22:03:15+00:00'
+    note: null
+    observed_prs: []

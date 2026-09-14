@@ -1,0 +1,119 @@
+run: 2026-09-13-feat-obs-pipelinerun-failure-alerting
+workflow: fr-goal@1
+branch: feat/obs-pipelinerun-failure-alerting
+started: '2026-09-13T19:29:29+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-09-13T20:14:43+00:00'
+    emitted:
+      spec: docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md
+  spec-review:
+    state: done
+    at: '2026-09-13T20:19:26+00:00'
+  plan:
+    state: done
+    at: '2026-09-13T20:26:36+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-09-13--obs--pipelinerun-failure-alerting
+  plan-review:
+    state: done
+    at: '2026-09-13T20:26:39+00:00'
+    exit: 0
+    stdout: 'self-review passed
+
+      '
+  implement:
+    state: done
+    at: '2026-09-13T22:10:30+00:00'
+    items:
+      phase/1/implement-phase: done
+      phase/1/review-phase: done
+      phase/2/implement-phase: done
+      phase/2/review-phase: done
+      phase/3/implement-phase: done
+      phase/3/review-phase: done
+      phase/4/implement-phase: done
+      phase/4/review-phase: done
+      phase/5/implement-phase: done
+      phase/5/review-phase: done
+    members:
+    - implement-phase
+    - review-phase
+  deliver:
+    state: done
+    at: '2026-09-13T22:11:50+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/797
+accounting:
+  phase/1/implement-phase:
+    at: '2026-09-13T20:45:11+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
+    spec_bytes: 18120
+    plan_bytes: 35462
+  phase/1/review-phase:
+    at: '2026-09-13T20:45:39+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
+    spec_bytes: 18120
+    plan_bytes: 35462
+  phase/2/implement-phase:
+    at: '2026-09-13T20:45:50+00:00'
+    journal_entries: 9
+    journal_lines: 46
+    handoff_chars: 6477
+    spec_bytes: 18120
+    plan_bytes: 35462
+  phase/2/review-phase:
+    at: '2026-09-13T21:01:41+00:00'
+    journal_entries: 13
+    journal_lines: 66
+    handoff_chars: 9605
+    spec_bytes: 18120
+    plan_bytes: 35632
+  phase/3/implement-phase:
+    at: '2026-09-13T21:01:45+00:00'
+    journal_entries: 13
+    journal_lines: 66
+    handoff_chars: 7120
+    spec_bytes: 18120
+    plan_bytes: 35632
+  phase/3/review-phase:
+    at: '2026-09-13T21:47:40+00:00'
+    journal_entries: 16
+    journal_lines: 83
+    handoff_chars: 8998
+    spec_bytes: 18120
+    plan_bytes: 35802
+  phase/4/implement-phase:
+    at: '2026-09-13T21:47:50+00:00'
+    journal_entries: 16
+    journal_lines: 83
+    handoff_chars: 6307
+    spec_bytes: 18120
+    plan_bytes: 35802
+  phase/4/review-phase:
+    at: '2026-09-13T22:06:11+00:00'
+    journal_entries: 19
+    journal_lines: 98
+    handoff_chars: 10377
+    spec_bytes: 18126
+    plan_bytes: 35930
+  phase/5/implement-phase:
+    at: '2026-09-13T22:06:15+00:00'
+    journal_entries: 19
+    journal_lines: 98
+    handoff_chars: 7890
+    spec_bytes: 18126
+    plan_bytes: 35930
+  phase/5/review-phase:
+    at: '2026-09-13T22:10:28+00:00'
+    journal_entries: 20
+    journal_lines: 103
+    handoff_chars: 9007
+    spec_bytes: 18126
+    plan_bytes: 35930

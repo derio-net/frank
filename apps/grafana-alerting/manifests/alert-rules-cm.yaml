@@ -2377,6 +2377,187 @@ data:
               summary: "L25 CI/CD: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
               runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
 
+      # --- Layer 25 — pipeline outcomes: a pipeline that runs and never
+      # succeeds (frank-ops#25) ---
+      # `unless`, not `and ... == 0`: a pipeline with zero successes ever
+      # has no success series at all, and `and success == 0` drops on the
+      # vector match for exactly that case (frank-gotchas.md `metric == 0`
+      # family). The >= 3 noise floor lives in refId A, not in C's
+      # threshold — Grafana's server-side expressions can't express
+      # `unless`, so A carries the whole filter and returns one series per
+      # OFFENDING pipeline; C's `gt 0` only asks "did A return anything".
+      # `for: 30m`, not 15m — that window is reserved for DaemonSet-drain
+      # tolerance (test_the_fifteen_minute_window_is_reserved_for_daemonset_rules).
+      - orgId: 1
+        name: layer-25-pipeline-outcomes
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: layer-25-pipeline-failing
+            title: Layer 25 Pipeline Failing
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 86400, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    sum by (pipeline) (
+                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                        namespace="tekton-pipelines", status="failed"}[24h])
+                    ) >= 3
+                    unless
+                    sum by (pipeline) (
+                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                        namespace="tekton-pipelines", status="success"}[24h])
+                    ) > 0
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 86400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 86400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 pipeline failing: {{ $labels.pipeline }} has {{ $values.B.Value | printf \"%.0f\" }} failure(s) in 24h with zero successes"
+              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; tkn pipeline logs {{ $labels.pipeline }} -n tekton-pipelines --last"
+
+          # --- Layer 25 — idle dead-man, one rule per watched pipeline
+          # (frank-ops#25). ONE rule per pipeline, deliberately, not a
+          # single rule with `pipeline=~"a|b"`: `vector(0)` carries NO
+          # labels, and `or` returns its right-hand side only where the
+          # left has NO matching series at all. With a regex selector, if
+          # one watched pipeline still has a series and the other does not,
+          # the left side is non-empty and the dead pipeline contributes
+          # nothing — a dead-man that only fires when BOTH die at once. The
+          # bare `sum(` (no `by (pipeline)`) is what lets an absent
+          # pipeline's aggregation genuinely collapse to an empty vector,
+          # which is the only condition under which `or vector(0)` engages
+          # — `sum by (pipeline)` would look identical but never fall back.
+          # No `status=` filter: the question is "did this pipeline run at
+          # all", not whether it succeeded (that's `layer-25-pipeline-failing`
+          # above). `lt 1`, not `gt 0` — this is a floor question (fewer
+          # than one run in the window), and this folder's `gt 0` is the
+          # convention for unavailability COUNTERS, not for a run-count
+          # dead-man (frank-gotchas.md warns explicitly against
+          # generalising it: 27 `gt` vs 12 `lt` folder-wide).
+          #
+          # Windows and `for` are measured from retained PipelineRuns
+          # (2026-09-13), not chosen round numbers:
+          #   stoa-status-bridge: 148.1 runs/day, max observed idle gap
+          #     0.5h -> [6h] window, for: 1h (12x headroom).
+          #   github-pull-sync: 10.4 runs/day, max observed idle gap 15.7h
+          #     -> [72h] window, for: 2h (4.6x headroom).
+          #
+          # Both `for` windows absorb a controller restart (these counters
+          # are process-lifetime and reset to an absent series on restart,
+          # which `or vector(0)` reads as 0) AND, more certainly, deploy
+          # time itself: before a pipeline's FIRST run is ever scraped
+          # there is no series at all, so the same `or vector(0) -> lt 1`
+          # path fires after `for`. At 148/day the first run lands within
+          # ~10 minutes, so stoa-status-bridge's for:1h is comfortable
+          # either way. At 10.4/day the mean gap is ~2.3h against
+          # github-pull-sync's for:2h, so expect a false positive on
+          # roughly HALF of all deploys and after roughly one in ten
+          # controller restarts — both self-clear the moment the first
+          # post-event run lands. That is a deliberate, bounded trade: one
+          # warning-severity Telegram message versus weeks of silence.
+          - uid: layer-25-pipeline-idle-stoa-status-bridge
+            title: Layer 25 Pipeline Idle stoa-status-bridge
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    sum(
+                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                        namespace="tekton-pipelines", pipeline="stoa-status-bridge"}[6h])
+                    ) or vector(0)
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 pipeline idle: stoa-status-bridge has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 6h — expected ~148/day"
+              runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-gitea-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the Gitea org-level webhook, which is forge state with no IaC in this repo."
+
+          - uid: layer-25-pipeline-idle-github-pull-sync
+            title: Layer 25 Pipeline Idle github-pull-sync
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 259200, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    sum(
+                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                        namespace="tekton-pipelines", pipeline="github-pull-sync"}[72h])
+                    ) or vector(0)
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 259200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 259200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 2h
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 pipeline idle: github-pull-sync has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 72h — expected ~10.4/day"
+              runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the per-repo GitHub webhooks, which is forge state with no IaC in this repo."
+
       # =====================================================================
       # GLOBAL TLS CERT-EXPIRY
       # Triggered by 2026-05-11 Omni outage — see

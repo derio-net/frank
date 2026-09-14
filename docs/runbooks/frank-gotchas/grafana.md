@@ -949,3 +949,153 @@ In both cases the risk is not that the duplicate fires — it is that a future
 reader discovers "duplicate etcd monitoring", assumes the upstream artefact is
 canonical and the Frank one is a local accretion, and deletes the half that
 actually works.
+### A CI platform can be 100% green on "is it replicated" while every pipeline it runs fails
+
+`stoa-status-bridge` failed **100% of its runs for 39 days** (2026-08-02 →
+2026-09-10, 298 PipelineRuns) and nothing anywhere registered it. Found by eye,
+from the pod count (#790). `layer-25-cicd-down` was `Normal` the entire time —
+correctly, because it asks a different question than the one that matters here:
+`sum(kube_deployment_status_replicas_unavailable{namespace=~"gitea|tekton-pipelines|zot"})
+> 0` is "is the CI *platform* replicated", and the tekton-pipelines-controller
+Deployment was healthy throughout. Frank had a rule for "is CI up" and none for
+"does CI work", and those are not the same claim.
+
+**The 2026-05-14 rewrite that created this gap was correct, and left it on
+purpose-shaped ground.** It moved `layer-25-cicd-down` off
+`kube_pod_status_ready` specifically because Tekton task pods report
+`Ready=False` by design once they complete, and alerting on that produced a
+false-positive flood — the same defect class the rest of this file documents at
+length for the other eleven migrated rules. The comment that rewrite left in
+`alert-rules-cm.yaml` even names completed task pods accumulating "until a GC
+sweep" as the reason to stop counting them. That comment is *why* 292 `Failed`
+corpses from `stoa-status-bridge` read as background noise instead of as
+signal: the rule that would have reacted to them was deliberately retired, and
+correctly so — pod readiness was never the right signal for "did the pipeline
+succeed", it was only ever a proxy for "is the platform up", and a proxy that
+happened to fire on the platform's actual failure mode by coincidence. Fixing
+the false-positive flood and closing the outcome gap needed two different
+metrics; only one was in scope in May.
+
+**The signal was there the entire time — it was just never scraped.**
+`tekton-pipelines-controller` v1.6.0 has always served
+`tekton_pipelines_controller_pipelinerun_duration_seconds{namespace,pipeline,status}`
+(a histogram; `status` is `success` or `failed`) on its own `/metrics` endpoint.
+There was no `VMServiceScrape` for `tekton-pipelines` at all — not a wrong
+selector, not a wrong port, a namespace vmagent had simply never been pointed
+at. `{__name__=~"tekton.*"}` returned an empty list from VMSingle when measured
+on 2026-09-13, and `git log -S VMServiceScrape -- apps/tekton/` shows no such
+manifest was ever declared — the strongest claim the evidence actually supports.
+(A hand-applied scrape would not appear in either check, but this repo is
+declarative-only bar documented bootstrap secrets.) Closing #790 was therefore two pieces of work, not one:
+make the signal visible, then alert on it (spec:
+`docs/superpowers/specs/2026-09-13--obs--pipelinerun-failure-alerting-design.md`).
+
+**The scrape needs a mandatory drop, or it re-runs the kube-state-metrics
+incident against a different target.** Of the controller's 6,572 series,
+**5,721 (87.1%) are `tekton_pipelines_controller_taskruns_pod_latency_milliseconds`**,
+labelled by TaskRun **pod name** — one new, permanent series per TaskRun ever
+reconciled, on a 1-month retention, growing with CI volume forever. That is the
+identical unbounded-cardinality shape that took kube-state-metrics to 21.6 MiB
+on 2026-07-27, tripped `-promscrape.maxScrapeSize`, and silently blinded every
+`kube_*` alert rule in the folder (documented earlier in this file) because
+vmagent drops an oversized scrape response **whole**, not trimmed. Nothing
+queries that metric. The scrape ships with
+`metricRelabelConfigs: [{action: drop, source_labels: [__name__], regex:
+tekton_pipelines_controller_taskruns_pod_latency_milliseconds}]`, leaving
+851 bounded series — not tidiness, the precondition for adding this scrape
+at all without walking straight back into the July incident.
+
+**Three PromQL traps, all present in the naive first draft of these rules:**
+
+1. **`unless`, not `and ... success == 0`.** A pipeline that has never
+   succeeded since controller start has **no `success` series at all** for it.
+   `and ... == 0` is a vector match — the right-hand side must return an actual
+   series (value 0) for the match to hold, and an absent series is not a
+   zero-valued one. So `failed >= 3 and success == 0` silently drops the whole
+   result for exactly the pipelines this rule exists to catch: the ones that
+   have never once succeeded. Same family as the `metric == 0`-as-filter trap
+   above, one PromQL operator over. `unless` is the set-difference operator —
+   "every series on the left with no label-matching series on the right" — and
+   an absent right-hand series behaves exactly like the "zero successes" case
+   it needs to, whether the right side returns nothing or a real zero.
+
+2. **`or vector(0)` is inert under `sum by (...)`, and the reason is the two
+   sides never share a label set to begin with.** The obvious shape for
+   watching two pipelines with one rule —
+   `sum by (pipeline) (increase(...{pipeline=~"a|b"}[24h])) or vector(0)` — looks
+   like a dead-man for both and is not one. `vector(0)` produces a series with
+   **no labels at all**. PromQL's `or` returns its right-hand side only where
+   the left has **no matching series whatsoever**; it does not fill in missing
+   *label values* within an existing result. So if `stoa-status-bridge` still
+   has a series and `github-pull-sync` does not, the left side is non-empty,
+   the union keeps it completely unchanged, and the dead pipeline contributes
+   nothing — the label sets on the two sides of `or` were never going to align
+   to produce a per-pipeline zero. It is a switch that only fires when **both**
+   watched pipelines go idle simultaneously. The fix is one rule per watched
+   pipeline, with a bare `sum(...)` (no `by`) — only a fully unlabelled
+   aggregate collapses to a genuinely empty vector over an absent series, which
+   is the one condition under which the `vector(0)` fallback can engage at
+   all. `sum by (pipeline)(...) or vector(0)` reads as carrying a fallback that
+   is not actually reachable.
+
+3. **`absent_over_time()` is the wrong primitive here — it answers "was the
+   series missing", not "did the counter move".** The controller keeps
+   emitting a pipeline's `pipelinerun_duration_seconds` histogram on every
+   scrape once that pipeline has run at least once — the series does not
+   disappear when the pipeline stops running, it just stops incrementing. A
+   pipeline that ran ten hours ago and hasn't since still has a present,
+   unchanging series; `absent_over_time` reads that as "not absent" and sees
+   nothing wrong. `increase()` over the same window is the question actually
+   meant — "did this counter move" — and correctly reads 0 whether the series
+   is present-but-stalled or genuinely absent (via the `or vector(0)` fallback
+   above).
+
+**Windows are sized from measured cadence, and one shared window is
+observably wrong.** Retained PipelineRuns measured 2026-09-13:
+
+| pipeline | runs/day | max observed gap | window | `for` | headroom |
+|---|---:|---:|---:|---:|---:|
+| `stoa-status-bridge` | 148.1 | 0.5h | `[6h]` | `1h` | 12× |
+| `github-pull-sync` | 10.4 | 15.7h | `[72h]` | `2h` | 4.6× |
+
+A single shared 24h window — the obvious first instinct — gives
+`stoa-status-bridge` 48× headroom and `github-pull-sync` about 1.5×, measured
+against a 79-hour sample that happened to contain no quiet weekend. It would
+have paged on the first Sunday nobody pushed to `github-pull-sync`. These are
+push-driven pipelines; idle tolerance is a property of each pipeline's own
+traffic, not a number that can be shared across two pipelines an order of
+magnitude apart in cadence.
+
+**The `github-pull-sync` dead-man carries a documented, accepted false-positive
+window.** These counters are process-lifetime and reset on a controller
+restart, so the series is briefly absent post-restart and `or vector(0)` reads
+0 until the next run lands. At 148 runs/day `stoa-status-bridge`'s first
+post-restart run lands within ~10 minutes, so its `for: 1h` fully absorbs a
+restart. `github-pull-sync` at 10.4/day has a ~2.3h mean gap, so its `for: 2h`
+**narrows but does not eliminate** the window: a controller restart that lands
+during a quiet stretch can produce one `severity: warning` Telegram message
+that self-clears on the next sync — roughly once a month at the observed
+restart rate, and only sometimes. This is a deliberate, bounded trade,
+documented rather than hidden so a future reader who meets exactly one such
+alert recognises the known shape instead of re-deriving the cause from
+scratch. The alternative was another 39 days of silence.
+
+**An idle-pipeline alert's most likely real cause is a missing webhook, not a
+broken pipeline — check `apps/tekton/webhooks.yaml` first.** This repo already
+has the incident that names the failure mode: the 2026-07-26 site→www
+promotion had an EventListener trigger that was "live, correct and
+unreachable", because the per-repo Gitea webhook that would have delivered to
+it was never created — it produced **zero PipelineRuns**, which reads exactly
+like a broken pipeline rather than a missing delivery path, and cost a
+debugging round for that reason. A ratio rule is structurally blind to this
+(no runs means no failures to ratio against); only a dead-man catches it, and
+when one of these two idle rules fires the runbook does **not** point at
+`kubectl get pipelinerun` for the watched pipeline — that list is guaranteed
+empty by construction (the alert's whole meaning is that no runs arrived, and
+the 7-day PipelineRun TTL GC removes older ones regardless), so an operator
+who checks it learns only what the alert already said. The runbook instead
+points at the EventListener's own log (`el-gitea-listener` /
+`el-github-listener` — did an event arrive at all?) and at
+`apps/tekton/webhooks.yaml` plus the forge's webhook configuration, because a
+declared trigger and a delivered webhook are two different things and only
+one of them is IaC.
