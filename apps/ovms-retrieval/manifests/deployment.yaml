@@ -214,13 +214,13 @@ spec:
           resources:
             # Both halves are set on purpose: a limit without a request lets
             # the scheduler over-commit an etcd member. 2 of 14 cores, and a
-            # 2Gi request against a ceiling of 10 of 64 GB. The memory limit is
+            # 2Gi request against a ceiling of 16 of 64 GB. The memory limit is
             # the real backstop rather than a formality — iGPU allocations come
             # out of host RAM via i915, so there is no separate VRAM ceiling to
             # hit first.
             #
             # WHY THE CEILING IS 10Gi, AND WHY THAT IS A REVERSAL.
-            # 6Gi -> 10Gi, 2026-09-11. The parent spec set this ceiling small
+            # 6Gi -> 10Gi -> 16Gi, 2026-09-14. The parent spec set this ceiling small
             # ON PURPOSE: mini-1 is an etcd member, and the whole iGPU
             # experiment was sized to keep its failure domain away from the
             # control plane. Raising it reverses that posture, so what follows
@@ -263,12 +263,34 @@ spec:
             # The exported rerank graph now bounds both terms —
             # max_allowed_chunks: 64 and max_position_embeddings: 640, injected
             # at build time by docker/inject_rerank_guard.py — which is what
-            # makes a worst case exist at all: 6.36 GiB. That is 64% of this
-            # 10Gi ceiling and 106% of the 6Gi it replaces. So the raise is not
-            # headroom for a larger workload. It is what turns the ceiling into
-            # a backstop the bounded workload cannot reach, rather than the
-            # thing it runs into. A guard whose own worst case OOMs is
-            # decorative.
+            # makes a worst case exist at all.
+            #
+            # WHY 16Gi AND NOT 10Gi. The first raise (6 -> 10) was sized on the
+            # cap's cost as a SINGLE call on a fresh pool: 5.67 GiB, 57% of
+            # 10Gi. Test Plan row 10, run against the live 10Gi pod after
+            # merge, measured the case that sizing missed — an ASCENDING
+            # sequence, 20 then 40 then 64 documents at 600 tokens, which
+            # peaked at 8.49 GiB, 84.9% of 10Gi, against a row threshold of
+            # ~70%. No OOM, but 1.5 GiB of headroom. Ascending costs more than
+            # the largest shape alone because the older pool is still held
+            # while the new one is allocated.
+            #
+            # Same ascent measured at a 512-token bound peaks at 6.96 GiB, so
+            # tightening max_position_embeddings was the alternative. The
+            # operator chose the ceiling instead: it is a one-line change
+            # rather than a model rebuild and reseed, and it does not change
+            # scoring for long passages. At 16Gi the measured worst case is
+            # 53.1%.
+            #
+            # The cost, stated because it is real: this memory is PINNED and
+            # UNEVICTABLE, so under node pressure the kernel cannot reclaim it
+            # and would kill something else — on a control-plane node running
+            # etcd. mini-1 was at 23% actual use (14.7 of 61.5 GiB) when this
+            # was chosen, but the sum of memory LIMITS across its 38 pods goes
+            # from 71% to 81% of allocatable. Limits are ceilings, not
+            # reservations, so this is over-commitment rather than
+            # consumption — but it is the second raise, and a third should
+            # tighten the graph bound instead.
             #
             # WHAT IS NOT PROVEN: 10Gi was never measured AT 10Gi. Every figure
             # above was taken at 6Gi. The live Deployment patch that would have
@@ -288,7 +310,7 @@ spec:
               memory: 2Gi
             limits:
               cpu: "2"
-              memory: 10Gi
+              memory: 16Gi
             # The iGPU, claimed through DRA. Only this container gets it — the
             # seed container copies files and would hold the device through
             # the whole init phase for nothing.
