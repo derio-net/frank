@@ -13,6 +13,9 @@ smokeNamespace: runs-fr
 # The smoke Job's RBAC manifest, fetched pinned to the gated sha at run time.
 # {sha} is a literal placeholder — phase 9's run-smoke task substitutes it.
 smokeRbacUrl: https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml?ref={sha}
+# The smoke Job's serviceAccountName inside the staging vCluster — created by
+# smokeRbacUrl's manifest (a ServiceAccount/Role/RoleBinding all named this).
+smokeServiceAccount: runs-fr-smoke
 # Promote records last-green — the runs-fr PROD wiring is a PAIRED FOLLOW-UP
 # (Authentik/Ingress/homepage) that doesn't exist yet (spec revision 2026-09-14).
 # promote writes {sha, image, pipelineRun, promotedAt} here; nothing else touches it.

@@ -31,6 +31,7 @@ REQUIRED: dict[str, type] = {
     "smokeImage": str,     # in-cluster smoke-test image (exit 0 = pass)
     "smokeNamespace": str,  # namespace in the staging vCluster to run the smoke Job
     "smokeRbacUrl": str,   # the app's smoke RBAC manifest, containing the literal {sha}
+    "smokeServiceAccount": str,  # serviceAccountName the smoke Job runs as (P9)
     "promotedRecordPath": str,  # frank path to the gate-owned last-green record
 }
 

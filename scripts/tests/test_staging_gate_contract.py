@@ -54,6 +54,7 @@ def _valid_v2_contract() -> dict:
         "smokeRbacUrl": (
             "https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml?ref={sha}"
         ),
+        "smokeServiceAccount": "runs-fr-smoke",
         "promotedRecordPath": "apps/staging-gate/runs-fr/promoted.yaml",
     }
 
@@ -97,7 +98,7 @@ def test_validate_one_rejects_the_retired_prod_keys(tmp_path):
     )
 
 
-@pytest.mark.parametrize("missing_key", ["promotedRecordPath", "smokeRbacUrl"])
+@pytest.mark.parametrize("missing_key", ["promotedRecordPath", "smokeRbacUrl", "smokeServiceAccount"])
 def test_validate_one_requires_the_v2_keys(tmp_path, missing_key):
     doc = _valid_v2_contract()
     del doc[missing_key]

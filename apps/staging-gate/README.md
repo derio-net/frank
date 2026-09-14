@@ -28,7 +28,8 @@ objects.
 2. Add an `<app>-staging` ArgoCD Application (`apps/root/templates/<app>-staging.yaml`) deploying
    the chart into the staging vCluster, pinned to `<app>/staging-values.yaml`.
 3. Ship an in-cluster smoke-test image (`smokeImage`) that exits 0 (pass) / non-zero (fail), plus
-   an RBAC manifest reachable at `smokeRbacUrl`.
+   an RBAC manifest reachable at `smokeRbacUrl` that provisions the `smokeServiceAccount` the
+   Job runs as.
 4. Add the per-commit image build + the gate trigger (GHA `repository_dispatch` action
    `staging-gate`) in the app repo.
 
@@ -48,6 +49,7 @@ Validate: `uv run --with pyyaml python scripts/staging-gate/validate-contract.py
 | `smokeImage` | in-cluster smoke-test image (exit 0 = pass) |
 | `smokeNamespace` | namespace in the staging vCluster to run the smoke Job |
 | `smokeRbacUrl` | URL of the app's smoke RBAC manifest; contains the literal `{sha}`, substituted by run-smoke |
+| `smokeServiceAccount` | `serviceAccountName` the smoke Job runs as, created by `smokeRbacUrl`'s manifest |
 | `promotedRecordPath` | frank path to the gate-owned last-green record (`promote` writes it) |
 
 The validator checks the contract's SHAPE, not the existence of the referenced remote targets
