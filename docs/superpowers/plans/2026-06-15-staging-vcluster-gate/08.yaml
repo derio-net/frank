@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 8
+  title: Contract v2 — promote records last-green; push via frank-gitops-push
+  tag: agentic
+  depends_on:
+  - 6
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Contract schema v2 + tripwire (TDD)
+  steps:
+  - id: P8.T1.S1
+    text: |
+      RED — add `scripts/tests/test_staging_gate_contract.py`: (a) runs `scripts/staging-gate/validate-contract.py` and requires exit 0; (b) asserts the validator REJECTS a contract still carrying `prodApp`/`prodValuesPath`/`prodValuesKey` and one missing `promotedRecordPath` or `smokeRbacUrl` (tmp-dir fixtures via an importable `validate_one`); (c) asserts every registry entry's `stagingValuesPath` and `promotedRecordPath` exist in the repo and `smokeRbacUrl` contains the literal placeholder `{sha}`. Expected NOW: FAIL.
+  - id: P8.T1.S2
+    text: |
+      GREEN — update `validate-contract.py` REQUIRED keys (drop the three prod* keys; add `promotedRecordPath`, `smokeRbacUrl`; reject the retired keys explicitly with a pointer to the spec revision), `apps/staging-gate/registry/runs-fr.yaml` (`promotedRecordPath: apps/staging-gate/runs-fr/promoted.yaml`, `smokeRbacUrl` per phase 9's fetch mechanism), create `apps/staging-gate/runs-fr/promoted.yaml` (header comment: gate-owned, never hand-edited; keys `sha`, `image`, `pipelineRun`, `promotedAt` initialised to null), and update the README contract table + onboarding steps. Re-run → PASS.
+- number: 2
+  title: Promote writes the record; git over HTTPS with the App token (TDD)
+  steps:
+  - id: P8.T2.S1
+    text: |
+      RED — extend `scripts/tests/test_staging_gate_manifests.py`: no Task/Pipeline/TriggerTemplate under `apps/staging-gate/tekton/` references `staging-gate-ssh-creds`, `id_rsa` or `git@github.com`; every git-pushing step reads `GITHUB_TOKEN` from secret `frank-gitops-push` key `token`; the `promote` Task writes `.sha`, `.image`, `.pipelineRun`, `.promotedAt` into `$(params.promotedRecordPath)` and has no `prodValuesKey` param; the pipeline's `resolve-contract` exposes `promotedRecordPath` and `smokeRbacUrl` results; the RBAC Role `staging-gate-secrets-read` names `frank-gitops-push` (and not the ssh secret). Expected NOW: FAIL.
+  - id: P8.T2.S2
+    text: |
+      GREEN — rewrite clone/push steps in `pipeline.yaml` + `tasks.yaml` to `git clone https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git` (token via `secretKeyRef`, never echoed; `set +x`), drop the `ssh-creds` workspace from Pipeline, Tasks and the TriggerTemplate, rework `staging-gate-promote` to yq-write the record (`pipelineRun` from `$(context.pipelineRun.name)`, `promotedAt` from `date -u +%FT%TZ`), commit `gate: last-green <app> sha-<sha> [skip ci]`. Update RBAC. Re-run → PASS; full suite green.
+state:
+  steps:
+    P8.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

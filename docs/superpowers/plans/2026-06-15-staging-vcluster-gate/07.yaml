@@ -1,24 +1,39 @@
 schema_version: 2
 phase:
   number: 7
-  title: '[manual] Cluster Secret + end-to-end gate verification'
-  tag: manual
+  title: Make the staging vCluster safe to register (argo-cd#26529 exclusion + destination by name)
+  tag: agentic
   depends_on:
   - 6
   tracking_issue: null
 tasks:
 - number: 1
-  title: Register staging vCluster + prove the gate end-to-end
+  title: Scope the Pod exclusion to BOTH vCluster URLs (TDD)
   steps:
   - id: P7.T1.S1
     text: |
-      (manual) Register the staging vCluster with ArgoCD: extract the `vc-staging` secret's `.data.config` kubeconfig, rewrite server `https://localhost:8443` → `https://staging.vcluster-staging.svc:443`, build an ArgoCD `cluster` Secret (label `argocd.argoproj.io/secret-type=cluster`, `stringData.name=staging`, `stringData.server=…svc:443`, `stringData.config` = JSON tlsClientConfig with the kubeconfig's CA + client cert/key), `sops -e` per `.sops.yaml`, store under `secrets/staging-vcluster/`, apply out-of-band. Verify: `argocd cluster list` shows staging; `runs-fr-staging` Application syncs Healthy in the vCluster.
+      RED — extend `scripts/tests/test_argocd_vcluster_pod_exclusion.py` so the scoped Pod exclusion must cover BOTH `https://cnc-staging.cnc-staging-vcluster.svc:443` and `https://staging.vcluster-staging.svc:443` (parametrize the per-URL assertion; keep "never global", "never matches https://kubernetes.default.svc", and "chart defaults survive" unchanged). Run `uv run --group dev pytest scripts/tests/test_argocd_vcluster_pod_exclusion.py -q`. Expected NOW: the staging URL case FAILS.
   - id: P7.T1.S2
     text: |
-      (manual) GREEN path: trigger a real runs-fr `main` merge (or `repository_dispatch` action `staging-gate`) and observe the gate run flow build → bump-staging → await-sync → run-smoke (green) → promote (a commit bumping the prod image ref appears) → reset-staging. Capture evidence (PipelineRun logs + the promote commit).
-  - id: P7.T1.S3
+      GREEN — in `apps/argocd/values.yaml` add `https://staging.vcluster-staging.svc:443` to the `clusters:` list of the existing argo-cd#26529 Pod entry (same entry, no new global entry) and extend its comment to name the staging-gate vCluster. Re-run the test → PASS.
+- number: 2
+  title: Address the staging vCluster by name, like cnc-staging (TDD)
+  steps:
+  - id: P7.T2.S1
     text: |
-      (manual) RED path: feed a deliberately-broken image (e.g. a tag whose pod fails the smoke) and confirm the gate FAILS at run-smoke, leaves the prod ref UNTOUCHED, and fires a notification (Telegram/health-bridge). Record both outcomes on the PR.
+      RED — add `scripts/tests/test_staging_gate_manifests.py` asserting over `helm template apps/root`: `runs-fr-staging` has `destination.name == 'staging'` and no `destination.server`; the `infrastructure` AppProject has a destination `{name: staging, namespace: '*'}` and still has `{name: cnc-staging}`. Fail closed if helm is missing. Expected NOW: FAIL (branch uses `server:`).
+  - id: P7.T2.S2
+    text: |
+      GREEN — switch `apps/root/templates/runs-fr-staging.yaml` to `destination.name: staging` and the project.yaml staging entry to `name: staging` (update both comments to point at the manual-op registration). Re-run → PASS; full `uv run --group dev pytest scripts/tests -q` stays green.
+- number: 3
+  title: ArgoCD can read the PRIVATE runs-fr chart (TDD)
+  steps:
+  - id: P7.T3.S1
+    text: |
+      RED — extend `scripts/tests/test_staging_gate_manifests.py`: a manifest (under the app that owns argocd extras — find where argocd-side raw manifests already live, e.g. `apps/argocd-notifications/manifests/` precedent, or add it to `apps/staging-gate/tekton/` ONLY if that app already targets `argocd`; otherwise create `apps/staging-gate/argocd/` and a matching Application source path, keeping `staging-gate` scoped) defines an ExternalSecret in ns `argocd` whose `dataFrom` uses ClusterGenerator `github-app-derio` and whose `target.template` renders a Secret labelled `argocd.argoproj.io/secret-type: repository` with `type: git`, `url: https://github.com/derio-net/runs-fr.git`, `username: x-access-token`, `password: '{{ .token }}'`; `refreshInterval` is under the 1h token TTL. The test also asserts NO ClusterGenerator is added (reuse `github-app-derio`) and that the ES comment states the PEM must exist in `argocd` (ESO resolves `privateKey.secretRef` in the CONSUMER ns). Expected NOW: FAIL (no ArgoCD repo credential exists for any github.com/derio-net repo — verified live 2026-09-14).
+  - id: P7.T3.S2
+    text: |
+      GREEN — add the ExternalSecret (+ Application source path wiring if a new dir) and name manual op `cicd-staging-gate-argocd-runs-fr-repo-key` for the PEM copy. Re-run → PASS; `helm template apps/root` renders; full suite green.
 state:
   steps:
     P7.T1.S1:
@@ -29,7 +44,19 @@ state:
       state: ' '
       ticked_at: null
       note: null
-    P7.T1.S3:
+    P7.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S2:
       state: ' '
       ticked_at: null
       note: null

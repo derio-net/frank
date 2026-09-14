@@ -1,0 +1,33 @@
+run: 2026-09-14-feat-staging-vcluster-gate
+workflow: fr-goal@1
+branch: feat/staging-vcluster-gate
+started: '2026-09-14T19:57:40+00:00'
+cursor: implement
+steps:
+  brainstorm:
+    state: done
+    emitted:
+      spec: docs/superpowers/specs/2026-06-15--cicd--staging-vcluster-gate-design.md
+  spec-review:
+    state: done
+  plan:
+    state: done
+    emitted:
+      plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+  plan-review:
+    state: done
+  implement:
+    state: pending
+    items:
+      phase/1/implement-phase: done
+      phase/2/implement-phase: done
+      phase/3/implement-phase: done
+      phase/4/implement-phase: done
+      phase/5/implement-phase: done
+      phase/6/implement-phase: done
+      phase/7/implement-phase: pending
+    members:
+    - implement-phase
+    - review-phase
+  deliver:
+    state: pending

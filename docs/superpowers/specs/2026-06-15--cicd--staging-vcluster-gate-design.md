@@ -1,6 +1,6 @@
 # Staging-vCluster e2e Release Gate — Design
 
-**Status:** Draft
+**Status:** Draft (revised 2026-09-14)
 **Layer:** cicd (19 — CI/CD Platform; activates `tenant` (14) vCluster, uses `deploy`-style promotion)
 **Date:** 2026-06-15
 **Repos touched:** `frank` (this spec, vCluster + ArgoCD + Tekton gate), `runs-fr` (per-commit image build + smoke-test), possibly `agent-images`/`super-fr` later (future gated apps)
@@ -9,50 +9,92 @@
 
 | Plan | Repo | Status |
 |------|------|--------|
-| [2026-06-15-staging-vcluster-gate](../plans/2026-06-15-staging-vcluster-gate) | `derio-net/frank` | Planned |
+| [2026-06-15-staging-vcluster-gate](../plans/2026-06-15-staging-vcluster-gate) | `derio-net/frank` | In progress |
+| runs-fr sibling ([runs-fr#21](https://github.com/derio-net/runs-fr/pull/21), merged 2026-08-27) + dispatch-permission fix | `derio-net/runs-fr` | Fix pending |
+
+## Revision 2026-09-14 — what changed and why
+
+The design below dates from June. The branch was parked for the Omni rebuild and rebased onto
+`main` 283 commits later. Re-checking it against current `main` and the live cluster found
+three defects that would have failed at runtime, plus one missing target. The operator settled
+the open decisions in one batched Q&A (journal:
+`docs/superpowers/journals/specs/2026-06-15--cicd--staging-vcluster-gate.md`).
+
+| Finding | Evidence | Resolution |
+|---------|----------|------------|
+| Registering the vCluster would crash the ArgoCD application-controller cluster-wide | Live ArgoCD is `v3.3.2`. argo-cd#26529 panics on any registered vCluster Pod with LimitRange-defaulted resources. The existing scoped `resource.exclusions` Pod entry lists only the cnc-staging URL (`docs/superpowers/debugging/2026-07-19-argocd-vcluster-cache-panic.md`) | Add `https://staging.vcluster-staging.svc:443` to that entry, still cluster-scoped, never global. Extend `scripts/tests/test_argocd_vcluster_pod_exclusion.py` to cover both URLs. The exclusion must be live (controller restarted) **before** registration |
+| The runs-fr trigger never reaches Frank | Both `build.yml` runs on runs-fr `main` failed at `trigger-gate` with `Resource not accessible by integration (HTTP 403)`, because `GITHUB_TOKEN` carries only `contents: read`. Separately, a `repository_dispatch` reaches Frank only through a runs-fr webhook that subscribes to that event | runs-fr grants `contents: write` to the `trigger-gate` job (cross-repo PR). A runs-fr GitHub webhook for `repository_dispatch` with its own derio-net HMAC is declared in `apps/tekton/webhooks.yaml` and created by manual op |
+| The listener trigger was deferred to a manual step | It predates the `webhooks.yaml` delivery-path tripwire (#707) and the array-freeze removal | Wire the trigger in git now, with CEL input validation, guarded by the tripwire suite |
+| ArgoCD cannot fetch the runs-fr chart | runs-fr is a PRIVATE repo, and ArgoCD holds no repository credential for any `github.com/derio-net` repo (the only repository Secret is an in-cluster Gitea one). The chart is not published as OCI | An ESO-minted ArgoCD `repository` Secret for `https://github.com/derio-net/runs-fr.git`, built from the existing `github-app-derio` ClusterGenerator (the derio-fr-automation App covers every derio-net repo). Its PEM must exist in `argocd` (manual op) |
+| The smoke image cannot be pulled | GHCR `runs-fr` is public, but `runs-fr-smoke` is private (an anonymous manifest fetch gets 403). A first push creates a package private | The operator makes `runs-fr-smoke` public (manual op), following Frank's public-package convention |
+| The red path needs a notification | #797's `layer-25-pipeline-failing` fires only on 3 or more failures with zero successes in 24h, so a single red run on a pipeline with green runs never alerts | A per-run `finally` Telegram notify. #797 remains the chronic-failure backstop |
+| The promote step has no target | Frank has no `apps/runs-fr`, and runs-fr was never deployed (`2026-06-14-stoa-frank-infra-design.md`) | **Promote records last-green**: it commits the blessed sha to `apps/staging-gate/runs-fr/promoted.yaml` (decision `d-promote-last-green`) |
+
+Operator decisions: keep the **dedicated `staging` vCluster** (`d-dedicated-vcluster`); trigger
+via the **fixed `repository_dispatch` plus a per-repo webhook** (`d-dispatch-webhook`); the Test
+Plan proves **green and red, driven by the agent after merge** (`d-test-plan`).
+
+Defaults chosen without asking, each following an existing pattern in the repo:
+
+- **Push credential.** The gate pushes over HTTPS with the `frank-gitops-push` App token, as
+  `cnc-promotion` and `site-promotion` do. This removes the `staging-gate-ssh-creds` manual
+  Secret.
+- **vCluster access for Tekton.** The chart's `exportKubeConfig.additionalSecrets` writes a
+  second kubeconfig (`vc-staging-gate`, server already rewritten to the in-cluster Service) into
+  the vCluster's host namespace. A namespaced Role, restricted by `resourceNames` to that one
+  Secret, lets the `staging-gate` ServiceAccount read it. This removes the
+  `vcluster-staging-kubeconfig` manual Secret.
+- **Destination by name.** `runs-fr-staging` and the AppProject address the vCluster as
+  `name: staging`, matching `cnc-staging`.
+- **Registration.** The ArgoCD `cluster` Secret stays out-of-band, following the cnc-staging
+  precedent. It is generated from the live `vc-staging` Secret by a manual-op script rather than
+  stored SOPS-encrypted in git, so the vCluster admin key never sits at rest in the repo.
+- **Notification.** No alert rule watches failed PipelineRuns. A `finally` task sends a
+  plain-text Telegram message (no `parse_mode`: the HTML-400 trap) through the existing C2 bot,
+  using an ExternalSecret over `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID`.
 
 ## Context
 
 The runs-fr Phase-8 verification (2026-06-12) deployed the gateway into the `experiments`
 vCluster by hand and **caught a real `runAsNonRoot`/non-numeric-USER bug that CI structurally
-cannot** — CI never runs the pod (runs-fr#19). That one-off proved a vCluster is a
-high-fidelity, disposable staging target (real API server, real `pods/exec`, real RBAC), and
-surfaced exactly what an automated gate would need. This design turns that one-off into a
-**reusable, automated release gate**: every merge to an app's `main` is built, deployed into a
-staging vCluster via GitOps, exercised by an in-cluster end-to-end smoke-test, and — only if
-green — **auto-promoted to Frank production**.
+cannot**, because CI never runs the pod (runs-fr#19). That one-off proved a vCluster is a
+high-fidelity, disposable staging target (real API server, real `pods/exec`, real RBAC), and it
+surfaced what an automated gate needs. This design turns the one-off into a **reusable,
+automated release gate**: every merge to an app's `main` is built, deployed into a staging
+vCluster via GitOps, and exercised by an in-cluster end-to-end smoke-test. Only a green run is
+**promoted**.
 
-It is the concrete realization of the two-tier verification the k8s-native-runs umbrella spec
-anticipated (`docs/superpowers/specs/2026-06-07--agents--k8s-native-runs-design.md`): Tier-1
-deterministic CI, Tier-2 real-cluster behavioral proof — here automated and made the gate for
-shipping.
+It realizes the two-tier verification the k8s-native-runs umbrella spec anticipated
+(`docs/superpowers/specs/2026-06-07--agents--k8s-native-runs-design.md`): Tier-1 deterministic
+CI, and Tier-2 real-cluster behavioral proof, here automated and made the gate for shipping.
 
-All building blocks already exist on Frank: **Tekton** + a `github-listener` EventListener
-(.223) [`cicd`], the **vCluster** capability (`experiments`, loft 0.32.1, host-ArgoCD-managed)
-[`tenant`], **Argo Rollouts** [`deploy`], and GHCR images that default public (no pull
-friction). The work is composition + wiring, plus Frank's **first ArgoCD external-cluster
-registration**.
+The building blocks exist on Frank: **Tekton** with the `github-listener` EventListener (.223)
+[`cicd`], the **vCluster** capability (`experiments` and `cnc-staging`, loft 0.32.1,
+host-ArgoCD-managed) [`tenant`], and GHCR images that default to public. Since June, `main` has
+also gained a registered vCluster destination (`cnc-staging`) and two GitOps promotion pipelines
+(`cnc-promotion`, `site-promotion`). This design reuses their credential and registration
+patterns.
 
 ## Goals
 
 - Every merge to a gated app's `main` produces a per-commit image and runs an **automated
-  end-to-end gate** in a real staging cluster before anything ships.
-- A failing gate **blocks promotion**; a passing gate **auto-promotes** the gated image to
-  Frank production (full CD) by a declarative git bump.
-- The gate is **reusable** — any app opts in via a declarative contract + a smoke-test; runs-fr
-  is the first, agent-images/super-fr/future apps plug in later.
-- Staging stays **fully declarative** (GitOps into the vCluster), honoring the declarative-only
-  principle; the smoke-test runs **in-cluster** (no flaky laptop port-forwards).
+  end-to-end gate** in a real staging cluster.
+- A failing gate **blocks promotion and notifies**. A passing gate **promotes** by a declarative
+  git commit. For runs-fr the promotion writes the last-green record; bumping a prod app is the
+  follow-up once one exists.
+- The gate is **reusable**: any app opts in through a declarative contract and a smoke-test.
+  runs-fr is first.
+- Staging stays **fully declarative** (GitOps into the vCluster), and the smoke-test runs
+  **in-cluster**.
 
 ## Non-goals (this spec)
 
-- The runs-fr **production wiring** (its prod ArgoCD app + Authentik forward-auth + Ingress +
-  homepage tile) — the **paired follow-up** the promote step targets. The gate skeleton proves
-  "promote fires" against a configured prod ref without depending on that wiring being complete.
-- Pre-merge / per-PR gating (this is a **post-merge** gate). A PR-check variant is a later option.
-- Onboarding apps beyond runs-fr (agent-images, super-fr) — they ride the contract later.
-- Browser/visual attach testing — the smoke-test is API+websocket level; visual attach stays a
-  manual spot-check.
+- The runs-fr **production wiring** (a prod ArgoCD app, Authentik forward-auth, Ingress,
+  homepage tile). It is the paired follow-up that will consume `promoted.yaml`.
+- Pre-merge / per-PR gating. This is a **post-merge** gate.
+- Onboarding apps beyond runs-fr.
+- Browser/visual attach testing. The smoke-test works at the API and websocket level.
+- Reconciling `webhooks.yaml` against the live forges (the tripwire's documented follow-up).
 
 ## Architecture
 
@@ -60,109 +102,111 @@ registration**.
 
 ```
 merge to main (app repo)
-  → GHA: build ghcr.io/<app>:sha-<commit>  +  trigger Frank's Tekton github-listener (.223)
-  → Tekton gate Pipeline (runs in-cluster, parameterized by <app>):
-      1. bump <app>-staging image ref → sha-<commit>   (git commit to frank) → push
-      2. wait: ArgoCD syncs <app>-staging INTO the staging vCluster, Synced + Healthy
-      3. smoke: run <app>'s smoke-test Job IN the staging vCluster (against the app ClusterIP)
-                exit 0 = pass
-      4a. GREEN → promote: bump <app> PROD image ref → sha-<commit> (git commit to frank)
-                  → ArgoCD ships prod
-      4b. RED   → stop; notify (Telegram via the existing webhook contact / health-bridge);
-                  prod untouched
-      5. reset: drop the <app> staging namespace in the vCluster for the next run
+  → GHA: build ghcr.io/<app>:sha-<short> + <smokeImage>:sha-<short>
+  → GHA: repository_dispatch {event_type: staging-gate, client_payload: {app, sha}}
+  → GitHub webhook (repository_dispatch, HMAC) → webhooks.hop.derio.net → github-listener
+  → trigger staging-gate-<app>: github interceptor (HMAC) → CEL (repo, action, sha/app regex)
+  → Tekton staging-gate Pipeline:
+      0. resolve-contract: read apps/staging-gate/registry/<app>.yaml
+      1. bump-staging: image.tag → sha-<short> in the staging values (commit + push to frank)
+      2. await-sync: <app>-staging Application Synced + Healthy (in the staging vCluster)
+      3. run-smoke: apply the app's smoke RBAC, run the smoke Job IN the vCluster, exit 0 = pass
+      4a. GREEN → promote: write {sha, image, pipelineRun, promotedAt} to the promoted record
+                  (commit + push to frank)
+      4b. RED   → promote skipped; record untouched
+      finally:
+        notify: Telegram (plain text) when run-smoke did not succeed
+        reset:  delete the smoke namespace in the vCluster
 ```
 
 ### Component 1 — Per-commit image (app repo, GHA)
 
-A new `on: push: branches: [main]` workflow builds and pushes `ghcr.io/<app>:sha-<short>`
-(coexists with the existing `v*` release workflow — `v*` is for explicit human releases; the
-gate consumes the `sha` tag). For runs-fr this is a small addition alongside `release.yml`.
-The final pipeline step (GHA) calls the Tekton `github-listener` with `{repo, sha}`.
+An `on: push: branches: [main]` workflow builds `ghcr.io/<app>:sha-<short>` and the smoke image,
+then sends a `repository_dispatch`. For runs-fr this is `build.yml` (runs-fr#21). The
+`trigger-gate` job needs `permissions: contents: write` for the dispatch API call.
 
-### Component 2 — Staging vCluster + ArgoCD multi-cluster registration (frank)
+### Component 2 — Staging vCluster + ArgoCD registration (frank)
 
-- **A dedicated `staging` vCluster** (`apps/vclusters/staging/values.yaml` +
-  `apps/root/templates/{ns-vcluster-staging,vcluster-staging}.yaml`), mirroring the existing
-  `experiments` Application (loft vcluster chart, template ⊕ instance values). Gate-owned and
-  reset-able — separate from the `experiments` sandbox.
-- **Frank's first ArgoCD external cluster.** A `cluster` Secret in `argocd` (labelled
-  `argocd.argoproj.io/secret-type=cluster`) built from the vCluster's `vc-staging` kubeconfig,
-  with the server rewritten from `https://localhost:8443` to the in-cluster
-  `https://staging.vcluster-staging.svc:443`, and the embedded CA + client cert/key as the
-  config. **SOPS-encrypted, applied out-of-band** (the documented bootstrap-secret exception —
-  it carries the vCluster admin client key and must not be ArgoCD-managed).
-- Per gated app, an **`<app>-staging` ArgoCD Application** whose `destination.server` is the
-  registered staging cluster, deploying the app's chart with a staging values file whose
-  `image.tag` is the ref Tekton bumps.
+- **A dedicated `staging` vCluster** (`apps/vclusters/staging/values.yaml`, plus
+  `apps/root/templates/{ns-vcluster-staging,vcluster-staging}.yaml`). It is gate-owned and
+  resettable, separate from `experiments` and `cnc-staging`.
+- **`exportKubeConfig.additionalSecrets`** adds `vc-staging-gate` in `vcluster-staging` with
+  `server: https://staging.vcluster-staging.svc:443`. This is the gate's own kubeconfig.
+- **The argo-cd#26529 exclusion** in `apps/argocd/values.yaml` lists the staging URL next to the
+  cnc-staging URL. It is scoped by `clusters` and never global.
+- **Registration**: an ArgoCD `cluster` Secret named `cluster-staging` (`name: staging`, server
+  `https://staging.vcluster-staging.svc:443`), created out-of-band by manual op **after** the
+  exclusion is live.
+- **`runs-fr-staging`**: an Application with `destination.name: staging` that deploys the
+  runs-fr chart from the runs-fr repo with the frank-side staging values.
 
-### Component 3 — The gate Pipeline (frank, Tekton)
+### Component 3 — The gate Pipeline and trigger (frank, Tekton)
 
-A Tekton `Pipeline` + `EventListener`/`TriggerBinding`/`TriggerTemplate` wired to the existing
-`github-listener`, parameterized by `<app>` (resolved from the gate contract, Component 4).
-Tasks, in order: **bump-staging** (git) → **await-sync** (ArgoCD app Synced+Healthy in the
-vCluster) → **smoke** (the app's smoke-test Job in the vCluster) → **promote** (git bump prod,
-on success) → **reset** (drop staging ns). Heed the repo's Tekton gotchas: `computeResources`
-(not `resources`); accept `$(tasks.status)` of `Completed`; `fsGroup` on workspace pod
-template; `HOME=/tekton/home`. Runs are **serialized per app** (one gate at a time) and reset
-staging between runs.
+- `apps/staging-gate/tekton/`: Pipeline, Tasks, TriggerBinding/TriggerTemplate, RBAC, the
+  Telegram ExternalSecret.
+- `apps/tekton/triggers/eventlistener-github.yaml` gains a `staging-gate-runs-fr` trigger. Its
+  `github` interceptor validates the HMAC from `derio-net-github-webhook-secret` for
+  `eventTypes: [repository_dispatch]`. Its CEL filter requires
+  `body.repository.full_name == 'derio-net/runs-fr'`, `body.action == 'staging-gate'`, and
+  `client_payload.app` / `client_payload.sha` matching `^[a-z0-9-]+$` / `^[a-f0-9]{7,40}$`
+  before either value reaches a task shell.
+- `apps/tekton/webhooks.yaml` declares the runs-fr `repository_dispatch` webhook serving that
+  trigger. `apps/tekton/manifests/` gains the `derio-net-github-webhook-secret` ExternalSecret,
+  a per-org HMAC following the derio-homelab precedent.
+- **Git writes** clone and push over HTTPS with `frank-gitops-push`.
+- **vCluster writes** (`run-smoke`, `reset`) fetch `vc-staging-gate` with the host
+  ServiceAccount token, then operate with that kubeconfig.
+- **Serialization**: `resolve-contract` waits while an older `staging-gate` PipelineRun for the
+  same app is still running, so two runs never share staging.
+- Repo Tekton gotchas apply: `computeResources`, `HOME=/tekton/home`, `fsGroup` on the pod
+  template, and `when` accepting both `Succeeded` and `Completed`.
 
 ### Component 4 — The per-app gate contract (frank)
 
-A declarative entry per gated app (e.g. `apps/staging-gate/registry/<app>.yaml`) declaring:
-`source repo`, `image repo`, `chart + staging-values path`, `smoke-test ref` (image/Job),
-`prod app + values path to bump`. The Pipeline reads this; **onboarding an app = add an entry +
-ship a smoke-test**. This is the reusability seam future apps (agent-images run-pod
-provisioning, super-fr k8s runner) plug into.
+`apps/staging-gate/registry/<app>.yaml` declares `app`, `sourceRepo`, `image`, `chartRepo`,
+`chartPath`, `stagingApp`, `stagingValuesPath`, `smokeImage`, `smokeNamespace`,
+`smokeRbacUrl` (the app's smoke RBAC manifest, pinned to the gated sha at run time), and
+`promotedRecordPath`. The June `prodApp`/`prodValuesPath`/`prodValuesKey` keys are replaced by
+`promotedRecordPath`. A prod-app bump comes back as an optional key when a gated app has a prod
+app. `scripts/staging-gate/validate-contract.py` enforces the shape, and a tripwire test runs it
+in CI.
 
 ### Component 5 — The smoke-test contract
 
-Each app ships an **in-cluster** smoke-test that exits `0` (pass) / non-zero (fail), run as a
-Job in the staging vCluster against the deployed app. For **runs-fr**: a small
-`python + websockets` image running the one-off's three checks — no-auth → 403, authed list
-returns the probe, ws attach (text resize + binary stdin → tmux echo) — plus the fixture
-tmux probe-pod (`alpine` + `tmux new-session -d -s <id>` + `fr.run/*` labels). Lives in
-`runs-fr/test/e2e/` so it versions with the app.
+Each app ships an in-cluster smoke-test that exits `0` (pass) or non-zero (fail), run as a Job in
+the staging vCluster. For runs-fr (`runs-fr/test/e2e/`), the Job runs as `serviceAccountName:
+runs-fr-smoke` from `test/e2e/rbac.yaml`, self-provisions a tmux fixture pod, and asserts:
+no-auth → 403, an authed list includes the probe, and ws attach echoes binary stdin with a text
+resize.
 
-## Walking-skeleton scope (first plan)
-
-Build Components 1–5 **for runs-fr**, proven end-to-end:
+## Walking-skeleton scope
 
 ```
-runs-fr main merge → GHA sha image → Tekton trigger → bump runs-fr-staging → ArgoCD deploys
-into the staging vCluster → in-cluster smoke (403 / list / ws-attach) GREEN → promote step
-commits the gated sha to the runs-fr PROD image ref
+runs-fr main merge → GHA sha images → repository_dispatch → webhook → github-listener
+→ staging-gate → bump runs-fr-staging → ArgoCD deploys into the staging vCluster
+→ in-cluster smoke GREEN → promoted.yaml records the sha (or RED → Telegram, record untouched)
 ```
-
-- The runs-fr **prod app** (Authentik/Ingress/homepage) is the **paired follow-up**; the
-  skeleton's promote step bumps the configured prod image-ref/values (a stub prod app or the
-  values file the follow-up will consume) — proving the *gate + promote mechanism* without
-  depending on prod wiring.
-- The **gate contract** (Component 4) is built real (runs-fr is one entry), establishing the
-  reusable shape even though only runs-fr is onboarded.
 
 ## Verification (the gate is itself a workflow)
 
-Per the "test workflows before declaring Deployed" principle, "done" requires a **real runs-fr
-`main` merge observed flowing end-to-end** — GHA build → Tekton gate → staging vCluster shows
-the gated image → smoke green → a promote commit appears — not merely ArgoCD Synced/Healthy.
-Also verify the **red path**: a deliberately-broken image must fail the smoke and leave the
-prod ref untouched (a notification fires).
+"Done" requires a **real runs-fr `main` merge observed end to end**: GHA build, the dispatch
+delivered, a `staging-gate-runs-fr-*` PipelineRun, the staging vCluster running the gated image,
+smoke green, and a last-green commit on frank `main`. The **red path** must also be shown: a
+deliberately broken smoke image fails `run-smoke`, `promote` is skipped, `promoted.yaml` is
+untouched, and the Telegram notification arrives. ArgoCD `Synced`/`Healthy` is not evidence.
+Assert on the commit, the record, and the PipelineRun.
 
 ## Risks & open considerations
 
-- **First ArgoCD external cluster** — multi-cluster registration is new on Frank; the SOPS
-  `cluster` Secret + server-URL rewrite is fiddly and a single source of "staging won't sync"
-  failures. Document the registration as a `# manual-operation`.
-- **Full CD blast radius** — every green merge auto-ships to prod. The smoke-test IS the safety;
-  its coverage must be meaningful (the runAsUser class of bug, auth gating, the core attach
-  path). Weak smoke = shipping bugs. The red-path test is mandatory.
-- **vCluster admin key handling** — the registration Secret carries the vCluster admin client
-  key; keep it SOPS-only, never ArgoCD-managed, never logged.
-- **Staging reset / concurrency** — gate runs must serialize per app and fully reset staging
-  between runs, or a stale deploy taints a verdict.
-- **Promotion provenance** — the gated `sha` becomes the prod tag; the promote commit is the
-  audit record of what shipped and why (which gate run blessed it).
-- **GHA→Tekton trigger contract** — the github-listener must extract `{repo, sha}` from the GHA
-  call (a TriggerBinding); a malformed/unauthenticated trigger must be rejected (the listener is
-  cluster-internal; keep it so, or authenticate the call).
+- **Controller crash on registration.** This is mitigated by the scoped exclusion. Its runtime
+  proof is the registration step itself: controller logs stay panic-free after a cold cache
+  rebuild. The recovery is `kubectl delete secret cluster-staging -n argocd` plus deleting the
+  controller pod. Drop the exclusion when ArgoCD reaches 3.5 or later.
+- **Weak smoke means false confidence.** The red path is mandatory.
+- **vCluster admin key handling.** Both the registration Secret and `vc-staging-gate` hold
+  vCluster admin credentials. The Role is restricted by `resourceNames`, and nothing logs a
+  kubeconfig.
+- **Staging reset and concurrency.** Handled by per-app serialization plus `reset` in `finally`.
+- **Unauthenticated or forged triggers.** Handled by HMAC plus a CEL repo/action/regex filter.
+- **Pushes to `main` from automation.** Gate commits carry `[skip ci]` and touch only
+  gate-owned files: the staging values' `image.tag` and the promoted record.

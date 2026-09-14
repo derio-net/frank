@@ -1,0 +1,66 @@
+schema_version: 2
+phase:
+  number: 9
+  title: vCluster access without manual Secrets; smoke RBAC; serialization; red-path notify
+  tag: agentic
+  depends_on:
+  - 8
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gate kubeconfig exported by the vCluster chart (TDD)
+  steps:
+  - id: P9.T1.S1
+    text: |
+      RED — extend `scripts/tests/test_staging_gate_manifests.py`: rendering the loft `vcluster` chart 0.32.1 with `apps/vclusters/template/values.yaml` + `apps/vclusters/staging/values.yaml` (`helm template --repo https://charts.loft.sh`, fail closed) succeeds AND the staging values declare `exportKubeConfig.additionalSecrets` with exactly one entry `{name: vc-staging-gate, server: https://staging.vcluster-staging.svc:443}` (no namespace override → the vCluster's own host ns); `apps/staging-gate/tekton/serviceaccount-rbac.yaml` has a Role in ns `vcluster-staging` granting `get` on `secrets` with `resourceNames: [vc-staging-gate]` ONLY, bound to SA `staging-gate` in `tekton-pipelines`; no Pipeline/Task/TriggerTemplate references `vcluster-staging-kubeconfig` or a `vcluster-kubeconfig` workspace. Expected NOW: FAIL.
+  - id: P9.T1.S2
+    text: |
+      GREEN — add `exportKubeConfig.additionalSecrets` to `apps/vclusters/staging/values.yaml` (comment: why a second secret — the default `vc-staging` points at localhost:8443). Add the Role/RoleBinding; drop the `vcluster-kubeconfig` workspace everywhere; `run-smoke` and `reset` get a first step (rancher/kubectl, host SA) that does `kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > /tekton/home/vc.kubeconfig` (umask 077, never cat'd) and later steps use `KUBECONFIG=/tekton/home/vc.kubeconfig`. Note: /tekton/home is shared across steps of one TaskRun. Re-run → PASS.
+- number: 2
+  title: Smoke Job runs with the app's own RBAC, fetched at the gated sha (TDD)
+  steps:
+  - id: P9.T2.S1
+    text: |
+      RED — extend the manifest test: `run-smoke` creates `smokeNamespace` idempotently, fetches `smokeRbacUrl` with `{sha}` substituted using `GITHUB_TOKEN` from `frank-gitops-push` (runs-fr is PRIVATE; the derio-fr-automation install covers all derio-net repos) via `Accept: application/vnd.github.raw`, applies it into the vCluster, and the smoke Job sets `serviceAccountName` derived from the contract (new contract key `smokeServiceAccount`, validator + README updated) and env `GATEWAY_URL`/`SMOKE_NAMESPACE`; the fetch uses `curl -fsS` (fail closed). The registry `smokeRbacUrl` is `https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml?ref={sha}`. Expected NOW: FAIL.
+  - id: P9.T2.S2
+    text: |
+      GREEN — implement in `staging-gate-run-smoke` (a curl step, e.g. `curlimages/curl` with `runAsUser: 100` — the non-numeric-user gotcha — writing to /tekton/home, then the kubectl step applies it). Update contract + validator + README. Re-run → PASS.
+- number: 3
+  title: Serialize per app + notify on red (TDD)
+  steps:
+  - id: P9.T3.S1
+    text: |
+      RED — extend the manifest test: the TriggerTemplate labels PipelineRuns `staging-gate/app: $(tt.params.app)`; `resolve-contract` has a `wait-turn` step that polls `tekton.dev` pipelineruns with that label and waits (bounded, default 1800s, then fails) while an OLDER one is not done; RBAC grants `get,list` on `pipelineruns` in `tekton-pipelines`. The Pipeline `finally` has a `notify` task that runs only when `$(tasks.run-smoke.status)` is not in [Succeeded, Completed] (and also when an earlier task failed — use `$(tasks.status)` NOT in [Succeeded, Completed]), sends Telegram `sendMessage` with NO `parse_mode`, reads token/chat id from secret `staging-gate-telegram` (keys `token`, `chat-id`), and an ExternalSecret `staging-gate-telegram` in `tekton-pipelines` maps them from Infisical `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID`. Expected NOW: FAIL.
+  - id: P9.T3.S2
+    text: |
+      GREEN — implement; the message names app, sha, failing task and PipelineRun name, and contains no `<`, `>` or `&` (the HTML-400 trap even without parse_mode is avoided by construction). Re-run → PASS; full `uv run --group dev pytest scripts/tests -q` green; `kubeconform -strict -ignore-missing-schemas` on `apps/staging-gate/tekton` reports 0 invalid.
+state:
+  steps:
+    P9.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

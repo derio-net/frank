@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 11
+  title: '[manual] Register the staging vCluster, open the delivery path, prove green + red'
+  tag: manual
+  depends_on:
+  - 7
+  - 8
+  - 9
+  - 10
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator-gated cluster + forge wiring (post-merge)
+  steps:
+  - id: P11.T1.S1
+    text: |
+      (manual) Confirm the argo-cd#26529 exclusion is LIVE before registering: `kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep staging.vcluster-staging`, then `kubectl -n argocd rollout restart statefulset/argocd-application-controller` and wait Ready. Only then register: build `cluster-staging` in `argocd` from the LIVE `vc-staging` Secret (label `argocd.argoproj.io/secret-type=cluster`, `name: staging`, `server: https://staging.vcluster-staging.svc:443`, `tlsClientConfig` from the kubeconfig's client cert/key, `insecure: true` like cnc-staging) with a script under `scripts/tmp/`, never storing the key in git. Verify: controller logs carry no `assignment to entry in nil map` across one more controller restart; `runs-fr-staging` goes Synced/Healthy. Recovery: `kubectl delete secret cluster-staging -n argocd` + delete the controller pod, then STOP.
+  - id: P11.T1.S2
+    text: |
+      (manual) Delivery path: seed Infisical `/derio-net/GITHUB_WEBHOOK_SECRET`; force-sync `derio-net-github-webhook-secret`; create the runs-fr GitHub webhook (event `repository_dispatch` only, content-type JSON, same secret, URL `https://webhooks.hop.derio.net/`); make GHCR package `runs-fr-smoke` PUBLIC (a first push creates it private); copy the derio-fr-automation App PEM into `argocd` for the runs-fr repository credential and force-sync it; merge the runs-fr `trigger-gate` permissions PR. Verify: `argocd repo list` shows runs-fr successful; the webhook's recent delivery returns 202.
+  - id: P11.T1.S3
+    text: |
+      (agent, post-merge) GREEN path: a real runs-fr `main` merge → `staging-gate-runs-fr-*` PipelineRun → runs-fr-staging runs `sha-<short>` in the vCluster → run-smoke Succeeded → a `gate: last-green runs-fr sha-<short>` commit on frank `main` and `apps/staging-gate/runs-fr/promoted.yaml` names that sha → reset deleted the smoke ns. Evidence: PipelineRun name + TaskRun statuses + the commit SHA, recorded on the PR and flipping acceptance row `staging-gate-green-records-last-green`.
+  - id: P11.T1.S4
+    text: |
+      (agent, post-merge) RED path: dispatch a sha whose smoke image fails (e.g. a runs-fr branch commit that forces `smoke.py` to exit 1, built by `build.yml` on a throwaway ref, or a manual `repository_dispatch` naming a smoke tag known to fail) → run-smoke Failed, promote skipped, `promoted.yaml` unchanged, Telegram message received. Evidence recorded on the PR; flip `staging-gate-red-blocks-and-notifies` and `staging-gate-registration-keeps-argocd-up`.
+state:
+  steps:
+    P11.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P11.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P11.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P11.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
