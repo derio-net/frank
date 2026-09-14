@@ -220,5 +220,5 @@ verify:
   - "#    NOT evidence: etcd_request_*, etcd_requests_*, etcd_lease_*, etcd_bookmark_* — those existed throughout the 148 blind days."
   - "# omnictl exiting 0 proves the patch was ACCEPTED, not that etcd restarted with it. Assert on the series, not the exit status."
   - "# 4. All six layer-2-etcd-* rules read Normal in Grafana — not NoData, not Error."
-status: pending
+status: done
 ```

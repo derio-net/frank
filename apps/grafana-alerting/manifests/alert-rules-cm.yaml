@@ -1113,7 +1113,8 @@ data:
       # and any live copy is a prune: false orphan. It was never a duplicate
       # anyone forgot to delete: a VMRule is evaluated by vmalert, and apps/victoria-metrics/
       # values.yaml sets vmalert.enabled: false — alerting on Frank is
-      # Grafana-managed. So those 15 never evaluate and never fire. If you have
+      # Grafana-managed. So those 15 never evaluated or fired, and the live copy
+      # was deleted on 2026-09-14 (obs-etcd-chart-orphans-delete). If you have
       # just discovered "duplicate etcd alerting", the rules BELOW are the live
       # half; do not delete them in favour of the inert ones.
       #

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-03
 **Layer:** `obs` (8) — Observability
-**Status:** Designed — not deployed.
+**Status:** Deployed — 2026-09-14. Implementation diverged at Half 2 (a VMStaticScrape, not a static Endpoints object; see the correction note there).
 **Issue:** [frank#755](https://github.com/derio-net/frank/issues/755)
 **Prompted by:** closing out the iGPU retrieval spike (#748 / #751 / #754). The
 acceptance row `infer-igpu-workload-preserves-quorum` was recorded **PARTIAL**

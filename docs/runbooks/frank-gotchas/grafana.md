@@ -933,8 +933,8 @@ Grafana-managed.
 Application is `prune: false`, though, so their live copies and the chart's dead
 kube-etcd Service, Endpoints and `VMServiceScrape` stay until they are deleted by
 hand, after ArgoCD has synced the disable (manual op
-`obs-etcd-chart-orphans-delete`). Until then Grafana shows two etcd boards, and
-the one that looks canonical is the dead one:
+`obs-etcd-chart-orphans-delete`, **executed 2026-09-14**). Before that, Grafana
+showed two etcd boards, and the one that looked canonical was the dead one:
 
 | | Title | uid | Source |
 |---|---|---|---|
