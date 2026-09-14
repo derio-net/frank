@@ -79,26 +79,36 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T09:50:44+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T09:50:48+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T09:50:51+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T11:48:25+00:00'
       note: null
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-14T11:48:50+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-09-14T11:50:00+00:00'
+    note: 'Operator-driven post-merge verification, completed 2026-09-14. Scrape target
+      up with no lastError; pipelinerun_duration_seconds_count present in VMSingle
+      per pipeline and status; the cardinality drop applied (taskruns_pod_latency_milliseconds
+      absent). Grafana restarted and all three rules provisioned and evaluating —
+      that restart is what caught the 41-char uid outage fixed in #801. Synthetic
+      proof end-to-end: three failing runs dispatched an alert at 10:33:35Z matching
+      for:30m, and one passing run cleared it at 11:38:30Z via the unless rather than
+      by waiting out the 24h window. Both idle rules verified non-zero (4 and 2),
+      ruling out the disarmed-dead-man state. Two of three acceptance rows flipped
+      to skipped with evidence; critical-pipeline-idle-alerts deliberately left not-implemented
+      because proving it would mean stopping a real mirror-sync pipeline for 6-72h.'
     observed_prs: []
