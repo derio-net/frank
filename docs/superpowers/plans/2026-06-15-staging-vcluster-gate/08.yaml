@@ -25,6 +25,9 @@ tasks:
   - id: P8.T2.S2
     text: |
       GREEN — rewrite clone/push steps in `pipeline.yaml` + `tasks.yaml` to `git clone https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git` (token via `secretKeyRef`, never echoed; `set +x`), drop the `ssh-creds` workspace from Pipeline, Tasks and the TriggerTemplate, rework `staging-gate-promote` to yq-write the record (`pipelineRun` from `$(context.pipelineRun.name)`, `promotedAt` from `date -u +%FT%TZ`), commit `gate: last-green <app> sha-<sha> [skip ci]`. Update RBAC. Re-run → PASS; full suite green.
+  - id: P8.T2.S3
+    text: |
+      REFACTOR — the clone/commit/push script is now repeated in `resolve-contract`, `bump-staging` and `promote`. Extract it into ONE Tekton `StepAction` (`staging-gate-git`, params `mode: clone|push`, `message`, `path`; `apps/staging-gate/tekton/stepactions.yaml`) referenced by `ref:` from each step, OR — if the cluster's Tekton lacks StepAction (check `kubectl get crd stepactions.tekton.dev` read-only) — a single shared script ConfigMap mounted into each step. Tests from S1 stay green unchanged (they assert behaviour-level fields, so update only the assertions that inspected inline scripts to follow the reference). Full suite green.
 state:
   steps:
     P8.T1.S1:
@@ -40,6 +43,10 @@ state:
       ticked_at: null
       note: null
     P8.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T2.S3:
       state: ' '
       ticked_at: null
       note: null

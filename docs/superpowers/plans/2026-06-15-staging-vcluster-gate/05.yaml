@@ -36,10 +36,7 @@ tasks:
       RED — kubeconform over `apps/staging-gate/tekton/triggers-staging-gate.yaml` (TriggerBinding + TriggerTemplate). Expected NOW: absent — RED.
   - id: P5.T3.S2
     text: |
-      GREEN — author the gate's `triggers.tekton.dev/v1beta1` TriggerBinding (extract `app`, `repo`, `sha` from the GHA `repository_dispatch` payload — `client_payload.app/.sha`, `repository.full_name`) and TriggerTemplate (a `staging-gate` PipelineRun with `shared-workspace` PVC + `ssh-creds`, nodeSelector per the hum example). Validate kubeconform.
-  - id: P5.T3.S3
-    text: |
-      GREEN — wire a new trigger into the existing `github-listener` EventListener (`apps/tekton/triggers/eventlistener-github.yaml`): a trigger with a `github` interceptor (validate secret) → `cel` filter on `header.match('X-GitHub-Event','repository_dispatch') && body.action == 'staging-gate'`, referencing the new binding+template. `helm template`/kubeconform the edited file; `yamllint`. Expected: pass.
+      GREEN — author the gate's `triggers.tekton.dev/v1beta1` TriggerBinding (extract `app`, `repo`, `sha` from the GHA `repository_dispatch` payload — `client_payload.app/.sha`, `repository.full_name`) and TriggerTemplate (a `staging-gate` PipelineRun with `shared-workspace` PVC + `ssh-creds`, nodeSelector per the hum example). Validate kubeconform. (The EventListener wiring originally planned as P5.T3.S3 was never done here; it is replanned as P10.T1.)
 state:
   steps:
     P5.T1.S1:
@@ -70,13 +67,6 @@ state:
       state: x
       ticked_at: '2026-06-15T20:12:27+00:00'
       note: null
-    P5.T3.S3:
-      state: '-'
-      ticked_at: '2026-06-15T20:12:28+00:00'
-      note: 'Deferred to manual P7: wiring the trigger into the SHARED live github-listener
-        EventListener is runtime-coupled (webhook secret + CEL) and risks the other
-        triggers on it. Binding+template authored + validated; listener edit done
-        in P7 (noted in triggers.yaml).'
   completion:
     at: '2026-06-15T20:12:29+00:00'
     note: null

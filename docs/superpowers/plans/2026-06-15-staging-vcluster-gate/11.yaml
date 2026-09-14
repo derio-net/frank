@@ -16,9 +16,80 @@ tasks:
   - id: P11.T1.S1
     text: |
       (manual) Confirm the argo-cd#26529 exclusion is LIVE before registering: `kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep staging.vcluster-staging`, then `kubectl -n argocd rollout restart statefulset/argocd-application-controller` and wait Ready. Only then register: build `cluster-staging` in `argocd` from the LIVE `vc-staging` Secret (label `argocd.argoproj.io/secret-type=cluster`, `name: staging`, `server: https://staging.vcluster-staging.svc:443`, `tlsClientConfig` from the kubeconfig's client cert/key, `insecure: true` like cnc-staging) with a script under `scripts/tmp/`, never storing the key in git. Verify: controller logs carry no `assignment to entry in nil map` across one more controller restart; `runs-fr-staging` goes Synced/Healthy. Recovery: `kubectl delete secret cluster-staging -n argocd` + delete the controller pod, then STOP.
+
+      ## Manual Operations
+
+      ```yaml
+      # manual-operation
+      id: cicd-staging-gate-register-vcluster
+      layer: cicd
+      app: staging-gate
+      plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+      when: "Post-merge, AFTER argocd-cm carries the staging.vcluster-staging exclusion and the application-controller has restarted"
+      why_manual: "The ArgoCD cluster Secret embeds the vCluster admin client key; it is generated from the live vc-staging Secret and must never be ArgoCD-managed or stored in git. Registering before the exclusion is live re-triggers the argo-cd#26529 cluster-wide controller panic."
+      commands:
+        - kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep -q staging.vcluster-staging
+        - kubectl -n argocd rollout restart statefulset/argocd-application-controller && kubectl -n argocd rollout status statefulset/argocd-application-controller
+        - bash scripts/tmp/register-staging-vcluster.sh   # builds cluster-staging from vc-staging (name staging, server https://staging.vcluster-staging.svc:443, insecure true)
+      verify:
+        - kubectl -n argocd logs statefulset/argocd-application-controller --since=10m | grep -c 'assignment to entry in nil map'   # expect 0
+        - kubectl -n argocd get application runs-fr-staging -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status
+      status: pending
+      ```
   - id: P11.T1.S2
     text: |
       (manual) Delivery path: seed Infisical `/derio-net/GITHUB_WEBHOOK_SECRET`; force-sync `derio-net-github-webhook-secret`; create the runs-fr GitHub webhook (event `repository_dispatch` only, content-type JSON, same secret, URL `https://webhooks.hop.derio.net/`); make GHCR package `runs-fr-smoke` PUBLIC (a first push creates it private); copy the derio-fr-automation App PEM into `argocd` for the runs-fr repository credential and force-sync it; merge the runs-fr `trigger-gate` permissions PR. Verify: `argocd repo list` shows runs-fr successful; the webhook's recent delivery returns 202.
+
+      ## Manual Operations
+
+      ```yaml
+      # manual-operation
+      id: cicd-staging-gate-runs-fr-webhook
+      layer: cicd
+      app: staging-gate
+      plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+      when: "Post-merge, before merging the runs-fr trigger-gate permissions PR"
+      why_manual: "GitHub webhooks and Infisical values are forge/secret-store state with no IaC in this repo; the HMAC value must be generated once and set identically in both places."
+      commands:
+        - "Infisical: create /derio-net/GITHUB_WEBHOOK_SECRET (openssl rand -hex 32)"
+        - kubectl -n tekton-pipelines annotate externalsecret derio-net-github-webhook-secret force-sync=$(date +%s) --overwrite
+        - "GitHub derio-net/runs-fr → Settings → Webhooks: URL https://webhooks.hop.derio.net/, JSON, same secret, events: repository_dispatch only"
+      verify:
+        - kubectl -n tekton-pipelines get externalsecret derio-net-github-webhook-secret -o jsonpath='{.status.conditions[0].reason}'   # SecretSynced
+        - env -u GITHUB_TOKEN gh api repos/derio-net/runs-fr/hooks --jq '.[]|{url:.config.url,events}'
+      status: pending
+      ```
+
+      ```yaml
+      # manual-operation
+      id: cicd-staging-gate-argocd-runs-fr-repo-key
+      layer: cicd
+      app: staging-gate
+      plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+      when: "Post-merge, before registering the staging vCluster"
+      why_manual: "ESO resolves the GithubAccessToken generator's privateKey.secretRef in the CONSUMER namespace, so the derio-fr-automation PEM must exist in argocd; the PEM is a bootstrap credential applied out-of-band."
+      commands:
+        - sops --decrypt secrets/github-app/<derio-fr-automation key file> | yq '.metadata.namespace = "argocd"' | kubectl apply -f -
+        - kubectl -n argocd annotate externalsecret <runs-fr repo ES name> force-sync=$(date +%s) --overwrite
+      verify:
+        - argocd repo list --port-forward --port-forward-namespace argocd | grep runs-fr
+      status: pending
+      ```
+
+      ```yaml
+      # manual-operation
+      id: cicd-staging-gate-smoke-package-public
+      layer: cicd
+      app: staging-gate
+      plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+      when: "Post-merge, before the first gate run"
+      why_manual: "GHCR package visibility is UI-only for org container packages; a first push creates the package private."
+      commands:
+        - "github.com/orgs/derio-net/packages/container/runs-fr-smoke/settings → Change visibility → Public"
+      verify:
+        - "curl the anonymous ghcr.io token + manifest for derio-net/runs-fr-smoke:sha-<short> → HTTP 200"
+      status: pending
+      ```
   - id: P11.T1.S3
     text: |
       (agent, post-merge) GREEN path: a real runs-fr `main` merge → `staging-gate-runs-fr-*` PipelineRun → runs-fr-staging runs `sha-<short>` in the vCluster → run-smoke Succeeded → a `gate: last-green runs-fr sha-<short>` commit on frank `main` and `apps/staging-gate/runs-fr/promoted.yaml` names that sha → reset deleted the smoke ns. Evidence: PipelineRun name + TaskRun statuses + the commit SHA, recorded on the PR and flipping acceptance row `staging-gate-green-records-last-green`.
