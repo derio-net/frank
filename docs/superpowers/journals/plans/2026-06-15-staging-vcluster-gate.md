@@ -172,3 +172,58 @@ on its script/env plus that at least one step calls it in push mode, falling bac
 inline-script assertion if no StepAction exists. Every other P8.T2.S1 test (retired-ssh-string
 scan, promote's write shape, resolve-contract's v2 results, the RBAC role's secret name) is
 behaviour-level and needed no change — confirming the plan's prediction.
+
+<!-- fr:journal kind=finding scope=plan id=p8-c1-stepaction-script-params created=2026-09-14T23:59:33 phase=8 state=open -->
+### p8-c1-stepaction-script-params · finding [open] · C1: StepAction script uses $(params.*) — rejected by Tekton v1.6.0 (phase 8)
+
+stepactions.yaml splices $(params.mode/scratchPath/message/path) into the script. v1beta1 stepaction_validation rejects "param substitution in scripts is not allowed", so the StepAction is never admitted and every ref step fails. Also a shell-injection path: message embeds app/sha from the repository_dispatch body inside a pod holding the push token. Fix: pass params through env and read "$VAR". Add an offline tripwire: no StepAction spec.script contains $(params.
+
+<!-- fr:journal kind=finding scope=plan id=p8-c2-dag-when-status created=2026-09-14T23:59:35 phase=8 state=open -->
+### p8-c2-dag-when-status · finding [open] · C2: promote when-guard reads $(tasks.run-smoke.status) in a DAG task (phase 8)
+
+Confirmed by kubectl apply --dry-run=server: "pipeline tasks can not refer to execution status ... spec.tasks[4].when[0]". Present since June; never admitted because the branch never merged. Fix: remove the when block; runAfter [run-smoke] already skips promote when run-smoke fails. Add an offline tripwire: no spec.tasks entry references $(tasks.*.status) or .reason.
+
+<!-- fr:journal kind=finding scope=plan id=p8-i1-regate-noop-commit created=2026-09-14T23:59:37 phase=8 state=open -->
+### p8-i1-regate-noop-commit · finding [open] · I1: re-gating the same sha fails on an empty commit (phase 8)
+
+push mode runs git commit with no no-op guard, so bump-staging exits 1 when staging-values already holds sha-<sha>. Fix: git add -- "$TARGET"; git diff --cached --quiet && exit 0, as cnc-promotion does.
+
+<!-- fr:journal kind=finding scope=plan id=p8-i2-stepaction-computeresources created=2026-09-14T23:59:39 phase=8 state=open -->
+### p8-i2-stepaction-computeresources · finding [open] · I2: computeResources is not a StepAction field — apply fails (phase 8)
+
+Confirmed by kubectl apply --dry-run=server --validate=strict: strict decoding error: unknown field "spec.computeResources". Worse than silently pruned: the whole StepAction fails to apply. Fix: move computeResources onto each calling ref step (allowed there).
+
+<!-- fr:journal kind=finding scope=plan id=p8-m1-token-in-git-config created=2026-09-14T23:59:41 phase=8 state=open -->
+### p8-m1-token-in-git-config · finding [open] · M1: token persisted in .git/config; comments claim otherwise (phase 8)
+
+Cloning https://x-access-token:${TOKEN}@... stores it as remote.origin.url in the per-TaskRun emptyDir. Low severity (pod-local, ~1h TTL) but the comments are false and set +x is a no-op. Fix: clone the plain URL with a credential.helper reading GITHUB_TOKEN from env; correct the comments.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m2-push-race-no-retry created=2026-09-14T23:59:43 phase=8 state=open -->
+### p8-m2-push-race-no-retry · finding [open] · M2: non-fast-forward push to main fails the run with no retry (phase 8)
+
+A concurrent push to main between clone and push loses a green promote record. apps/tekton/pipelines/site-promotion.yaml already has a bounded fetch/reset/re-edit/push retry loop to copy.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m3-unneeded-secret-role created=2026-09-14T23:59:44 phase=8 state=open -->
+### p8-m3-unneeded-secret-role · finding [open] · M3: staging-gate-secrets-read Role is unneeded privilege (phase 8)
+
+secretKeyRef env is resolved by the kubelet, not the pod ServiceAccount, so the Role only widens who can read frank-gitops-push via the automounted SA token in third-party step images. Plan issue (P8.T2.S1 mandated it). Fix: drop the Role and its assertion.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m4-weak-assertions created=2026-09-14T23:59:46 phase=8 state=open -->
+### p8-m4-weak-assertions · finding [open] · M4: two phase-8 test assertions are weak (phase 8)
+
+The .sha check is satisfied by the text $(params.sha) even with the yq write deleted; the git-token test returns early once the StepAction exists, skipping the inline-step scan. No test would have caught C1, C2 or I2.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m5-sha-placeholder-cli created=2026-09-14T23:59:48 phase=8 state=open -->
+### p8-m5-sha-placeholder-cli · finding [open] · M5: {sha} placeholder enforced only in pytest, not the validator CLI (phase 8)
+
+Onboarders run validate-contract.py, which accepts a smokeRbacUrl without {sha}. Move the check into validate_one.
+
+<!-- fr:journal kind=finding scope=plan id=p8-m6-promotedat-readme created=2026-09-14T23:59:51 phase=8 state=open -->
+### p8-m6-promotedat-readme · finding [open] · M6: README misdescribes promotedAt (phase 8)
+
+Says "UTC timestamp of the promote commit"; it is the time of the record step.
+
+<!-- fr:journal kind=finding scope=plan id=p8-rec-validate-inputs created=2026-09-14T23:59:52 phase=8 state=open -->
+### p8-rec-validate-inputs · finding [open] · Recommendation: validate sha and app inside the pipeline (phase 8)
+
+app builds a filesystem path and a Job name; sha reaches scripts. Phase 10 CEL validates at the trigger, but a manual PipelineRun bypasses CEL. Defence in depth: resolve-contract rejects sha not matching ^[a-f0-9]{7,40}$ and app not a DNS label before use.
