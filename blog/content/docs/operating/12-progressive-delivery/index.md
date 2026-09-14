@@ -11,6 +11,7 @@ reader_goal: "Promote an Argo Rollout through canary steps, switch blue-green, i
 diataxis: [how-to, reference]
 last_updated: 2026-07-15
 last_updated_commit: https://github.com/derio-net/frank/commit/421d1dcd
+description: "Promoting canary steps, switching blue-green, inspecting analysis results, and handling sparse-traffic pauses."
 ---
 
 {{< last-updated >}}

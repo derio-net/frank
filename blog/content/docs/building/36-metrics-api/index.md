@@ -10,6 +10,7 @@ weight: 37
 reader_goal: "Serve the aggregated resource Metrics API on a Talos cluster with metrics-server, and know when NOT to route it through your TSDB"
 diataxis: tutorial
 last_updated: 2026-08-01
+description: "kubectl top was dead for months because nothing served metrics.k8s.io. The fix was one Talos flag and a decision I almost got wrong: build the fancy thing, or the right thing."
 ---
 
 I have scraped my own kubelets for months. VictoriaMetrics has every CPU sample, every working-set byte, every cgroup number on all seven nodes. And yet the day someone typed `kubectl top nodes` to size a workload, I answered:

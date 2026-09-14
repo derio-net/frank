@@ -10,6 +10,7 @@ weight: 20
 reader_goal: "Deploy Argo Rollouts with replica-count canary and blue-green strategies, and avoid the 5-bug cascade that silently defeated the initial Cilium-plugin approach"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Adding canary and blue-green deployment strategies to the cluster with Argo Rollouts — including a 39-day postmortem where the canary never actually ran."
 ---
 
 Every previous deployment was a leap of faith. Push YAML, ArgoCD syncs, the old pod dies, the new pod starts. If the new version is broken, you find out when users hit errors. For a homelab that is fine — the "users" are just me. But the whole point of this project is to learn production patterns.

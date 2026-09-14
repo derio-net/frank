@@ -28,6 +28,7 @@ tags: ["inference", "llm", "gpu", "gateway", "litellm", "ollama", "vllm"]
 capabilities: ["infer", "gpu"]
 related_building: "docs/building/10-local-inference"
 related_operating: "docs/operating/07-inference"
+description: "Inference is a build-versus-buy question dressed up in GPU language. The engine tier (Ollama, vLLM, llama.cpp, TGI) decides whether the model runs on your metal; the gateway…"
 ---
 
 ## TL;DR

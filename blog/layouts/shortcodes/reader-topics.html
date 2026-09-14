@@ -1,0 +1,27 @@
+{{- /* Topic tiles for the /topics/ index: one tile per entry in data/reader.yaml
+       `topics`, with the topic's layers as colour chips (when the blog has a
+       data/layer_palette.yaml, i.e. series_index.layers is configured) and a
+       live article count computed exactly as reader-topic selects posts, so a
+       tile can never promise pages the guide does not list. Reuses the home
+       page's .reader-topic-grid / .reader-topic styling. */ -}}
+{{- $docs := where site.RegularPages "Section" "docs" -}}
+{{- $pal := dict -}}{{- with site.Data.layer_palette }}{{ with .layers }}{{ $pal = . }}{{ end }}{{ end -}}
+<div class="reader-topic-grid reader-topic-index">
+{{- range site.Data.reader.topics -}}
+{{- $topic := . -}}
+{{- $n := 0 -}}
+{{- range $docs }}{{ if in $topic.layers .Params.layer }}{{ $n = add $n 1 }}{{ end }}{{ end -}}
+<a class="reader-topic" href="{{ printf `topics/%s/` .slug | relURL }}">
+  <strong>{{ .title }}</strong>
+  <span>{{ .description }}</span>
+  {{- if $pal }}
+  <span class="reader-chips" aria-label="Layers">
+  {{- range .layers -}}
+    {{- with index $pal . -}}<span class="reader-chip" style="--chip:{{ .light }};--chip-dark:{{ .dark }}">{{ .name }}</span>{{- end -}}
+  {{- end -}}
+  </span>
+  {{- end }}
+  <span class="reader-count">{{ $n }} {{ cond (eq $n 1) "article" "articles" }}</span>
+</a>
+{{- end -}}
+</div>

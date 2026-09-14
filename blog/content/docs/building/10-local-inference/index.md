@@ -10,6 +10,7 @@ weight: 11
 reader_goal: "Deploy Ollama on a GPU node and LiteLLM as a unified inference gateway with local and cloud model routing"
 diataxis: tutorial
 last_updated: 2026-08-01
+description: "A unified OpenAI-compatible gateway fronting a local RTX 5070 Ti running Ollama, built to route to OpenRouter's free tier as well — until that tier was dropped and the gateway…"
 ---
 
 The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.

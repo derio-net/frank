@@ -10,6 +10,7 @@ weight: 27
 reader_goal: "Deploy a self-hosted VibeKanban remote backend with PostgreSQL + ElectricSQL real-time sync, Rust/Axum API, and Authentik SSO"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "The VibeKanban cloud announced shutdown with 30 days' notice. This is how we deployed the self-hosted remote crate — PostgreSQL, ElectricSQL, and a Rust API — before the lights…"
 ---
 
 On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow was already failing — likely early decommissioning. The local {{< abbr "VK" >}} features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 {{< abbr "MCP" >}} tools that the agentic workflow depends on — all that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.

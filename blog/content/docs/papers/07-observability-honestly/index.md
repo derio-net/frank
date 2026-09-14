@@ -30,6 +30,7 @@ tags: ["observability", "grafana", "prometheus", "loki", "victoriametrics", "kub
 capabilities: ["obs"]
 related_building: "docs/building/07-observability"
 related_operating: "docs/operating/05-observability"
+description: "Cluster observability is a five-job problem — metrics, logs, traces, dashboards, alerts — and the six contenders in 2026 (Grafana+Prometheus+Loki, VictoriaMetrics, Mimir,…"
 ---
 
 ## TL;DR

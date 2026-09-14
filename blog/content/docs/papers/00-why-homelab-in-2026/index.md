@@ -29,6 +29,7 @@ tags: ["homelab", "kubernetes", "talos", "architecture"]
 capabilities: ["hw", "os", "gitops"]
 related_building: "docs/building/01-introduction"
 related_operating: "docs/operating/01-cluster-nodes"
+description: "Three philosophies dominate infrastructure decisions in 2026: cloud (pay the bill, ignore the metal), managed homelab-as-code (own the iron, outsource lifecycle), and DIY…"
 ---
 
 ## TL;DR

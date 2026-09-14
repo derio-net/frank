@@ -28,6 +28,7 @@ tags: ["ingress", "traefik", "authentik", "forward-auth", "homepage", "service-c
 capabilities: ["net", "auth"]
 related_building: "docs/building/24-in-cluster-ingress"
 related_operating: "docs/operating/17-ingress"
+description: "Ingress in 2026 is three jobs stacked — hostname routing and TLS, auth enforcement, and a catalogue humans can read — and six contenders (Traefik, Nginx, Contour/Gateway-API,…"
 ---
 
 ## TL;DR

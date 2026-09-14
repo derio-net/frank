@@ -29,6 +29,7 @@ tags: ["ci-cd", "tekton", "gitea", "zot", "kubernetes"]
 capabilities: ["cicd"]
 related_building: "docs/building/27-cicd-platform"
 related_operating: "docs/operating/22-cicd-platform"
+description: "Self-hosted CI/CD is a choice between one tool or three. The six contenders in 2026 — Gitea+Tekton+Zot, GitLab CE, Forgejo+Woodpecker, Drone CI, Jenkins, and the SaaS baseline…"
 ---
 
 ## TL;DR

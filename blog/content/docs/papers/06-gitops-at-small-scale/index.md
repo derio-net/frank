@@ -27,6 +27,7 @@ tags: ["gitops", "argocd", "flux", "kubernetes", "homelab"]
 capabilities: ["gitops"]
 related_building: "docs/building/05-gitops"
 related_operating: "docs/operating/03-gitops"
+description: "GitOps on Kubernetes is a four-jobs-in-one bundle — reconcile, drift- detect, gate write access, audit — and the six contenders in 2026 (ArgoCD, Flux v2, Jenkins X,…"
 ---
 
 ## TL;DR

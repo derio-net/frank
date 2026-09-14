@@ -10,6 +10,7 @@ weight: 15
 reader_goal: "Deploy a vCluster virtual cluster on Talos with template-based ArgoCD pattern and work around the v0.32.1 chart schema gotchas"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Virtual Kubernetes clusters inside Frank — each one a disposable sandbox with its own control plane, resource quotas, and network policies, deployed via ArgoCD."
 ---
 
 Every experiment on a shared cluster carries risk. Install a {{< abbr "CRD" >}} that conflicts with production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.

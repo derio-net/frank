@@ -11,6 +11,7 @@ reader_goal: "Check Longhorn volume health, manage R2 backups, expand a volume, 
 diataxis: [how-to, reference]
 last_updated: 2026-08-01
 last_updated_commit: https://github.com/derio-net/frank/commit/104c5bb3
+description: "Day-to-day commands for managing Longhorn volumes, checking backup health, restoring from Cloudflare R2, and debugging common storage failures on Frank."
 ---
 
 {{< last-updated >}}

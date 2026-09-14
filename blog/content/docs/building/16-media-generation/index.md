@@ -10,6 +10,7 @@ weight: 17
 reader_goal: "Deploy ComfyUI alongside Ollama on a single GPU with a GPU Switcher dashboard, working around ArgoCD self-heal and cross-compilation gotchas"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Running ComfyUI for video, image, and audio generation on the same GPU as Ollama — with a custom GPU Switcher dashboard to manage time-sharing."
 ---
 
 The cluster has one GPU. Layer 10 gave it to Ollama for {{< abbr "LLM" >}} inference. This layer adds a second consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.

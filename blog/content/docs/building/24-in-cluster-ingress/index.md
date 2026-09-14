@@ -10,6 +10,7 @@ weight: 25
 reader_goal: "Deploy Traefik v3 as an in-cluster ingress controller with ACME wildcard TLS, Authentik forward-auth middlewares, and a gethomepage.dev dashboard"
 diataxis: tutorial
 last_updated: 2026-08-03
+description: "Moving TLS termination and reverse proxying into the cluster with Traefik, Let's Encrypt wildcard certs, Authentik forward-auth, and a gethomepage.dev dashboard."
 ---
 
 Up until now, all of Frank's services were reachable via direct Cilium L2 LoadBalancer IPs. That works on a local network, but it means no {{< abbr "TLS" >}}, no unified authentication, no human-readable URLs, and no single place to see what is running. The external Traefik on raspi-omni handled `*.frank.derio.net` routing, but it sat *outside* the cluster — a separate Ansible-managed box.

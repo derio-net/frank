@@ -10,6 +10,7 @@ weight: 31
 reader_goal: "Set up a multi-series Hugo paper infrastructure with dossier gate, cross-series linking, custom shortcodes, and agent-executable workflows"
 diataxis: tutorial
 last_updated: 2026-08-03
+description: "A third blog series — research-grade landscape reviews framed as decisions, gated behind a committed dossier before any paper can be drafted."
 ---
 
 The cluster has two voices already. The Building series answers *how*. The Operating series answers *how to run*. Neither answers *why this and not the other twelve options*.

@@ -1,0 +1,120 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Documentation — the gotcha, the runbook, and the retroactive blog edits
+  tag: agentic
+  depends_on:
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Record the empty-Endpoints trap where the next person will hit it
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Add a one-liner to the Grafana section of
+      `agents/rules/frank-gotchas.md` and the full prose to
+      `docs/runbooks/frank-gotchas/grafana.md` (the scrape-side gotchas —
+      including the `maxScrapeSize` whole-response-drop — already live
+      there).
+
+      The gotcha is NOT "we did not scrape etcd". It is the reusable shape:
+
+        a chart's control-plane component scrape (kubeEtcd, and by the same
+        logic kubeControllerManager / kubeScheduler) selects PODS by label.
+        Talos runs these as HOST SYSTEM SERVICES, so the selector matches
+        nothing, the Endpoints object is empty, and there is no error
+        anywhere — the Service and VMServiceScrape look correct in
+        `kubectl get`. Frank's kube-etcd Service sat that way for 148 days.
+        Diagnose by reading ENDPOINTS, not the Service or the scrape config:
+        `kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler'`.
+        An empty ENDPOINTS column is the whole signal.
+
+      Include the second trap: `etcd_*` series EXIST in VMSingle regardless
+      (`etcd_request_duration_seconds`, `etcd_lease_object_counts`), because
+      they are the apiserver's storage client. Grepping for `etcd` returns
+      hits and reads as coverage.
+
+      Follow the file's discipline: one line in the hot file, full prose +
+      recovery in the per-topic file.
+  - id: P4.T1.S2
+    text: |
+      Write `patches/phase08-obs/README.md` covering what the ConfigPatch
+      does, why 0.0.0.0, how to apply it, and how to roll back (delete the
+      patch; etcd returns to serving metrics on 2379 only). Model on
+      `patches/phase13-auth/README.md`.
+
+      Add the `# manual-operation` fenced YAML block for the apply, with
+      `id: obs-etcd-metrics-listener-apply`, `layer: obs`,
+      `app: victoria-metrics`, and a `verify:` that asserts the listener
+      responds AND the scrape target comes up — not just that omnictl
+      exited 0. Required fields per `agents/rules/repo-manual-ops.md`.
+
+      Do NOT run `/sync-runbook` here; the block is not final until the
+      manual phase has actually executed it. Syncing a not-yet-performed
+      op into the central runbook records an intention as a procedure.
+- number: 2
+  title: Retroactively extend the observability posts
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Per `agents/rules/repo-workflows.md` (Layer Fix/Extension Workflow),
+      a fix/extension edits the existing layer's posts rather than creating
+      new ones. Layer 8's posts are
+      `blog/content/docs/building/07-observability/` and
+      `blog/content/docs/operating/05-observability/`.
+
+      Building post: add a short section on the empty-Endpoints trap. It is
+      genuinely good material — a monitoring stack that believed it was
+      scraping etcd for 148 days, where the evidence of failure was an
+      absence and the evidence of success was a Service that looked right.
+      Keep it to the mechanism and the diagnosis.
+
+      Operating post: add the etcd commands an operator now has —
+      `up{job="kube-etcd"}`, the five dashboard panels, and what each alert
+      means when it fires.
+
+      **Write no numbers you have not measured.** The soak comparison does
+      not exist until the manual phase runs. Describe what will be
+      measured, or omit it — do not draft a results paragraph to be filled
+      in later, because it will be forgotten and shipped.
+
+      Do not touch `blog/data/roadmap.yaml` (no new layer) and do not
+      create a new post.
+  - id: P4.T2.S2
+    text: |
+      Verify the blog still builds and that the edits did not disturb the
+      theme pin or the lockfile — `hugo mod get` and npm operations have
+      both silently rewritten repo state during past blog edits.
+
+      ```
+      cd blog && hugo --minify --quiet && cd ..
+      git status --porcelain
+      ```
+
+      `git status` must show ONLY the two `index.md` files you edited. If
+      `blog/go.mod`, `blog/go.sum` or a lockfile appears, revert it before
+      committing.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-08-03T11:33:08+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-08-03T11:38:15+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-08-03T11:42:43+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-08-03T11:44:08+00:00'
+      note: null
+  completion:
+    at: '2026-08-03T11:48:09+00:00'
+    note: null
+    observed_prs: []

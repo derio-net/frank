@@ -10,6 +10,7 @@ weight: 21
 reader_goal: "Deploy per-user n8n instances on gpu-1 with forward-auth SSO, persistent PostgreSQL, and Prometheus metrics"
 diataxis: tutorial
 last_updated: 2026-07-15
+description: "Deploying per-user n8n instances on gpu-1 for workflow automation — with Authentik forward-auth, dedicated PostgreSQL, and Prometheus metrics."
 ---
 
 The cluster can reason, orchestrate, and generate media. But most real work is a chain of steps — fetch from an API, transform, call an {{< abbr "LLM" >}}, post the result, repeat on a schedule. That is workflow automation.

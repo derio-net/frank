@@ -30,6 +30,7 @@ tags: ["storage", "longhorn", "ceph", "kubernetes", "homelab"]
 capabilities: ["stor"]
 related_building: "docs/building/03-storage"
 related_operating: "docs/operating/02-storage-backups"
+description: "Distributed storage on bare-metal Kubernetes is a four-job problem — synchronous replication, snapshots, off-cluster backup, RWX — and the six contenders in 2026 (Longhorn,…"
 ---
 
 ## TL;DR

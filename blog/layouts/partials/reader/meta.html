@@ -1,0 +1,7 @@
+{{ $updated := .Lastmod }}
+<div class="reader-meta">{{ with site.Params.reader.author }}<a rel="author" href="{{ .url }}">{{ .name }}</a>{{ end }}{{ if not .Date.IsZero }}<span>Published <time datetime="{{ .Date.Format `2006-01-02` }}">{{ .Date.Format "2 Jan 2006" }}</time></span>{{ end }}{{ if $updated.After .Date }}<span>Updated <time datetime="{{ $updated.Format `2006-01-02` }}">{{ $updated.Format "2 Jan 2006" }}</time></span>{{ end }}<span>{{ .ReadingTime }} min read</span></div>
+{{ with .Params.reader_goal }}<p class="reader-goal">{{ . }}</p>{{ end }}
+{{ with .Params.last_verified }}<p class="reader-verified">Verified against the system: {{ time.Format "2 Jan 2006" . }}{{ with $.Params.tested_versions }} · {{ delimit . ", " }}{{ end }}</p>{{ end }}
+{{ with .Params.prerequisites }}<details class="reader-prerequisites"><summary>Before you start</summary><ul>{{ range . }}<li>{{ . }}</li>{{ end }}</ul></details>{{ end }}
+{{ if eq .Params.commands_change_state true }}<p class="reader-verified">Includes commands that change system state.</p>{{ end }}
+{{ if site.Params.reader.agentExports }}<div class="reader-actions" data-export-exclude><a href="{{ .RelPermalink }}index.md" type="text/markdown">Read Markdown</a><button type="button" data-copy-markdown="{{ .RelPermalink }}index.md">Copy Markdown</button><span role="status" aria-live="polite"></span></div>{{ end }}
