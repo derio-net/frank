@@ -9,7 +9,7 @@ summary: "Day-to-day commands for querying metrics and logs, checking the etcd s
 weight: 6
 reader_goal: "Query metrics and logs, check control-plane etcd health, diagnose missing data, and fix alert delivery failures in a VictoriaMetrics + VictoriaLogs + Grafana stack."
 diataxis: [how-to, reference]
-last_updated: 2026-08-03
+last_updated: 2026-09-14
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 description: "Day-to-day commands for querying metrics and logs, managing Grafana dashboards, debugging alert delivery failures, and fixing the observability pipeline on Frank."
 ---
@@ -197,25 +197,29 @@ Open `http://localhost:8429/targets` to see every scrape target, its status (up/
 
 ### Checking the etcd Scrape
 
-Frank scrapes its own etcd on the control-plane minis, on etcd's dedicated metrics listener (`:2381`, plain HTTP, read-only). It did not for the first 148 days of this stack's life — the scrape was enabled by chart default with a pod selector that can never match on Talos, so the `Endpoints` object was empty and nothing anywhere said so. See [Building Observability]({{< relref "/docs/building/07-observability" >}}) Gotcha 4 for the mechanism.
+Frank scrapes its own etcd on the control-plane minis, on etcd's dedicated metrics listener (`:2381`, plain HTTP, read-only). It did not for the first 148 days of this stack's life. The scrape was enabled by chart default with a pod selector that can never match on Talos, so the `Endpoints` object was empty and nothing anywhere said so. The first fix, a static `Endpoints` object from chart values, never deployed at all, because ArgoCD excludes that kind. See [Building Observability]({{< relref "/docs/building/07-observability" >}}) Gotcha 4 for both.
 
-The consequence for day-to-day operation is that **`Endpoints` is the object to read**, not the Service and not the scrape config:
+The scrape is now a `VMStaticScrape`, so **vmagent's target list is the thing to read**, not a Service and not an `Endpoints` object:
 
 ```bash
-# An empty ENDPOINTS column is the whole signal. The Service and the
-# VMServiceScrape look correct while the scrape is producing nothing.
-kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manager'
+# The scrape object. In git at
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml.
+kubectl -n monitoring get vmstaticscrape kube-etcd -o yaml
 
-# The label key CHANGES with this layer. Once the static Endpoints object is
-# deployed the chart labels it k8s-app; before that the endpoint controller
-# creates it and copies the Service's labels, so the key is jobLabel. Each
-# selector returns nothing in the other era — which reads as "the object is
-# gone" at exactly the moment you are asking whether it is. When unsure, list
-# without a selector (above).
-kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml
+# What vmagent made of it: three 192.168.55.2x:2381 targets, health "up".
+# No kube-etcd rows at all means the object is missing or was never loaded.
+VMAGENT=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o name | head -1)
+kubectl -n monitoring exec "$VMAGENT" -c vmagent -- wget -qO- http://127.0.0.1:8429/api/v1/targets \
+  | jq -r '.data.activeTargets[] | select(.labels.job=="kube-etcd") | "\(.labels.instance) \(.health) \(.lastError)"'
 ```
 
-**Reading `ENDPOINTS` is only half the check.** It finds a scrape with *no
+Do not go looking for a `kube-etcd` `Endpoints` object. If one exists, it is an empty leftover from the chart era and means nothing. ArgoCD never applies `Endpoints` (they are in its `resource.exclusions`), so no change in git can populate one. After merging anything that adds a new kind, check the Application's conditions for an `ExcludedResourceWarning`:
+
+```bash
+kubectl -n argocd get application victoria-metrics -o jsonpath='{.status.conditions}'
+```
+
+**Reading the target list is only half the check.** It finds a scrape with *no
 targets*; it says nothing about a scrape whose targets never answer. That second
 failure is live on this cluster right now:
 

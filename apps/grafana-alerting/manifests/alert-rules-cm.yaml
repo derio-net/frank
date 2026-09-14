@@ -1070,8 +1070,10 @@ data:
       # zero targets, zero series, and no error anywhere. An etcd problem was
       # invisible until it became an apiserver problem.
       #
-      # apps/victoria-metrics/values.yaml now pins a STATIC Endpoints object at
-      # the three minis on 2381, and patches/phase08-obs/omni-configpatch-etcd-
+      # apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml scrapes the
+      # three minis on 2381. It is a VMStaticScrape because #762's first version,
+      # a static Endpoints object from chart values, was never applied: ArgoCD
+      # excludes the Endpoints kind. patches/phase08-obs/omni-configpatch-etcd-
       # metrics.yaml opens that listener (operator-applied through Omni). Spec:
       # docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
       #
@@ -1089,8 +1091,9 @@ data:
       #
       # layer-2-etcd-scrape-absent exists because the other five would otherwise
       # recreate the bug being fixed. Every rule here uses noDataState: OK, so
-      # if the Endpoints object ever empties AGAIN — a chart bump changing the
-      # selector, a values merge dropping endpoints:, a node IP change — the
+      # if the scrape ever loses its targets AGAIN — the VMStaticScrape deleted
+      # or renamed, an ArgoCD-excluded kind back in the scrape path, a node IP
+      # change — the
       # up{job="kube-etcd"} series simply vanish, every rule goes NoData, every
       # rule reads OK, and Frank is blind to etcd behind a green dashboard.
       # absent() is the only expression that fires on a series DISAPPEARING.
@@ -1105,10 +1108,10 @@ data:
       # alerts: etcdNoLeader, etcdInsufficientMembers, etcdMembersDown,
       # etcdHighFsyncDurations, etcdDatabaseQuotaLowSpace and more. Every one
       # selects job=~".*etcd.*", which MATCHES kube-etcd, and four of them
-      # overlap the rules below at looser thresholds. That VMRule renders
-      # whether or not our kubeEtcd block exists (it follows kubeEtcd.enabled,
-      # true by chart default) and it is NOT a duplicate anyone forgot to
-      # delete: a VMRule is evaluated by vmalert, and apps/victoria-metrics/
+      # overlap the rules below at looser thresholds. That VMRule follows
+      # kubeEtcd.enabled, which is now false, so the chart no longer renders it
+      # and any live copy is a prune: false orphan. It was never a duplicate
+      # anyone forgot to delete: a VMRule is evaluated by vmalert, and apps/victoria-metrics/
       # values.yaml sets vmalert.enabled: false — alerting on Frank is
       # Grafana-managed. So those 15 never evaluate and never fire. If you have
       # just discovered "duplicate etcd alerting", the rules BELOW are the live
@@ -1248,7 +1251,7 @@ data:
               github_issue: "frank-ops#2"
             annotations:
               summary: "L2 etcd: the kube-etcd scrape has produced no series for 15m — every other etcd rule is now blind and reading OK"
-              runbook: "Check the Endpoints object is populated: kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml (the chart labels the ENDPOINTS k8s-app; jobLabel is on the Service, so selecting on it here returns nothing and reads as a missing object). No subsets means the chart reverted to pod-selector discovery, which can never match on Talos. Then confirm the listener from the vmagent pod: wget -qO- http://192.168.55.21:2381/metrics. docs/runbooks/frank-gotchas/grafana.md"
+              runbook: "Check vmagent has kube-etcd targets: in the vmagent pod, wget -qO- http://127.0.0.1:8429/api/v1/targets and look for job kube-etcd (three 192.168.55.2x:2381 targets, health up). No kube-etcd targets means the scrape object is missing: kubectl -n monitoring get vmstaticscrape kube-etcd (source: apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml). Do NOT look for a kube-etcd Endpoints object: ArgoCD never applies that kind, which is how #762 first shipped zero targets. Targets present but down means the listener: wget -qO- http://192.168.55.21:2381/metrics from the vmagent pod. docs/runbooks/frank-gotchas/grafana.md"
 
           # 4/6 — health-bridge only. Leader churn is the signal the iGPU
           # retrieval acceptance row needs and could not measure. for: 0m

@@ -732,9 +732,9 @@ render.
 ```bash
 # 1. Did the scrape resolve any targets at all? An empty ENDPOINTS column is
 #    the whole signal for the etcd-shaped failure.
-#    NOTE: list them bare, without a label selector. The `-l k8s-app=kube-etcd`
-#    form below is correct only AFTER the static-Endpoints change lands — see
-#    the label trap further down.
+#    NOTE: list them bare, without a label selector. (This is the historical
+#    148-day diagnosis. etcd no longer uses an Endpoints object at all; see the
+#    ArgoCD exclusion trap further down.)
 kubectl -n kube-system get endpoints | grep -E 'etcd|scheduler|controller-manager'
 
 # These two look CORRECT while the scrape is dead. Do not stop here.
@@ -785,21 +785,24 @@ as the allowed ones, for both the alert rules and the dashboard panels.
 ### The fix, in two files applied by two different tools
 
 ```yaml
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml — ArgoCD
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: kube-etcd
+  namespace: monitoring
+spec:
+  jobName: kube-etcd          # the job every layer-2-etcd-* rule selects on
+  targetEndpoints:
+    - targets: [192.168.55.21:2381, 192.168.55.22:2381, 192.168.55.23:2381]
+      scheme: http            # no bearer token, no TLS: 2381 is plain HTTP
+      path: /metrics
+```
+
+```yaml
 # apps/victoria-metrics/values.yaml — ArgoCD
 kubeEtcd:
-  enabled: true
-  endpoints:            # supplying this switches the chart OFF pod discovery
-    - 192.168.55.21     # and onto a STATIC Endpoints object
-    - 192.168.55.22
-    - 192.168.55.23
-  service:
-    port: 2381
-    targetPort: 2381
-  vmScrape:
-    spec:
-      endpoints:        # REPLACES the chart default wholesale; the default is
-        - port: http-metrics   # scheme: https + a ServiceAccount bearer token
-          scheme: http         # aimed at 2379, all wrong for 2381
+  enabled: false              # stated, not omitted: the chart default is true
 ```
 
 ```yaml
@@ -820,7 +823,7 @@ dwarfs the value of a latency histogram.
 are applied by different tools (`omnictl` out of band, ArgoCD from `main`), so a
 typo in either reproduces exactly the silent empty-target failure being fixed.
 `scripts/tests/test_etcd_scrape.py` derives the port out of the ConfigPatch URL
-and compares it against `kubeEtcd.service.targetPort`, and derives the three
+and compares it against every port the `VMStaticScrape` dials, and derives the three
 control-plane IPs out of the machine table in
 `agents/rules/frank-infrastructure.md` rather than restating them.
 
@@ -830,8 +833,8 @@ patch "the target is simply down and every rule sits at `NoData` with
 `noDataState: OK`". That is wrong, for the reason the `kube-scheduler` numbers
 above already demonstrate: **`up` is synthesised by the scraper for every
 configured target** — `1` on a successful scrape, `0` on a failed one — and is
-never absent while the target is configured. Supplying `kubeEtcd.endpoints` is
-what creates targets, so merging the values half first hands vmagent three
+never absent while the target is configured. Declaring the targets is what
+creates them, so merging the scrape first hands vmagent three
 targets dialling a refused port. They sit at `up=0`, `layer-2-etcd-member-down`
 (`up < 1`, `for: 10m`, critical, no `health_bridge_only`) fires ten minutes
 later, and the notification policy's root `repeat_interval: 3m` pages Telegram
@@ -839,43 +842,39 @@ every three minutes against a healthy quorum. The ConfigPatch is harmless
 standalone — a read-only metrics port nothing is scraping yet — so it goes
 first. The same asymmetry governs rollback (see the recovery block below).
 
-### Trap: the label on the Endpoints object CHANGES when this layer deploys
+### Trap: the first fix was a static `Endpoints` object, and ArgoCD never applies that kind
 
-The three objects carry the name differently, and the difference is invisible
-unless you look at a render:
-
-```text
-Service          metadata.labels: {…, jobLabel: kube-etcd}   <- jobLabel lives HERE
-Endpoints        metadata.labels: {…, k8s-app:  kube-etcd}   <- and NOT here (chart-rendered)
-VMServiceScrape  spec.jobLabel:   jobLabel                   <- names the Service label KEY
-```
-
-So once the static Endpoints object ships,
-`kubectl -n kube-system get endpoints -l jobLabel=kube-etcd` matches
-**nothing** — and it returns empty at exactly the moment you are asking whether
-the Endpoints object is empty, which reads as confirmation that the object is
-gone. Use `-l k8s-app=kube-etcd`.
-
-**But only after this layer deploys.** Before it, the Endpoints object is not
-rendered by the chart at all — it is created by the **endpoint controller**,
-which copies the *Service's* labels onto it. Verified live 2026-08-03, with the
-chart-rendered static Endpoints not yet applied:
+#762 first shipped the GitOps half as chart values: `kubeEtcd.endpoints`, which
+makes the chart render a selector-less Service plus a **static** `Endpoints`
+object. `helm template` rendered it correctly and every manifest-level test
+passed. After the merge (2026-09-13) the scrape had **zero targets**:
 
 ```text
-endpoints/…-kube-etcd  labels: {…, jobLabel: kube-etcd,
-                                endpoints.kubernetes.io/managed-by: endpoint-controller}
+ExcludedResourceWarning: Resource /Endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd is excluded in the settings
 ```
 
-`jobLabel` there, no `k8s-app`. So each selector works in exactly one era and
-returns a confusing empty set in the other. When in doubt, list without a
-selector.
+ArgoCD's `resource.exclusions` (`apps/argocd/values.yaml`, the argo-cd chart
+defaults) exclude `Endpoints` and `EndpointSlice` cluster-wide, so the object was
+dropped on every sync while the Application read `Synced/Healthy`. The Service,
+which is not excluded, moved to 2381, so a spot check of the Service looked like
+the change had landed. `up{job="kube-etcd"}` never existed, and
+`layer-2-etcd-scrape-absent` fired fifteen minutes after the merge, into
+health-bridge (frank-ops#126), exactly as designed.
 
-The job name reaching series is a two-hop derivation (`VMServiceScrape.spec.jobLabel`
-names a Service label key; that label's *value* is the job), which is why the
-tripwire renders the chart rather than comparing the rules against a constant.
-A selector naming a job that does not exist yields no series — for the `absent()`
-watchdog that means firing permanently against a healthy scrape, and for every
-other rule it means NoData, which `noDataState: OK` reads as health.
+Fixed by the `VMStaticScrape` above, a kind ArgoCD applies. Two consequences for
+anyone debugging this layer:
+
+- **Read vmagent's target list, not an `Endpoints` object.** A `kube-etcd`
+  Endpoints object, if one still exists, is an empty chart-era leftover. Both old
+  label-selector forms (`-l jobLabel=` / `-l k8s-app=kube-etcd`) are obsolete.
+- **The job name is declared in one place**, the `VMStaticScrape`'s `jobName`.
+  It used to arrive by two hops (`VMServiceScrape.spec.jobLabel` naming a Service
+  label). A selector naming a job that does not exist yields no series: for the
+  `absent()` watchdog that means firing permanently against a healthy scrape, and
+  for every other rule it means NoData, which `noDataState: OK` reads as health.
+
+The general trap, and the repo-wide tripwire for it, is in
+`docs/runbooks/frank-gotchas/argocd.md`.
 
 ### Recovery / verification commands
 
@@ -886,12 +885,16 @@ kubectl -n monitoring exec \
   -- wget -qO- http://192.168.55.21:2381/metrics | head
 # Repeat for .22 and .23. Before the ConfigPatch, all three: Connection refused.
 
-# Is the Endpoints object populated? The label key is k8s-app ONCE the static
-# Endpoints object is deployed; before that the endpoint controller copies the
-# Service's labels and the key is jobLabel. Listing bare works in both eras.
-kubectl -n kube-system get endpoints | grep kube-etcd
-kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml
-# No `subsets` means the chart reverted to pod-selector discovery.
+# Does vmagent have the targets? Three 192.168.55.2x:2381 rows, health "up".
+# No kube-etcd rows at all means the scrape object is missing.
+kubectl -n monitoring get vmstaticscrape kube-etcd
+kubectl -n monitoring exec \
+  "$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o name | head -1)" \
+  -c vmagent -- wget -qO- http://127.0.0.1:8429/api/v1/targets \
+  | jq -r '.data.activeTargets[] | select(.labels.job=="kube-etcd") | "\(.labels.instance) \(.health) \(.lastError)"'
+# Did ArgoCD drop anything? An ExcludedResourceWarning here means a kind in git
+# was never applied.
+kubectl -n argocd get application victoria-metrics -o jsonpath='{.status.conditions}'
 
 # Did the scrape land? 3 series, all 1, on a healthy cluster.
 #   up{job="kube-etcd"}
@@ -904,51 +907,44 @@ kubectl -n kube-system get endpoints -l k8s-app=kube-etcd -o yaml
 # kube-scheduler: 3 populated Endpoints, 3 failing scrapes, 0 series)
 #   count(up == 0) by (job)
 
-# Rollback: revert BOTH halves — the kubeEtcd values block FIRST, then delete
-# the Omni ConfigPatch. Deleting the patch alone leaves the Endpoints object in
-# place, so `up` reads 0 rather than disappearing: layer-2-etcd-member-down
+# Rollback: revert BOTH halves — remove the VMStaticScrape FIRST (git revert,
+# then kubectl delete, because the app is prune: false), then delete the Omni
+# ConfigPatch. Deleting the patch alone leaves the scrape in place, so `up`
+# reads 0 rather than disappearing: layer-2-etcd-member-down
 # PAGES (critical, for: 10m, repeats every 3m) while absent(up{job="kube-etcd"})
 # stays empty and the blindness watchdog never fires. See
 # patches/phase08-obs/README.md.
 ```
 
-### Two etcd dashboards and two sets of etcd alerts — resolve neither by deletion
+### The chart's upstream etcd dashboard and VMRule are retired — delete the orphans
 
-Closing this gap leaves Frank with a **duplicate of each**, on purpose, and in
-both cases the copy that looks canonical is the dead one.
+While the scrape came from the chart's `kubeEtcd` block, the chart also rendered
+an upstream etcd dashboard (ConfigMap
+`victoria-metrics-victoria-metrics-k8s-stack-etcd`, title `etcd`, uid
+`c2f4e12cdf69feb95caa41a5a1b423d9`) and a `VMRule` of the same name carrying 15
+upstream etcd alerts. Neither has a toggle of its own
+(`defaultDashboards.dashboards` exposes only `victoriametrics-vmalert`,
+`victoriametrics-operator` and `node-exporter-full`); both follow
+`kubeEtcd.enabled`. So #762 first shipped with a duplicate of each. The `VMRule`
+was always inert, because `vmalert.enabled: false` and alerting on Frank is
+Grafana-managed.
 
-**Dashboards.** The chart renders its own etcd board as a ConfigMap
-(`victoria-metrics-victoria-metrics-k8s-stack-etcd`, labelled
-`grafana_dashboard: "1"`), and Grafana's `grafana-sc-dashboard` sidecar has been
-serving it — empty — for the same 148 days. It **cannot be disabled
-independently**: `defaultDashboards.dashboards` exposes exactly three toggles
-(`victoriametrics-vmalert`, `victoriametrics-operator`, `node-exporter-full`),
-none of them etcd, and the board follows `kubeEtcd.enabled`. The only levers are
-`defaultDashboards.enabled: false` (removes all 15 boards) or
-`kubeEtcd.enabled: false` (removes the scrape) — and with the Application at
-`prune: false`, a values-level disable would leave the live ConfigMap orphaned
-anyway.
+`kubeEtcd.enabled` is now **false**, so the chart renders neither. The
+Application is `prune: false`, though, so their live copies and the chart's dead
+kube-etcd Service, Endpoints and `VMServiceScrape` stay until they are deleted by
+hand, after ArgoCD has synced the disable (manual op
+`obs-etcd-chart-orphans-delete`). Until then Grafana shows two etcd boards, and
+the one that looks canonical is the dead one:
 
 | | Title | uid | Source |
 |---|---|---|---|
-| **Curated — this is the live one** | `Frank Layer 2 — etcd (curated)` | `frank-l2-etcd` | `apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml` |
-| Upstream — cannot be removed | `etcd` | `c2f4e12cdf69feb95caa41a5a1b423d9` | chart-rendered, follows `kubeEtcd.enabled` |
+| **Curated — the live one** | `Frank Layer 2 — etcd (curated)` | `frank-l2-etcd` | `apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml` |
+| Upstream — orphan, delete it | `etcd` | `c2f4e12cdf69feb95caa41a5a1b423d9` | chart-rendered while `kubeEtcd.enabled` was true |
 
-**Alerts.** The chart also renders a `VMRule`
-(`victoria-metrics-victoria-metrics-k8s-stack-etcd`) carrying **15 upstream etcd
-alerts** — `etcdNoLeader`, `etcdInsufficientMembers`, `etcdMembersDown`,
-`etcdHighFsyncDurations`, `etcdDatabaseQuotaLowSpace` and more — every one
-selecting `job=~".*etcd.*"`, which *matches* `kube-etcd`, and four of them
-overlapping Frank's rules at looser thresholds. They are **inert**: a `VMRule` is
-evaluated by vmalert, and `apps/victoria-metrics/values.yaml` sets
-`vmalert.enabled: false`, because alerting on Frank is Grafana-managed. The six
-live rules are the `layer-2-etcd-*` group in
-`apps/grafana-alerting/manifests/alert-rules-cm.yaml`.
+The live etcd alerts are the six `layer-2-etcd-*` rules in
+`apps/grafana-alerting/manifests/alert-rules-cm.yaml`. If you find "duplicate etcd
+monitoring", the upstream artefacts are the ones to delete.
 
-In both cases the risk is not that the duplicate fires — it is that a future
-reader discovers "duplicate etcd monitoring", assumes the upstream artefact is
-canonical and the Frank one is a local accretion, and deletes the half that
-actually works.
 ### A CI platform can be 100% green on "is it replicated" while every pipeline it runs fails
 
 `stoa-status-bridge` failed **100% of its runs for 39 days** (2026-08-02 →

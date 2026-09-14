@@ -1,36 +1,27 @@
 # Curated etcd dashboard — Layer 2, obs layer plan
 # docs/superpowers/specs/2026-08-03--obs--etcd-scrape-control-plane-design.md
 #
-# FRANK ALREADY HAS AN UPSTREAM ETCD DASHBOARD, AND IT IS LIVE. The chart
-# victoria-metrics-k8s-stack renders a ConfigMap
-# (victoria-metrics-victoria-metrics-k8s-stack-etcd) carrying a dashboard
-# titled "etcd" (a chart-generated uid), labelled grafana_dashboard: "1", and
-# Grafana runs a grafana-sc-dashboard sidecar that consumes any ConfigMap
-# carrying that label. It has been sitting there rendering nothing for 148
-# days, for the same reason the alerts in alert-rules-cm.yaml could not exist:
-# no series. It will start populating once the operator applies the Talos
-# ConfigPatch (patches/phase08-obs/omni-configpatch-etcd-metrics.yaml).
+# THIS IS THE ONLY etcd DASHBOARD FRANK SHOULD HAVE. Until 2026-09 the chart
+# victoria-metrics-k8s-stack also rendered an upstream board: a ConfigMap
+# (victoria-metrics-victoria-metrics-k8s-stack-etcd) carrying a dashboard titled
+# "etcd" with a chart-generated uid, labelled grafana_dashboard: "1" for the
+# grafana-sc-dashboard sidecar. That board has no toggle of its own
+# (defaultDashboards.dashboards exposes only victoriametrics-vmalert,
+# victoriametrics-operator and node-exporter-full). It follows kubeEtcd.enabled,
+# which is why #762 first shipped with two etcd dashboards.
 #
-# IT CANNOT BE DISABLED INDEPENDENTLY. defaultDashboards.dashboards exposes
-# exactly three toggles (victoriametrics-vmalert, victoriametrics-operator,
-# node-exporter-full) — none of them etcd. The etcd board follows
-# kubeEtcd.enabled, so the only levers are defaultDashboards.enabled: false
-# (removes all 15 default boards) or kubeEtcd.enabled: false (removes the
-# scrape this whole plan exists to add). Neither is acceptable, and with the
-# victoria-metrics Application at prune: false a values-level disable would
-# leave the live ConfigMap orphaned on the cluster anyway. Do NOT attempt to
-# disable, prune, or override it.
+# The etcd scrape has since moved off the chart's kubeEtcd block onto
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml, because ArgoCD
+# never applies the static Endpoints object that block renders (Endpoints is in
+# resource.exclusions). kubeEtcd.enabled is now false, so the chart no longer
+# renders the upstream board either. The victoria-metrics Application is
+# prune: false, so its live ConfigMap had to be deleted by hand. If a board
+# titled "etcd" ever reappears in Grafana, it is that orphan, not a second source.
 #
-# So Frank ends up with TWO etcd dashboards on purpose. THIS ONE — title
-# "Frank Layer 2 — etcd (curated)", uid "frank-l2-etcd" — is the curated
-# board where the acceptance re-run's before/under-load evidence lives (the
-# spec's Half 2c). It is deliberately distinct in both title and uid from the
-# upstream "etcd" board so the two are never confused. If you are reading
-# this because you found duplicate etcd dashboards in Grafana: the upstream
-# one (title "etcd", chart-rendered) is the inert-by-default, now-also-live
-# copy that came free with the chart; THIS ConfigMap is the one Frank
-# actually curates and the one the gotchas / runbook entries reference. Do
-# not delete this one believing it to be the redundant copy.
+# THIS board, title "Frank Layer 2 — etcd (curated)" and uid "frank-l2-etcd", is
+# where the acceptance re-run's before/under-load evidence lives (the spec's
+# Half 2c), and the one the gotchas and runbook entries reference. Do not delete
+# it believing it to be the redundant copy.
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -9,7 +9,7 @@ summary: "Deploying a resource-efficient observability stack with VictoriaMetric
 weight: 8
 reader_goal: "Deploy VictoriaMetrics, VictoriaLogs, and Fluent Bit on a Talos cluster and troubleshoot the four most common deployment pitfalls"
 diataxis: tutorial
-last_updated: 2026-08-03
+last_updated: 2026-09-14
 description: "Deploying a resource-efficient observability stack with VictoriaMetrics, VictoriaLogs, and Grafana — and the four gotchas that made it interesting."
 ---
 
@@ -381,27 +381,35 @@ That distinction is also the shape of the most plausible *future* mistake. When 
 
 Two halves, in two different worlds, connected by nothing but a port number.
 
-**GitOps half** — supplying `endpoints:` switches the chart off pod discovery and onto a **static** `Endpoints` object, which is what a host system service requires:
+**GitOps half** — a `VMStaticScrape` that names the three minis directly:
+
+```yaml
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: kube-etcd
+  namespace: monitoring
+spec:
+  jobName: kube-etcd
+  targetEndpoints:
+    - targets:
+        - 192.168.55.21:2381   # mini-1
+        - 192.168.55.22:2381   # mini-2
+        - 192.168.55.23:2381   # mini-3
+      scheme: http
+      path: /metrics
+```
+
+The chart's own block is switched off explicitly. Deleting it would silently restore the default, and the default is the pod selector that matches nothing:
 
 ```yaml
 # apps/victoria-metrics/values.yaml
 kubeEtcd:
-  enabled: true
-  endpoints:
-    - 192.168.55.21   # mini-1
-    - 192.168.55.22   # mini-2
-    - 192.168.55.23   # mini-3
-  service:
-    port: 2381
-    targetPort: 2381
-  vmScrape:
-    spec:
-      endpoints:
-        - port: http-metrics
-          scheme: http
+  enabled: false
 ```
 
-That `vmScrape` override replaces the chart default wholesale, deliberately: the default is `scheme: https` plus a ServiceAccount bearer token aimed at 2379, all three of which are wrong for what we are about to open.
+There is no bearer token and no TLS, deliberately. The chart's default etcd endpoint is `scheme: https` plus a ServiceAccount bearer token aimed at 2379, all three of which are wrong for what we are about to open.
 
 **Talos half** — an Omni `ConfigPatch`, scoped to the control-plane machine set, opening etcd's dedicated metrics listener:
 
@@ -414,29 +422,41 @@ cluster:
 
 Port 2381 rather than 2379 is the security decision. etcd serves `/metrics` on its client port behind mutual TLS, so scraping there means handing a scraper an etcd **client certificate** — a credential that also grants full read/write to every object in the cluster. The blast radius of that credential dwarfs the value of a latency histogram, and rotating it would become a new silent-failure surface. `listen-metrics-urls` is etcd's supported alternative: plain HTTP, read-only, serving `/metrics` and `/health` only, carrying no key material. Binding `0.0.0.0` is a deliberate trade — the LAN is already this cluster's trust boundary, and the LAN NIC is the exposed interface either way.
 
-Those two files are applied by different tools — `omnictl` by hand, ArgoCD from `main` — and nothing else in the repo connects them. A port typo in either reproduces exactly the silent empty-target failure being fixed, so a CI tripwire parses the port out of the ConfigPatch URL, compares it against `kubeEtcd.service.targetPort`, and derives the three control-plane addresses from the repo's own machine table rather than restating them.
+Those two files are applied by different tools — `omnictl` by hand, ArgoCD from `main` — and nothing else in the repo connects them. A port typo in either reproduces exactly the silent empty-target failure being fixed, so a CI tripwire parses the port out of the ConfigPatch URL, compares it against the ports the `VMStaticScrape` dials, and derives the three control-plane addresses from the repo's own machine table rather than restating them.
 
-Six Grafana rules watch the result, of which only two page: quorum has no leader, and a member is down. The other four — leader-change churn, {{< abbr "WAL" >}} fsync latency, database size against quota, and an `absent()` watchdog — go to the health bridge and stay off the phone. The watchdog exists because every one of these rules uses `noDataState: OK`, so if the `Endpoints` object ever empties again the rules would all go quiet and read as healthy. `absent()` is the only expression that fires when a series *disappears*.
+Six Grafana rules watch the result, of which only two page: quorum has no leader, and a member is down. The other four — leader-change churn, {{< abbr "WAL" >}} fsync latency, database size against quota, and an `absent()` watchdog — go to the health bridge and stay off the phone. The watchdog exists because every one of these rules uses `noDataState: OK`, so if the scrape ever loses its targets again the rules would all go quiet and read as healthy. `absent()` is the only expression that fires when a series *disappears*.
+
+#### The first version of this fix never deployed
+
+The GitOps half originally shipped as chart values: `kubeEtcd.endpoints`, which makes the chart render a selector-less Service plus a **static** `Endpoints` object pointing at the minis. `helm template` rendered it perfectly. The CI tripwire passed. ArgoCD synced the merge and reported the Application `Synced` and `Healthy`.
+
+Nothing was scraped. ArgoCD's `resource.exclusions` exclude `Endpoints` and `EndpointSlice` cluster-wide. Those are the argo-cd chart's defaults, which Frank reproduces verbatim, because the control plane creates and churns those objects constantly. So ArgoCD rendered the `Endpoints` object and dropped it on every sync. The only trace was a condition on the Application:
+
+```text
+ExcludedResourceWarning: Resource /Endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd is excluded in the settings
+```
+
+The Service is not excluded, so it updated to port 2381. Its `Endpoints` object stayed empty. `up{job="kube-etcd"}` never existed, and fifteen minutes after the merge the `absent()` watchdog fired into the health bridge, exactly as designed.
+
+It was the same silent empty-target failure, one layer further from the chart, and invisible to every check that reads manifests instead of the cluster. A `VMStaticScrape` names its own targets and is a kind ArgoCD applies, so nothing GitOps cannot deliver is left in the path. The tripwire now parses ArgoCD's exclusion list and fails any manifest, or chart block, that depends on an excluded kind.
 
 #### The order between the two halves is not free, and I had it backwards
 
 The plan said, in seven places, that the two halves could land in either order: merge the values first and the target is simply down, every rule sits at `NoData`, `noDataState: OK`, nothing fires. Code review took that apart, and the scheduler numbers above are the proof.
 
-**`up` is not a series etcd exports.** The scraper *synthesises* it — one series per **configured** target, every interval, `1` on a successful scrape and `0` on a failed one. It is never absent while the target is configured. And supplying `kubeEtcd.endpoints` is precisely what configures targets. So merging the GitOps half first does not produce a quiet `NoData` window; it produces three targets dialling a refused port, sitting at `up=0`, and `up < 1` at `for: 10m` is one of the two rules that *pages*. With the notification policy repeating every three minutes, that is Telegram going off around the clock against a perfectly healthy quorum, until someone applies a patch the plan had deliberately scheduled for afterwards.
+**`up` is not a series etcd exports.** The scraper *synthesises* it — one series per **configured** target, every interval, `1` on a successful scrape and `0` on a failed one. It is never absent while the target is configured. And declaring the targets is precisely what configures them. So merging the GitOps half first does not produce a quiet `NoData` window; it produces three targets dialling a refused port, sitting at `up=0`, and `up < 1` at `for: 10m` is one of the two rules that *pages*. With the notification policy repeating every three minutes, that is Telegram going off around the clock against a perfectly healthy quorum, until someone applies a patch the plan had deliberately scheduled for afterwards.
 
 An absent series and a series reading zero are different states, and only the first one is `NoData`. That one word carried the whole ordering argument.
 
-The fix is the ordering, not the alert: the ConfigPatch is harmless on its own — it opens a read-only port nothing is scraping yet — so it becomes a **pre-merge gate**. Loosening the rule instead would have bought the same quiet by discarding the signal the layer exists to add. The same asymmetry runs backwards, too: deleting the ConfigPatch alone is not a rollback, it is a pager, because the `Endpoints` object survives and `up` goes to zero rather than away. A real rollback reverts both halves.
+The fix is the ordering, not the alert: the ConfigPatch is harmless on its own — it opens a read-only port nothing is scraping yet — so it becomes a **pre-merge gate**. Loosening the rule instead would have bought the same quiet by discarding the signal the layer exists to add. The same asymmetry runs backwards, too: deleting the ConfigPatch alone is not a rollback, it is a pager, because the scrape's targets survive and `up` goes to zero rather than away. A real rollback reverts both halves.
 
 There is no results paragraph here yet, on purpose. The soak re-run that this unblocks — the same request volume as the original measurement, captured before and under load — has not been performed at the time of writing. When it has, the numbers belong on the curated dashboard, not in a sentence here.
 
-### One more thing: there are now two of everything
+### One more thing: turning the chart block off retires its extras
 
-Closing this gap leaves the cluster with a duplicate etcd dashboard *and* a duplicate set of etcd alert rules, and in both cases the copy that looks canonical is the dead one.
+The chart's `kubeEtcd` block also renders an upstream etcd dashboard and a 15-alert `VMRule`. Neither has a toggle of its own; both follow `kubeEtcd.enabled`. The `VMRule` was always inert here, because `vmalert` is disabled and alerting is Grafana-managed. The dashboard had been sitting in Grafana rendering nothing for the same 148 days.
 
-The chart renders its own etcd dashboard and its own 15-alert `VMRule`, both of which follow `kubeEtcd.enabled` and neither of which can be disabled independently. The `VMRule` is inert because `vmalert` is disabled here — alerting is Grafana-managed — and the upstream dashboard has been sitting in Grafana rendering nothing for the same 148 days. The curated board carries a deliberately distinct title and uid so the two are never confused.
-
-The risk is not that the duplicates fire. It is that someone later discovers "duplicate etcd monitoring", assumes the upstream artefact is the real one and the local one is an accretion, and deletes the half that works.
+Switching `kubeEtcd.enabled` off removes both from the chart's render. The Application runs `prune: false`, though, so their live copies stay until someone deletes them by hand. Until then the cluster has two etcd dashboards, and the copy that looks canonical, titled `etcd`, is the dead one. The curated board is `Frank Layer 2 — etcd (curated)`.
 
 ## What Is Visible Now
 
@@ -470,7 +490,8 @@ The risk is not that the duplicates fire. It is that someone later discovers "du
 | **`grafana.additionalDataSources` silently ignored** — the victoria-metrics chart overrides Grafana's datasource provisioning with its own ConfigMap, making the subchart value a no-op | Helm chart composition is leaky; the parent chart intercepts the subchart's provisioning mechanism | Used `extraConfigmapMounts` to mount a standalone provisioning ConfigMap at the Pod level | `bbc93d3b` |
 | **High-cardinality node-meta labels flooded VictoriaMetrics** — Cilium's default pod metadata labels exploded metric cardinality, causing {{< abbr "OOM" "OOMs" >}} | `node-meta` labels include pod IPs and container IDs — billions of unique series | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
 | **Grafana deployment strategy defaulted to RollingUpdate** — persistent PVC sometimes stuck during rolling updates due to ReadWriteOnce access mode | Grafana's PVC is {{< abbr "RWO" >}}; a rolling update can leave the old pod terminating while the new pod is pending, neither able to mount | Set `Grafana.deploymentStrategy` to `Recreate` | `e40c952d` |
-| **The etcd scrape was enabled by chart default and inert for 148 days** — a Service, a `VMServiceScrape` and a permanently empty `Endpoints` object, because the chart selects pods labelled `component: etcd` and Talos runs etcd as a host system service | Not a missing config — a config that was present, correct-looking and matched nothing. Nothing reports an empty `Endpoints` object as a fault, and the `etcd_request_*` series that *do* exist are the apiserver's storage client, so grepping `etcd` read as coverage | Static `Endpoints` via `kubeEtcd.endpoints`, plus a Talos ConfigPatch opening `listen-metrics-urls` on 2381; CI tripwire asserts the two files agree | 2026-08 |
+| **The etcd scrape was enabled by chart default and inert for 148 days** — a Service, a `VMServiceScrape` and a permanently empty `Endpoints` object, because the chart selects pods labelled `component: etcd` and Talos runs etcd as a host system service | Not a missing config — a config that was present, correct-looking and matched nothing. Nothing reports an empty `Endpoints` object as a fault, and the `etcd_request_*` series that *do* exist are the apiserver's storage client, so grepping `etcd` read as coverage | A `VMStaticScrape` for the three minis on 2381, plus a Talos ConfigPatch opening `listen-metrics-urls`; CI tripwire asserts the two files agree | 2026-09 |
+| **The first fix never deployed** — `kubeEtcd.endpoints` renders a static `Endpoints` object, and ArgoCD's `resource.exclusions` drop that kind cluster-wide | `helm template` and every manifest-level test passed; ArgoCD reported `Synced/Healthy` with only an `ExcludedResourceWarning` condition, so the scrape had zero targets until the `absent()` watchdog fired | Replaced with a `VMStaticScrape`; the tripwire now fails any git manifest or chart block that depends on an ArgoCD-excluded kind | 2026-09 |
 
 ## References
 

@@ -8,57 +8,34 @@ alertmanager:
 kubeControllerManager:
   enabled: false
 
-# etcd scrape — point a STATIC Endpoints object at the three control-plane
-# minis, on etcd's dedicated metrics listener.
+# etcd scrape — the chart's kubeEtcd block is OFF. etcd is scraped by
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml instead.
 #
-# This block is not enabling something that was off. `kubeEtcd.enabled` is TRUE
-# BY CHART DEFAULT and this file never disabled it, so the objects have been
-# live since the cluster was built:
+# Stating `enabled: false` is load-bearing. `kubeEtcd.enabled` is TRUE BY CHART
+# DEFAULT, and both shapes it can take are dead on Frank:
 #
-#   service/…-kube-etcd     ClusterIP   None   2379/TCP   148d
-#   endpoints/…-kube-etcd   <none>                        148d
-#   vmservicescrape/…-kube-etcd
+#  - Left at the default, the chart's Service selects pods labelled
+#    `component: etcd` (the kubeadm layout). TALOS RUNS ETCD AS A HOST SYSTEM
+#    SERVICE, NOT A POD, so the selector never matches: the Endpoints object sat
+#    empty for 148 days, with zero targets, zero series and no error.
 #
-# The Endpoints object was EMPTY that entire time. The chart's Service selects
-# pods labelled `component: etcd` — the kubeadm layout — and TALOS RUNS ETCD AS
-# A HOST SYSTEM SERVICE, NOT A POD, so the selector can never match. Zero
-# endpoints, zero targets, zero series, and no error anywhere. Exactly the
-# failure family as the promscrape.maxScrapeSize drop documented below: a
-# selector or a limit silently yields nothing, and the only symptom is an
-# absence. It survived 148 days because `etcd_request_duration_seconds` and
-# friends DO exist in VMSingle and look like etcd monitoring — they are the
-# apiserver's storage CLIENT metrics, and they cannot tell you whether the
-# quorum has a leader.
+#  - Supplying `endpoints:` (#762) makes the chart render a static Endpoints
+#    object instead. That object is never applied: ArgoCD's resource.exclusions
+#    (apps/argocd/values.yaml, the argo-cd chart defaults) exclude Endpoints
+#    and EndpointSlice cluster-wide. The app read Synced/Healthy while the
+#    scrape had zero targets, and layer-2-etcd-scrape-absent fired fifteen
+#    minutes after the merge (2026-09-13).
 #
-# Supplying `endpoints:` is the fix: it switches the chart off selector-based
-# discovery and onto a static Endpoints object, which is what a host system
-# service requires. The IPs are Frank's documented control planes
-# (agents/rules/frank-infrastructure.md) and are fixed by Talos machine config.
+# Removing this block would silently restore the first shape. Disabling it also
+# retires the chart's upstream "etcd" dashboard and inert etcd VMRule, which
+# follow kubeEtcd.enabled. The Application is prune: false, so their live copies
+# were deleted by hand (runbook: docs/runbooks/frank-gotchas/grafana.md). The
+# curated board is apps/grafana-alerting/manifests/etcd-dashboard-cm.yaml.
 #
-# The `vmScrape` override REPLACES the chart default wholesale, and that is
-# deliberate: the default endpoint is `scheme: https` plus a ServiceAccount
-# bearer token aimed at 2379, all three of which are wrong for the plain-HTTP
-# metrics listener. Inheriting any part of it yields a target that fails
-# forever while this file still reads as configured.
-#
-# Port 2381 is opened by patches/phase08-obs/omni-configpatch-etcd-metrics.yaml,
-# applied out of band with omnictl. That file and this one are connected by
-# nothing but the port number, so scripts/tests/test_etcd_scrape.py asserts
-# they agree — and asserts these IPs against the repo's own machine table.
+# scripts/tests/test_etcd_scrape.py asserts this stays false, with no leftover
+# endpoints/service/vmScrape keys, and that no kube* block supplies endpoints.
 kubeEtcd:
-  enabled: true
-  endpoints:
-    - 192.168.55.21   # mini-1
-    - 192.168.55.22   # mini-2
-    - 192.168.55.23   # mini-3
-  service:
-    port: 2381
-    targetPort: 2381
-  vmScrape:
-    spec:
-      endpoints:
-        - port: http-metrics
-          scheme: http
+  enabled: false
 
 # VMSingle — single-node metrics storage
 vmsingle:

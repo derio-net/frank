@@ -1,0 +1,49 @@
+# etcd scrape. Frank's control-plane minis, on etcd's dedicated metrics listener.
+#
+# Why a VMStaticScrape and not the chart's kubeEtcd block
+# --------------------------------------------------------
+# #762 first shipped this scrape as chart values: `kubeEtcd.endpoints`, which
+# makes victoria-metrics-k8s-stack render a selector-less Service plus a STATIC
+# Endpoints object. `helm template` rendered it perfectly, and it deployed
+# nothing. ArgoCD's resource.exclusions (apps/argocd/values.yaml, reproducing
+# the argo-cd chart defaults) exclude Endpoints and EndpointSlice cluster-wide,
+# so ArgoCD dropped the object on every sync. The app still read Synced/Healthy,
+# with only an ExcludedResourceWarning condition. The Service moved to 2381, its
+# Endpoints stayed empty, `up{job="kube-etcd"}` never existed, and
+# layer-2-etcd-scrape-absent fired fifteen minutes after the merge (2026-09-13).
+#
+# A VMStaticScrape names its targets itself and is a kind ArgoCD applies, so
+# nothing between git and vmagent can silently drop it. vmagent selects it with
+# no extra plumbing: the VMAgent runs selectAllByDefault with no scrape
+# selectors. The chart's kubeEtcd block is disabled in values.yaml.
+#
+# Why these values
+# ----------------
+# - Port 2381 is opened by patches/phase08-obs/omni-configpatch-etcd-metrics.yaml
+#   (omnictl, out of band). Plain HTTP, read-only, /metrics and /health only, no
+#   key material. So there is deliberately NO bearer token and NO TLS here;
+#   borrowing the kubeadm-shaped defaults for 2379 yields a target that fails
+#   forever.
+# - The IPs are Frank's control planes (agents/rules/frank-infrastructure.md),
+#   fixed by Talos machine config. etcd runs there and nowhere else.
+# - jobName `kube-etcd` is the job every layer-2-etcd-* rule selects on
+#   (apps/grafana-alerting/manifests/alert-rules-cm.yaml). Rename it and the
+#   absent() watchdog fires permanently while the other five read NoData as OK.
+#
+# scripts/tests/test_etcd_scrape.py asserts the port against the ConfigPatch,
+# the IPs against the machine table, the jobName against the rules, and that
+# neither this kind nor the chart path is in ArgoCD's exclusions.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: kube-etcd
+  namespace: monitoring
+spec:
+  jobName: kube-etcd
+  targetEndpoints:
+    - targets:
+        - 192.168.55.21:2381   # mini-1
+        - 192.168.55.22:2381   # mini-2
+        - 192.168.55.23:2381   # mini-3
+      scheme: http
+      path: /metrics

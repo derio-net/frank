@@ -55,17 +55,26 @@ connects them**:
 | File | Applied by | What it does |
 |---|---|---|
 | `patches/phase08-obs/omni-configpatch-etcd-metrics.yaml` | `omnictl`, by an operator, out of band | opens `0.0.0.0:2381` on the control planes |
-| `apps/victoria-metrics/values.yaml` (`kubeEtcd`) | ArgoCD, from `main` | points a **static** `Endpoints` object at the three minis on 2381 |
+| `apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml` | ArgoCD, from `main` | a `VMStaticScrape` for the three minis on 2381 (the chart's `kubeEtcd` block is `enabled: false`) |
 
 A port typo in either reproduces exactly the silent empty-target failure above,
 so `scripts/tests/test_etcd_scrape.py` derives the port out of this file's URL
-and asserts it against `kubeEtcd.service.targetPort` — and derives the three
+and asserts it against every port the `VMStaticScrape` dials — and derives the three
 control-plane addresses out of `agents/rules/frank-infrastructure.md` rather
 than restating them.
 
+**Why a `VMStaticScrape` and not chart values.** #762 first scraped through
+`kubeEtcd.endpoints`, which makes the chart render a static `Endpoints` object.
+ArgoCD's `resource.exclusions` drop that kind cluster-wide, so it was never
+applied: zero targets, the Application `Synced/Healthy`, and the `absent()`
+watchdog firing fifteen minutes after the merge. Full write-up:
+`docs/runbooks/frank-gotchas/argocd.md`.
+
 ## Ordering: this patch is a PRE-MERGE gate
 
-**Apply this patch BEFORE the PR carrying the `kubeEtcd` values block merges.**
+**Apply this patch BEFORE the PR carrying the etcd scrape merges.** (Satisfied for
+#762 on 2026-09-13: applied, then a drained rolling reboot, since the apply alone
+never restarts etcd.)
 
 An earlier draft of this file said the opposite — "ordering is safe in either
 direction; before the patch the target is simply down and every rule sits at
@@ -73,10 +82,9 @@ direction; before the patch the target is simply down and every rule sits at
 
 **`up` is not a series etcd exports. The scraper synthesises it for every
 configured target — `1` on a successful scrape, `0` on a failed one — and it is
-never *absent* while the target is configured.** Supplying `kubeEtcd.endpoints`
-is exactly what creates targets: the chart drops its pod selector and renders a
-static `Endpoints` object with three addresses. So the moment ArgoCD syncs the
-values block, vmagent has three targets dialling a port that is
+never *absent* while the target is configured.** Declaring the scrape's targets
+is exactly what creates them. So the moment ArgoCD syncs the scrape, vmagent has
+three targets dialling a port that is
 connection-refused, and they sit at **`up=0`, not NoData**.
 
 `layer-2-etcd-member-down` is `up{job="kube-etcd"} < 1`, `for: 10m`,
@@ -133,8 +141,10 @@ Full prose, the diagnosis, and the drain timings: `docs/runbooks/frank-gotchas/o
 
 **A rollback is two changes, in this order:**
 
-1. revert the `kubeEtcd` block in `apps/victoria-metrics/values.yaml` (git, via
-   ArgoCD) — this removes the static `Endpoints` object and therefore the targets;
+1. remove the etcd scrape: revert
+   `apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml` in git, then
+   `kubectl -n monitoring delete vmstaticscrape kube-etcd`, because the
+   Application is `prune: false` and a deleted manifest removes nothing;
 2. then delete the ConfigPatch:
 
 ```bash
@@ -143,7 +153,7 @@ omnictl delete configpatch 160-etcd-metrics-listener
 ```
 
 **Deleting the ConfigPatch alone is NOT quiet, despite what an earlier draft of
-this file claimed.** The `Endpoints` object survives, so the three targets survive
+this file claimed.** The `VMStaticScrape` survives, so the three targets survive
 — they just stop answering. `up` goes to **`0`**, not absent:
 
 - `layer-2-etcd-member-down` (`up < 1`, `for: 10m`, critical, pages) **fires**,
@@ -155,7 +165,7 @@ this file claimed.** The `Endpoints` object survives, so the three targets survi
   do read OK.
 
 So the half of the alerting that should stay quiet pages, and the half that
-should speak up stays silent. Reverting the values block first removes the
+should speak up stays silent. Removing the scrape first removes the
 targets, at which point `up` genuinely disappears, `absent()` fires, and the
 blindness is recorded as blindness — which is the intended behaviour for a
 deliberate rollback.

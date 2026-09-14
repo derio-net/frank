@@ -325,3 +325,36 @@ the artifact.
 If an Application genuinely needs pruning, the pattern used elsewhere in this
 repo is `prune: true` plus a per-resource `Prune=false` annotation on anything
 load-bearing (see the caddy cert PVC and the gitea-runner PVC).
+
+## `resource.exclusions` make ArgoCD silently skip `Endpoints` and `EndpointSlice` from git (2026-09-13)
+
+### Symptom
+
+A merge that adds an `Endpoints` or `EndpointSlice`, directly or rendered by a chart, syncs cleanly. The Application reads `Synced` and `Healthy`, and the object never appears on the cluster. The only trace is a condition on the Application:
+
+```text
+ExcludedResourceWarning: Resource /Endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd is excluded in the settings
+```
+
+### Cause
+
+`apps/argocd/values.yaml` sets `configs.cm."resource.exclusions"`. Helm does not merge that multiline string, so it reproduces the argo-cd chart defaults verbatim, and the first default excludes `apiGroups: ['', discovery.k8s.io]`, `kinds: [Endpoints, EndpointSlice]` for every cluster. The control plane creates and churns those objects, so ArgoCD deliberately never tracks or applies them. That is correct for controller-managed Endpoints, and silently wrong for a static one you meant to deploy.
+
+### Incident
+
+frank#762 scraped etcd through `kubeEtcd.endpoints` in `apps/victoria-metrics/values.yaml`, which makes victoria-metrics-k8s-stack render a selector-less Service plus a static Endpoints object. `helm template` rendered it, and every manifest-level test passed. After the merge the Service, which is not excluded, moved to port 2381. The Endpoints object stayed empty, `up{job="kube-etcd"}` never existed, and `layer-2-etcd-scrape-absent` fired fifteen minutes later. Fixed by scraping with a `VMStaticScrape` (`apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml`), a kind ArgoCD applies.
+
+### Detect and avoid
+
+```bash
+# After any merge that introduces a kind the app has not deployed before:
+kubectl -n argocd get application <app> -o jsonpath='{.status.conditions}'
+
+# What is excluded, live:
+kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}'
+```
+
+- To reach a host service or a fixed IP, use a VictoriaMetrics `VMStaticScrape` or `VMProbe`, never a hand-rolled `Endpoints`.
+- Do not "fix" this by removing `Endpoints` from the exclusions. ArgoCD would then track every controller-managed Endpoints object in the cluster, which is the churn the default exists to avoid.
+- `scripts/tests/test_etcd_scrape.py::test_no_git_manifest_is_a_kind_argocd_silently_drops` parses the exclusion list and fails any `apps/*/manifests` document of an excluded kind. `test_the_etcd_scrape_depends_on_no_kind_argocd_excludes` fails any victoria-metrics `kube*` block that supplies `endpoints:`.
+

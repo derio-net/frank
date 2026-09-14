@@ -141,8 +141,12 @@ tasks:
   steps:
   - id: P5.T2.S1
     text: |
-      OPERATOR. POST-MERGE, once ArgoCD has synced the kubeEtcd block. In
-      VMUI or via the vmsingle pod:
+      OPERATOR. POST-MERGE, once ArgoCD has synced the etcd scrape. That is
+      the VMStaticScrape in apps/victoria-metrics/manifests (fix PR
+      fix/etcd-scrape-vmstaticscrape), not #762's kubeEtcd block: #762's
+      static Endpoints object was never applied, because ArgoCD excludes
+      that kind (docs/runbooks/frank-gotchas/argocd.md). In VMUI or via the
+      vmsingle pod:
 
         - `up{job="kube-etcd"}` returns **3 series, all 1**
         - `etcd_server_has_leader`, `etcd_disk_wal_fsync_duration_seconds_bucket`
@@ -154,15 +158,53 @@ tasks:
       A rule sitting at NoData here means the scrape did not land; do not
       record the phase complete on a green ArgoCD status. ArgoCD reports
       sync, not evidence, and on this repo `Synced` has twice meant
-      "synced to a stale revision".
+      "synced to a stale revision". It has also meant "synced, with the
+      scrape's Endpoints object silently excluded" (#762, 2026-09-13).
+
+      After that sync, delete the chart-era objects the disable leaves
+      behind under prune: false:
+
+      ```yaml
+      # manual-operation
+      id: obs-etcd-chart-orphans-delete
+      layer: obs
+      app: victoria-metrics
+      plan: docs/superpowers/plans/2026-08-03--obs--etcd-scrape-control-plane
+      when: "AFTER the fix PR that sets kubeEtcd.enabled false and adds apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml is merged AND ArgoCD has synced it. Deleting earlier is undone by selfHeal, because the chart still renders these objects until the disable syncs."
+      why_manual: "The victoria-metrics Application is prune: false, so disabling kubeEtcd removes these objects from the chart render but leaves the live copies. All are dead: an empty kube-etcd Endpoints object, a Service and VMServiceScrape with zero targets, an inert VMRule (vmalert is disabled), and an upstream etcd dashboard that duplicates the curated frank-l2-etcd board."
+      commands:
+        - source .env
+        - "kubectl -n argocd get application victoria-metrics -o jsonpath='{.status.sync.revisions}'   # must include the fix merge commit"
+        - kubectl -n kube-system delete service victoria-metrics-victoria-metrics-k8s-stack-kube-etcd
+        - kubectl -n kube-system delete endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd --ignore-not-found
+        - kubectl -n monitoring delete vmservicescrape victoria-metrics-victoria-metrics-k8s-stack-kube-etcd
+        - kubectl -n monitoring delete vmrule victoria-metrics-victoria-metrics-k8s-stack-etcd
+        - kubectl -n monitoring delete configmap victoria-metrics-victoria-metrics-k8s-stack-etcd
+      verify:
+        - "kubectl -n monitoring get vmstaticscrape kube-etcd   # still present: this is the live scrape"
+        - "# up{job=\"kube-etcd\"} still returns 3 series, all 1, after the deletions"
+        - "# Grafana: no dashboard titled etcd remains; frank-l2-etcd still renders 5 panels"
+      status: pending
+      ```
   - id: P5.T2.S2
     text: |
       OPERATOR. Prove the blindness watchdog actually works, which is the
       only way `obs-etcd-blindness-is-tracked` can be evidenced.
 
+      SATISFIED BY A REAL EVENT (operator decision 2026-09-13), so the
+      deliberate pause below is not needed. After #762 merged, the scrape
+      had zero targets (ArgoCD-excluded Endpoints).
+      `layer-2-etcd-scrape-absent` went pending at 21:29:50Z and fired at
+      21:44:50Z, exactly its for: 15m. health-bridge opened
+      https://github.com/derio-net/frank-ops/issues/126 and set frank-ops#2
+      dead at 21:45:30Z, with no Telegram page. What remains is to confirm
+      it CLEARS once the VMStaticScrape fix is live. Journal:
+      docs/superpowers/journals/debug/2026-09-14-etcd-scrape-vmstaticscrape.md.
+      The original procedure is kept for a future re-test:
+
       Deliberately pause the scrape — the least invasive way is to
-      temporarily empty `kubeEtcd.endpoints` on the LIVE VMServiceScrape's
-      Endpoints object (suspend the app's selfHeal first; see
+      temporarily empty the `targets` of the LIVE `VMStaticScrape` kube-etcd
+      (suspend the app's selfHeal first; see
       `agents/rules/frank-argocd.md` for the full suspend/restore recipe,
       including passing the WHOLE `automated` map so `prune: false` is not
       silently dropped).
