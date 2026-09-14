@@ -17,8 +17,10 @@ The fix has two halves that live in different worlds:
 * `patches/phase08-obs/omni-configpatch-etcd-metrics.yaml` opens etcd's
   dedicated metrics listener on `0.0.0.0:2381`. Applied by `omnictl`, by an
   operator, out of band.
-* `apps/victoria-metrics/values.yaml` points a **static** `Endpoints` object at
-  the three control-plane minis on that port. Applied by ArgoCD.
+* `apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml` scrapes the
+  three control-plane minis on that port. Applied by ArgoCD. (It began as a
+  static `Endpoints` object from chart values, which ArgoCD's
+  `resource.exclusions` silently never applied; see the GitOps-half section.)
 
 Nothing else in the repo connects them. A port typo in either file, or a node
 IP that moves, reproduces exactly the silent-empty-target failure being fixed —
@@ -30,7 +32,6 @@ from __future__ import annotations
 
 import pathlib
 import re
-import subprocess
 from typing import Any
 from urllib.parse import urlparse
 
@@ -76,7 +77,7 @@ def _documented_control_plane_ips() -> list[str]:
         f"machine table, parsed {len(ips)}: {ips}. Either the table's shape "
         "changed and this derivation is now reading nothing, or Frank's "
         "control plane is no longer three nodes — in which case "
-        "kubeEtcd.endpoints needs revisiting, not this regex."
+        "the etcd VMStaticScrape targets need revisiting, not this regex."
     )
     return ips
 
@@ -170,140 +171,175 @@ def test_configpatch_opens_the_metrics_listener():
 
 
 # ---------------------------------------------------------------------------
-# The GitOps half: chart values pointing a STATIC Endpoints object at the three
-# control-plane minis.
+# The GitOps half: a VMStaticScrape aimed at the three control-plane minis.
 #
-# The negative assertions below matter more than the positive ones. The chart's
-# DEFAULT `vmScrape` uses `scheme: https` plus a ServiceAccount bearer token and
-# is aimed at port 2379 — the kubeadm layout, where etcd's client port is what
-# you scrape. Inheriting any part of that default against 2381 produces a target
-# that fails forever while the configuration looks entirely plausible in a diff.
+# #762 first shipped this half as chart values. `kubeEtcd.endpoints` makes
+# victoria-metrics-k8s-stack render a selector-less Service plus a STATIC
+# `Endpoints` object. It rendered perfectly and deployed nothing. ArgoCD's
+# `resource.exclusions` (apps/argocd/values.yaml, reproducing the argo-cd chart
+# defaults) exclude Endpoints and EndpointSlice cluster-wide, so ArgoCD dropped
+# the object on every sync and still reported the app Synced/Healthy. The Service
+# moved to 2381, the Endpoints object stayed empty, `up{job="kube-etcd"}` never
+# existed, and the absent() watchdog fired fifteen minutes after the merge
+# (2026-09-13). The same silent empty-target failure this layer exists to fix,
+# one layer further from the chart, and invisible to `helm template`.
+#
+# A VMStaticScrape names its targets itself and is a kind ArgoCD applies, so the
+# scrape no longer depends on an object Frank's GitOps loop cannot deliver. The
+# chart's own kube-etcd block is switched OFF. Left on, it keeps rendering the
+# pod-selector Service that matches nothing on Talos, plus an upstream etcd
+# dashboard and VMRule that follow it.
+#
+# The negative assertions still matter more than the positive ones. etcd's
+# metrics listener is unauthenticated plain HTTP, and any borrowed
+# kubeadm-shaped auth (bearer token, TLS) produces a target that fails forever
+# while the manifest reads as careful.
 # ---------------------------------------------------------------------------
+
+VM_MANIFESTS = REPO / "apps" / "victoria-metrics" / "manifests"
+ETCD_STATIC_SCRAPE = VM_MANIFESTS / "vmstaticscrape-kube-etcd.yaml"
+ARGOCD_VALUES = REPO / "apps" / "argocd" / "values.yaml"
+
+VM_OPERATOR_API = "operator.victoriametrics.com/v1beta1"
+
 
 def _vm_values() -> dict[str, Any]:
     return yaml.safe_load(VM_VALUES.read_text(encoding="utf-8"))
 
 
-def _kube_etcd() -> dict[str, Any]:
-    values = _vm_values()
-    assert "kubeEtcd" in values, (
-        f"{VM_VALUES.relative_to(REPO)} has no `kubeEtcd` block. The chart "
-        "defaults it to enabled with a pod selector that can never match on "
-        "Talos, which is how this scrape stayed inert and silent for 148 days "
-        f"— leaving it unstated is the bug. Top-level keys: {sorted(values)}"
+def _etcd_static_scrape() -> dict[str, Any]:
+    assert ETCD_STATIC_SCRAPE.exists(), (
+        f"{ETCD_STATIC_SCRAPE.relative_to(REPO)} does not exist. It is the object "
+        "that actually scrapes etcd: the chart's static Endpoints object can "
+        "never be applied by ArgoCD (Endpoints is in resource.exclusions), so "
+        "without this manifest Frank is back to zero etcd targets and no error."
     )
-    return values["kubeEtcd"]
-
-
-def _kube_etcd_scrape_endpoints() -> list[dict[str, Any]]:
-    kube_etcd = _kube_etcd()
-    endpoints = (
-        ((kube_etcd.get("vmScrape") or {}).get("spec") or {}).get("endpoints")
+    documents = [
+        document
+        for document in yaml.safe_load_all(
+            ETCD_STATIC_SCRAPE.read_text(encoding="utf-8")
+        )
+        if document
+    ]
+    assert len(documents) == 1, (
+        f"{ETCD_STATIC_SCRAPE.relative_to(REPO)} should hold exactly one "
+        f"document, the etcd VMStaticScrape. Found {len(documents)}."
     )
-    assert endpoints, (
-        "kubeEtcd.vmScrape.spec.endpoints is missing or empty — without an "
-        "explicit override the chart's default endpoint applies, which scrapes "
-        "https with a ServiceAccount bearer token and can never succeed "
-        "against etcd's plain-HTTP metrics listener"
-    )
-    return list(endpoints)
-
-
-def test_kube_etcd_values_target_the_control_planes():
-    """The scrape points at a static Endpoints object on the metrics port.
-
-    Supplying `endpoints:` is what switches the chart from selector-based pod
-    discovery to a static `Endpoints` object — the only shape that can address
-    a host system service. Everything else here exists to stop the chart
-    default leaking back in.
-    """
-    kube_etcd = _kube_etcd()
-
-    assert kube_etcd.get("enabled") is True, (
-        "kubeEtcd.enabled must be explicitly True. It is the chart default, "
-        "but stating it is what makes this block's intent legible next to the "
-        f"kubeControllerManager disable above it. Got: {kube_etcd.get('enabled')!r}"
-    )
-
-    # DERIVED, not restated. This file's whole thesis is that the port lives in
-    # the ConfigPatch and everything else agrees with it; writing `2381` here
-    # would make the guard the third hardcoded copy of the very value it exists
-    # to keep synchronised, and it would agree with a typo it also contained.
-    listener_port = urlparse(_listen_metrics_urls()).port
-    service = kube_etcd.get("service") or {}
+    document = documents[0]
     assert (
-        service.get("port") == listener_port
-        and service.get("targetPort") == listener_port
+        document.get("apiVersion") == VM_OPERATOR_API
+        and document.get("kind") == "VMStaticScrape"
     ), (
-        "kubeEtcd.service.port and .targetPort must both be the port the "
-        f"ConfigPatch opens ({listener_port}, from "
-        f"{CONFIGPATCH.relative_to(REPO)}'s listen-metrics-urls) — etcd's "
-        "dedicated metrics listener. The chart default is 2379, the mutual-TLS "
-        f"client port. Got port={service.get('port')!r}, "
-        f"targetPort={service.get('targetPort')!r}"
+        f"{ETCD_STATIC_SCRAPE.relative_to(REPO)} must be a {VM_OPERATOR_API} "
+        f"VMStaticScrape. Got apiVersion={document.get('apiVersion')!r} "
+        f"kind={document.get('kind')!r}"
     )
+    return document
 
-    assert kube_etcd.get("endpoints") == CONTROL_PLANE_IPS, (
-        "kubeEtcd.endpoints must list the three control-plane minis in order. "
-        "Omitting it leaves the chart on pod-selector discovery, which matches "
-        "nothing on Talos and yields the empty Endpoints object this whole "
-        f"change exists to fix. Got: {kube_etcd.get('endpoints')!r}"
-    )
 
-    endpoints = _kube_etcd_scrape_endpoints()
+def _etcd_target_endpoint() -> dict[str, Any]:
+    spec = _etcd_static_scrape().get("spec") or {}
+    endpoints = spec.get("targetEndpoints") or []
     assert len(endpoints) == 1, (
-        "expected exactly one kubeEtcd.vmScrape.spec.endpoints entry; the "
-        f"override REPLACES the chart default wholesale. Got {len(endpoints)}"
+        "expected exactly one spec.targetEndpoints entry carrying the three "
+        f"minis. Got {len(endpoints)}. A second entry is where a stray target "
+        "with different scheme or auth would hide."
     )
-    endpoint = endpoints[0]
+    return endpoints[0]
 
-    assert endpoint.get("scheme") == "http", (
-        "the etcd scrape endpoint must use `scheme: http`. The metrics "
-        "listener is plain HTTP by design; the chart's default `https` "
-        f"produces a target that fails forever. Got: {endpoint.get('scheme')!r}"
+
+def _etcd_targets() -> list[tuple[str | None, int | None]]:
+    """(host, port) for every scrape target, parsed rather than string-matched."""
+    targets = _etcd_target_endpoint().get("targets") or []
+    assert targets, "the etcd VMStaticScrape lists no targets"
+    parsed = []
+    for target in targets:
+        split = urlparse(f"//{target}")
+        parsed.append((split.hostname, split.port))
+    return parsed
+
+
+def test_chart_kube_etcd_scrape_is_disabled():
+    """The chart's kube-etcd block is explicitly OFF and carries no leftovers.
+
+    `kubeEtcd.enabled` defaults to TRUE, with a pod selector that matches nothing
+    on Talos. So "just remove the block" silently restores the 148-day inert
+    scrape. It has to be stated false. Leftover `endpoints`/`service`/`vmScrape`
+    keys would be dead configuration that reads as the live scrape path, and
+    the `endpoints` key is exactly what renders the Endpoints object ArgoCD
+    drops.
+    """
+    kube_etcd = _vm_values().get("kubeEtcd")
+    assert isinstance(kube_etcd, dict) and kube_etcd.get("enabled") is False, (
+        f"{VM_VALUES.relative_to(REPO)} must set `kubeEtcd.enabled: false`. The "
+        "chart default is true, which renders a pod-selector Service matching "
+        "nothing on Talos, or (with endpoints:) a static Endpoints object "
+        f"ArgoCD never applies. Got kubeEtcd={kube_etcd!r}"
     )
-    # Also derived. `http-metrics` is a CHART-TEMPLATE literal, not a values
-    # key — the chart builds the name as
-    # `{{ list "http-metrics" | append $portName | join "-" }}`, so a chart bump
-    # that renames or suffixes it moves the Service's port name while this
-    # values file keeps naming the old one. The VMServiceScrape would then
-    # reference a port the Service does not have, the operator would generate no
-    # scrape config at all, and the result is ZERO TARGETS AND NO ERROR: the
-    # exact silent failure this file exists to prevent, surviving every other
-    # assertion in it. So the expected name comes out of the rendered Service.
-    expected_port_name = _rendered_metrics_port_name()
-    assert endpoint.get("port") == expected_port_name, (
-        f"the etcd scrape endpoint must name port `{expected_port_name}` — the "
-        "port name the chart actually gives the Service it renders (derived "
-        f"from `helm template`, not from a literal in this file). A scrape "
-        "naming a port the Service lacks produces no scrape config and "
-        f"therefore no targets, silently. Got: {endpoint.get('port')!r}"
+    leftovers = sorted(
+        key for key in ("endpoints", "service", "vmScrape") if key in kube_etcd
+    )
+    assert not leftovers, (
+        f"kubeEtcd is disabled but still carries {leftovers}. Those keys drive "
+        "nothing now and read as if they were the scrape. The scrape lives in "
+        f"{ETCD_STATIC_SCRAPE.relative_to(REPO)}."
+    )
+
+
+def test_etcd_is_scraped_by_a_vmstaticscrape():
+    """One VMStaticScrape, in the monitoring namespace, plain HTTP, no auth."""
+    document = _etcd_static_scrape()
+    metadata = document.get("metadata") or {}
+    assert metadata.get("namespace") == "monitoring", (
+        "the etcd VMStaticScrape must live in `monitoring`, alongside the VMAgent "
+        f"that selects it. Got namespace={metadata.get('namespace')!r}"
+    )
+
+    spec = document.get("spec") or {}
+    assert str(spec.get("jobName") or "").strip(), (
+        "the etcd VMStaticScrape has no `spec.jobName`. Without it vmagent names "
+        "the job itself, and every `up{job=...}` selector in the six rules "
+        "points at a job that does not exist."
+    )
+
+    endpoint = _etcd_target_endpoint()
+    assert endpoint.get("scheme") == "http", (
+        "the etcd scrape must use `scheme: http`. The metrics listener is "
+        f"plain HTTP by design. Got: {endpoint.get('scheme')!r}"
+    )
+    assert endpoint.get("path") == "/metrics", (
+        f"the etcd scrape must read `/metrics`. Got: {endpoint.get('path')!r}"
     )
 
     forbidden = sorted(
         key
-        for key in ("bearerTokenFile", "bearerTokenSecret", "tlsConfig")
+        for key in (
+            "bearerTokenFile",
+            "bearerTokenSecret",
+            "tlsConfig",
+            "basicAuth",
+            "oauth2",
+            "authorization",
+        )
         if key in endpoint
     )
     assert not forbidden, (
-        "the etcd scrape endpoint carries chart-default authentication: "
-        f"{forbidden}. Port 2381 is unauthenticated plain HTTP — a bearer "
-        "token or TLS config there is not merely redundant, it is the "
-        "kubeadm-shaped default that makes the target fail while the values "
-        "read as careful."
+        f"the etcd scrape endpoint carries authentication: {forbidden}. Port "
+        "2381 is unauthenticated plain HTTP; a token or TLS config there is the "
+        "kubeadm-shaped default that makes the target fail while it reads as "
+        "careful."
     )
 
 
 # ---------------------------------------------------------------------------
 # The two halves cannot drift apart.
 #
-# These are the whole reason this file exists. The ConfigPatch and the chart
-# values live in different directories and are applied by different tools —
-# `omnictl`, by hand, by an operator; and ArgoCD, from `main` — so no deploy,
-# no sync status and no review of either file alone can notice that they no
-# longer agree. A port typo in either, or a node IP that moves, reproduces
-# precisely the silent empty-target failure this layer was written to fix:
-# configuration that looks complete, produces no error, and yields no data.
+# These are the whole reason this file exists. The ConfigPatch and the scrape
+# live in different directories and are applied by different tools: `omnictl`,
+# by hand, by an operator, and ArgoCD, from `main`. No deploy, no sync status
+# and no review of either file alone can notice that they no longer agree. A
+# port typo in either, or a node IP that moves, reproduces precisely the silent
+# empty-target failure this layer was written to fix.
 #
 # Both are written as DERIVATIONS. Restating the port or the addresses here
 # would make this file a third copy that drifts alongside the other two, which
@@ -312,7 +348,7 @@ def test_kube_etcd_values_target_the_control_planes():
 
 
 def test_listener_port_matches_the_scrape_target_port():
-    """The port etcd listens on is the port the scrape dials.
+    """The port etcd listens on is the port every scrape target dials.
 
     Parsed out of the ConfigPatch's URL rather than asserted as a literal, so
     the test cannot agree with a typo it also contains.
@@ -321,45 +357,153 @@ def test_listener_port_matches_the_scrape_target_port():
     listener_port = urlparse(url).port
     assert listener_port is not None, (
         f"could not parse a port out of `listen-metrics-urls: {url}` in "
-        f"{CONFIGPATCH.relative_to(REPO)} — etcd needs an explicit port here, "
-        "and this guard cannot compare what it cannot read"
+        f"{CONFIGPATCH.relative_to(REPO)}. etcd needs an explicit port here, "
+        "and this guard cannot compare what it cannot read."
     )
 
-    target_port = (_kube_etcd().get("service") or {}).get("targetPort")
+    target_ports = sorted({port for _, port in _etcd_targets()}, key=str)
 
-    assert listener_port == target_port, (
+    assert target_ports == [listener_port], (
         "PORT MISMATCH between the two halves of the etcd scrape:\n"
         f"  {CONFIGPATCH.relative_to(REPO)} opens etcd's metrics listener on "
         f"port {listener_port} (listen-metrics-urls: {url})\n"
-        f"  {VM_VALUES.relative_to(REPO)} dials kubeEtcd.service.targetPort = "
-        f"{target_port!r}\n"
+        f"  {ETCD_STATIC_SCRAPE.relative_to(REPO)} dials ports {target_ports!r}\n"
         "These files are applied by different tools and nothing else connects "
-        "them, so a mismatch does not fail a deploy — it produces a scrape "
+        "them, so a mismatch does not fail a deploy. It produces a scrape "
         "target that is down forever while both files look correct in "
-        "isolation. That is the exact failure this layer exists to fix."
+        "isolation."
     )
 
 
 def test_endpoints_match_the_documented_control_plane_ips():
-    """The scrape targets the nodes the repo says are the control plane.
+    """The scrape targets exactly the nodes the repo says are the control plane.
 
-    Frank's node IPs are static, fixed by Talos machine config — so this is not
-    guarding against drift in the addresses so much as against the chart values
-    and the machine table disagreeing about which machines run etcd. A stale IP
-    here scrapes nothing and reports nothing.
+    etcd runs on the control plane and nowhere else. An address in one list and
+    not the other is either a node that is scraped but runs no etcd, or an etcd
+    member that is not scraped at all. Neither shows up as an error, only as
+    missing series.
     """
     documented = CONTROL_PLANE_IPS
-    configured = _kube_etcd().get("endpoints")
+    configured = [host for host, _ in _etcd_targets()]
 
     assert configured == documented, (
-        "ENDPOINT MISMATCH between the etcd scrape and the repo's machine "
-        "table:\n"
-        f"  {VM_VALUES.relative_to(REPO)} kubeEtcd.endpoints = {configured!r}\n"
-        f"  {INFRA_RULE.relative_to(REPO)} control-plane rows = {documented!r}\n"
-        "etcd runs on the control plane and nowhere else. An address that is "
-        "in one list and not the other is either a node that is scraped but "
-        "runs no etcd, or an etcd member that is not scraped at all — and "
-        "neither shows up as an error, only as missing series."
+        "TARGET MISMATCH between the etcd scrape and the repo's machine table:\n"
+        f"  {ETCD_STATIC_SCRAPE.relative_to(REPO)} targets = {configured!r}\n"
+        f"  {INFRA_RULE.relative_to(REPO)} control-plane rows = {documented!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# ArgoCD must be able to deliver the scrape at all.
+#
+# This is the assertion #762 lacked. Every guard above passed while the scrape
+# was undeployable, because they asserted what the manifests SAY and never
+# whether ArgoCD would APPLY them. ArgoCD applies nothing of an excluded kind:
+# no error, only an ExcludedResourceWarning condition on an app that still reads
+# Synced/Healthy. So the exclusion list is parsed from the repo (fail-closed: a
+# parser that finds no Endpoints exclusion is reading nothing) and every kind
+# the scrape path depends on is checked against it.
+# ---------------------------------------------------------------------------
+
+
+def _argocd_in_cluster_exclusions() -> list[tuple[str, str]]:
+    """(apiGroup, kind) pairs ArgoCD excludes for the in-cluster destination.
+
+    Entries scoped to other clusters (the vCluster Pod exclusion) do not apply
+    to Frank's own destination and are skipped. An entry with no `clusters` key
+    applies everywhere.
+    """
+    values = yaml.safe_load(ARGOCD_VALUES.read_text(encoding="utf-8"))
+    raw = ((values.get("configs") or {}).get("cm") or {}).get("resource.exclusions")
+    assert isinstance(raw, str) and raw.strip(), (
+        f"could not find configs.cm.resource.exclusions in "
+        f"{ARGOCD_VALUES.relative_to(REPO)}. This guard checks the scrape against "
+        "the kinds ArgoCD drops, and cannot do that if the list moved."
+    )
+    pairs: list[tuple[str, str]] = []
+    for entry in yaml.safe_load(raw) or []:
+        clusters = entry.get("clusters") or ["*"]
+        if "*" not in clusters:
+            continue
+        for group in entry.get("apiGroups") or ["*"]:
+            for kind in entry.get("kinds") or ["*"]:
+                pairs.append((str(group), str(kind)))
+    assert ("", "Endpoints") in pairs, (
+        "parsed ArgoCD resource.exclusions without finding the chart-default "
+        "Endpoints exclusion. Either the list changed shape and this parser now "
+        f"reads nothing, or Endpoints is no longer excluded. Parsed: {pairs}"
+    )
+    return pairs
+
+
+def _is_excluded(api_version: str, kind: str, pairs: list[tuple[str, str]]) -> bool:
+    group = api_version.rsplit("/", 1)[0] if "/" in api_version else ""
+    return any(
+        ex_group in ("*", group) and ex_kind in ("*", kind)
+        for ex_group, ex_kind in pairs
+    )
+
+
+def test_the_etcd_scrape_depends_on_no_kind_argocd_excludes():
+    """Neither the scrape object nor the chart path may be an excluded kind.
+
+    Two halves. The VMStaticScrape must itself be deliverable. And no chart
+    control-plane block may be left supplying `endpoints:`, which renders the
+    static Endpoints object this bug was made of.
+    """
+    pairs = _argocd_in_cluster_exclusions()
+    document = _etcd_static_scrape()
+    assert not _is_excluded(document["apiVersion"], document["kind"], pairs), (
+        f"{document['kind']} ({document['apiVersion']}) is in ArgoCD's "
+        "resource.exclusions, so ArgoCD will never apply the etcd scrape and "
+        "will report the app Synced regardless."
+    )
+
+    rendering_endpoints = sorted(
+        component
+        for component, block in _vm_values().items()
+        if component.startswith("kube")
+        and isinstance(block, dict)
+        and block.get("enabled", True) is not False
+        and block.get("endpoints")
+    )
+    assert not rendering_endpoints, (
+        f"{VM_VALUES.relative_to(REPO)} still supplies `endpoints:` on "
+        f"{rendering_endpoints}. That makes the chart render a static Endpoints "
+        "object, and Endpoints is in ArgoCD's resource.exclusions, so the object "
+        "is silently never applied (#762, 2026-09-13). Scrape a host service "
+        "with a VMStaticScrape instead."
+    )
+
+
+def test_no_git_manifest_is_a_kind_argocd_silently_drops():
+    """Repo-wide: a manifest of an excluded kind is a deploy that never happens.
+
+    Scoped to raw manifest directories (`apps/*/manifests/`), where every
+    document with an apiVersion and kind is meant to reach the cluster. Files
+    that do not parse as YAML (Helm templates) are skipped; they are not raw
+    manifests.
+    """
+    pairs = _argocd_in_cluster_exclusions()
+    offenders: list[str] = []
+    for manifest in sorted((REPO / "apps").glob("*/manifests/**/*.y*ml")):
+        try:
+            documents = list(yaml.safe_load_all(manifest.read_text(encoding="utf-8")))
+        except yaml.YAMLError:
+            continue
+        for document in documents:
+            if not isinstance(document, dict):
+                continue
+            api_version, kind = document.get("apiVersion"), document.get("kind")
+            if not (isinstance(api_version, str) and isinstance(kind, str)):
+                continue
+            if _is_excluded(api_version, kind, pairs):
+                name = (document.get("metadata") or {}).get("name")
+                offenders.append(f"{manifest.relative_to(REPO)}: {kind}/{name}")
+    assert not offenders, (
+        "git-managed manifest(s) of a kind ArgoCD's resource.exclusions drop. "
+        "ArgoCD will never apply them and will still report their app Synced:\n  "
+        + "\n  ".join(offenders)
     )
 
 
@@ -410,8 +554,8 @@ REDUCER = "last"
 
 # The job label the scrape produces. Written here only so failure messages can
 # name it — NOTHING asserts against this constant. The rules are checked against
-# the value DERIVED from the rendered chart in
-# `test_absent_watchdog_selects_the_job_the_chart_renders`, because a constant
+# the value DERIVED from the VMStaticScrape's jobName in
+# `test_absent_watchdog_selects_the_job_the_scrape_declares`, because a constant
 # and a rule that agree with each other are just the same paste twice.
 ETCD_JOB = "kube-etcd"
 
@@ -688,7 +832,7 @@ def test_etcd_rules_declare_nodata_ok_and_execerr_error():
     that pages. `up` is not exported by etcd — the SCRAPER synthesises it, once
     per configured target, every interval: `1` on a successful scrape and `0` on
     a failed one. It is never absent while the target is configured, and
-    supplying `kubeEtcd.endpoints` configures three of them the moment ArgoCD
+    declaring the scrape's targets configures three of them the moment ArgoCD
     syncs. So with the listener still closed, `layer-2-etcd-member-down`
     (`up < 1`) is not NoData — it is `0 < 1`, true, and it pages after `for:
     10m`. That is why the ConfigPatch is a PRE-MERGE gate (see
@@ -924,168 +1068,40 @@ def test_no_etcd_annotation_contains_html_metacharacters():
 
 
 # ---------------------------------------------------------------------------
-# The watchdog must watch the name the chart actually renders.
+# The watchdog must watch the job the scrape actually declares.
 #
 # `absent(up{job="kube-etcd"})` is the guard against this layer silently
-# reverting — and it is itself silently breakable, in a way that looks the same
+# reverting, and it is itself silently breakable, in a way that looks the same
 # from either direction. A watchdog naming a job that never exists returns
-# `absent() == 1` forever: it fires immediately, permanently, against a
+# `absent() == 1` forever. It fires immediately and permanently against a
 # perfectly healthy scrape, which reads as a broken rule and gets muted. A
 # watchdog naming a job that stopped existing after a rename returns exactly the
-# same thing — and gets muted for the same reason, at the moment it is right.
-# Either way the guard against silent absence is itself silently wrong, which is
-# the defect class this whole plan exists to stop recurring, on its third
-# appearance.
+# same thing, and gets muted for the same reason, at the moment it is right.
 #
-# So the job name is DERIVED from the rendered chart rather than compared with a
-# constant. The constant and the rule would only ever be the same paste twice.
-# The derivation is two hops, both of which a chart bump can move independently:
-#
-#   VMServiceScrape.spec.jobLabel  ->  names a Service LABEL KEY ("jobLabel")
-#   Service.metadata.labels[key]   ->  the job VALUE ("kube-etcd")
-#
-# This shells out to `helm template` against the pinned chart, following
-# test_cnc_staging_host_secrets.py, and is fail-closed: a missing helm or no
-# egress goes RED on infrastructure rather than green on nothing. CI installs
-# helm for exactly this reason (.github/workflows/repo-tripwires.yml).
+# So the job name is DERIVED, not compared with a constant. It used to come from
+# the rendered chart in two hops (VMServiceScrape.spec.jobLabel naming a Service
+# label). Now there is one place it is set: the VMStaticScrape's `jobName`.
 # ---------------------------------------------------------------------------
 
-VM_APPLICATION = REPO / "apps" / "root" / "templates" / "victoria-metrics.yaml"
 
-# The rendered objects are named `<release>-<chart>-kube-etcd`; the release name
-# must match production or the Service labels the scrape selects on differ.
-VM_RELEASE = "victoria-metrics"
-
-_render_cache: dict[str, dict[str, dict[str, Any]]] = {}
-
-
-def _vm_chart_pin() -> tuple[str, str, str]:
-    """(repoURL, chart, version) for the k8s-stack source, from the App CR.
-
-    Read by regex, not YAML: the Application is a Helm template and carries
-    `{{ .Values.repoURL }}` in its sibling sources, so `yaml.safe_load` cannot
-    parse it. Deriving the pin means a chart bump re-runs this guard against
-    whatever is actually deployed instead of against a stale literal.
-    """
-    text = VM_APPLICATION.read_text(encoding="utf-8")
-    match = re.search(
-        r"repoURL:\s*(?P<repo>\S+)\s*\n\s*chart:\s*(?P<chart>\S+)\s*\n\s*"
-        r"targetRevision:\s*\"?(?P<version>[0-9][^\"\s]*)\"?",
-        text,
+def _declared_job_name() -> str:
+    job = (_etcd_static_scrape().get("spec") or {}).get("jobName")
+    assert job and str(job).strip(), (
+        "the etcd VMStaticScrape declares no spec.jobName, so there is no job "
+        "name for the rules to agree with"
     )
-    assert match, (
-        f"could not find the charted source pin in "
-        f"{VM_APPLICATION.relative_to(REPO)} — this guard renders the chart at "
-        "the version ArgoCD actually deploys, and cannot do that if the "
-        "Application's shape has changed"
-    )
-    return match.group("repo"), match.group("chart"), match.group("version")
+    return str(job)
 
 
-def _rendered_kube_etcd_objects() -> dict[str, dict[str, Any]]:
-    """`{kind: object}` for the kube-etcd objects the chart renders.
-
-    Rendered with the real `apps/victoria-metrics/values.yaml` and the
-    production release name, so the labels here are the labels the cluster has.
-    """
-    if "objects" in _render_cache:
-        return _render_cache["objects"]
-
-    repo, chart, version = _vm_chart_pin()
-    result = subprocess.run(
-        [
-            "helm", "template", VM_RELEASE, chart,
-            "--repo", repo,
-            "--version", version,
-            "-f", str(VM_VALUES),
-            # The operator subchart renders CRDs and a webhook we do not need
-            # and which slow the render considerably.
-            "--set", "victoria-metrics-operator.enabled=false",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, (
-        f"`helm template {chart} --version {version}` failed, so the job label "
-        "could not be derived. This guard is fail-closed on purpose: a green "
-        "run must mean the chart was rendered and agreed, never that rendering "
-        f"was skipped.\n{result.stderr}"
-    )
-
-    objects: dict[str, dict[str, Any]] = {}
-    for document in yaml.safe_load_all(result.stdout):
-        if not document:
-            continue
-        name = (document.get("metadata") or {}).get("name") or ""
-        if name.endswith("-kube-etcd"):
-            objects[document["kind"]] = document
-
-    for kind in ("Service", "VMServiceScrape"):
-        assert kind in objects, (
-            f"the chart rendered no kube-etcd {kind}. Either kubeEtcd went "
-            "disabled in apps/victoria-metrics/values.yaml — in which case "
-            "there is no scrape and these alert rules are decoration — or the "
-            f"chart renamed its objects. Rendered kinds: {sorted(objects)}"
-        )
-    _render_cache["objects"] = objects
-    return objects
-
-
-def _rendered_metrics_port_name() -> str:
-    """The port NAME the chart gives the kube-etcd Service.
-
-    Derived rather than restated because `http-metrics` is a chart-template
-    literal — the chart composes it as
-    `{{ list "http-metrics" | append $portName | join "-" }}` — so it is not a
-    value this repo sets and not a value a diff of this repo would show moving.
-    """
-    service = _rendered_kube_etcd_objects()["Service"]
-    ports = (service.get("spec") or {}).get("ports") or []
-    assert len(ports) == 1, (
-        "expected the rendered kube-etcd Service to carry exactly one port (the "
-        f"metrics listener); it carries {len(ports)}: {ports!r}. If the chart "
-        "now renders several, this derivation has to choose between them and "
-        "the choice belongs in the test, stated, not implied."
-    )
-    name = ports[0].get("name")
-    assert name, (
-        "the rendered kube-etcd Service port has no `name`, so the "
-        "VMServiceScrape cannot reference it by name and the operator "
-        f"generates no scrape config. Rendered port: {ports[0]!r}"
-    )
-    return str(name)
-
-
-def _rendered_job_label() -> str:
-    """The job name series will actually carry, derived in two hops."""
-    objects = _rendered_kube_etcd_objects()
-
-    label_key = (objects["VMServiceScrape"].get("spec") or {}).get("jobLabel")
-    assert label_key, (
-        "the rendered VMServiceScrape has no `spec.jobLabel`, so vmagent would "
-        "fall back to its own default job naming and every selector in these "
-        "rules would be wrong in a way nothing else reports"
-    )
-
-    service_labels = (objects["Service"].get("metadata") or {}).get("labels") or {}
-    assert label_key in service_labels, (
-        f"the VMServiceScrape takes the job name from the Service label "
-        f"{label_key!r}, but the rendered Service carries no such label. "
-        f"Service labels: {sorted(service_labels)}"
-    )
-    return str(service_labels[label_key])
-
-
-def test_absent_watchdog_selects_the_job_the_chart_renders():
-    """The watchdog's `job` is the chart's, not a remembered string.
+def test_absent_watchdog_selects_the_job_the_scrape_declares():
+    """The watchdog's `job` is the scrape's `jobName`, not a remembered string.
 
     Checked for every `up{job="..."}` selector in the six rules, not only the
-    watchdog: `layer-2-etcd-member-down` fails the same way and even more
+    watchdog. `layer-2-etcd-member-down` fails the same way and even more
     quietly. A wrong job there yields no series at all, which under
-    `noDataState: OK` reads as a healthy quorum forever — a rule that cannot
-    fire, reporting health.
+    `noDataState: OK` reads as a healthy quorum forever.
     """
-    expected = _rendered_job_label()
+    expected = _declared_job_name()
 
     selectors: dict[str, list[str]] = {}
     for uid, rule in _etcd_rules().items():
@@ -1097,8 +1113,7 @@ def test_absent_watchdog_selects_the_job_the_chart_renders():
         f"{ETCD_ABSENT_WATCHDOG} does not select on an `up{{job=...}}` series. "
         "absent() is the only expression that fires when a series DISAPPEARS, "
         "and `up` is the only series guaranteed to exist for as long as the "
-        "target does — so the watchdog against the scrape vanishing has to be "
-        "built on it."
+        "target does."
     )
 
     wrong = {
@@ -1107,17 +1122,12 @@ def test_absent_watchdog_selects_the_job_the_chart_renders():
         if any(job != expected for job in jobs)
     }
     assert not wrong, (
-        "etcd alert rule(s) select a job the chart does not render.\n"
-        f"  chart renders: job={expected!r}\n"
-        f"  rules select:  {wrong}\n"
-        "The name arrives by two hops — the Service carries a `jobLabel` label, "
-        "and the VMServiceScrape's `spec.jobLabel` says to take the job name "
-        "from it — so a rename at either end moves it. A selector naming a job "
-        "that does not exist yields no series, which for the watchdog means "
-        "`absent() == 1` permanently (fires against a healthy scrape, then gets "
-        "muted) and for every other rule means NoData, which noDataState: OK "
-        "reads as health. Both are the guard being silently wrong, which is the "
-        "exact defect this layer exists to stop recurring."
+        "etcd alert rule(s) select a job the scrape does not declare.\n"
+        f"  {ETCD_STATIC_SCRAPE.relative_to(REPO)} jobName: {expected!r}\n"
+        f"  rules select: {wrong}\n"
+        "A selector naming a job that does not exist yields no series: for the "
+        "watchdog that means `absent() == 1` permanently, and for every other "
+        "rule it means NoData, which noDataState: OK reads as health."
     )
 
 
@@ -1126,13 +1136,13 @@ def test_absent_watchdog_selects_the_job_the_chart_renders():
 #
 # A scrape with rules but no dashboard has nowhere for the acceptance re-run's
 # before/under-load numbers to live. And Frank already has an UPSTREAM etcd
-# dashboard — victoria-metrics-k8s-stack renders one (title "etcd", a
-# chart-generated uid) whether or not this plan exists, because it follows
-# kubeEtcd.enabled, and Grafana's grafana-sc-dashboard sidecar has been serving
-# it, empty, for the same 148 days. It cannot be disabled independently
-# (defaultDashboards.dashboards has no etcd toggle; the only levers remove
-# either all 15 default boards or the scrape itself). So this guard does not
-# assert the curated board is the ONLY etcd dashboard — it asserts it exists,
+# dashboard — victoria-metrics-k8s-stack rendered one (title "etcd", a
+# chart-generated uid) for as long as kubeEtcd.enabled was true, and it has no
+# toggle of its own. kubeEtcd.enabled is now false (the scrape moved to a
+# VMStaticScrape), so the chart no longer renders it, but under prune: false a
+# live orphan may remain until manual op obs-etcd-chart-orphans-delete runs.
+# So this guard does not assert the curated board is the ONLY etcd dashboard,
+# since the cluster may still hold that orphan. It asserts it exists,
 # is mounted (both halves — see below), and measures the right metrics; the
 # distinct-identity requirement against the upstream board is enforced by
 # reading the curated title/uid directly, not by comparison to a render.
@@ -1394,16 +1404,29 @@ def _plan_manual_op_block() -> str:
         for task in document.get("tasks") or []
         for step in task.get("steps") or []
     ]
-    carrying = [text for text in texts if "# manual-operation" in text]
-    assert len(carrying) == 1, (
-        f"expected exactly one step in {plan_phase_5.relative_to(REPO)} to "
-        f"carry the `# manual-operation` block, found {len(carrying)}. "
-        "`/sync-runbook` reads the plan, so the plan is where the runbook "
-        "entry comes from."
+    # Selected by the operation's id, not by "the only manual-operation block in
+    # the phase". Phase 5 legitimately carries others. The post-merge
+    # obs-etcd-chart-orphans-delete op lives in P5.T2.S1, and /sync-runbook
+    # needs it in the plan too. A count-based selector would turn this guard
+    # red for a correct plan, and a guard that fails on correct input gets
+    # deleted.
+    matching = [
+        block
+        for text in texts
+        for block in _MANUAL_OP_BLOCK.findall(text)
+        if (yaml.safe_load(block) or {}).get("id") == LISTENER_APPLY_OP_ID
+    ]
+    assert len(matching) == 1, (
+        f"expected exactly one `# manual-operation` block with id "
+        f"{LISTENER_APPLY_OP_ID} in {plan_phase_5.relative_to(REPO)}, found "
+        f"{len(matching)}. `/sync-runbook` reads the plan, so the plan is where "
+        "the runbook entry comes from, and two copies of the same id would sync "
+        "whichever it meets last."
     )
-    return _manual_op_block_in(
-        carrying[0], f"{plan_phase_5.relative_to(REPO)} (step text)"
-    )
+    return matching[0]
+
+
+LISTENER_APPLY_OP_ID = "obs-etcd-metrics-listener-apply"
 
 
 def test_the_manual_operation_block_is_complete_and_says_what_it_asserts():
@@ -1540,8 +1563,8 @@ def test_the_manual_operation_reached_the_central_runbook():
 # simply down and the rules sit at NoData with noDataState: OK — nothing fires".
 # That is false. `up` is not a series etcd exports: the SCRAPER synthesises one
 # per configured target, every interval, `1` on success and `0` on failure. It is
-# never absent while the target is configured — and supplying `kubeEtcd.endpoints`
-# is exactly what configures three of them.
+# never absent while the target is configured — and declaring the scrape's targets
+# (the VMStaticScrape) is exactly what configures three of them.
 #
 # So merging first does not produce a quiet NoData window. It produces three
 # `up=0` targets, `layer-2-etcd-member-down` firing at `for: 10m`, and Telegram
@@ -1700,7 +1723,7 @@ def test_the_ordering_claim_is_not_reverted():
         "  `up` is NOT exported by etcd. vmagent synthesises one series per "
         "CONFIGURED target every interval — 1 on a successful scrape, 0 on a "
         "failed one — and never omits it while the target is configured. "
-        "Supplying kubeEtcd.endpoints is what creates the targets, so merging "
+        "Declaring the scrape's targets is what creates them, so merging "
         "before the listener is open gives three targets at up=0 (not NoData), "
         "layer-2-etcd-member-down fires at for: 10m, and the notification "
         "policy's root repeat_interval: 3m pages Telegram every 3 minutes "

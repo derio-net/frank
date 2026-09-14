@@ -121,6 +121,18 @@ reason.
 
 ### Half 2 — point the scrape at it (GitOps, ArgoCD)
 
+> **Correction, 2026-09-14 — this half did not deploy as designed.** The
+> `kubeEtcd.endpoints` shape below renders a static `Endpoints` object, and
+> ArgoCD's `resource.exclusions` (`apps/argocd/values.yaml`, the argo-cd chart
+> defaults) exclude `Endpoints` and `EndpointSlice` cluster-wide. After #762
+> merged, ArgoCD reported `Synced/Healthy` with an `ExcludedResourceWarning`,
+> the scrape had zero targets, and `layer-2-etcd-scrape-absent` fired fifteen
+> minutes later. The shipped implementation is a `VMStaticScrape`
+> (`apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml`) with
+> `kubeEtcd.enabled: false`. The rest of this section is the original design,
+> kept as the record. Debug journal:
+> `docs/superpowers/journals/debug/2026-09-14-etcd-scrape-vmstaticscrape.md`.
+
 In `apps/victoria-metrics/values.yaml`:
 
 ```yaml

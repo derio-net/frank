@@ -52,12 +52,12 @@
 # Do not touch the next node until this one is Ready, etcd is HEALTH OK with
 # quorum, and <ip>:2381/metrics answers.
 #
-# ORDERING — THIS IS A PRE-MERGE GATE. APPLY IT *BEFORE* THE kubeEtcd VALUES
-# BLOCK MERGES.
+# ORDERING — THIS IS A PRE-MERGE GATE. APPLY IT *BEFORE* THE etcd SCRAPE
+# MERGES.
 # `up` is NOT a series etcd exports: the scraper synthesises one per configured
 # target, 1 on a successful scrape and 0 on a failed one, and it is never ABSENT
-# while the target is configured. Supplying kubeEtcd.endpoints is what creates
-# targets (the chart drops its pod selector for a static Endpoints object), so
+# while the target is configured. Declaring the scrape's targets (the
+# VMStaticScrape in apps/victoria-metrics/manifests) is what creates them, so
 # merging first hands vmagent three targets dialling a refused port: they sit at
 # up=0, NOT NoData, and layer-2-etcd-member-down (up lt 1, for 10m, critical, no
 # health_bridge_only) pages Telegram every 3 minutes against a healthy quorum.
@@ -65,16 +65,18 @@
 # POPULATED Endpoints and a scrape that fails on TLS/auth against 10259, and has
 # read up=0 (not NoData) for the whole retention window.
 #
-# ROLLBACK: revert BOTH halves — the kubeEtcd block in
-# apps/victoria-metrics/values.yaml FIRST, then delete this ConfigPatch.
-# Deleting the ConfigPatch alone is not quiet: the Endpoints object survives, so
+# ROLLBACK: revert BOTH halves — remove the etcd VMStaticScrape
+# (apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml, plus a manual
+# kubectl delete under prune: false) FIRST, then this ConfigPatch.
+# Deleting the ConfigPatch alone is not quiet: the scrape survives, so
 # up goes to 0 rather than disappearing — layer-2-etcd-member-down PAGES, while
 # absent(up{job="kube-etcd"}) stays empty so the blindness watchdog never fires.
 # Only the five etcd_server_/disk_/mvcc_ rules go NoData and read OK.
 # Full prose: patches/phase08-obs/README.md.
 #
-# The port here is asserted equal to `kubeEtcd.service.targetPort` in
-# apps/victoria-metrics/values.yaml by scripts/tests/test_etcd_scrape.py. The
+# The port here is asserted equal to every target port in
+# apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml by
+# scripts/tests/test_etcd_scrape.py. The
 # two files are applied by different tools (omnictl vs ArgoCD) and nothing else
 # connects them; a port typo in either reproduces exactly the silent
 # empty-target failure described above.
