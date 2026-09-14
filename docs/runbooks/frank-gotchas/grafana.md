@@ -1099,3 +1099,56 @@ points at the EventListener's own log (`el-gitea-listener` /
 `apps/tekton/webhooks.yaml` plus the forge's webhook configuration, because a
 declared trigger and a delivered webhook are two different things and only
 one of them is IaC.
+
+
+### A rule uid over 40 characters takes Grafana down entirely
+
+Grafana caps alert-rule `uid` at **40 characters**, and rejecting one is not a
+per-rule outcome. The whole provisioning step fails, the `grafana` container
+exits non-zero, and it `CrashLoopBackOff`s:
+
+```
+logger=provisioning level=error msg="Failed to provision alerting"
+  error="alert rules: invalid alert rule
+  cannot create rule with UID 'layer-25-pipeline-idle-stoa-status-bridge':
+  UID is longer than 40 symbols"
+Error: ✗ invalid service state: Failed ... starting module provisioning
+```
+
+Every dashboard, every datasource and every alert rule is down until someone
+edits the ConfigMap. There is no partial-success mode and no degraded state —
+the pod simply never becomes ready.
+
+**Shipped once, on 2026-09-14 (#797).** `layer-25-pipeline-idle-stoa-status-bridge`
+is 41 characters; its sibling `layer-25-pipeline-idle-github-pull-sync` is 39 and
+would have been fine. Both were renamed to a `layer-25-idle-<pipeline>` scheme.
+
+**What makes this worth writing down is everything that did not catch it.**
+Eleven rule-specific guards in `test_pipelinerun_outcome_alerting.py`, the
+folder-wide guards in `test_feature_health_workload_metrics.py` (including one
+that asserts uids are non-empty and globally unique), `fr plan self-review`,
+four rounds of phase review, and a green CI run all passed it. Every one of
+those asks whether a rule is well-*formed*; the limit is Grafana's, so no
+amount of reasoning about the rule's content can surface it. Only counting the
+characters can.
+
+It also survived the deploy-verification step that was supposed to catch
+exactly this class: ArgoCD reported `Synced/Healthy`, the ConfigMap on the
+cluster contained the new rules, and the failure appeared only when the pod was
+restarted — because **Grafana parses provisioning at boot**. A ConfigMap that
+has synced proves nothing about whether Grafana can start with it. The restart
+is the test.
+
+**Guard:** `test_no_rule_uid_exceeds_grafanas_forty_character_limit`, scoped to
+the entire provisioning document rather than one folder, because the blast
+radius is the document. Note `headscale-api-key-expiry-heartbeat-stale` is
+already at exactly 40 — the margin is one character, not a comfortable one.
+
+**Recovery**, if it happens again: there is no rollback that helps, because the
+ConfigMap and the Deployment are separate objects — rolling the Deployment back
+re-mounts the same broken ConfigMap. Suspend `selfHeal` on the
+`grafana-alerting` Application, patch the uid in the live ConfigMap, restart the
+pod, then land the real fix in git and re-enable `selfHeal`. Restore the
+`automated` map *exactly* as it was (`{"selfHeal": true}` — a `--type=merge`
+patch REPLACES that nested map, so passing `prune: false` alongside silently
+adds drift).

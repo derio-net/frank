@@ -1658,3 +1658,47 @@ def test_collectors_rule_deliberately_does_page():
         "collector dying would no longer page. That is a deliberate difference "
         f"from {SCALE_TO_ZERO}, not an inconsistency to tidy away."
     )
+
+
+# ---------------------------------------------------------------------------
+# Grafana's own limits. Folder-agnostic on purpose: a violation anywhere in the
+# provisioning document takes the WHOLE document down, not one folder.
+# ---------------------------------------------------------------------------
+
+GRAFANA_MAX_UID_LENGTH = 40
+
+
+def test_no_rule_uid_exceeds_grafanas_forty_character_limit():
+    """A rule uid longer than 40 characters CRASHES Grafana at boot.
+
+    Not "that rule is skipped" — the whole provisioning step fails, the
+    `grafana` container exits non-zero, and it CrashLoopBackOffs. Every
+    dashboard, every datasource and every alert rule goes down with it, which
+    means the cluster's entire alerting surface is dark until someone edits
+    the ConfigMap. There is no partial-success mode:
+
+        Failed to provision alerting error="alert rules: invalid alert rule
+        cannot create rule with UID '...': UID is longer than 40 symbols"
+
+    Shipped exactly once, in #797: `layer-25-pipeline-idle-stoa-status-bridge`
+    at 41 characters. Eleven rule-specific guards, the folder-wide guards in
+    this file, `fr plan self-review` and a green CI run all passed it, because
+    every one of them asked whether the rule was well-FORMED and none asked
+    whether Grafana would accept it. The limit is Grafana's, so no amount of
+    reasoning about the rule's content can surface it — only the number can.
+
+    Scoped to the entire provisioning document rather than the feature-health
+    folder, because the blast radius is the document.
+    """
+    offenders = {
+        rule["uid"]: len(rule["uid"])
+        for rule in _all_rules()
+        if len(rule.get("uid", "")) > GRAFANA_MAX_UID_LENGTH
+    }
+    assert not offenders, (
+        f"rule uid(s) longer than Grafana's {GRAFANA_MAX_UID_LENGTH}-character "
+        f"limit (uid -> length): {offenders}. Grafana does not skip an "
+        "over-long rule — it fails the whole provisioning step and the "
+        "container CrashLoops, taking all alerting down with it. Shorten the "
+        "uid; it is an identifier, not a description."
+    )

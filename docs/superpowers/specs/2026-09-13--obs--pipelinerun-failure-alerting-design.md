@@ -127,7 +127,7 @@ Labels: `severity: warning`, `github_issue: "frank-ops#25"`. Routing follows the
 
 ### 3. Idle dead-man — one rule per watched pipeline
 
-Two rules, `layer-25-pipeline-idle-stoa-status-bridge` and `layer-25-pipeline-idle-github-pull-sync`, in the same group. Each asks the same question of one pipeline:
+Two rules, `layer-25-idle-stoa-status-bridge` and `layer-25-idle-github-pull-sync`, in the same group. Each asks the same question of one pipeline:
 
 ```promql
 sum(
