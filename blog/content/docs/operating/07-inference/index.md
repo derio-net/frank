@@ -239,10 +239,16 @@ If `memory.current` is within 1–2 GiB of `memory.max`, that's the constraint. 
 Different app from the two patterns above, same word, third root cause — and
 this is the only OOM on this page that a restart genuinely fixes.
 
-`ovms-retrieval` never gives memory back. `memory.current` after a large rerank
-call equals `memory.peak` and stays there: 2.21 GiB idle, 4.90 GiB resident
-after a single 50-document call, for the life of the container. The resident
-floor ratchets up to the high-water mark of the largest call the process has
+`ovms-retrieval` never gives memory back, because what it is holding is not
+process memory at all — it is **pinned iGPU buffers**. The iGPU has no VRAM, so
+every GPU allocation is a shmem-backed host page, unevictable in the container's
+cgroup. With 5.11 GiB held, `memory.stat` reads `shmem` 5.11 GiB and
+`unevictable` 5.11 GiB — the same number — with `inactive_file` and
+`active_file` at zero and swap disabled. Nothing is reclaimable, so the kernel
+kills rather than frees. `limits.memory` here is the GPU's memory budget.
+
+Baseline after load is 1.71 GiB (the weights, on the GPU). The pool
+ratchets up to the high-water mark of the largest call the process has
 ever served, so **the same batch succeeds on a fresh pod and gets the pod
 OOM-killed once the floor has risen underneath it**. "It worked this morning" is
 the symptom, not a red herring.
@@ -332,7 +338,7 @@ Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memo
 | Bumping container `resources.limits.memory` was unnecessary — 24B+ models would fit in the default limit | `OLLAMA_KEEP_ALIVE=24h` causes page cache from previously-loaded models to accumulate, leaving no room for new-model load buffers. The error looks like a VRAM problem but `nvidia-smi` shows free GPU memory. | Several rounds of quant-size debugging before discovering the cgroup was the constraint. |
 | LiteLLM's `ollama/` model prefix would work for tool-calling agents | The `ollama/` route prefix doesn't support native stream-safe tool calling — agents that called tools through it got garbled responses. | A cluster-wide consumption pattern fix (`ollama/` → `ollama_chat/`, commit `8277c154`) once the tool-calling use case emerged. |
 | OpenRouter free-tier models would provide a useful fallback | Free models had unreliable availability, inconsistent quality, and changing rate limits — they broke silently more often than they worked. | Retired entirely (commit `46f19ca2`). The complexity of managing the model list wasn't worth the never-working fallback. |
-| The retrieval pod's OOM-kills meant some request size was simply too big | Memory is never released, so the resident floor ratchets to the largest call ever served — the fatal batch fits comfortably on a fresh pod and only dies on a warm one. Request size explained neither the intermittency nor restarts climbing 1 → 9 over a week of light use. | Two wrong conclusions from sweep data, because a monotonic `memory.peak` over an ascending sweep measures the sweep. Bounded both terms in the graph and raised the ceiling to fit the guard's own worst case. |
+| The retrieval pod's OOM-kills meant some request size was simply too big | Half right. The memory is *pinned iGPU buffers* — shmem, unevictable, unreclaimable, no swap — and it is never released, so the pool grows toward the largest shape served and the same request dies on a warm pod while succeeding on a fresh one. Request size alone explained neither the intermittency nor restarts climbing 1 → 9 over a week of light use. | Three wrong explanations in a row, each from a different proxy metric (`memory.current`, `working_set`, then `container_memory_rss` — which is blind to shmem by construction). Only `memory.stat` settles it. Bounded both terms in the graph, raised the ceiling to fit the guard's own worst case, and added a watchdog that resets the pool. |
 
 ## Quick Reference
 

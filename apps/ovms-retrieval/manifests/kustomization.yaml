@@ -18,3 +18,4 @@ resources:
   - resourceclaimtemplate.yaml
   - deployment.yaml
   - service.yaml
+  - pool-watchdog.yaml

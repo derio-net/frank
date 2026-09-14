@@ -238,17 +238,27 @@ spec:
             #     the per-chunk token bound below is the primary control and
             #     not a secondary precaution.
             #
-            #   * Memory is NEVER RELEASED. memory.current after a large call
-            #     equals memory.peak and stays there: idle 2.21 GiB, then
-            #     4.90 GiB afterwards, with no return. The resident floor
-            #     RATCHETS to the high-water of the largest call ever served
-            #     and holds for the life of the container. That ratchet — not
-            #     the size of any one request — is what made the failure
-            #     intermittent: the largest batch this endpoint is expected to
-            #     serve costs 2.93 GiB, so on a fresh server it fits inside
-            #     6Gi comfortably. It dies only once the floor has risen
-            #     underneath it, which is exactly what "works, then doesn't,
-            #     then works again after a restart" looks like.
+            #   * The memory is PINNED iGPU BUFFERS, not process memory.
+            #     The iGPU has no VRAM, so every GPU allocation is a
+            #     shmem-backed host page, unevictable in this cgroup. Measured
+            #     at 5.11 GiB held: shmem 5.11, unevictable 5.11 (the same
+            #     number), inactive_file 0, active_file 0, anon 0.55, and swap
+            #     disabled. There is nothing the kernel may reclaim, so it
+            #     kills. `limits.memory` here is the GPU's memory budget.
+            #     `container_memory_rss` is blind to all of it by
+            #     construction, so a flat RSS graph proves nothing.
+            #
+            #   * NOTHING IS RELEASED while the container lives. After load
+            #     the pool sits at a baseline of 1.71 GiB — the model weights,
+            #     pinned on the GPU — and that is both what "elevated" is
+            #     measured against and what a restart returns it to. The pool
+            #     grows toward the largest request shape served; repeating a
+            #     shape or sending a smaller one grows nothing, but an
+            #     ASCENDING sequence costs more than the largest alone
+            #     (fresh -> 50x500 tokens = 3.49 GiB, but 20x500 -> 50x500 =
+            #     4.13 GiB). The same 60x500 request dies on a warm pool and
+            #     succeeds on a fresh one — which is the whole failure mode in
+            #     one sentence, and why pool-watchdog.yaml exists.
             #
             # The exported rerank graph now bounds both terms —
             # max_allowed_chunks: 64 and max_position_embeddings: 640, injected

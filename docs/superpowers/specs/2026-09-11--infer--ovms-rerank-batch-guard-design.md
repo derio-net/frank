@@ -253,6 +253,36 @@ the workload runs into.
 Rejected: hold 6Gi and cap at the largest measured-safe batch (24–32), forcing
 the client to chunk; pin at the already-proven 20 with no measurement at all.
 
+### 3b. A watchdog that resets the pool
+
+The cap bounds one request; only a restart returns the pinned pool to
+baseline. `apps/ovms-retrieval/manifests/pool-watchdog.yaml` is a 5-minute
+CronJob that reads the pool from the container's own cgroup (`shmem`, the
+exact pinned figure — not a scraped metric, which is both less precise and a
+dependency on the monitoring stack being up when this needs to act) and
+restarts the Deployment on two rules:
+
+- **Safety** — pool >= 60% of the limit -> restart **even if the server is
+  busy**. Past that point a single cap-sized request (3.40 GiB measured) can
+  no longer fit, so the next caller takes the process down anyway; an OOM
+  costs the in-flight request *plus* ~10s of refused connections, where a
+  controlled restart costs 11s.
+- **Hygiene** — pool above baseline **and** quiet for 30 minutes -> restart,
+  so a session does not inherit the previous session's pool. The idle window
+  is what stops a caller who sends a request every few minutes from paying a
+  cold start every time.
+
+Restart, not scale-to-zero. Scaling to zero needs an activator in the request
+path to accept a connection at 0 replicas, scale up, wait out the cold start
+and proxy — a permanent new component and ~11s on the first request of every
+burst, to reclaim 2.26 GiB on a 64 GB node and an iGPU nothing else claims
+(one ResourceClaim exists cluster-wide). Revisit if a second consumer appears
+for the minis' iGPUs.
+
+Cold start is **11s** measured (pod created -> Ready, warm node, seed skipped
+because the rev marker matches). The manifest's "minutes rather than seconds"
+warning describes the first-ever IR compile, not a restart.
+
 ### 4. A batch sweep in the benchmark harness
 
 `scripts/ovms-retrieval-bench.py` already reranks a fixed 20 candidates — it
@@ -325,41 +355,61 @@ the scores tensor is `B × heads × T × T`, and this is XLM-RoBERTa-large
 (24 layers, 16 heads, `max_position_embeddings` 8194, read from the served
 `config.json`). Idle is 2.21 GiB.
 
-### The bug is the ratchet, not the request
+### The bug: pinned iGPU memory that is never released
 
-`memory.current` after a large call equals `memory.peak` and **stays there**:
-idle 2.21 GiB, 4.90 GiB after a 50-document call, with no return. The resident
-floor rises to the high-water of the largest call ever served and stays for
-the life of the container.
+**Corrected 2026-09-14.** Two earlier readings in this spec were wrong, and
+both had the same root — they measured proxies (`memory.current`,
+`container_memory_working_set_bytes`, `container_memory_rss`) rather than the
+cgroup's own breakdown. The first built a "memory is never released" ratchet
+narrative out of `memory.current`, which counts page cache. The second
+retracted that on the grounds that RSS was flat, concluding the memory was
+reclaimable cache. Neither was right. `memory.stat` settles it:
 
-This is what makes the failure intermittent, and it is why the issue's
-framing — a request size that is fatal — does not survive measurement. Take
-the largest batch the endpoint is expected to serve, at T≈605: it costs
-2.93 GiB, so on a *fresh* server it totals 5.14 GiB and fits inside the 6 GiB
-limit comfortably. It dies only once the floor has ratcheted up beneath it. A
-reranker that works, and then doesn't, and then does again after a restart, is
-exactly what a ratchet produces — and it explains restarts accumulating 1 → 9
-over a week of light use far better than any single request does.
+```
+shmem          5.11 GiB
+unevictable    5.11 GiB    ← identical
+inactive_file  0.00 GiB
+active_file    0.00 GiB    ← no reclaimable page cache exists
+anon           0.55 GiB    ← the process itself is small
+swap.max       0           ← and nowhere to page it out to
+```
 
-It also means the steady-state requirement is simply:
+The Intel iGPU has **no VRAM**. Every GPU allocation OpenVINO makes is a
+shmem-backed host page, **pinned unevictable** inside the container's cgroup.
+So `limits.memory` is not a safety margin around a process — **it is the GPU's
+memory budget**, and when it is reached the kernel has nothing it is permitted
+to reclaim. It kills. `container_memory_rss` is blind to all of this by
+construction, which is exactly why it looked flat.
 
-    idle + worst-case-call(N, T) ≤ limit
+Verified behaviour, each claim measured rather than inferred:
 
-which is precisely what bounding both N and T buys. Nothing else needs to
-change.
+| observation | measured |
+|---|---|
+| baseline after model load | **1.71 GiB** shmem (weights on the GPU) + ~0.5 anon |
+| one call, 64 docs × 600 tok | pool → **5.11 GiB** (the call costs 3.40 GiB) |
+| repeat a served shape | **no growth** (three identical calls, pool flat) |
+| a NEW but *smaller* shape | **no growth** (30×500 after 50×500) |
+| an *ascending* sequence | costs more than the largest alone — fresh→50×500 gives 3.49, but 20×500→50×500 gives **4.13** |
+| after any call | **nothing is released** while the container lives |
 
-**A correction, because it reversed a conclusion.** An earlier reading of this
-data reported kills at (64, 511), (50, 664) and (40, 664) as an iso-surface,
-and concluded that at T≈664 even forty documents is fatal. Those three calls
-each ran on a container already holding 3.5–4.8 GiB from the previous call.
-They died of floor-plus-call, not call. The same ratchet also made an ascending
-sweep's per-size deltas look like per-shape accumulation. Every number above is
-from a single call on a freshly restarted container.
+The model predicts both kills observed while measuring: 50×500 then 60×500
+needs 1.71 + 1.77 + 2.10 + 0.5 = **6.08 GiB** against a 6 GiB limit, and
+60×500 then 64×600 needs ~7.7 GiB. Both OOMed. The cleanest statement of the
+failure mode is that **the same 60×500 request dies on a warm pool and
+succeeds on a fresh one** — proven in both directions.
 
-**Do not extrapolate far.** A fit over three points over-predicted an
-independent check by 28%. The pair chosen below is a short extrapolation from
-the measured anchors, not a derived bound, and Test Plan row 10 measures the
-real surface at the shipped limit.
+### What that means for the fix
+
+The graph-level cap bounds what **one request** can allocate. It cannot bound
+what a long-lived server **accumulates**, because an ascending sequence of
+shapes adds to the pool and nothing is ever returned. So the cap is necessary
+and not sufficient, and the second half of the fix is a **restart** — the only
+operation that returns the pool to baseline.
+
+That also disposes of the framing question the issue raised. The request size
+is real (a big enough single request will not fit), *and* the accumulation is
+real (a sequence of ordinary requests will eventually not fit). Both need
+bounding, which is why this ships a cap **and** a watchdog.
 
 ### The numbers
 
@@ -476,6 +526,9 @@ first-push-is-private trap does not apply.
 | 8 | `kube_pod_container_status_restarts_total` across 5–7 | unchanged |
 | 9 | Rerank one document long enough to chunk at `T` | scores still well-separated (not the degenerate 1e-9..1e-12 pattern), gap 4 |
 | 10 | Bench sweep re-run, recorded to `docs/` | peak working set at every size ≤ ~70% of 10Gi |
+| 11 | `kubectl -n retrieval get cronjob ovms-pool-watchdog` | scheduled, `Forbid` |
+| 12 | after a session leaves the pool elevated, wait out the idle window | a `pool-watchdog result: action=restart reason=idle-with-elevated-pool` line, and `shmem` back to ~1.71 GiB |
+| 13 | watchdog logs on a quiet tick | `action=none reason=pool-at-baseline` — every exit path is greppable |
 
 Rows 5–8 are the acceptance evidence: a batch of 50 either succeeds or is
 refused cleanly, which is the condition the issue set for re-running the

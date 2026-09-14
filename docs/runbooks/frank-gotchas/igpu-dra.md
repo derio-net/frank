@@ -209,19 +209,48 @@ control and `max_allowed_chunks` the secondary one** — the reverse of the
 order they suggest themselves in, and a guard that only counts documents is
 walked straight past by one long passage.
 
-**Memory is never released.** `memory.current` after a large call equals
-`memory.peak` and stays there: **2.21 GiB** idle, **4.90 GiB** resident after
-a single 50-document call, with no return for the life of the container. The
-resident floor ratchets up to the high-water mark of the largest call ever
-served.
+**The memory is pinned iGPU buffers, and `container_memory_rss` cannot see
+them.** The iGPU has no VRAM, so every GPU allocation OpenVINO makes is a
+shmem-backed host page, **unevictable** in this cgroup. Measured while the
+server held 5.11 GiB:
 
-That ratchet, not request size, is what makes the failure intermittent. The
-largest batch this endpoint is expected to serve costs 2.93 GiB at T≈605, so
-on a freshly restarted pod it totalled 5.14 GiB and sat inside the old 6 GiB
-limit comfortably. It died only once the floor had risen beneath it. A
-reranker that works, then doesn't, then works again after a restart is a
-ratchet — and it explains restarts accumulating 1 → 9 over a week of light
-use, which no single request size does.
+```
+shmem 5.11 GiB | unevictable 5.11 GiB | inactive_file 0 | active_file 0
+anon 0.55 GiB  | swap.max 0
+```
+
+`shmem` and `unevictable` are the same number, there is no page cache to drop,
+and there is no swap — so the kernel may reclaim **nothing** and OOM-kills
+instead. `limits.memory` on this container is the **GPU's memory budget**, not
+a margin around a process.
+
+**Diagnose from `memory.stat`, not from a proxy.** This point cost three
+successive wrong explanations during the investigation, each from a different
+proxy: `memory.current` counts shmem *and* page cache, so a high-water reading
+looks like a leak; `container_memory_working_set_bytes` cannot separate the
+two either; and `container_memory_rss` counts neither, sitting flat at
+~0.45 GiB on used and idle days alike, which looks like proof that nothing is
+accumulating. Only the breakdown distinguishes them.
+
+**Nothing is released while the container lives**, and the pool grows toward
+the largest request shape served. Measured:
+
+| | |
+|---|---|
+| baseline after model load | 1.71 GiB (weights on the GPU) |
+| one call, 64 docs × 600 tok | pool → 5.11 GiB (the call costs 3.40 GiB) |
+| repeat a served shape | no growth |
+| a new but *smaller* shape | no growth |
+| an *ascending* sequence | more than the largest alone — fresh→50×500 gives 3.49 GiB, 20×500→50×500 gives 4.13 GiB |
+
+The cleanest statement of the failure: **the same 60×500 request dies on a
+warm pool and succeeds on a fresh one.** Proven in both directions. The model
+predicts the kills exactly — 50×500 then 60×500 needs 1.71 + 1.77 + 2.10 + 0.5
+= 6.08 GiB against a 6 GiB limit.
+
+This is why the graph cap is necessary but **not sufficient**: it bounds what
+one request may allocate, and cannot bound what a long-lived server
+accumulates.
 
 **So restarting the pod is a legitimate mitigation, and always was.**
 `kubectl -n retrieval rollout restart deploy/ovms-retrieval` puts the floor

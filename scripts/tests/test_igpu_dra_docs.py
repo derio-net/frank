@@ -277,10 +277,25 @@ _RERANK_GUARD_CLAUSES: list[tuple[str, re.Pattern[str], str]] = [
         "memory.peak and stays there for the life of the container.",
     ),
     (
-        "the measured floors, idle and after a large call",
-        re.compile(r"2\.21\b.{0,300}4\.90\b|4\.90\b.{0,300}2\.21\b"),
-        "the ratchet claim needs its evidence: 2.21 GiB idle, 4.90 GiB "
-        "resident after a single large call, with no return.",
+        "the cgroup evidence that the memory is pinned, not leaked",
+        re.compile(r"unevictable", re.IGNORECASE),
+        "shmem == unevictable with inactive_file/active_file at zero and no "
+        "swap is the whole diagnosis: the kernel may reclaim nothing, so it "
+        "kills. Without it a reader has a claim and no way to check it.",
+    ),
+    (
+        "the warm-versus-fresh proof",
+        re.compile(r"warm pool and succeeds on a fresh one", re.IGNORECASE),
+        "the same request dying warm and succeeding fresh is the failure mode "
+        "in one sentence, and it is what distinguishes accumulation from a "
+        "request simply being too big.",
+    ),
+    (
+        "that RSS is blind to this",
+        re.compile(r"container_memory_rss", re.IGNORECASE),
+        "a flat RSS graph looks like proof that nothing accumulates. It cost "
+        "three wrong explanations here; say so, or the next reader repeats "
+        "them.",
     ),
     (
         "the ratchet is why the failure is intermittent",
@@ -346,7 +361,7 @@ def test_frank_gotchas_hot_file_carries_the_rerank_guard_one_liner():
         "one-liner-here / prose-there convention"
     )
     line = next(ln for ln in body.splitlines() if "max_allowed_chunks" in ln)
-    assert re.search(r"ratchet|high[- ]water|never released", line, re.IGNORECASE), (
+    assert re.search(r"pinned|unevictable|shmem", line, re.IGNORECASE), (
         "the hot-file one-liner records the cap but not the mechanism that "
         "makes the failure intermittent. A one-liner that says only 'we set a "
         "cap' leaves the next reader without the one fact that explains why a "

@@ -143,6 +143,7 @@ SCANNED_PATHS = [
     REPO / "docs/superpowers/runs/2026-09-11-fix-ovms-rerank-oom-guard.yaml",
     REPO / "scripts/tests/fixtures/ovms-retrieval",
     REPO / "scripts/tests/test_ovms_retrieval_rerank_guard.py",
+    REPO / "scripts/tests/test_ovms_pool_watchdog.py",
     #
     # DELIBERATELY ABSENT: `agents/rules/frank-gotchas.md`. It is the shared
     # compact hot-file for EVERY layer in the repo, and scanning it whole fires

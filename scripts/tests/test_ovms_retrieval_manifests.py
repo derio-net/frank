@@ -562,22 +562,30 @@ def test_the_raised_ceiling_carries_its_own_provenance():
         "the document count alone is sufficient",
     )
     needs(
-        r"2\.21\s*GiB",
-        "the comment must give the measured IDLE floor (2.21 GiB) — it is one "
-        "half of the ratchet evidence",
+        r"unevictable",
+        "the comment must give the cgroup evidence: shmem and unevictable "
+        "being the SAME number, with inactive_file/active_file at zero and no "
+        "swap, is the whole diagnosis — the kernel may reclaim nothing, so it "
+        "kills. Without it the reader has a claim and no way to check it",
     )
     needs(
-        r"4\.90\s*GiB",
-        "the comment must give the measured resident floor AFTER a large call "
-        "(4.90 GiB). Idle and post-call together are what show the memory is "
-        "never released",
+        r"1\.71\s*GiB",
+        "the comment must give the measured baseline (1.71 GiB of model "
+        "weights pinned on the GPU after load). It is what 'elevated' is "
+        "measured against, and what a restart returns the pool to",
     )
     needs(
-        r"ratchet|never released|not released|stays there|high-water",
-        "the comment must name the ratchet — the resident floor rising to the "
-        "high-water of the largest call ever served. That is why the failure "
-        "was intermittent, and it is the single fact the issue's own framing "
-        "got wrong",
+        r"warm\s+pool\s+and\s+succeeds\s+on\s+a\s+fresh\s+one",
+        "the comment must carry the warm-versus-fresh proof: the SAME request "
+        "dying on a warm pool and succeeding on a fresh one is the failure "
+        "mode in one sentence, and it is what distinguishes accumulation from "
+        "a request simply being too large",
+    )
+    needs(
+        r"nothing is released|never released|not released",
+        "the comment must say that nothing is released while the container "
+        "lives. That is why the graph-level cap is necessary but NOT "
+        "sufficient, and why a watchdog restart is the other half of the fix",
     )
     needs(
         rf"{re.escape(str(MEASURED_WORST_CASE_GIB))}\s*GiB",
