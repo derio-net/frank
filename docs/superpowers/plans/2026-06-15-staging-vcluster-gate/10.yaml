@@ -19,7 +19,7 @@ tasks:
       GREEN — add the trigger (flow-style like its neighbours; set every defaulted per-item field explicitly — the array-freeze gotcha), the ExternalSecret (copy the derio-homelab one; comment names manual op `cicd-staging-gate-runs-fr-webhook`), a `webhooks.yaml` entry `{forge: github, scope: repo, target: derio-net/runs-fr, listener: github-listener, events: [repository_dispatch], serves: [staging-gate-runs-fr]}` with a note, and remove the "NOTE (manual P7)" block from `apps/staging-gate/tekton/triggers.yaml` (point to the trigger instead). Re-run → PASS, including `test_webhook_delivery_paths.py` and `test_tekton_ignore_rules_no_arrays.py`.
   - id: P10.T1.S3
     text: |
-      VERIFY — full `uv run --group dev pytest scripts/tests -q` green; `helm template apps/root` renders; `kubeconform -strict -ignore-missing-schemas` over the rendered root + `apps/staging-gate/tekton` + `apps/tekton/manifests` reports 0 invalid.
+      VERIFY — full `uv run --group dev pytest scripts/tests -q` green; `helm template apps/root` renders; `kubeconform -strict -ignore-missing-schemas` over the rendered root + `apps/staging-gate/tekton` + `apps/tekton/manifests` reports 0 invalid. ADMISSION GATE (mandatory): `kubectl apply --dry-run=server --validate=strict -f` on `apps/tekton/triggers/eventlistener-github.yaml`, the new ExternalSecret, and every `apps/staging-gate/tekton/*.yaml` — every object must report `created (server dry run)` (the Triggers webhook validates CEL expressions at admission, which no offline check does).
 state:
   steps:
     P10.T1.S1:
