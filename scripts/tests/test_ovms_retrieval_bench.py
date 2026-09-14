@@ -36,6 +36,21 @@ sys.modules["ovms_retrieval_bench"] = bench
 _spec.loader.exec_module(bench)
 
 
+@pytest.fixture(autouse=True)
+def _instant_recovery(monkeypatch):
+    """Make the sweep's post-kill recovery wait instant, everywhere.
+
+    After a call that killed the server, the sweep blocks until the reranker
+    can serve again — without that, the next size is sent into a restarting
+    pod and records a URLError indistinguishable from its own death. Offline
+    there is no server to come back, so the seam reports ready on the first
+    probe and nothing sleeps. The tests that assert the WAIT itself override
+    `_probe_ready` explicitly; this fixture only keeps every OTHER test from
+    blocking on a five-minute timeout."""
+    monkeypatch.setattr(bench, "_probe_ready", lambda url, timeout=5.0: True)
+    monkeypatch.setattr(bench.time, "sleep", lambda _seconds: None)
+
+
 # --- percentile maths --------------------------------------------------
 
 def test_percentile_p50_of_known_list():
@@ -711,6 +726,525 @@ def test_rerank_warmup_calls_are_excluded_from_the_timed_sample(monkeypatch):
     assert degenerate is False
 
 
+# --- batch sweep mode: the instrument the rerank guard is measured with ---
+# `docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md`
+# ("A batch sweep in the benchmark harness"). The sweep walks a list of batch
+# sizes and records, per size, latency + HTTP status + body on failure. The
+# cap the guard ships with is derived from that curve, so the curve has to be
+# trustworthy before it is taken.
+
+def test_parse_sweep_sizes_reads_a_comma_separated_list():
+    assert bench.parse_sweep_sizes("10,20,30,40,50") == [10, 20, 30, 40, 50]
+
+
+def test_parse_sweep_sizes_sorts_ascending_and_dedupes():
+    # Ascending is not cosmetic: a size that kills the server leaves it
+    # refusing connections for ~10s, so every smaller size must be measured
+    # BEFORE it, not after.
+    assert bench.parse_sweep_sizes("30,10,20,10") == [10, 20, 30]
+
+
+def test_parse_sweep_sizes_tolerates_whitespace():
+    assert bench.parse_sweep_sizes(" 10 , 20 ") == [10, 20]
+
+
+def test_parse_sweep_sizes_rejects_garbage():
+    for bad in ("", "10,,20", "abc", "10,0", "-5", "10,2.5"):
+        with pytest.raises(ValueError):
+            bench.parse_sweep_sizes(bad)
+
+
+def test_rerank_sweep_flag_is_absent_by_default():
+    assert bench.parse_args(["--arm", "gpu"]).rerank_sweep is None
+
+
+def test_rerank_sweep_flag_parses_to_a_size_list():
+    args = bench.parse_args(["--arm", "gpu", "--rerank-sweep", "10,20,30,40,50"])
+    assert args.rerank_sweep == [10, 20, 30, 40, 50]
+
+
+def test_sweep_issues_one_call_per_size_in_ascending_order(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "40,10,30,20,50", "--rerank-warmup", "0"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sizes_sent = [len(b["documents"]) for b in rec.bodies("/v3/rerank")]
+    assert sizes_sent == [10, 20, 30, 40, 50]
+    assert sweep["sizes"] == [10, 20, 30, 40, 50]
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30, 40, 50]
+
+
+def test_sweep_records_documents_words_status_and_latency_per_size(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        [
+            "--arm", "gpu",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "0",
+        ]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    for result in sweep["results"]:
+        assert set(["documents", "words_per_document", "status", "latency_ms"]) <= set(result)
+        assert result["status"] == 200
+        assert result["ok"] is True
+        assert isinstance(result["latency_ms"], float) and result["latency_ms"] >= 0.0
+        assert result["words_per_document"] == 200
+
+
+def test_sweep_names_the_model_it_measured(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+    assert bench._run_rerank_sweep(args)["model"] == bench.DEFAULT_RERANK_MODEL
+
+
+# --- sweep failure tolerance: the refusal IS the datum --------------------
+# `_post_json` wraps `urllib.request.urlopen`, which raises on anything but
+# 2xx. So the two outcomes the sweep exists to capture — a guard refusing an
+# oversized batch, and a server killed by one — both arrive as exceptions. A
+# sweep that propagates them aborts at exactly the size it was run to measure,
+# and reports a clean curve of the sizes that happened to survive.
+
+class _FailingRecorder(_Recorder):
+    """`_Recorder` that raises at or above a document threshold.
+
+    Records EVERY attempt, including the ones it then fails, so a test can
+    assert the sweep carried on to the next size rather than stopping."""
+
+    def __init__(self, *, fail_from: int, error, dimension: int = 8):
+        super().__init__(dimension=dimension)
+        self.fail_from = fail_from
+        self.error = error
+        self.attempts: list[tuple[str, dict]] = []
+
+    def __call__(self, url, payload, timeout=None):
+        self.attempts.append((url, payload))
+        if url.endswith("/v3/rerank") and len(payload["documents"]) >= self.fail_from:
+            raise self.error(len(payload["documents"]))
+        return super().__call__(url, payload, timeout)
+
+    def attempted_sizes(self, path: str = "/v3/rerank") -> list[int]:
+        return [len(p["documents"]) for (u, p) in self.attempts if u.endswith(path)]
+
+
+def _http_error(documents: int):
+    """What an upstream `max_allowed_chunks` refusal looks like on the wire:
+    `std::runtime_error` -> `absl::InternalError` -> HTTP 500 with a message
+    naming the limit. See the spec's "The refusal is a 500, not a 4xx"."""
+    import email.message
+    import io
+    import urllib.error
+
+    return urllib.error.HTTPError(
+        "http://example.invalid:8000/v3/rerank",
+        500,
+        "Internal Server Error",
+        email.message.Message(),
+        io.BytesIO(b"Number of documents exceeds max_allowed_chunks"),
+    )
+
+
+def _remote_disconnected(documents: int):
+    """What an OOM-killed server looks like: the socket closes mid-request."""
+    import http.client
+
+    return http.client.RemoteDisconnected(
+        "Remote end closed connection without response"
+    )
+
+
+def _connection_refused(documents: int):
+    """What the ~10s after the kill looks like, while the pod restarts."""
+    import urllib.error
+
+    return urllib.error.URLError("[Errno 111] Connection refused")
+
+
+@pytest.mark.parametrize(
+    "error_factory",
+    [_http_error, _remote_disconnected, _connection_refused],
+    ids=["http-500-refusal", "killed-server", "connection-refused"],
+)
+def test_sweep_records_a_failure_and_continues_to_the_next_size(
+    monkeypatch, error_factory
+):
+    rec = _FailingRecorder(fail_from=30, error=error_factory)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30,40,50", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)  # must not raise
+
+    assert rec.attempted_sizes() == [10, 20, 30, 40, 50], (
+        "every size must be attempted — a sweep that stops at the first "
+        "failure measures only the sizes that happened to survive"
+    )
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30, 40, 50]
+    assert [r["ok"] for r in sweep["results"]] == [True, True, False, False, False]
+
+
+def test_sweep_records_the_refusal_status_and_body_verbatim(monkeypatch):
+    # The spec's Test Plan row 6 records the status code and body rather than
+    # asserting 4xx. That is only possible if the sweep keeps them.
+    rec = _FailingRecorder(fail_from=30, error=_http_error)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+    refused = sweep["results"][-1]
+
+    assert refused["status"] == 500
+    assert "max_allowed_chunks" in refused["body"]
+    assert "HTTPError" in refused["error"]
+
+
+def test_sweep_records_a_killed_server_with_no_status_at_all(monkeypatch):
+    # A closed socket has no HTTP status. Recording 0 or 500 here would invent
+    # a response the server never sent; None says "no response".
+    rec = _FailingRecorder(fail_from=30, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0"]
+    )
+
+    killed = bench._run_rerank_sweep(args)["results"][-1]
+
+    assert killed["status"] is None
+    assert killed["body"] is None
+    assert "RemoteDisconnected" in killed["error"]
+
+
+def test_sweep_times_a_failed_call_too(monkeypatch):
+    # "connection closed without response after 0.13 s" is a datum: a fast
+    # failure is a kill, a slow one is a timeout.
+    rec = _FailingRecorder(fail_from=10, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+
+    result = bench._run_rerank_sweep(args)["results"][0]
+    assert isinstance(result["latency_ms"], float)
+    assert result["latency_ms"] >= 0.0
+
+
+# --- sweep warm-up belongs at the smallest size ONLY ----------------------
+
+def test_sweep_warms_up_only_at_the_smallest_size(monkeypatch):
+    # Warming at a size the sweep is about to prove fatal spends a restart,
+    # and the next size is then measured against a cold server — so the curve
+    # records a recompile as batch cost.
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30", "--rerank-warmup", "2"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sizes_sent = [len(b["documents"]) for b in rec.bodies("/v3/rerank")]
+    assert sizes_sent == [10, 10, 10, 20, 30], (
+        "warm-up must be two extra calls at the SMALLEST size, before the "
+        "timed sweep, and nowhere else"
+    )
+    assert sweep["warmup"]["documents"] == 10
+    assert sweep["warmup"]["calls"] == 2
+    # The warm-up calls are not part of the curve.
+    assert [r["documents"] for r in sweep["results"]] == [10, 20, 30]
+
+
+def test_sweep_warmup_failure_does_not_abort_the_sweep(monkeypatch):
+    # If the server is already dead when the sweep starts, that is a datum
+    # too — and the sizes still have to be attempted.
+    rec = _FailingRecorder(fail_from=1, error=_connection_refused)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--rerank-warmup", "1"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    assert rec.attempted_sizes() == [10, 10, 20]
+    assert [r["ok"] for r in sweep["results"]] == [False, False]
+
+
+# --- --rerank-words: the sweep must send documents the size of the fault --
+# The issue reproduced at 200 words per document and the mechanism is
+# batch x longest-document-tokens. The harness's stock filler is ~20 words, so
+# a sweep at that length sends roughly a tenth of the tokens per document and
+# may never reproduce the OOM at any batch size — while looking like a clean
+# run. A curve recorded without its word count is not quotable.
+
+def test_rerank_words_is_absent_by_default():
+    assert bench.parse_args(["--arm", "gpu"]).rerank_words is None
+
+
+def test_rerank_words_parses_as_an_int():
+    assert bench.parse_args(["--arm", "gpu", "--rerank-words", "200"]).rerank_words == 200
+
+
+def test_default_filler_passage_length_is_unchanged():
+    # Regression guard on the default path: adding the knob must not move the
+    # numbers the parent spec already published with this harness.
+    assert bench.generate_filler_passages(3, offset=0) == [
+        "This is a general-purpose passage about seasonal gardening "
+        "schedules, written as filler candidate text for a retrieval "
+        "benchmark.",
+        "This is a general-purpose passage about the history of postal "
+        "routing, written as filler candidate text for a retrieval "
+        "benchmark.",
+        "This is a general-purpose passage about basic bicycle "
+        "maintenance, written as filler candidate text for a retrieval "
+        "benchmark.",
+    ]
+
+
+def test_filler_passages_are_padded_to_the_requested_word_count():
+    for passage in bench.generate_filler_passages(8, words=200):
+        assert len(passage.split()) == 200
+
+
+def test_padded_filler_passages_are_still_distinct():
+    passages = bench.generate_filler_passages(20, words=200)
+    assert len(set(passages)) == 20
+
+
+def test_padded_filler_passages_still_carry_their_topic():
+    # The degeneracy gate only means anything because the query matches a
+    # candidate topic. Padding must not bury the anchor.
+    for i, passage in enumerate(bench.generate_filler_passages(8, words=200)):
+        assert bench._FILLER_TOPICS[i] in passage
+
+
+def test_padding_reuses_the_existing_filler_vocabulary():
+    # Pad, do not invent new prose: every padded word must already appear in
+    # the module's own filler text. `scripts/tests/test_third_party_discretion.py`
+    # scans this script, and inventing plausible-sounding corpus text is
+    # exactly what it exists to prevent.
+    # Punctuation is stripped on BOTH sides before comparing: a topic's final
+    # word only ever appears comma-attached in the base sentence ("...about
+    # basic bicycle maintenance, written as..."), so a bare "maintenance" in
+    # the padding is the same word, not a new one.
+    def _words(passages):
+        return {w.strip(".,()").lower() for w in " ".join(passages).split()} - {""}
+
+    base = _words(bench.generate_filler_passages(20))
+    padded = _words(bench.generate_filler_passages(20, words=200))
+    assert padded <= base
+
+
+def test_filler_passages_reject_a_word_count_below_the_base_sentence():
+    # Silently returning a 19-word passage for `--rerank-words 5` would make
+    # the recorded word count a lie.
+    with pytest.raises(ValueError):
+        bench.generate_filler_passages(4, words=5)
+
+
+def test_sweep_sends_passages_of_the_requested_length(monkeypatch):
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        [
+            "--arm", "gpu",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "0",
+        ]
+    )
+    bench._run_rerank_sweep(args)
+
+    for body in rec.bodies("/v3/rerank"):
+        assert {len(d.split()) for d in body["documents"]} == {200}
+
+
+def test_sweep_records_the_word_count_it_actually_sent_not_the_flag(monkeypatch):
+    # Measured from the bodies, so a padding bug shows up in the record
+    # instead of being papered over by echoing the flag back.
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+    sweep = bench._run_rerank_sweep(args)
+
+    sent = max(len(d.split()) for d in rec.bodies("/v3/rerank")[0]["documents"])
+    assert sweep["words_per_document_requested"] is None
+    assert sweep["results"][0]["words_per_document"] == sent
+    assert sent < 50, "the stock filler is the ~20-word passage this knob exists to replace"
+
+
+# --- the sweep record carries the same provenance as every other record ---
+# A curve gets quoted. Quoted without an endpoint and an arm it is a number
+# from nowhere — and the two arms run against different URLs, so a forgotten
+# flag would otherwise attribute one device's cliff to the other.
+
+def _sweep_section():
+    return {
+        "model": "bge-reranker-v2-m3",
+        "sizes": [10, 20],
+        "words_per_document_requested": 200,
+        "warmup": {"documents": 10, "calls": 1, "attempts": []},
+        "status_note": bench.SWEEP_STATUS_NOTE,
+        "results": [
+            {
+                "documents": 10,
+                "words_per_document": 200,
+                "status": 200,
+                "latency_ms": 1.0,
+                "ok": True,
+                "error": None,
+                "body": None,
+                "results_returned": 10,
+            }
+        ],
+    }
+
+
+def test_sweep_payload_carries_arm_url_timestamp_and_server_config():
+    snapshot = bench.build_server_config_snapshot(
+        base_url="http://example.invalid:8000", arm="gpu", raw=OVMS_CONFIG_RESPONSE
+    )
+    payload = bench.build_sweep_payload(
+        arm="gpu",
+        base_url="http://example.invalid:8000",
+        timestamp="2026-09-11T12:00:00Z",
+        server_config=snapshot,
+        sweep=_sweep_section(),
+    )
+    assert payload["arm"] == "gpu"
+    assert payload["base_url"] == "http://example.invalid:8000"
+    assert payload["timestamp"] == "2026-09-11T12:00:00Z"
+    assert payload["server_config"]["servables"][0]["name"] == "bge-m3"
+    assert payload["sweep"]["sizes"] == [10, 20]
+    assert payload["sweep"]["results"][0]["documents"] == 10
+    assert "json" in payload["timing_includes"].lower()
+
+
+def test_sweep_payload_requires_its_provenance_unconditionally():
+    for missing in ("arm", "base_url", "timestamp", "server_config", "sweep"):
+        kwargs = {
+            "arm": "gpu",
+            "base_url": "http://example.invalid:8000",
+            "timestamp": "2026-09-11T12:00:00Z",
+            "server_config": {},
+            "sweep": _sweep_section(),
+        }
+        kwargs.pop(missing)
+        with pytest.raises(TypeError):
+            bench.build_sweep_payload(**kwargs)
+
+
+def test_sweep_payload_is_json_serializable():
+    import json
+
+    json.dumps(
+        bench.build_sweep_payload(
+            arm="cpu",
+            base_url="http://example.invalid:8000",
+            timestamp="2026-09-11T12:00:00Z",
+            server_config={},
+            sweep=_sweep_section(),
+        )
+    )
+
+
+def test_main_in_sweep_mode_writes_a_sweep_record(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.setattr(
+        bench, "fetch_server_config", lambda base_url: OVMS_CONFIG_RESPONSE
+    )
+    monkeypatch.setattr(bench, "_post_json", _Recorder())
+    ran: list[str] = []
+    _stub_benchmarks(monkeypatch, ran)
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        [
+            "--arm", "gpu",
+            "--base-url", "http://example.invalid:8000",
+            "--rerank-sweep", "10,20",
+            "--rerank-words", "200",
+            "--rerank-warmup", "1",
+            "--output", str(out),
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(out.read_text())
+    assert payload["arm"] == "gpu"
+    assert payload["base_url"] == "http://example.invalid:8000"
+    assert payload["timestamp"].endswith("Z")
+    assert payload["server_config"]["servables"][0]["state"] == "AVAILABLE"
+    assert [r["documents"] for r in payload["sweep"]["results"]] == [10, 20]
+    assert payload["sweep"]["results"][0]["words_per_document"] == 200
+    assert ran == [], (
+        "sweep mode replaces the timed benchmark: running a 30-iteration "
+        "embeddings loop against a server just deliberately OOM-killed "
+        "measures the restart, not the server"
+    )
+
+
+def test_main_in_sweep_mode_records_failures_and_still_exits_zero(
+    monkeypatch, tmp_path
+):
+    import json
+
+    monkeypatch.setattr(
+        bench, "fetch_server_config", lambda base_url: OVMS_CONFIG_RESPONSE
+    )
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=30, error=_http_error)
+    )
+    _stub_benchmarks(monkeypatch, [])
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        ["--arm", "gpu", "--rerank-sweep", "20,30", "--rerank-warmup", "0",
+         "--output", str(out)]
+    )
+
+    # A refused batch is the RESULT, not an error: the run that records it is
+    # a successful run. Whether the refusal came at the right size is a
+    # judgement made against the curve, not by this exit code.
+    assert code == 0
+    results = json.loads(out.read_text())["sweep"]["results"]
+    assert [r["ok"] for r in results] == [True, False]
+    assert results[-1]["status"] == 500
+
+
+def test_main_in_sweep_mode_still_refuses_a_contradicted_arm(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(
+        bench,
+        "fetch_server_config",
+        lambda base_url: {"bge-m3": {"target_device": "CPU"}},
+    )
+    rec = _Recorder()
+    monkeypatch.setattr(bench, "_post_json", rec)
+    out = tmp_path / "sweep.json"
+
+    code = bench.main(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--output", str(out)]
+    )
+
+    assert code == bench.EXIT_ARM_CONTRADICTED
+    assert rec.calls == [], "must not sweep a server that contradicts the arm"
+    assert not out.exists()
+
+
 # --- main(): the arm cross-check is enforced, not just recorded -----------
 
 def _stub_benchmarks(monkeypatch, ran: list[str]):
@@ -807,3 +1341,130 @@ def test_module_docstring_does_not_claim_an_unverifiable_guarantee():
 def test_module_docstring_states_what_the_timing_includes():
     doc = bench.__doc__.lower()
     assert "json.loads" in doc or "client-side" in doc
+
+
+def test_module_docstring_describes_sweep_mode():
+    # The docstring is the contract a reader meets first. Describing the
+    # rerank measurement as "one query against 20 candidate passages" while
+    # the script also walks a batch curve and records refusals would send a
+    # phase-3 operator looking for a mode the docs say does not exist.
+    doc = bench.__doc__.lower()
+    assert "sweep" in doc
+    assert "--rerank-words" in doc or "rerank-words" in doc
+
+
+def test_rerank_once_is_a_single_named_place_for_the_tolerance_logic(monkeypatch):
+    # Warm-up and the timed sweep must not grow divergent copies of "what
+    # happens when the server refuses or dies".
+    monkeypatch.setattr(bench, "_post_json", _FailingRecorder(fail_from=1, error=_http_error))
+    record = bench._rerank_once(
+        url="http://example.invalid:8000/v3/rerank",
+        model="bge-reranker-v2-m3",
+        documents=4,
+        index=0,
+        words=None,
+    )
+    assert record["documents"] == 4
+    assert record["status"] == 500
+    assert record["ok"] is False
+    assert "max_allowed_chunks" in record["body"]
+
+
+# --- a killed server is waited for, a refusal is not ----------------------
+#
+# Found in review of this phase. The sweep walked its sizes back to back, so a
+# size that OOM-killed the server was followed immediately by the next one
+# against a restarting pod — which the issue records as about ten seconds of
+# refused connections. That size would be recorded as having failed when it was
+# never served at all, inventing a data point in the curve the guard's cap is
+# read off. The discriminator is `status`: a REFUSAL carries the server's code
+# and leaves it serving; only a closed or refused socket means the process went
+# away.
+
+class _ScriptedProbe:
+    """`_probe_ready` that is not ready until the Nth call."""
+
+    def __init__(self, ready_on: int):
+        self.ready_on = ready_on
+        self.calls: list[str] = []
+
+    def __call__(self, url, timeout=5.0):
+        self.calls.append(url)
+        return len(self.calls) >= self.ready_on
+
+
+def test_a_killed_server_is_waited_for_before_the_next_size(monkeypatch):
+    probe = _ScriptedProbe(ready_on=3)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+    rec = _FailingRecorder(fail_from=20, error=_remote_disconnected)
+    monkeypatch.setattr(bench, "_post_json", rec)
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20,30", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    killed = sweep["results"][1]
+    assert killed["status"] is None and killed["ok"] is False
+    assert killed["recovery"]["recovered"] is True
+    assert killed["recovery"]["probes"] == 3, (
+        "the sweep moved on before the server was serving again"
+    )
+    # ...and every size was still attempted.
+    assert rec.attempted_sizes() == [10, 20, 30]
+
+
+def test_recovery_probes_the_model_not_server_liveness(monkeypatch):
+    probe = _ScriptedProbe(ready_on=1)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=10, error=_remote_disconnected)
+    )
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    # Server-level readiness answers 200 while the servable is still loading —
+    # the same trap the Deployment's probes are written around.
+    assert probe.calls[0].endswith("/v2/models/bge-reranker-v2-m3/ready")
+    assert sweep["results"][0]["recovery"]["probe_url"] == probe.calls[0]
+
+
+def test_a_refusal_does_not_wait_for_recovery(monkeypatch):
+    """A guard refusing a batch leaves the server serving. Waiting on it would
+    add minutes to every sweep for nothing, and would blur the one distinction
+    the curve depends on."""
+    probe = _ScriptedProbe(ready_on=1)
+    monkeypatch.setattr(bench, "_probe_ready", probe)
+    monkeypatch.setattr(
+        bench, "_post_json", _FailingRecorder(fail_from=20, error=_http_error)
+    )
+    args = bench.parse_args(
+        ["--arm", "gpu", "--rerank-sweep", "10,20", "--rerank-warmup", "0"]
+    )
+
+    sweep = bench._run_rerank_sweep(args)
+
+    refused = sweep["results"][1]
+    assert refused["status"] == 500 and refused["ok"] is False
+    assert "recovery" not in refused
+    assert probe.calls == []
+
+
+def test_a_recovery_that_never_comes_is_recorded_not_raised(monkeypatch):
+    monkeypatch.setattr(bench, "_probe_ready", lambda url, timeout=5.0: False)
+    monkeypatch.setattr(bench.time, "sleep", lambda _s: None)
+
+    recovery = bench._wait_for_recovery(
+        "http://example.invalid:8000", "bge-reranker-v2-m3", timeout=0.0, poll=0.0
+    )
+
+    assert recovery["recovered"] is False
+    assert "note" in recovery, (
+        "a sweep that could not confirm recovery must say so in the record — "
+        "every later size measured a server never confirmed serving"
+    )

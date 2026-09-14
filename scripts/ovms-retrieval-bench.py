@@ -10,12 +10,48 @@ Run from INSIDE the cluster (laptop-side timing measures the LAN, not the
 GPU). The target defaults to the phase-2 Service,
 `ovms-retrieval.retrieval.svc.cluster.local:8000`.
 
-Measures, per the spec:
-  1. Rerank latency — one query against 20 candidate passages, N timed
-     iterations after a warm-up, reporting p50 / p95 / max.
+Two modes.
+
+**Benchmark mode** (default) measures, per the parent spec:
+  1. Rerank latency — one query against `--rerank-candidates` passages
+     (default 20), N timed iterations after a warm-up, reporting
+     p50 / p95 / max.
   2. Embedding dimensionality — read from the response, never hardcoded.
   3. Embedding latency and throughput (items/sec) — single request and
      batch-32, each warmed at its OWN shape before being timed.
+
+**Sweep mode** (`--rerank-sweep 10,20,30,40,50`) replaces all of that with one
+rerank call per batch size, ascending, recording per size: documents, words
+per document, HTTP status, latency, and the response body on failure. It is
+the instrument for
+docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md,
+where an oversized batch OOM-kills the whole server and the cap that stops it
+is derived from the resulting curve. Three properties make that curve worth
+quoting:
+
+  * **Failures are data, not errors.** `_post_json` wraps `urlopen`, which
+    raises on anything but 2xx, so a guard REFUSING a batch (`HTTPError`) and
+    a server KILLED by one (`RemoteDisconnected`, then `URLError` while the
+    pod restarts) both arrive as exceptions — and both are exactly what the
+    sweep exists to capture. Each is recorded and the sweep continues.
+  * **`--rerank-words` sets passage length.** Peak server memory is
+    batch x LONGEST-DOCUMENT tokens, so length is half the mechanism. The
+    stock filler is a ~20-word passage; the fault under investigation
+    reproduced at 200. Every recorded size carries the word count actually
+    sent, measured from the bodies.
+  * **Warm-up happens at the smallest size only.** Warming at a size about to
+    be proven fatal spends a restart and measures the next size against a
+    cold server.
+  * **A size that kills the server is waited out before the next one.** The
+    kill is followed by roughly ten seconds of refused connections while the
+    pod restarts, so a sweep that walked straight on would record the NEXT
+    size as having failed when it was never served — a fabricated point in
+    the curve the cap is read off. Only a no-status failure (closed or
+    refused socket) triggers the wait; a refusal leaves the server serving.
+    The wait is reported, and its duration is itself a number worth having.
+
+Sweep mode does NOT run the embeddings benchmark afterwards: that would time
+a restarting pod and report it as embedding latency.
 
 Every run rotates the query and the candidate set across iterations. Sending
 one identical body N times measures a best case with fully warm caches and
@@ -71,6 +107,7 @@ the functions that call them talk to a socket.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import math
 import sys
@@ -118,6 +155,30 @@ TIMING_INCLUDES_NOTE = (
     "inference time."
 )
 
+# After a call that KILLED the server, the next size must not be sent into a
+# restarting pod: the issue this instrument exists to measure records about ten
+# seconds of refused connections after each kill, so the following size would
+# record a URLError that is indistinguishable from "this size also died". A
+# size that was never served must never appear in the curve as a size that
+# failed. These bound the wait for the server to come back.
+SWEEP_RECOVERY_TIMEOUT_S = 300
+SWEEP_RECOVERY_POLL_S = 2.0
+
+# A failed call's body is the server's own account of why it refused. Capped,
+# because an unexpected failure can return an arbitrarily large page and the
+# record is meant to be read.
+SWEEP_BODY_CAPTURE_CHARS = 2000
+
+# `_post_json` returns only on 2xx and discards the response code, so a
+# successful sweep call is recorded as 200. Failures carry the server's actual
+# status. Stated in the record rather than left for a reader to discover.
+SWEEP_STATUS_NOTE = (
+    "status 200 on success means '2xx, code not retained' — _post_json "
+    "returns a parsed body, not a response object. A non-2xx status is the "
+    "server's own, read from the raised HTTPError; null means no response "
+    "reached the client at all (closed or refused socket)."
+)
+
 CROSS_CHECK_CONFIRMED = "confirmed"
 CROSS_CHECK_CONTRADICTED = "contradicted"
 CROSS_CHECK_NOT_REPORTED = "not-reported"
@@ -150,6 +211,24 @@ _FILLER_TOPICS = [
     "compost bin temperature control",
     "the design of covered bridges",
 ]
+
+# The word pool `--rerank-words` pads from: the words the filler passages are
+# already built out of, nothing else. Padding a 200-word document has to come
+# from somewhere, and "somewhere" must not be newly-written prose that could
+# read as anyone's corpus — so the pool is derived from the text above rather
+# than authored. Order is deterministic (`dict.fromkeys`) so a given
+# (passage index, word count) always produces the same bytes.
+_FILLER_SENTENCE_WORDS = (
+    "this is a general-purpose passage about written as filler candidate "
+    "text for a retrieval benchmark"
+).split()
+
+_FILLER_VOCABULARY = tuple(
+    dict.fromkeys(
+        _FILLER_SENTENCE_WORDS
+        + [word for topic in _FILLER_TOPICS for word in topic.split()]
+    )
+)
 
 
 # --------------------------------------------------------------------------
@@ -203,20 +282,62 @@ def generate_filler_query(index: int = 0) -> str:
     return f"What should someone getting started know about {topic}?"
 
 
-def generate_filler_passages(n: int, offset: int = 0) -> list[str]:
+def generate_filler_passages(n: int, offset: int = 0, words: int | None = None) -> list[str]:
     """`offset` rotates which topic lands at which candidate position, so
-    successive iterations do not send a byte-identical body."""
+    successive iterations do not send a byte-identical body.
+
+    `words` pads each passage to EXACTLY that many words, from this module's
+    own filler vocabulary. `None` (the default) is the unpadded ~20-word
+    passage this harness has always sent, so the parent spec's published
+    numbers are unaffected.
+
+    Why the knob exists: the rerank calculator builds one tensor of shape
+    `{batch, longest_document_tokens}`, so peak memory is B x T. The OOM this
+    is used to measure reproduced at 200-word documents; a sweep at the stock
+    length sends roughly a tenth of the tokens per document and can fail to
+    reproduce it at ANY batch size while looking like a clean run.
+
+    Padding is drawn from `_FILLER_VOCABULARY` — words already present in the
+    text above — deliberately: this must stay obviously-invented filler and
+    never drift into plausible-sounding corpus prose. See
+    agents/rules/third-party-privacy.md."""
     passages = []
     for i in range(n):
         index = i + offset
         topic = _FILLER_TOPICS[index % len(_FILLER_TOPICS)]
         variant = index // len(_FILLER_TOPICS)
         suffix = f" (note {variant})" if variant else ""
-        passages.append(
+        passage = (
             f"This is a general-purpose passage about {topic}, written as "
             f"filler candidate text for a retrieval benchmark{suffix}."
         )
+        if words is not None:
+            passage = _pad_to_word_count(passage, words, seed=index)
+        passages.append(passage)
     return passages
+
+
+def _pad_to_word_count(text: str, words: int, seed: int) -> str:
+    """Extend `text` to exactly `words` words with vocabulary it already uses.
+
+    Refuses to shorten. A request for fewer words than the base sentence
+    already carries cannot be honoured without either truncating the topic
+    anchor the degeneracy check depends on, or recording a word count that was
+    never sent — so it raises instead of silently doing one of those."""
+    if words < 1:
+        raise ValueError(f"words must be positive, got {words}")
+    current = text.split()
+    if words < len(current):
+        raise ValueError(
+            f"cannot pad to {words} words: the base filler passage is already "
+            f"{len(current)} words. Use a larger --rerank-words, or the "
+            "default (no padding)."
+        )
+    padding = [
+        _FILLER_VOCABULARY[(seed + i) % len(_FILLER_VOCABULARY)]
+        for i in range(words - len(current))
+    ]
+    return " ".join(current + padding)
 
 
 # --------------------------------------------------------------------------
@@ -390,6 +511,31 @@ def scores_are_degenerate(scores: list[float]) -> bool:
 # CLI
 # --------------------------------------------------------------------------
 
+def parse_sweep_sizes(raw: str) -> list[int]:
+    """`"10,20,30"` -> `[10, 20, 30]`, sorted ascending and de-duplicated.
+
+    Ascending is not cosmetic. A size large enough to kill the server leaves
+    it refusing connections for about ten seconds, so any smaller size
+    measured after it would record a restart rather than a batch cost. The
+    sweep therefore always walks small to large, whatever order the operator
+    typed."""
+    sizes: list[int] = []
+    for part in raw.split(","):
+        token = part.strip()
+        if not token:
+            raise ValueError(f"empty batch size in --rerank-sweep {raw!r}")
+        try:
+            size = int(token)
+        except ValueError:
+            raise ValueError(f"batch size {token!r} is not an integer") from None
+        if size < 1:
+            raise ValueError(f"batch size {size} is not positive")
+        sizes.append(size)
+    if not sizes:
+        raise ValueError("--rerank-sweep needs at least one batch size")
+    return sorted(set(sizes))
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -415,6 +561,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rerank-candidates", type=int, default=RERANK_CANDIDATES)
     parser.add_argument("--rerank-iterations", type=int, default=RERANK_ITERATIONS)
     parser.add_argument("--rerank-warmup", type=int, default=RERANK_WARMUP)
+    parser.add_argument(
+        "--rerank-sweep",
+        type=parse_sweep_sizes,
+        default=None,
+        help=(
+            "SWEEP MODE. Comma-separated batch sizes, e.g. "
+            "'10,20,30,40,50,51'. Replaces the timed rerank+embeddings "
+            "benchmark with one rerank call per size, ascending, recording "
+            "latency, HTTP status and the response body on failure. A refusal "
+            "or a killed server is RECORDED and the sweep continues — those "
+            "are the results it exists to capture."
+        ),
+    )
+    parser.add_argument(
+        "--rerank-words",
+        type=int,
+        default=None,
+        help=(
+            "Pad every candidate passage to this many words. Default: no "
+            "padding (the stock ~20-word passage). Peak server memory is "
+            "batch x LONGEST-DOCUMENT tokens, so a sweep at the stock length "
+            "measures roughly a tenth of the tokens per document and may not "
+            "reproduce an OOM at any batch size."
+        ),
+    )
     parser.add_argument(
         "--embedding-iterations",
         type=int,
@@ -507,6 +678,33 @@ def build_result_payload(
     }
 
 
+def build_sweep_payload(
+    *,
+    arm: str,
+    base_url: str,
+    timestamp: str,
+    server_config: dict[str, Any],
+    sweep: dict[str, Any],
+) -> dict[str, Any]:
+    """The sweep's own record section, under the same provenance every other
+    record here carries.
+
+    Keyword-only with no defaults, for the same reason `build_result_payload`
+    is: the curve this produces sets the guard's two numbers and will be
+    quoted in a spec. A curve without the endpoint and the arm it came from is
+    a number from nowhere — and the two arms run against different URLs, so a
+    forgotten flag would otherwise attribute one device's cliff to the
+    other."""
+    return {
+        "arm": arm,
+        "base_url": base_url,
+        "timestamp": timestamp,
+        "server_config": server_config,
+        "timing_includes": TIMING_INCLUDES_NOTE,
+        "sweep": sweep,
+    }
+
+
 # --------------------------------------------------------------------------
 # network I/O — the only part not covered by offline tests
 # --------------------------------------------------------------------------
@@ -556,7 +754,9 @@ def _run_rerank_benchmark(args: argparse.Namespace) -> tuple[dict[str, float], b
         return build_rerank_request(
             args.rerank_model,
             generate_filler_query(index),
-            generate_filler_passages(args.rerank_candidates, offset=index),
+            generate_filler_passages(
+                args.rerank_candidates, offset=index, words=args.rerank_words
+            ),
         )
 
     for i in range(args.rerank_warmup):
@@ -568,6 +768,192 @@ def _run_rerank_benchmark(args: argparse.Namespace) -> tuple[dict[str, float], b
     last_scores = parse_rerank_scores(responses[-1]) if responses else []
 
     return summarize_latencies(latencies), scores_are_degenerate(last_scores)
+
+
+def _run_rerank_sweep(args: argparse.Namespace) -> dict[str, Any]:
+    """Walk `--rerank-sweep` ascending, one rerank call per size, recording
+    latency / status / body per size and NEVER propagating a failure.
+
+    Both outcomes worth measuring arrive as exceptions, because `_post_json`
+    wraps `urlopen`: a guard refusing an oversized batch is an `HTTPError`,
+    and a server killed by one is a `RemoteDisconnected` followed by
+    `URLError` for as long as the pod takes to restart. A sweep that let those
+    out would abort at exactly the size it was run to measure, and report a
+    tidy curve of the sizes that happened to survive.
+
+    Warm-up runs at the SMALLEST size only. Warming at a size about to be
+    proven fatal spends a restart, and the next size is then measured against
+    a cold server — recording a plugin recompile as batch cost."""
+    url = f"{args.base_url}/v3/rerank"
+    sizes = args.rerank_sweep
+    smallest = sizes[0]
+
+    def attempt(documents: int, index: int) -> dict[str, Any]:
+        return _rerank_once(
+            url=url,
+            model=args.rerank_model,
+            documents=documents,
+            index=index,
+            words=args.rerank_words,
+        )
+
+    def run(documents: int, index: int) -> dict[str, Any]:
+        """One size, plus the wait for the server if that size killed it.
+
+        `status is None` is the discriminator: a REFUSAL carries the server's
+        status code and leaves it serving, so nothing needs waiting for; only a
+        closed or refused socket means the process went away."""
+        record = attempt(documents, index)
+        if not record["ok"] and record["status"] is None:
+            record["recovery"] = _wait_for_recovery(args.base_url, args.rerank_model)
+        return record
+
+    warmup_attempts = [run(smallest, i) for i in range(max(args.rerank_warmup, 0))]
+    results = [run(size, i) for i, size in enumerate(sizes)]
+
+    return {
+        "model": args.rerank_model,
+        "sizes": list(sizes),
+        "words_per_document_requested": args.rerank_words,
+        "warmup": {
+            "documents": smallest,
+            "calls": len(warmup_attempts),
+            "attempts": warmup_attempts,
+        },
+        "status_note": SWEEP_STATUS_NOTE,
+        "results": results,
+    }
+
+
+def _rerank_once(
+    *,
+    url: str,
+    model: str,
+    documents: int,
+    index: int,
+    words: int | None,
+) -> dict[str, Any]:
+    """One rerank call, timed, whose FAILURE is a return value.
+
+    The single place the sweep's tolerance lives: warm-up and the timed sweep
+    both come through here, so "what happens when the server refuses or dies"
+    cannot grow two divergent copies. Never raises for a server-side outcome —
+    only a caller error (an impossible `words`) gets out, and that is a bug in
+    the invocation, not a measurement."""
+    passages = generate_filler_passages(documents, offset=index, words=words)
+    body = build_rerank_request(model, generate_filler_query(index), passages)
+    # Measured from the passages actually built, not echoed back from the
+    # flag: a padding bug then shows in the record instead of being papered
+    # over by it.
+    words_sent = max(len(p.split()) for p in passages)
+
+    start = time.perf_counter()
+    status: int | None = None
+    error: str | None = None
+    response_body: str | None = None
+    results_returned: int | None = None
+    ok = False
+    try:
+        response = _post_json(url, body)
+    except urllib.error.HTTPError as exc:
+        # Subclass of URLError — must be caught first or a refusal loses its
+        # status code and its message.
+        status = exc.code
+        error = f"HTTPError: {exc}"
+        response_body = _read_error_body(exc)
+    except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
+        # No status at all: the socket closed, or never opened. Recording 0 or
+        # 500 here would invent a response the server never sent.
+        error = f"{type(exc).__name__}: {exc}"
+    else:
+        ok = True
+        status = 200
+        results_returned = len(response.get("results", []))
+    latency_ms = (time.perf_counter() - start) * 1000.0
+
+    return {
+        "documents": documents,
+        "words_per_document": words_sent,
+        "status": status,
+        "latency_ms": latency_ms,
+        "ok": ok,
+        "error": error,
+        "body": response_body,
+        "results_returned": results_returned,
+    }
+
+
+def _probe_ready(url: str, timeout: float = 5.0) -> bool:
+    """True when `url` answers 2xx. The monkeypatchable seam the recovery wait
+    is tested through — everything above it is offline."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _wait_for_recovery(
+    base_url: str,
+    model: str,
+    *,
+    timeout: float = SWEEP_RECOVERY_TIMEOUT_S,
+    poll: float = SWEEP_RECOVERY_POLL_S,
+) -> dict[str, Any]:
+    """Block until the reranker can serve again, and report how long it took.
+
+    Called only after a failure with NO status — a closed or refused socket,
+    i.e. the server died rather than refused. Without this the next size is
+    sent into a restarting pod and records a URLError indistinguishable from
+    its own death, quietly inventing a data point in the curve that sets the
+    guard's cap.
+
+    It probes the MODEL-level endpoint, not `/v2/health/live`: the server
+    answers server-level liveness while its servable is still loading, which
+    is the same trap the Deployment's probes are written around. Returns
+    rather than raises on timeout — a sweep that could not confirm recovery
+    should say so in the record, not vanish."""
+    ready_url = f"{base_url}/v2/models/{model}/ready"
+    start = time.perf_counter()
+    attempts = 0
+    while True:
+        attempts += 1
+        if _probe_ready(ready_url):
+            return {
+                "recovered": True,
+                "waited_s": time.perf_counter() - start,
+                "probes": attempts,
+                "probe_url": ready_url,
+            }
+        if time.perf_counter() - start >= timeout:
+            return {
+                "recovered": False,
+                "waited_s": time.perf_counter() - start,
+                "probes": attempts,
+                "probe_url": ready_url,
+                "note": (
+                    "the server did not become ready within the timeout — every "
+                    "later size in this sweep measured a server that was never "
+                    "confirmed serving, and must not be read as a batch cost"
+                ),
+            }
+        time.sleep(poll)
+
+
+def _read_error_body(exc: urllib.error.HTTPError) -> str | None:
+    """The server's own words about why it refused — the thing Test Plan row 6
+    records rather than asserts. Best-effort: a body that cannot be read must
+    not turn a recorded refusal into a crashed sweep."""
+    try:
+        raw = exc.read()
+    except Exception:  # pragma: no cover - defensive; fp may be absent/closed
+        return None
+    if not raw:
+        return None
+    text = raw.decode("utf-8", errors="replace")
+    if len(text) > SWEEP_BODY_CAPTURE_CHARS:
+        return text[:SWEEP_BODY_CAPTURE_CHARS] + "... [truncated]"
+    return text
 
 
 def _run_embeddings_benchmark(args: argparse.Namespace) -> tuple[int, dict[str, float], dict[str, float]]:
@@ -607,6 +993,15 @@ def _run_embeddings_benchmark(args: argparse.Namespace) -> tuple[int, dict[str, 
     return dimension, summarize_latencies(single_latencies), summarize_latencies(batch_latencies)
 
 
+def _emit(payload: dict[str, Any], output: str | None) -> None:
+    text = json.dumps(payload, indent=2)
+    if output:
+        with open(output, "w") as f:
+            f.write(text + "\n")
+    else:
+        print(text)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
@@ -639,6 +1034,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_ARM_CONTRADICTED
 
+    if args.rerank_sweep:
+        # Sweep mode REPLACES the timed benchmark rather than preceding it.
+        # The sweep exists to find the size at which the server dies; running
+        # a 30-iteration embeddings loop afterwards would measure a restarting
+        # pod and report it as embedding latency.
+        sweep_payload = build_sweep_payload(
+            arm=args.arm,
+            base_url=args.base_url,
+            timestamp=utc_timestamp(),
+            server_config=server_config,
+            sweep=_run_rerank_sweep(args),
+        )
+        _emit(sweep_payload, args.output)
+        return 0
+
     try:
         rerank_summary, degenerate = _run_rerank_benchmark(args)
         dimension, embed_single, embed_batch = _run_embeddings_benchmark(args)
@@ -664,12 +1074,7 @@ def main(argv: list[str] | None = None) -> int:
         degenerate=degenerate,
     )
 
-    text = json.dumps(payload, indent=2)
-    if args.output:
-        with open(args.output, "w") as f:
-            f.write(text + "\n")
-    else:
-        print(text)
+    _emit(payload, args.output)
 
     if degenerate:
         print(

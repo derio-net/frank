@@ -1062,3 +1062,44 @@ rows:
     (merge of #382): both posts on blog.derio.net serve every new section anchor, zero
     dangling in-page links, building/operating cross-links resolve, and the smoke commands
     appear in both Verify and Quick Reference.'
+- id: infer-rerank-supported-batch-succeeds
+  capability: Retrieval models
+  acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default and receive scored
+    results, without the server restarting.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: Live proof owed post-merge (Test Plan rows 5 and 8). CI guards manifest and Dockerfile shape only,
+    never serving behaviour, so this row can only ever be live-proof.
+- id: infer-rerank-oversized-refused-cleanly
+  capability: Retrieval models
+  acceptance: An oversized rerank request is refused with a response naming the limit, and the server keeps
+    serving every other caller.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: Live proof owed post-merge (Test Plan rows 6 and 7). The status code is upstream's choice and is
+    recorded verbatim rather than asserted as 4xx — the calculator raises std::runtime_error, which Process()
+    catches into absl::InternalError, conventionally HTTP 500.
+- id: infer-rerank-batch-curve-measured
+  capability: Retrieval models
+  acceptance: Operators have a measured working-set curve across rerank batch sizes, so the configured cap is
+    evidence rather than an estimate.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+  levels: {}
+  status: not-implemented
+  notes: >-
+    PARTIALLY MET 2026-09-14. A curve WAS measured live, and the mechanism behind it settled from the
+    container's own cgroup: the memory is PINNED iGPU BUFFERS (shmem 5.11 GiB == unevictable 5.11 GiB, with
+    inactive_file and active_file both zero and swap disabled), so limits.memory is the GPU's memory budget
+    and the kernel may reclaim nothing. Baseline 1.71 GiB; a call allocates by request shape, 3.40 GiB at 64
+    documents by 600 tokens; repeating a shape or sending a smaller one grows nothing; an ascending sequence
+    costs more than the largest alone; nothing is released while the container lives. The same 60x500 request
+    dies on a warm pool and succeeds on a fresh one, proven both ways. NOT met, the shipped pair 64 / 640 was
+    measured at the OLD 6Gi limit (worst case 5.67 GiB there, 94.5 percent) rather than at the 10Gi it ships
+    with — the live patch that would have measured the raised arm was refused by the harness permission layer
+    and the operator elected to ship the raise through git and verify afterwards. Closes on Test Plan row 10,
+    which must run on a freshly restarted pod or the pool overstates every size after the first.

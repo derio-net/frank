@@ -1,0 +1,88 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Benchmark sweep mode — the harness that produces the curve
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: 'Sweep mode: red, green, refactor'
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED. In `scripts/tests/test_ovms_retrieval_bench.py`, using the existing
+      recorder fake, assert a sweep mode driven by `--rerank-sweep 10,20,30,40,50`:
+      it issues one rerank call per size, in ascending order, and the recorded
+      result carries `documents`, `words_per_document`, `status`, `latency_ms` per
+      size. Run `uv run --frozen pytest scripts/tests/test_ovms_retrieval_bench.py -q`; red.
+  - id: P2.T1.S2
+    text: |
+      RED. Assert failure TOLERANCE, which is the whole reason this mode exists:
+      when the fake raises `urllib.error.HTTPError` (a refusal) or
+      `urllib.error.URLError` / `http.client.RemoteDisconnected` (a killed server),
+      the sweep RECORDS status and body and CONTINUES to the next size instead of
+      propagating. `_post_json` wraps `urlopen`, which raises on anything but 2xx,
+      so without this the run aborts at exactly the datum it exists to capture.
+      Still red.
+  - id: P2.T1.S3
+    text: |
+      RED. Assert two more properties. (a) Warm-up happens ONLY at the smallest
+      size — warming at a size about to be proven fatal wastes a restart and
+      poisons the next measurement. (b) `--rerank-words` controls passage length
+      and the emitted record carries it, because the mechanism is batch x tokens
+      and the existing `generate_filler_passages` emits a fixed ~20-word passage
+      while the issue reproduced at 200 words. A curve recorded without its word
+      count is not quotable. Still red.
+  - id: P2.T1.S4
+    text: |
+      GREEN. Add `--rerank-sweep` (comma-separated sizes) and `--rerank-words`
+      (default keeps today's behaviour) to `scripts/ovms-retrieval-bench.py`.
+      Extend `generate_filler_passages` to pad each passage to the requested word
+      count from the existing filler vocabulary — pad, do not invent new prose,
+      and keep it generic invented filler per the spec's discretion rule. Re-run
+      the bench tests; green.
+  - id: P2.T1.S5
+    text: |
+      GREEN. Emit the sweep as a distinct record section with the same provenance
+      the harness already carries (`base_url`, `timestamp`, `server_config`,
+      `arm`), so a quoted curve names the endpoint and the arm it came from.
+      Re-run; green.
+  - id: P2.T1.S6
+    text: |
+      REFACTOR. Factor the per-size call out of the sweep loop so the tolerance
+      logic is in one place, and re-read the module docstring — it currently
+      documents "one query against 20 candidate passages" as the rerank
+      measurement. Update it to describe the sweep. Run
+      `uv run --frozen pytest scripts/tests -q`; all green.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-09-11T09:33:27+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-09-11T09:34:19+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-09-11T09:35:36+00:00'
+      note: null
+    P2.T1.S4:
+      state: x
+      ticked_at: '2026-09-11T09:38:39+00:00'
+      note: null
+    P2.T1.S5:
+      state: x
+      ticked_at: '2026-09-11T09:40:21+00:00'
+      note: null
+    P2.T1.S6:
+      state: x
+      ticked_at: '2026-09-11T09:44:48+00:00'
+      note: null
+  completion:
+    at: '2026-09-11T09:45:55+00:00'
+    note: null
+    observed_prs: []

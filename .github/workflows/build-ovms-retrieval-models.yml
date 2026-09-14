@@ -50,7 +50,7 @@ env:
   # nothing, `imagePullPolicy: IfNotPresent` reuses the node-cached image, and
   # the seed marker (which compares MODELS_REV only) skips re-seeding even if
   # the new bytes did land.
-  MODELS_REV: "1"
+  MODELS_REV: "2"
 
 concurrency:
   group: build-ovms-retrieval-models-${{ github.event_name == 'pull_request' && github.ref || 'main' }}

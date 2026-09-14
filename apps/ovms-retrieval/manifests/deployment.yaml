@@ -75,7 +75,7 @@ spec:
         # image. The runtime image stays stock upstream — this is the only
         # place Frank-built bytes enter the pod.
         - name: seed-models
-          image: ghcr.io/derio-net/ovms-retrieval-models:1
+          image: ghcr.io/derio-net/ovms-retrieval-models:2
           # IfNotPresent is safe because the tag is the immutable model rev:
           # new contents get a new rev (and therefore a genuine pull), while a
           # restart reuses the node cache instead of re-pulling GBs of weights.
@@ -86,7 +86,7 @@ spec:
             # mean the marker claims a rev the bytes on the volume are not.
             # Guarded by test_model_image_tag_matches_the_rev_ci_publishes.
             - name: MODELS_REV
-              value: "1"
+              value: "2"
           command: ["/bin/sh", "-eu", "-c"]
           args:
             # VERSION-GATED, not seed-if-absent. Frank already documents the
@@ -213,16 +213,82 @@ spec:
               protocol: TCP
           resources:
             # Both halves are set on purpose: a limit without a request lets
-            # the scheduler over-commit an etcd member. 2 of 14 cores and 6 of
-            # 64 GB. The memory limit is the real backstop rather than a
-            # formality — iGPU allocations come out of host RAM via i915, so
-            # there is no separate VRAM ceiling to hit first.
+            # the scheduler over-commit an etcd member. 2 of 14 cores, and a
+            # 2Gi request against a ceiling of 10 of 64 GB. The memory limit is
+            # the real backstop rather than a formality — iGPU allocations come
+            # out of host RAM via i915, so there is no separate VRAM ceiling to
+            # hit first.
+            #
+            # WHY THE CEILING IS 10Gi, AND WHY THAT IS A REVERSAL.
+            # 6Gi -> 10Gi, 2026-09-11. The parent spec set this ceiling small
+            # ON PURPOSE: mini-1 is an etcd member, and the whole iGPU
+            # experiment was sized to keep its failure domain away from the
+            # control plane. Raising it reverses that posture, so what follows
+            # is what it was reversed on — all of it measured on a freshly
+            # restarted container from /sys/fs/cgroup/memory.peak, because
+            # vmagent scrapes at 20s and these transients last 0.1–2.5s, so no
+            # metric can see them.
+            #
+            #   * Cost is near-QUADRATIC in document length and only linear in
+            #     document count. The attention scores tensor is
+            #     B x heads x T x T on a 24-layer cross-encoder, and a fit over
+            #     the measured points puts the exponent on T at about 1.78.
+            #     Read as a linear cost, this invites the conclusion that
+            #     bounding the count alone is enough. It is not — which is why
+            #     the per-chunk token bound below is the primary control and
+            #     not a secondary precaution.
+            #
+            #   * The memory is PINNED iGPU BUFFERS, not process memory.
+            #     The iGPU has no VRAM, so every GPU allocation is a
+            #     shmem-backed host page, unevictable in this cgroup. Measured
+            #     at 5.11 GiB held: shmem 5.11, unevictable 5.11 (the same
+            #     number), inactive_file 0, active_file 0, anon 0.55, and swap
+            #     disabled. There is nothing the kernel may reclaim, so it
+            #     kills. `limits.memory` here is the GPU's memory budget.
+            #     `container_memory_rss` is blind to all of it by
+            #     construction, so a flat RSS graph proves nothing.
+            #
+            #   * NOTHING IS RELEASED while the container lives. After load
+            #     the pool sits at a baseline of 1.71 GiB — the model weights,
+            #     pinned on the GPU — and that is both what "elevated" is
+            #     measured against and what a restart returns it to. The pool
+            #     grows toward the largest request shape served; repeating a
+            #     shape or sending a smaller one grows nothing, but an
+            #     ASCENDING sequence costs more than the largest alone
+            #     (fresh -> 50x500 tokens = 3.49 GiB, but 20x500 -> 50x500 =
+            #     4.13 GiB). The same 60x500 request dies on a warm pool and
+            #     succeeds on a fresh one — which is the whole failure mode in
+            #     one sentence, and why pool-watchdog.yaml exists.
+            #
+            # The exported rerank graph now bounds both terms —
+            # max_allowed_chunks: 64 and max_position_embeddings: 640, injected
+            # at build time by docker/inject_rerank_guard.py — which is what
+            # makes a worst case exist at all: 6.36 GiB. That is 64% of this
+            # 10Gi ceiling and 106% of the 6Gi it replaces. So the raise is not
+            # headroom for a larger workload. It is what turns the ceiling into
+            # a backstop the bounded workload cannot reach, rather than the
+            # thing it runs into. A guard whose own worst case OOMs is
+            # decorative.
+            #
+            # WHAT IS NOT PROVEN: 10Gi was never measured AT 10Gi. Every figure
+            # above was taken at 6Gi. The live Deployment patch that would have
+            # measured the raised arm was refused by the operator's permission
+            # layer, and the decision was to ship the raise through git and
+            # verify afterwards rather than leave the ceiling below the guard's
+            # own worst case. Test Plan row 10 of
+            # docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
+            # closes it: re-run the batch sweep against this pod and require
+            # every peak to sit at or under ~70% of the limit.
+            #
+            # requests.memory deliberately stays at 2Gi. Only the ceiling
+            # moved, so the scheduler's view of this control-plane node is
+            # exactly what it was.
             requests:
               cpu: 500m
               memory: 2Gi
             limits:
               cpu: "2"
-              memory: 6Gi
+              memory: 10Gi
             # The iGPU, claimed through DRA. Only this container gets it — the
             # seed container copies files and would hold the device through
             # the whole init phase for nothing.

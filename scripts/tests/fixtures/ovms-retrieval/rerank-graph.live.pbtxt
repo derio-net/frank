@@ -1,0 +1,17 @@
+# OVMS_GRAPH_QUEUE_MAX_SIZE: AUTO
+input_stream: "REQUEST_PAYLOAD:input"
+output_stream: "RESPONSE_PAYLOAD:output"
+node {
+  name: "RerankExecutor"
+  input_side_packet: "RERANK_NODE_RESOURCES:rerank_servable"
+  calculator: "RerankCalculatorOV"
+  input_stream: "REQUEST_PAYLOAD:input"
+  output_stream: "RESPONSE_PAYLOAD:output"
+  node_options: {
+    [type.googleapis.com / mediapipe.RerankCalculatorOVOptions]: {
+      models_path: "./",
+      plugin_config: '{"NUM_STREAMS": "1" }',
+      target_device: "GPU"
+    }
+  }
+}

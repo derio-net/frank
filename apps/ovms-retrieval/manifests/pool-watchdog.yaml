@@ -1,0 +1,253 @@
+# Resets the iGPU buffer pool before it can OOM-kill the server.
+#
+# WHAT IS BEING WATCHED, AND WHY IT IS NOT A LEAK.
+# The Intel iGPU has no VRAM, so every GPU allocation OpenVINO makes is a
+# shmem-backed host page, PINNED UNEVICTABLE inside this container's cgroup.
+# Measured live 2026-09-14 while the server held 5.11 GiB:
+#
+#   shmem 5.11 GiB | unevictable 5.11 GiB | inactive_file 0 | active_file 0
+#   anon 0.55 GiB  | swap.max 0
+#
+# shmem and unevictable are the same number, there is no page cache to drop,
+# and there is no swap. So `limits.memory` on the ovms container is not a
+# safety margin around a process — it IS the GPU's memory budget, and when it
+# is reached the kernel has nothing it is permitted to reclaim. It kills.
+#
+# The pool grows toward the largest request shape served (batch x tokens, and
+# the token term is close to quadratic — attention is B x heads x T x T on an
+# XLM-RoBERTa-large cross-encoder). Verified behaviour:
+#
+#   * repeating a served shape grows nothing;
+#   * a NEW but SMALLER shape grows nothing;
+#   * an ASCENDING sequence costs more than the largest shape alone
+#     (fresh -> 50x500 tokens = 3.49 GiB, but 20x500 -> 50x500 = 4.13 GiB);
+#   * nothing is ever released while the container lives.
+#
+# That last point is the whole reason this file exists. The graph-level cap
+# (max_allowed_chunks / max_position_embeddings, injected into the exported
+# graph.pbtxt) bounds what any ONE request can allocate. It cannot bound what
+# a long-lived server accumulates across a session, and only a restart returns
+# the pool to baseline. A pod restart is therefore not a workaround here, it
+# is the designed reset — and it costs 11s (measured: pod created to Ready,
+# warm node, seed skipped).
+#
+# WHY A RESTART AND NOT SCALE-TO-ZERO. Scaling to zero would need an activator
+# in the request path to accept a connection at 0 replicas, scale up, wait out
+# the cold start and proxy — a permanent new component and ~11s on the first
+# request of every burst, to reclaim 2.26 GiB on a 64 GB node and an iGPU that
+# nothing else claims (one ResourceClaim exists cluster-wide). Revisit if a
+# second consumer appears for the minis' iGPUs.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ovms-pool-watchdog
+  namespace: retrieval
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ovms-pool-watchdog
+  namespace: retrieval
+rules:
+  # `patch` on deployments covers BOTH actions this job takes: stamping the
+  # last-busy annotation, and `rollout restart` (which is a patch of the pod
+  # template's restartedAt annotation). No `delete` anywhere — deleting the
+  # pod directly would bypass the Recreate strategy the RWO model PVC needs.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+  # Reading the pool means reading the container's own cgroup, which is the
+  # exact pinned figure. The alternative — querying working_set from
+  # VictoriaMetrics — is both less precise and a dependency on the monitoring
+  # stack being up at the moment this needs to act.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ovms-pool-watchdog
+  namespace: retrieval
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ovms-pool-watchdog
+subjects:
+  - kind: ServiceAccount
+    name: ovms-pool-watchdog
+    namespace: retrieval
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ovms-pool-watchdog
+  namespace: retrieval
+spec:
+  # Every 5 minutes. The pool only moves when a request is served, so this is
+  # about bounding how long an elevated pool sits exposed, not about sampling
+  # rate.
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: ovms-pool-watchdog
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 5000
+            runAsGroup: 5000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: watchdog
+              image: bitnamilegacy/kubectl:1.33.4
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 200m, memory: 128Mi}
+              env:
+                # Restart regardless of whether the server looks busy. Above
+                # this, a single cap-sized request (3.40 GiB measured at
+                # 64 documents x 600 tokens) can no longer fit under the
+                # limit, so the next caller is going to take the process down
+                # anyway — and an OOM costs the in-flight request PLUS ~10s of
+                # refused connections, which is strictly worse than a
+                # controlled 11s restart.
+                - name: CRITICAL_PERCENT
+                  value: "60"
+                # Below this the pool is at or near its post-boot baseline
+                # (1.71 GiB of model weights on the GPU) and there is nothing
+                # worth reclaiming.
+                - name: ELEVATED_BYTES
+                  value: "2400000000"
+                # A pool above ELEVATED_BYTES is reset once the server has
+                # been quiet this long. Long enough that a caller sending a
+                # request every few minutes never pays a cold start.
+                - name: IDLE_SECONDS
+                  value: "1800"
+                # Busy threshold, in millicores averaged over the sample
+                # window below. A serving call pins most of a core; an idle
+                # OVMS is near zero.
+                - name: BUSY_MILLICORES
+                  value: "50"
+                - name: SAMPLE_SECONDS
+                  value: "10"
+              command: ["/bin/bash", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  NS=retrieval
+                  DEPLOY=ovms-retrieval
+                  ANNOTATION=retrieval.derio.net/pool-watchdog-last-busy
+
+                  pod=$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=ovms-retrieval \
+                          --field-selector=status.phase=Running \
+                          -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+                  if [ -z "$pod" ]; then
+                    echo "pool-watchdog result: action=none reason=no-running-pod"
+                    exit 0
+                  fi
+
+                  # One exec, two samples. Reading the cgroup from inside the
+                  # container is the exact pinned figure; cpu.stat in the same
+                  # read tells us whether it is serving. If the pod is mid
+                  # restart this fails and we simply do nothing this tick.
+                  read_state() {
+                    kubectl -n "$NS" exec "$pod" -c ovms -- sh -c '
+                      grep "^shmem " /sys/fs/cgroup/memory.stat | cut -d" " -f2
+                      cat /sys/fs/cgroup/memory.max
+                      grep "^usage_usec " /sys/fs/cgroup/cpu.stat | cut -d" " -f2
+                    ' 2>/dev/null
+                  }
+                  s1=$(read_state) || true
+                  if [ -z "${s1:-}" ]; then
+                    echo "pool-watchdog result: action=none reason=unreadable-cgroup"
+                    exit 0
+                  fi
+                  sleep "$SAMPLE_SECONDS"
+                  s2=$(read_state) || true
+                  if [ -z "${s2:-}" ]; then
+                    echo "pool-watchdog result: action=none reason=unreadable-cgroup"
+                    exit 0
+                  fi
+
+                  shmem=$(echo "$s1" | sed -n 1p)
+                  limit=$(echo "$s1" | sed -n 2p)
+                  cpu1=$(echo "$s1" | sed -n 3p)
+                  cpu2=$(echo "$s2" | sed -n 3p)
+
+                  # `memory.max` reads "max" when unlimited; treat that as
+                  # "no critical threshold" rather than dividing by a word.
+                  if [ "$limit" = "max" ]; then limit=0; fi
+
+                  millicores=$(( (cpu2 - cpu1) / (SAMPLE_SECONDS * 1000) ))
+                  now=$(date -u +%s)
+
+                  busy=no
+                  if [ "$millicores" -ge "$BUSY_MILLICORES" ]; then busy=yes; fi
+
+                  restart() {
+                    kubectl -n "$NS" rollout restart "deployment/$DEPLOY"
+                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem limit=$limit millicores=$millicores"
+                  }
+
+                  if [ "$busy" = yes ]; then
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                  fi
+
+                  # Rule 1 — safety. Ignores idleness on purpose: see
+                  # CRITICAL_PERCENT above.
+                  if [ "$limit" -gt 0 ]; then
+                    # Integer math on purpose: percent-of-limit is exact
+                    # enough for a threshold whose job is to be crossed early,
+                    # and it keeps this script to bash + kubectl, matching the
+                    # pipelinerun-ttl-gc CronJob's stated constraint.
+                    critical=$(( limit / 100 * CRITICAL_PERCENT ))
+                    if [ "$shmem" -ge "$critical" ]; then
+                      restart critical-pool
+                      exit 0
+                    fi
+                  fi
+
+                  if [ "$busy" = yes ]; then
+                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem millicores=$millicores"
+                    exit 0
+                  fi
+
+                  # Rule 2 — hygiene. An elevated pool that nobody is using is
+                  # headroom the next session will not have.
+                  if [ "$shmem" -lt "$ELEVATED_BYTES" ]; then
+                    echo "pool-watchdog result: action=none reason=pool-at-baseline shmem=$shmem"
+                    exit 0
+                  fi
+
+                  last=$(kubectl -n "$NS" get "deployment/$DEPLOY" \
+                           -o "jsonpath={.metadata.annotations.retrieval\.derio\.net/pool-watchdog-last-busy}" 2>/dev/null || true)
+                  if [ -z "${last:-}" ]; then
+                    # Never seen busy. Stamp now so the idle clock starts from
+                    # an observation rather than from pod age, and wait.
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                    echo "pool-watchdog result: action=none reason=no-baseline-yet shmem=$shmem"
+                    exit 0
+                  fi
+
+                  idle_for=$(( now - last ))
+                  if [ "$idle_for" -ge "$IDLE_SECONDS" ]; then
+                    restart idle-with-elevated-pool
+                    exit 0
+                  fi
+
+                  echo "pool-watchdog result: action=none reason=idle-too-recent shmem=$shmem idle_for=$idle_for"
