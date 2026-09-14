@@ -1,0 +1,50 @@
+# Shared git plumbing for staging-gate (tekton.dev/v1beta1 StepAction — the cluster's Tekton
+# CRD serves v1alpha1+v1beta1, confirmed live 2026-09-14 via
+# `kubectl get crd stepactions.tekton.dev`). resolve-contract, staging-gate-bump-staging and
+# staging-gate-promote each cloned/pushed frank with an identical inline script (P8.T2 REFACTOR);
+# this is now the ONE place that script lives. Every caller passes the calling Task's own
+# workspace path as a param — a StepAction has no `workspaces.*` variable namespace of its own.
+#
+# mode: clone  — (re)clone frank into `scratchPath`/frank.
+# mode: push   — commit `path` with `message` (inside `scratchPath`/frank) and push to main.
+# Both modes authenticate over HTTPS with the frank-gitops-push App token (never echoed via
+# `set +x`; never left inspectable in a remote URL — no `git remote -v` after clone).
+apiVersion: tekton.dev/v1beta1
+kind: StepAction
+metadata:
+  name: staging-gate-git
+  namespace: tekton-pipelines
+spec:
+  description: Shared clone/commit/push plumbing for the staging-gate Pipeline's frank writes.
+  params:
+    - {name: mode, type: string, description: "clone | push"}
+    - {name: scratchPath, type: string}
+    - {name: message, type: string, default: ""}
+    - {name: path, type: string, default: ""}
+  image: alpine/git:2.45.2
+  env:
+    - {name: HOME, value: /tekton/home}
+    - name: GITHUB_TOKEN
+      valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
+  computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+  securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
+  script: |
+    #!/bin/sh
+    set -eu
+    set +x
+    case "$(params.mode)" in
+      clone)
+        rm -rf "$(params.scratchPath)/frank"
+        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(params.scratchPath)/frank"
+        ;;
+      push)
+        cd "$(params.scratchPath)/frank"
+        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
+          commit -m "$(params.message)" -- "$(params.path)"
+        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
+        ;;
+      *)
+        echo "staging-gate-git: unknown mode '$(params.mode)'" >&2
+        exit 1
+        ;;
+    esac

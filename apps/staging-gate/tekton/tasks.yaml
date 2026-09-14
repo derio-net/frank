@@ -7,10 +7,12 @@
 # Image tag convention is `sha-<commit>` (spec Component 1): params.sha is the SHORT commit sha
 # the GHA repository_dispatch sends; the tag is `sha-$(params.sha)`.
 #
-# Git plumbing: every clone/push step authenticates over HTTPS with the frank-gitops-push App
-# token (GITHUB_TOKEN, secretKeyRef key `token`), like cnc-promotion/site-promotion — no SSH
-# key, no workspace-mounted credential. `set +x` and no post-clone `git remote -v`/URL printing
-# keep the token out of PipelineRun logs (P8, spec Revision 2026-09-14 default: push credential).
+# Git plumbing: every clone/push step `ref:`s the shared `staging-gate-git` StepAction
+# (stepactions.yaml, P8.T2 REFACTOR) — one script authenticating over HTTPS with the
+# frank-gitops-push App token (GITHUB_TOKEN, secretKeyRef key `token`), like
+# cnc-promotion/site-promotion — no SSH key, no workspace-mounted credential. `set +x` and no
+# post-clone `git remote -v`/URL printing keep the token out of PipelineRun logs (P8, spec
+# Revision 2026-09-14 default: push credential).
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -26,19 +28,10 @@ spec:
     - {name: scratch}
   steps:
     - name: clone
-      image: alpine/git:2.45.2
-      env:
-        - {name: HOME, value: /tekton/home}
-        - name: GITHUB_TOKEN
-          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
-      script: |
-        #!/bin/sh
-        set -eu
-        set +x
-        rm -rf "$(workspaces.scratch.path)/frank"
-        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
+      ref: {name: staging-gate-git}
+      params:
+        - {name: mode, value: clone}
+        - {name: scratchPath, value: $(workspaces.scratch.path)}
     - name: bump
       image: mikefarah/yq:4.44.3
       env: [{name: TAG, value: "sha-$(params.sha)"}]
@@ -51,21 +44,12 @@ spec:
         yq -i '.image.tag = strenv(TAG)' "$f"
         echo "staged image.tag -> $TAG"; yq '.image' "$f"
     - name: push
-      image: alpine/git:2.45.2
-      env:
-        - {name: HOME, value: /tekton/home}
-        - name: GITHUB_TOKEN
-          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
-      script: |
-        #!/bin/sh
-        set -eu
-        set +x
-        cd "$(workspaces.scratch.path)/frank"
-        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
-          commit -m "gate: stage sha-$(params.sha) [skip ci]" -- "$(params.stagingValuesPath)"
-        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
+      ref: {name: staging-gate-git}
+      params:
+        - {name: mode, value: push}
+        - {name: scratchPath, value: $(workspaces.scratch.path)}
+        - {name: message, value: "gate: stage sha-$(params.sha) [skip ci]"}
+        - {name: path, value: "$(params.stagingValuesPath)"}
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -172,19 +156,10 @@ spec:
     - {name: scratch}
   steps:
     - name: clone
-      image: alpine/git:2.45.2
-      env:
-        - {name: HOME, value: /tekton/home}
-        - name: GITHUB_TOKEN
-          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
-      script: |
-        #!/bin/sh
-        set -eu
-        set +x
-        rm -rf "$(workspaces.scratch.path)/frank"
-        git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
+      ref: {name: staging-gate-git}
+      params:
+        - {name: mode, value: clone}
+        - {name: scratchPath, value: $(workspaces.scratch.path)}
     - name: record
       image: mikefarah/yq:4.44.3
       env:
@@ -201,23 +176,12 @@ spec:
         yq -i '.sha = strenv(SHA) | .image = strenv(IMAGE_REF) | .pipelineRun = strenv(PIPELINE_RUN) | .promotedAt = strenv(NOW)' "$f"
         echo "promoted sha-$(params.sha)"; yq '.' "$f"
     - name: push
-      image: alpine/git:2.45.2
-      env:
-        - {name: HOME, value: /tekton/home}
-        - {name: APP, value: "$(params.app)"}
-        - {name: SHA, value: "$(params.sha)"}
-        - name: GITHUB_TOKEN
-          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532, seccompProfile: {type: RuntimeDefault}}
-      script: |
-        #!/bin/sh
-        set -eu
-        set +x
-        cd "$(workspaces.scratch.path)/frank"
-        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
-          commit -m "gate: last-green ${APP} sha-${SHA} [skip ci]" -- "$(params.promotedRecordPath)"
-        git push "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" HEAD:main
+      ref: {name: staging-gate-git}
+      params:
+        - {name: mode, value: push}
+        - {name: scratchPath, value: $(workspaces.scratch.path)}
+        - {name: message, value: "gate: last-green $(params.app) sha-$(params.sha) [skip ci]"}
+        - {name: path, value: "$(params.promotedRecordPath)"}
 ---
 apiVersion: tekton.dev/v1
 kind: Task

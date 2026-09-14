@@ -291,7 +291,41 @@ def test_no_manifest_references_the_retired_ssh_credential():
 
 
 def test_git_pushing_steps_read_the_github_app_token():
+    """Behaviour-level, not shape-level: whether the git-push plumbing lives inline
+    per step (pre-refactor) or in the shared `staging-gate-git` StepAction
+    (P8.T2.S3 REFACTOR), the actual `git push` must read GITHUB_TOKEN from
+    frank-gitops-push/token, and every push-mode caller must route through it."""
     docs = _tekton_docs()
+    step_action = next(
+        (
+            d for d in docs
+            if d.get("kind") == "StepAction" and d.get("metadata", {}).get("name") == "staging-gate-git"
+        ),
+        None,
+    )
+    if step_action is not None:
+        spec = step_action["spec"]
+        assert "git push" in spec.get("script", ""), (
+            "staging-gate-git StepAction must contain the git push plumbing"
+        )
+        env = {e["name"]: e for e in spec.get("env", [])}
+        assert "GITHUB_TOKEN" in env, "staging-gate-git StepAction has no GITHUB_TOKEN env"
+        ref = env["GITHUB_TOKEN"].get("valueFrom", {}).get("secretKeyRef", {})
+        assert ref == {"name": PUSH_SECRET_NAME, "key": PUSH_SECRET_KEY}, (
+            f"staging-gate-git GITHUB_TOKEN must come from {PUSH_SECRET_NAME}/{PUSH_SECRET_KEY}, "
+            f"got: {ref}"
+        )
+        push_callers = [
+            (doc, step)
+            for doc, step in _iter_steps(docs)
+            if step.get("ref", {}).get("name") == "staging-gate-git"
+            and any(p.get("name") == "mode" and p.get("value") == "push" for p in step.get("params", []))
+        ]
+        assert push_callers, (
+            "expected at least one step calling staging-gate-git in push mode"
+        )
+        return
+
     found_push = False
     for doc, step in _iter_steps(docs):
         if "git push" not in step.get("script", ""):

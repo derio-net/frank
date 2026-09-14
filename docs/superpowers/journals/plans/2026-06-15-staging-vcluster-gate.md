@@ -140,3 +140,35 @@ The unscoped github-app-derio token has contents/issues/pull_requests/workflows 
 ### d-scoped-argocd-read-generator · decision · ArgoCD repository credentials use a scoped read-only generator (phase 7)
 
 Supersedes the executor note that reused the unscoped github-app-derio. Placement in apps/argocd-extras stands. One generic generator (github-app-derio-argocd-read) serves every future gated private chart repo by extending its repositories list, rather than one generator per app. No new App, no new PEM; the PEM still has to exist in argocd because ESO resolves secretRef in the consumer namespace.
+
+<!-- fr:journal kind=decision scope=plan id=480ec2b3feb7 created=2026-09-14T23:46:14 phase=8 -->
+### 480ec2b3feb7 · decision · P8.T2.S3 REFACTOR: real StepAction, not a ConfigMap (phase 8)
+
+The cluster's Tekton CRD serves StepAction (confirmed 2026-09-14, read-only):
+\`KUBECONFIG=.../.talos/Frank_Kubeconfig.yaml kubectl get crd stepactions.tekton.dev\`
+returned CREATED-AT with no error, and its served versions are
+\`v1alpha1 v1beta1\` (\`kubectl get crd stepactions.tekton.dev -o jsonpath='{.spec.versions[*].name}'\`).
+So the extraction is a real \`apps/staging-gate/tekton/stepactions.yaml\`
+(\`apiVersion: tekton.dev/v1beta1, kind: StepAction, name: staging-gate-git\`), not the
+ConfigMap fallback.
+
+The repeated clone/commit/push script (resolve-contract, staging-gate-bump-staging,
+staging-gate-promote) collapses into one StepAction with a \`mode: clone|push\` param plus
+\`scratchPath\`/\`message\`/\`path\`. Every fixed piece (image, script, env incl. the
+GITHUB_TOKEN secretKeyRef, computeResources, securityContext) lives in the StepAction itself
+rather than being passed as params, because a Step referencing a StepAction via \`ref:\` can only
+override a narrow field set (name/ref/params/timeout/workingDir/onError/stdout*/stderr*) — env
+and script are not among them, so anything that needs to be identical across callers has to be
+baked into the StepAction, not threaded through per-call params.
+
+A StepAction has no \`workspaces.*\` variable namespace of its own (unlike a Task/Pipeline), so
+every caller passes its own resolved \`$(workspaces.scratch.path)\` in as the \`scratchPath\`
+param — substituted at the calling Task's admission time, before the StepAction ever sees it.
+
+Only one test needed updating for the refactor
+(\`test_git_pushing_steps_read_the_github_app_token\` in
+scripts/tests/test_staging_gate_manifests.py): it now looks for the StepAction first and asserts
+on its script/env plus that at least one step calls it in push mode, falling back to the old
+inline-script assertion if no StepAction exists. Every other P8.T2.S1 test (retired-ssh-string
+scan, promote's write shape, resolve-contract's v2 results, the RBAC role's secret name) is
+behaviour-level and needed no change — confirming the plan's prediction.

@@ -1,7 +1,9 @@
 # staging-gate Pipeline (tekton.dev/v1). Reusable: params are {app, sha}; resolve-contract reads
 # apps/staging-gate/registry/<app>.yaml (https-cloned with the frank-gitops-push App token — frank
 # is private). promote runs ONLY when run-smoke Succeeded and records last-green; reset always
-# (finally). RUNTIME → P7 (staging/vCluster wiring), Component 4 registry → P8.
+# (finally). Git clone/push steps `ref:` the shared StepAction in stepactions.yaml (P8.T2
+# REFACTOR) — see its header comment for the mode/param contract. RUNTIME → P7 (staging/vCluster
+# wiring), Component 4 registry → P8.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -35,23 +37,10 @@ spec:
           - {name: promotedRecordPath}
         steps:
           - name: clone
-            image: alpine/git:2.45.2
-            env:
-              - {name: HOME, value: /tekton/home}
-              - name: GITHUB_TOKEN
-                valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
-            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-              runAsUser: 65532
-              seccompProfile: {type: RuntimeDefault}
-            script: |
-              #!/bin/sh
-              set -eu
-              set +x
-              rm -rf "$(workspaces.scratch.path)/frank"
-              git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" "$(workspaces.scratch.path)/frank"
+            ref: {name: staging-gate-git}
+            params:
+              - {name: mode, value: clone}
+              - {name: scratchPath, value: $(workspaces.scratch.path)}
           - name: read
             image: mikefarah/yq:4.44.3
             computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
