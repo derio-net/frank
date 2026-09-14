@@ -80,20 +80,26 @@ Steps installed git/yq at runtime as a non-root user, which cannot write the pac
 
 Placed the new repo-runs-fr ExternalSecret in apps/argocd-extras/manifests/ (existing Application, already targets ns argocd, already houses exactly this shape of credential — repo-stoa-companies) rather than creating a new apps/staging-gate/argocd/ Application. staging-gate's own Application targets tekton-pipelines only; widening it to argocd would have been unnecessary scope creep. No new ClusterGenerator: github-app-derio's installation already covers all derio-net repos including runs-fr. ESO resolves privateKey.secretRef in the CONSUMING namespace (argocd), so the PEM must also be copied there — manual op cicd-staging-gate-argocd-runs-fr-repo-key.
 
-<!-- fr:journal kind=finding scope=plan id=p7-docstring-ci created=2026-09-14T23:08:25 phase=7 state=open -->
-### p7-docstring-ci · finding [open] · test_staging_gate_manifests.py docstring claims scripts/tests is not run in CI (phase 7)
+<!-- fr:journal kind=finding scope=plan id=p7-docstring-ci created=2026-09-14T23:08:25 phase=7 state=fixed -->
+### p7-docstring-ci · finding [fixed] · test_staging_gate_manifests.py docstring claims scripts/tests is not run in CI (phase 7)
 
 The module docstring says "LOCAL guards (frank does not run scripts/tests/ in CI)". repo-tripwires.yml has run the suite on every PR since #707, so the claim is stale (copied from an older test).
 
-<!-- fr:journal kind=finding scope=plan id=p7-es-comment-evidence created=2026-09-14T23:08:28 phase=7 state=open -->
-### p7-es-comment-evidence · finding [open] · repo-runs-fr ExternalSecret comment misstates its evidence (phase 7)
+**Fixed in aa8bdd75.** Confirmed by the phase-7 review. Both test_staging_gate_manifests.py and the older identical sentence in test_argocd_vcluster_pod_exclusion.py now say the tests run in CI. State flipped by hand: `fr journal add` with an existing id is a no-op, and fr has no state-update command.
+
+<!-- fr:journal kind=finding scope=plan id=p7-es-comment-evidence created=2026-09-14T23:08:28 phase=7 state=fixed -->
+### p7-es-comment-evidence · finding [fixed] · repo-runs-fr ExternalSecret comment misstates its evidence (phase 7)
 
 It says "verified live: argocd repo list has no runs-fr entry"; the verification was a kubectl listing of argocd repository Secrets. It also says "same pattern as repo-stoa-companies above" although that precedent is a different file.
 
-<!-- fr:journal kind=finding scope=plan id=p7-vacuous-argocd-assert created=2026-09-14T23:08:31 phase=7 state=open -->
-### p7-vacuous-argocd-assert · finding [open] · Consumer-namespace test asserts "argocd" in raw, which is always true (phase 7)
+**Fixed in aa8bdd75.** Confirmed by the phase-7 review. The ExternalSecret comment names externalsecret-repo-stoa-companies.yaml by file and drops the snapshot claim. The test docstring cites the `kubectl -n argocd get secret -l argocd.argoproj.io/secret-type=repository` listing. State flipped by hand (see p7-docstring-ci).
+
+<!-- fr:journal kind=finding scope=plan id=p7-vacuous-argocd-assert created=2026-09-14T23:08:31 phase=7 state=fixed -->
+### p7-vacuous-argocd-assert · finding [fixed] · Consumer-namespace test asserts "argocd" in raw, which is always true (phase 7)
 
 test_repo_credential_manifest_documents_the_consumer_namespace_key checks `"argocd" in raw`; the `namespace: argocd` line always satisfies it, so only the manual-op-name half of the assertion can fail.
+
+**Fixed in aa8bdd75.** Confirmed by the phase-7 review. Replaced by test_repo_credential_comment_documents_the_consumer_namespace_pem, which scans comment lines only and requires `github-app-derio-key`, `argocd` and the manual-op id. The YAML body line can no longer satisfy it. State flipped by hand (see p7-docstring-ci).
 
 <!-- fr:journal kind=discovery scope=plan id=p7-suite-baseline created=2026-09-14T23:13:24 phase=7 -->
 ### p7-suite-baseline · discovery · Tripwire baseline is 933 after the rebase, not 776 (phase 7)
