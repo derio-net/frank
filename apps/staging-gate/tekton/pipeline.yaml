@@ -14,7 +14,6 @@ spec:
     - {name: app, type: string}
     - {name: sha, type: string}
   workspaces:
-    - {name: vcluster-kubeconfig}
     - {name: scratch}
   tasks:
     - name: resolve-contract
@@ -27,6 +26,8 @@ spec:
         params:
           - {name: app, type: string}
           - {name: sha, type: string}
+          # P9.T3: bounded wait for an older same-app run (default 30min).
+          - {name: waitTurnTimeoutSeconds, type: string, default: "1800"}
         workspaces:
           - {name: scratch}
         results:
@@ -35,6 +36,7 @@ spec:
           - {name: smokeImage}
           - {name: smokeNamespace}
           - {name: smokeRbacUrl}
+          - {name: smokeServiceAccount}
           - {name: image}
           - {name: promotedRecordPath}
         steps:
@@ -45,6 +47,8 @@ spec:
             # registry lookup below) and a Job name (run-smoke); sha reaches shell
             # scripts throughout the pipeline. Read via env, never $(params.*)
             # splicing, for the same injection reason as the StepAction (p8-c1).
+            # Runs BEFORE wait-turn: the label selector below is app's value, so app
+            # must already be a valid label value by the time wait-turn uses it.
             image: alpine/git:2.45.2
             env:
               - {name: APP, value: $(params.app)}
@@ -60,6 +64,57 @@ spec:
               set -eu
               echo "$SHA" | grep -Eq '^[a-f0-9]{7,40}$' || { echo "invalid sha: $SHA" >&2; exit 1; }
               echo "$APP" | grep -Eq '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$' || { echo "invalid app: $APP" >&2; exit 1; }
+          - name: wait-turn
+            # P9.T3 (serialization): the TriggerTemplate labels every PipelineRun
+            # `staging-gate/app: <app>` (triggers.yaml). Wait while an OLDER
+            # (earlier creationTimestamp), still-unfinished PipelineRun for the SAME
+            # app exists, so two runs never share the one staging vCluster. "Self"
+            # is identified by $(context.pipelineRun.name), not by name-matching
+            # against the label selector result (which includes self).
+            #
+            # bitnamilegacy/kubectl:1.33.4, not rancher/kubectl: this step needs a
+            # shell (while-loop, awk) -- see test_no_step_with_a_script_uses_a_
+            # shell_less_image's docstring for why rancher/kubectl cannot run any
+            # script at all.
+            image: bitnamilegacy/kubectl:1.33.4
+            env:
+              - {name: HOME, value: /tekton/home}
+              - {name: APP, value: $(params.app)}
+              - {name: SELF, value: $(context.pipelineRun.name)}
+              - {name: WAIT_TIMEOUT, value: $(params.waitTurnTimeoutSeconds)}
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1001
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              end=$(( $(date +%s) + WAIT_TIMEOUT ))
+              while [ "$(date +%s)" -lt "$end" ]; do
+                rows=$(kubectl -n tekton-pipelines get pipelineruns -l "staging-gate/app=$APP" \
+                  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.conditions[-1:].status}{"\n"}{end}')
+                self_ts=$(printf '%s\n' "$rows" | awk -F'\t' -v self="$SELF" '$1==self{print $2}')
+                if [ -z "$self_ts" ]; then
+                  echo "self PipelineRun $SELF not found yet -- retrying" >&2
+                  sleep "${WAIT_POLL_INTERVAL:-10}"
+                  continue
+                fi
+                # Blocking = an OTHER run, for the SAME app, created strictly before
+                # self, whose last condition status is neither True (succeeded) nor
+                # False (failed) -- i.e. still Unknown/running.
+                blocking=$(printf '%s\n' "$rows" | awk -F'\t' -v self="$SELF" -v selfts="$self_ts" \
+                  '$1!=self && $2<selfts && $3!="True" && $3!="False" {print $1}')
+                if [ -z "$blocking" ]; then
+                  echo "no older unfinished staging-gate run for app=$APP -- proceeding"
+                  exit 0
+                fi
+                echo "waiting on older run(s): $blocking"
+                sleep "${WAIT_POLL_INTERVAL:-10}"
+              done
+              echo "timed out after ${WAIT_TIMEOUT}s waiting for an older staging-gate run for app=$APP to finish" >&2
+              exit 1
           - name: clone
             ref: {name: staging-gate-git}
             computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
@@ -86,6 +141,7 @@ spec:
               printf '%s' "$(yq '.smokeImage' "$f")" > "$(results.smokeImage.path)"
               printf '%s' "$(yq '.smokeNamespace' "$f")" > "$(results.smokeNamespace.path)"
               printf '%s' "$(yq '.smokeRbacUrl' "$f")" > "$(results.smokeRbacUrl.path)"
+              printf '%s' "$(yq '.smokeServiceAccount' "$f")" > "$(results.smokeServiceAccount.path)"
               printf '%s' "$(yq '.image' "$f")" > "$(results.image.path)"
               printf '%s' "$(yq '.promotedRecordPath' "$f")" > "$(results.promotedRecordPath.path)"
     - name: bump-staging
@@ -108,9 +164,9 @@ spec:
         - {name: app, value: $(params.app)}
         - {name: smokeImage, value: $(tasks.resolve-contract.results.smokeImage)}
         - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
+        - {name: smokeRbacUrl, value: $(tasks.resolve-contract.results.smokeRbacUrl)}
+        - {name: smokeServiceAccount, value: $(tasks.resolve-contract.results.smokeServiceAccount)}
         - {name: sha, value: $(params.sha)}
-      workspaces:
-        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}
     - name: promote
       # P8 review (p8-c2-dag-when-status, Critical): a DAG task cannot read
       # $(tasks.<x>.status) — Tekton rejects it ("pipeline tasks can not refer
@@ -128,9 +184,42 @@ spec:
       workspaces:
         - {name: scratch, workspace: scratch}
   finally:
+    # P9.T3: reset reads smokeNamespace from resolve-contract's RESULTS, so if
+    # resolve-contract itself failed (or was skipped), Tekton skips reset too
+    # (a finally task's param is unresolvable when it reads a result from a
+    # task that never produced one). That is ACCEPTABLE here, unlike for
+    # notify below: if resolve-contract never ran, nothing was ever deployed
+    # into the vCluster for this run, so there is nothing for reset to clean
+    # up. notify, by contrast, must fire on exactly that failure -- see its
+    # comment for why it reads only raw params/status, never results.
     - name: reset
       taskRef: {name: staging-gate-reset}
       params:
         - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
-      workspaces:
-        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}
+    - name: notify
+      # P9.T3: fire on any RED run. $(tasks.status) (the pipeline-wide
+      # aggregate, legal only in finally) is "Succeeded" when every task
+      # ran and succeeded, "Completed" when some were skipped but none
+      # failed, and "Failed" otherwise -- so `notin [Succeeded, Completed]`
+      # catches both an outright task failure AND the case where run-smoke
+      # itself never ran because an earlier task failed.
+      when:
+        - input: "$(tasks.status)"
+          operator: notin
+          values: ["Succeeded", "Completed"]
+      taskRef: {name: staging-gate-notify}
+      params:
+        # Deliberately the pipeline's RAW params/context, never
+        # resolve-contract.results.* -- a finally task's param is skipped
+        # entirely when it reads a result from a task that failed or never
+        # ran, and resolve-contract can be exactly that task. Losing the
+        # red-path notification on the run most likely to need one would
+        # defeat the point of this task.
+        - {name: app, value: $(params.app)}
+        - {name: sha, value: $(params.sha)}
+        - {name: pipelineRun, value: $(context.pipelineRun.name)}
+        - {name: resolveStatus, value: "$(tasks.resolve-contract.status)"}
+        - {name: bumpStatus, value: "$(tasks.bump-staging.status)"}
+        - {name: awaitStatus, value: "$(tasks.await-sync.status)"}
+        - {name: smokeStatus, value: "$(tasks.run-smoke.status)"}
+        - {name: promoteStatus, value: "$(tasks.promote.status)"}

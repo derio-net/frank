@@ -1,11 +1,22 @@
 # staging-gate Tekton Tasks (tekton.dev/v1). Schema-valid + structurally complete; on-cluster
 # RUNTIME (git push, ArgoCD polling, vCluster kubectl) is verified in the manual phase (P7).
 # Design: alpine/git for git (no apk → works nonroot), mikefarah/yq for nested value edits
-# (no fragile sed), rancher/kubectl for cluster ops. Images pinned by tag; add digests once
+# (no fragile sed), bitnamilegacy/kubectl for cluster ops. Images pinned by tag; add digests once
 # verified against the registry (P7). Gotchas honoured: computeResources, HOME=/tekton/home,
 # non-root (securityContext inlined per step — YAML anchors do NOT cross `---` doc boundaries).
 # Image tag convention is `sha-<commit>` (spec Component 1): params.sha is the SHORT commit sha
 # the GHA repository_dispatch sends; the tag is `sha-$(params.sha)`.
+#
+# P9 finding: every kubectl step here used to run rancher/kubectl:v1.31.4, which is "kubectl
+# from scratch" — a single static binary with NO shell at all (confirmed live via `docker
+# inspect`/`docker run`: a mounted `#!/bin/sh` script fails `exec ...: no such file or
+# directory`). Tekton's `script:` mechanism execs the script file directly, relying on the
+# image having a shell to interpret the shebang, so every rancher/kubectl script step here
+# would have failed at pod runtime — invisible to `kubectl apply --dry-run=server` (schema-only)
+# and to structural pytest (never executes the script). Fixed by switching every kubectl step to
+# bitnamilegacy/kubectl:1.33.4 (Debian-based; has bash/date/base64/awk; already used elsewhere in
+# the repo at apps/tekton/manifests/pipelinerun-ttl-gc.yaml, runAsUser 1001). Guarded by
+# test_no_step_with_a_script_uses_a_shell_less_image.
 #
 # Git plumbing: every clone/push step `ref:`s the shared `staging-gate-git` StepAction
 # (stepactions.yaml, P8.T2 REFACTOR) — one script authenticating over HTTPS with the
@@ -66,10 +77,10 @@ spec:
     - {name: timeoutSeconds, type: string, default: "600"}
   steps:
     - name: wait
-      image: rancher/kubectl:v1.31.4
+      image: bitnamilegacy/kubectl:1.33.4
       env: [{name: HOME, value: /tekton/home}]
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
@@ -95,27 +106,73 @@ spec:
     - {name: app, type: string}
     - {name: smokeImage, type: string}
     - {name: smokeNamespace, type: string}
+    - {name: smokeRbacUrl, type: string, description: "the app's smoke RBAC manifest URL, containing the literal {sha}"}
+    - {name: smokeServiceAccount, type: string}
     - {name: sha, type: string}
     - {name: timeoutSeconds, type: string, default: "300"}
-  workspaces:
-    - {name: vcluster-kubeconfig}
   steps:
-    - name: smoke
-      image: rancher/kubectl:v1.31.4
+    # P9.T1: no `vcluster-kubeconfig` workspace any more — fetch the gate's own
+    # kubeconfig Secret with THIS pod's own API token (staging-gate-vcluster-
+    # kubeconfig-read Role, resourceNames-scoped to vc-staging-gate only).
+    # Written under umask 077 and never `cat`'d — see
+    # test_kubeconfig_file_is_never_catd and the behaviour test that executes
+    # this script directly.
+    - name: fetch-kubeconfig
+      image: bitnamilegacy/kubectl:1.33.4
+      env: [{name: HOME, value: /tekton/home}]
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
+      script: |
+        #!/bin/sh
+        set -eu
+        umask 077
+        dest="${VC_KUBECONFIG_PATH:-/tekton/home/vc.kubeconfig}"
+        kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > "$dest"
+    # P9.T2: fetch the app's smoke RBAC manifest pinned to the GATED sha.
+    # runs-fr is PRIVATE; frank-gitops-push (the derio-fr-automation App
+    # install, `repository_selection: all`) can read it. curl -fsS fails
+    # closed on any non-2xx response rather than applying a partial/error body.
+    - name: fetch-smoke-rbac
+      image: curlimages/curl:8.7.1
       env:
         - {name: HOME, value: /tekton/home}
-        - {name: KUBECONFIG, value: $(workspaces.vcluster-kubeconfig.path)/config}
+        - {name: SMOKE_RBAC_URL, value: $(params.smokeRbacUrl)}
+        - {name: SHA, value: $(params.sha)}
+        - name: GITHUB_TOKEN
+          valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100, seccompProfile: {type: RuntimeDefault}}
+      script: |
+        #!/bin/sh
+        set -eu
+        # SHA is already regex-validated by resolve-contract's validate-inputs
+        # step (^[a-f0-9]{7,40}$) before it ever reaches this task's params, so
+        # this substitution carries no shell-metacharacter risk.
+        url=$(printf '%s' "$SMOKE_RBAC_URL" | sed "s/{sha}/$SHA/")
+        curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
+          "$url" -o "${SMOKE_RBAC_PATH:-/tekton/home/smoke-rbac.yaml}"
+    - name: smoke
+      image: bitnamilegacy/kubectl:1.33.4
+      env:
+        - {name: HOME, value: /tekton/home}
+        - {name: KUBECONFIG, value: /tekton/home/vc.kubeconfig}
         # app/sha derive from the GHA repository_dispatch payload — read via env
         # rather than splicing $(params.app)/$(params.sha) straight into the
-        # script (P8 review scope check).
+        # script (P8 review scope check). smokeServiceAccount is contract data
+        # (the registry file), not trigger-payload-derived, but env keeps the
+        # style consistent.
         - {name: APP, value: $(params.app)}
         - {name: SHA, value: $(params.sha)}
+        - {name: SMOKE_SA, value: $(params.smokeServiceAccount)}
       computeResources: {requests: {cpu: 100m, memory: 128Mi}, limits: {memory: 256Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
         ns="$(params.smokeNamespace)"; job="smoke-${APP}-${SHA}"
+        # Idempotent namespace create — a re-gate of the same app reuses it.
+        kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n "$ns" apply -f /tekton/home/smoke-rbac.yaml
         kubectl -n "$ns" delete job "$job" --ignore-not-found
         cat <<EOF | kubectl -n "$ns" apply -f -
         apiVersion: batch/v1
@@ -127,9 +184,13 @@ spec:
           template:
             spec:
               restartPolicy: Never
+              serviceAccountName: $SMOKE_SA
               containers:
                 - name: smoke
                   image: $(params.smokeImage):sha-${SHA}
+                  env:
+                    - {name: GATEWAY_URL, value: "http://${APP}.${ns}.svc"}
+                    - {name: SMOKE_NAMESPACE, value: "${ns}"}
         EOF
         end=$(( $(date +%s) + $(params.timeoutSeconds) ))
         while [ "$(date +%s)" -lt "$end" ]; do
@@ -202,17 +263,98 @@ spec:
   description: Reset staging — delete the app's namespace in the vCluster (runs in finally).
   params:
     - {name: smokeNamespace, type: string}
-  workspaces:
-    - {name: vcluster-kubeconfig}
   steps:
+    # Same fetch as staging-gate-run-smoke's first step (P9.T1) — each Task is a
+    # separate pod/TaskRun, so each needs its own fetch even though they share
+    # the identical script.
+    - name: fetch-kubeconfig
+      image: bitnamilegacy/kubectl:1.33.4
+      env: [{name: HOME, value: /tekton/home}]
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
+      script: |
+        #!/bin/sh
+        set -eu
+        umask 077
+        dest="${VC_KUBECONFIG_PATH:-/tekton/home/vc.kubeconfig}"
+        kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > "$dest"
     - name: reset
-      image: rancher/kubectl:v1.31.4
+      image: bitnamilegacy/kubectl:1.33.4
       env:
         - {name: HOME, value: /tekton/home}
-        - {name: KUBECONFIG, value: $(workspaces.vcluster-kubeconfig.path)/config}
-      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
-      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+        - {name: KUBECONFIG, value: /tekton/home/vc.kubeconfig}
+      computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
         kubectl delete namespace "$(params.smokeNamespace)" --ignore-not-found --wait=false
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-notify
+  namespace: tekton-pipelines
+spec:
+  description: >-
+    Telegram-notify on a RED staging-gate run (finally task). Params come ONLY from the
+    pipeline's raw $(params.*)/$(context.*) and each task's $(tasks.<t>.status) — NEVER from
+    resolve-contract's RESULTS, because Tekton skips a finally task's param when it reads a
+    RESULT from a task that failed or never ran, and resolve-contract can be exactly that task.
+    $(tasks.<t>.status) is always resolvable in finally (Succeeded/Failed/None) — that is the
+    whole reason it is exposed there — so referencing five of them here never risks skipping
+    this task the way a results reference would.
+  params:
+    - {name: app, type: string}
+    - {name: sha, type: string}
+    - {name: pipelineRun, type: string}
+    - {name: resolveStatus, type: string}
+    - {name: bumpStatus, type: string}
+    - {name: awaitStatus, type: string}
+    - {name: smokeStatus, type: string}
+    - {name: promoteStatus, type: string}
+  steps:
+    - name: notify
+      image: curlimages/curl:8.7.1
+      env:
+        - {name: APP, value: $(params.app)}
+        - {name: SHA, value: $(params.sha)}
+        - {name: PIPELINE_RUN, value: $(params.pipelineRun)}
+        - {name: RESOLVE_STATUS, value: $(params.resolveStatus)}
+        - {name: BUMP_STATUS, value: $(params.bumpStatus)}
+        - {name: AWAIT_STATUS, value: $(params.awaitStatus)}
+        - {name: SMOKE_STATUS, value: $(params.smokeStatus)}
+        - {name: PROMOTE_STATUS, value: $(params.promoteStatus)}
+        - name: TELEGRAM_TOKEN
+          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: token}}
+        - name: TELEGRAM_CHAT_ID
+          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: chat-id}}
+      computeResources: {requests: {cpu: 20m, memory: 32Mi}, limits: {memory: 64Mi}}
+      securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100, seccompProfile: {type: RuntimeDefault}}
+      script: |
+        #!/bin/sh
+        set -eu
+        # app/sha are the RAW trigger-payload values, not a validated/sanitized
+        # copy -- if validate-inputs is itself the failing step, notify still
+        # needs to report SOMETHING. No parse_mode is set below, so Telegram
+        # would not 400 on <, >, or & (that trap needs parse_mode=HTML) --
+        # stripped anyway, defensively, so the message stays unambiguous
+        # either way (P9 spec: "avoided by construction").
+        sanitize() { printf '%s' "$1" | tr -d '<>&'; }
+        app=$(sanitize "$APP")
+        sha=$(sanitize "$SHA")
+
+        failing="unknown"
+        for pair in "resolve-contract:$RESOLVE_STATUS" "bump-staging:$BUMP_STATUS" \
+                    "await-sync:$AWAIT_STATUS" "run-smoke:$SMOKE_STATUS" "promote:$PROMOTE_STATUS"; do
+          name=${pair%%:*}; status=${pair#*:}
+          if [ "$status" = "Failed" ]; then
+            failing="$name"
+            break
+          fi
+        done
+
+        text="staging-gate RED: app=${app} sha=${sha} failing_task=${failing} pipelineRun=${PIPELINE_RUN}"
+        curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+          --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+          --data-urlencode "text=${text}"

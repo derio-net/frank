@@ -499,7 +499,7 @@ def test_run_smoke_reads_app_and_sha_via_env():
     """Scope check (P8 review): app/sha derive from the trigger payload; run-smoke
     builds a Job name and image tag from them — read via env, not $(params.*)."""
     run_smoke = _find_task(_tekton_docs(), "staging-gate-run-smoke")
-    smoke_step = run_smoke["spec"]["steps"][0]
+    smoke_step = next(s for s in run_smoke["spec"]["steps"] if s["name"] == "smoke")
     script = smoke_step.get("script", "")
     assert "$(params.app)" not in script and "$(params.sha)" not in script, (
         f"staging-gate-run-smoke must read app/sha via env, not $(params.*): {script}"
@@ -559,6 +559,343 @@ def test_no_secrets_read_role_exists():
     assert "staging-gate-secrets-read" not in names, (
         f"staging-gate-secrets-read must be removed (unneeded privilege): {names}"
     )
+
+
+VCLUSTER_TEMPLATE_VALUES = REPO / "apps/vclusters/template/values.yaml"
+VCLUSTER_STAGING_VALUES = REPO / "apps/vclusters/staging/values.yaml"
+VCLUSTER_CHART_VERSION = "0.32.1"
+VCLUSTER_GATE_SECRET = "vc-staging-gate"
+
+
+def _render_vcluster_staging() -> list[dict]:
+    """Render the loft `vcluster` chart with template+staging values — fail closed:
+    a chart schema violation (P9 lesson: kubeconform/pytest can both pass a shape
+    the chart itself, or Tekton's webhook, rejects) must fail this test, not be
+    silently skipped."""
+    out = subprocess.run(
+        [
+            "helm", "template", "staging", "vcluster",
+            "--repo", "https://charts.loft.sh",
+            "--version", VCLUSTER_CHART_VERSION,
+            "-n", "vcluster-staging",
+            "-f", str(VCLUSTER_TEMPLATE_VALUES),
+            "-f", str(VCLUSTER_STAGING_VALUES),
+        ],
+        capture_output=True, text=True,
+    )
+    assert out.returncode == 0, f"helm template of the vcluster chart failed:\n{out.stderr}"
+    docs = [d for d in yaml.safe_load_all(out.stdout) if d]
+    assert docs, "vcluster chart render produced no documents"
+    return docs
+
+
+def test_vcluster_staging_chart_renders_with_the_gate_kubeconfig_export():
+    _render_vcluster_staging()
+    doc = yaml.safe_load(VCLUSTER_STAGING_VALUES.read_text())
+    additional = (doc.get("exportKubeConfig") or {}).get("additionalSecrets")
+    assert additional == [{"name": VCLUSTER_GATE_SECRET, "server": STAGING_VCLUSTER_URL}], (
+        f"exportKubeConfig.additionalSecrets must declare exactly one entry "
+        f"{{name: {VCLUSTER_GATE_SECRET}, server: {STAGING_VCLUSTER_URL}}} "
+        f"(no namespace override -- defaults to the vCluster's own host ns): {additional}"
+    )
+
+
+def _rbac_docs() -> list[dict]:
+    docs = []
+    for doc in yaml.safe_load_all((TEKTON_DIR / "serviceaccount-rbac.yaml").read_text()):
+        if doc:
+            docs.append(doc)
+    return docs
+
+
+def test_vcluster_kubeconfig_role_is_scoped_to_the_gate_secret_only():
+    docs = _rbac_docs()
+    role = next(
+        (
+            d for d in docs
+            if d.get("kind") == "Role" and d.get("metadata", {}).get("namespace") == "vcluster-staging"
+        ),
+        None,
+    )
+    assert role is not None, "expected a Role in namespace vcluster-staging for the gate kubeconfig"
+    rules = role["rules"]
+    assert len(rules) == 1, f"expected exactly one rule: {rules}"
+    rule = rules[0]
+    assert rule.get("resources") == ["secrets"]
+    assert rule.get("verbs") == ["get"]
+    assert rule.get("resourceNames") == [VCLUSTER_GATE_SECRET], (
+        f"the Role must be restricted to {VCLUSTER_GATE_SECRET} only: {rule}"
+    )
+
+    binding = next(
+        (
+            d for d in docs
+            if d.get("kind") == "RoleBinding" and d.get("metadata", {}).get("namespace") == "vcluster-staging"
+        ),
+        None,
+    )
+    assert binding is not None, "expected a RoleBinding alongside the vcluster-staging Role"
+    assert binding["roleRef"]["name"] == role["metadata"]["name"]
+    assert binding["subjects"] == [
+        {"kind": "ServiceAccount", "name": "staging-gate", "namespace": "tekton-pipelines"}
+    ]
+
+
+def test_no_manifest_references_the_retired_vcluster_kubeconfig_workspace():
+    """The retired June design: a `vcluster-kubeconfig` WORKSPACE fed by a
+    `vcluster-staging-kubeconfig` manual Secret. P9.T1 replaces both with an
+    RBAC-gated `kubectl get secret` fetch (whose Role is legitimately named
+    `staging-gate-vcluster-kubeconfig-read` — that name is fine; only the
+    retired workspace/secret NAMES are checked for)."""
+    for doc in _tekton_docs():
+        if doc.get("kind") in ("Pipeline", "Task"):
+            for spec in (
+                [doc.get("spec", {})]
+                if doc["kind"] == "Task"
+                else [
+                    doc.get("spec", {}),
+                    *[
+                        t.get("taskSpec", {})
+                        for t in doc.get("spec", {}).get("tasks", []) + doc.get("spec", {}).get("finally", [])
+                        if t.get("taskSpec")
+                    ],
+                ]
+            ):
+                names = {w.get("name") for w in spec.get("workspaces", [])}
+                assert "vcluster-kubeconfig" not in names, (
+                    f"{doc['_path'].name}/{doc['metadata']['name']}: still declares the "
+                    f"retired vcluster-kubeconfig workspace: {names}"
+                )
+        if doc.get("kind") == "TriggerTemplate":
+            for rt in doc["spec"].get("resourcetemplates", []):
+                for w in rt.get("spec", {}).get("workspaces", []):
+                    assert w.get("name") != "vcluster-kubeconfig", (
+                        f"TriggerTemplate still binds the retired vcluster-kubeconfig workspace: {w}"
+                    )
+                    secret_name = (w.get("secret") or {}).get("secretName")
+                    assert secret_name != "vcluster-staging-kubeconfig", (
+                        f"TriggerTemplate still references the retired manual Secret: {w}"
+                    )
+
+
+NO_SHELL_IMAGES = ("rancher/kubectl",)
+
+
+def test_no_step_with_a_script_uses_a_shell_less_image():
+    """P9 finding: `rancher/kubectl:v1.31.4` is "kubectl from scratch" -- a single
+    static binary with NO shell at all. Confirmed 2026-09-15 with a direct docker
+    run negative control: executing a `#!/bin/sh` script against it fails
+    `exec ...: no such file or directory` (the OS can't find the shebang
+    interpreter). Tekton's `script:` mechanism requires a shell in the image, so
+    every existing rancher/kubectl step (await-sync, the old run-smoke/reset
+    steps) would fail at pod runtime -- invisible to `kubectl apply --dry-run`
+    and to structural pytest, exactly the class of bug this phase's admission
+    gate and behaviour tests exist to catch. Fixed by switching to
+    bitnamilegacy/kubectl:1.33.4 (Debian-based, has bash/date/base64/awk),
+    already used elsewhere in the repo (apps/tekton/manifests/pipelinerun-ttl-gc.yaml)."""
+    for doc, step in _iter_steps(_tekton_docs()):
+        if "script" not in step:
+            continue
+        image = step.get("image", "")
+        for needle in NO_SHELL_IMAGES:
+            assert needle not in image, (
+                f"{doc['_path'].name}/{step.get('name')}: step has a script but uses "
+                f"the shell-less image {image!r}"
+            )
+
+
+def test_run_smoke_and_reset_fetch_kubeconfig_via_the_host_api_not_a_workspace():
+    for task_name in ("staging-gate-run-smoke", "staging-gate-reset"):
+        task = _find_task(_tekton_docs(), task_name)
+        assert "workspaces" not in task["spec"], (
+            f"{task_name} must no longer declare a workspaces list: {task['spec'].get('workspaces')}"
+        )
+        fetch = next(s for s in task["spec"]["steps"] if s["name"] == "fetch-kubeconfig")
+        script = fetch.get("script", "")
+        assert "get secret vc-staging-gate" in script and "-n vcluster-staging" in script, (
+            f"{task_name}/fetch-kubeconfig must fetch vc-staging-gate from vcluster-staging: {script}"
+        )
+        assert "umask 077" in script, f"{task_name}/fetch-kubeconfig must umask 077: {script}"
+        assert "cat" not in [line.strip().split(" ", 1)[0] for line in script.splitlines() if line.strip()], (
+            f"{task_name}/fetch-kubeconfig must never `cat` the fetched kubeconfig: {script}"
+        )
+
+
+def test_run_smoke_fetches_the_gated_smoke_rbac_with_the_app_token():
+    run_smoke = _find_task(_tekton_docs(), "staging-gate-run-smoke")
+    params = {p["name"] for p in run_smoke["spec"]["params"]}
+    assert {"smokeRbacUrl", "smokeServiceAccount"} <= params, (
+        f"staging-gate-run-smoke must take smokeRbacUrl and smokeServiceAccount: {params}"
+    )
+    fetch = next(s for s in run_smoke["spec"]["steps"] if s["name"] == "fetch-smoke-rbac")
+    assert fetch["image"].startswith("curlimages/curl"), fetch["image"]
+    assert fetch["securityContext"]["runAsUser"] == 100, (
+        "curlimages/curl needs a non-numeric-user-safe runAsUser (P8/repo gotcha)"
+    )
+    script = fetch.get("script", "")
+    assert "curl -fsS" in script, "the fetch must fail closed (curl -fsS)"
+    assert "Accept: application/vnd.github.raw" in script
+    assert "{sha}" in script, "the sha placeholder must be substituted in the script"
+    env = {e["name"]: e for e in fetch.get("env", [])}
+    assert env.get("SMOKE_RBAC_URL", {}).get("value") == "$(params.smokeRbacUrl)"
+    assert env.get("SHA", {}).get("value") == "$(params.sha)"
+    ref = env.get("GITHUB_TOKEN", {}).get("valueFrom", {}).get("secretKeyRef", {})
+    assert ref == {"name": PUSH_SECRET_NAME, "key": PUSH_SECRET_KEY}, (
+        f"fetch-smoke-rbac must authenticate with {PUSH_SECRET_NAME}/{PUSH_SECRET_KEY}: {ref}"
+    )
+
+
+def test_run_smoke_creates_namespace_applies_rbac_and_sets_the_contract_service_account():
+    run_smoke = _find_task(_tekton_docs(), "staging-gate-run-smoke")
+    smoke_step = next(s for s in run_smoke["spec"]["steps"] if s["name"] == "smoke")
+    script = smoke_step.get("script", "")
+    assert "create namespace" in script and "--dry-run=client" in script, (
+        "run-smoke must create smokeNamespace idempotently"
+    )
+    assert "smoke-rbac.yaml" in script, "run-smoke must apply the fetched smoke RBAC manifest"
+    assert "serviceAccountName: $SMOKE_SA" in script
+    assert "GATEWAY_URL" in script and "SMOKE_NAMESPACE" in script
+    env = {e["name"]: e for e in smoke_step.get("env", [])}
+    assert env.get("SMOKE_SA", {}).get("value") == "$(params.smokeServiceAccount)"
+    assert env.get("KUBECONFIG", {}).get("value") == "/tekton/home/vc.kubeconfig"
+
+
+def test_pipeline_run_smoke_task_passes_smoke_rbac_and_service_account():
+    pipeline = _find_pipeline(_tekton_docs())
+    run_smoke = _pipeline_task(pipeline, "run-smoke")
+    values = {p["name"]: p["value"] for p in run_smoke["params"]}
+    assert values.get("smokeRbacUrl") == "$(tasks.resolve-contract.results.smokeRbacUrl)"
+    assert values.get("smokeServiceAccount") == "$(tasks.resolve-contract.results.smokeServiceAccount)"
+
+
+def test_resolve_contract_exposes_the_smoke_service_account_result():
+    pipeline = _find_pipeline(_tekton_docs())
+    resolve = _pipeline_task(pipeline, "resolve-contract")
+    results = {r["name"] for r in resolve["taskSpec"]["results"]}
+    assert "smokeServiceAccount" in results, sorted(results)
+    read_step = next(s for s in resolve["taskSpec"]["steps"] if s["name"] == "read")
+    assert "$(results.smokeServiceAccount.path)" in read_step.get("script", "")
+
+
+def test_triggertemplate_labels_pipelineruns_by_app():
+    tt = next(d for d in _tekton_docs() if d.get("kind") == "TriggerTemplate")
+    pr_template = tt["spec"]["resourcetemplates"][0]
+    labels = pr_template["metadata"].get("labels", {})
+    assert labels.get("staging-gate/app") == "$(tt.params.app)", labels
+
+
+def test_resolve_contract_waits_its_turn_before_cloning():
+    pipeline = _find_pipeline(_tekton_docs())
+    resolve = _pipeline_task(pipeline, "resolve-contract")
+    steps = resolve["taskSpec"]["steps"]
+    names = [s["name"] for s in steps]
+    assert names.index("validate-inputs") < names.index("wait-turn") < names.index("clone"), names
+
+    wait = next(s for s in steps if s["name"] == "wait-turn")
+    script = wait.get("script", "")
+    assert "pipelineruns" in script and "staging-gate/app=" in script
+    env = {e["name"]: e for e in wait.get("env", [])}
+    assert env.get("SELF", {}).get("value") == "$(context.pipelineRun.name)"
+    assert env.get("APP", {}).get("value") == "$(params.app)"
+    task_params = {p["name"]: p for p in resolve["taskSpec"]["params"]}
+    assert task_params.get("waitTurnTimeoutSeconds", {}).get("default") == "1800"
+
+
+def test_pipelinerun_read_rbac_exists():
+    docs = _rbac_docs()
+    role = next(
+        (
+            d for d in docs
+            if d.get("kind") == "Role" and d.get("metadata", {}).get("namespace") == "tekton-pipelines"
+            and "pipelinerun" in d.get("metadata", {}).get("name", "")
+        ),
+        None,
+    )
+    assert role is not None, "expected a Role granting pipelinerun read in tekton-pipelines"
+    rule = role["rules"][0]
+    assert "pipelineruns" in rule.get("resources", [])
+    assert set(rule.get("verbs", [])) >= {"get", "list"}
+    assert "tekton.dev" in rule.get("apiGroups", [])
+
+    binding = next(
+        d for d in docs
+        if d.get("kind") == "RoleBinding" and d.get("metadata", {}).get("name") == role["metadata"]["name"]
+    )
+    assert binding["subjects"] == [
+        {"kind": "ServiceAccount", "name": "staging-gate", "namespace": "tekton-pipelines"}
+    ]
+
+
+def test_notify_runs_on_a_red_pipeline_using_only_raw_params_and_status():
+    pipeline = _find_pipeline(_tekton_docs())
+    finally_tasks = pipeline["spec"]["finally"]
+    notify = next(t for t in finally_tasks if t["name"] == "notify")
+    when = notify.get("when", [])
+    assert any(
+        w.get("input") == "$(tasks.status)"
+        and w.get("operator") == "notin"
+        and set(w.get("values", [])) == {"Succeeded", "Completed"}
+        for w in when
+    ), f"notify must gate on $(tasks.status) not in [Succeeded, Completed]: {when}"
+
+    param_values = " ".join(str(p.get("value", "")) for p in notify.get("params", []))
+    assert "resolve-contract.results" not in param_values, (
+        "notify must never read resolve-contract RESULTS -- a failed/skipped "
+        "resolve-contract would silently skip notify too"
+    )
+    assert "$(params.app)" in param_values
+    assert "$(params.sha)" in param_values
+    assert "$(context.pipelineRun.name)" in param_values
+    for status_var in (
+        "$(tasks.resolve-contract.status)",
+        "$(tasks.bump-staging.status)",
+        "$(tasks.await-sync.status)",
+        "$(tasks.run-smoke.status)",
+        "$(tasks.promote.status)",
+    ):
+        assert status_var in param_values, f"notify must read {status_var}: {param_values}"
+
+
+def test_reset_documents_and_accepts_being_skipped_on_a_failed_resolve_contract():
+    pipeline = _find_pipeline(_tekton_docs())
+    reset = next(t for t in pipeline["spec"]["finally"] if t["name"] == "reset")
+    param_values = " ".join(str(p.get("value", "")) for p in reset.get("params", []))
+    assert "resolve-contract.results.smokeNamespace" in param_values
+    text = (TEKTON_DIR / "pipeline.yaml").read_text()
+    assert "reset is skipped" in text.lower() or "skips reset too" in text.lower(), (
+        "pipeline.yaml must document why reset may be skipped when resolve-contract fails"
+    )
+
+
+def test_staging_gate_telegram_externalsecret_maps_the_c2_bot():
+    doc = next(
+        d for d in _tekton_docs()
+        if d.get("kind") == "ExternalSecret" and d.get("metadata", {}).get("name") == "staging-gate-telegram"
+    )
+    assert doc["metadata"]["namespace"] == "tekton-pipelines"
+    assert doc["spec"]["secretStoreRef"] == {"name": "infisical", "kind": "ClusterSecretStore"}
+    keys = {d["secretKey"]: d["remoteRef"]["key"] for d in doc["spec"]["data"]}
+    assert keys == {"token": "FRANK_C2_TELEGRAM_BOT_TOKEN", "chat-id": "FRANK_C2_TELEGRAM_CHAT_ID"}
+
+
+def test_notify_task_reads_the_telegram_credential_and_sets_no_parse_mode():
+    notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
+    step = notify_task["spec"]["steps"][0]
+    env = {e["name"]: e for e in step.get("env", [])}
+    assert env["TELEGRAM_TOKEN"]["valueFrom"]["secretKeyRef"] == {"name": "staging-gate-telegram", "key": "token"}
+    assert env["TELEGRAM_CHAT_ID"]["valueFrom"]["secretKeyRef"] == {
+        "name": "staging-gate-telegram", "key": "chat-id"
+    }
+    script = step.get("script", "")
+    non_comment = "\n".join(
+        line for line in script.splitlines() if not line.strip().startswith("#")
+    )
+    assert "parse_mode" not in non_comment, (
+        "the curl invocation itself must never set parse_mode (the HTML-400 trap), "
+        f"even though the comment above it may mention the word: {non_comment}"
+    )
+    assert "tr -d '<>&'" in script
+    assert "sendMessage" in script
 
 
 def test_repo_credential_comment_documents_the_consumer_namespace_pem():

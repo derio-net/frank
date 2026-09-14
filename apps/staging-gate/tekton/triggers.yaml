@@ -34,6 +34,13 @@ spec:
       metadata:
         generateName: staging-gate-$(tt.params.app)-
         namespace: tekton-pipelines
+        labels:
+          # P9.T3: resolve-contract's wait-turn step lists PipelineRuns by this
+          # label to serialize per app. `app` is CEL-validated at the trigger
+          # (phase 10) and re-validated by resolve-contract's validate-inputs
+          # step (^[a-z0-9]([-a-z0-9]*[a-z0-9])?$), which is also a valid
+          # Kubernetes label value.
+          staging-gate/app: $(tt.params.app)
       spec:
         pipelineRef: {name: staging-gate}
         taskRunTemplate:
@@ -45,9 +52,6 @@ spec:
           - {name: app, value: $(tt.params.app)}
           - {name: sha, value: $(tt.params.sha)}
         workspaces:
-          - name: vcluster-kubeconfig
-            secret:
-              secretName: vcluster-staging-kubeconfig
           - name: scratch
             emptyDir: {}
 ---
