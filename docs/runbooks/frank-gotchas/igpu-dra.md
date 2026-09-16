@@ -273,7 +273,9 @@ told him the room holds fifty.
 Frank ships `max_allowed_chunks: 64` and `max_position_embeddings: 640`,
 injected into every exported `graph.pbtxt` by the model image's build
 (`apps/ovms-retrieval/docker/inject_rerank_guard.py`). Worst case at that pair
-is 6.36 GiB — 64% of the 10Gi limit, and 106% of the 6Gi it replaced. Read
+is 5.67 GiB as a SINGLE call — but 8.49 GiB as an ASCENDING sequence
+(20 -> 40 -> 64 documents), which is the case that matters and the reason
+the ceiling is 16Gi rather than 10Gi. Read
 that the right way round: **the ceiling was raised because the guard's own
 worst case must not itself OOM**, not to make room for a bigger workload.
 

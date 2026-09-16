@@ -69,17 +69,19 @@ RERANK_MODEL_NAME = "bge-reranker-v2-m3"
 
 # The `ovms` container's memory envelope. The request is what the scheduler
 # charges mini-1; the limit is the backstop the workload must not reach.
-# Raised 6Gi -> 10Gi by 2026-09-11--infer--ovms-rerank-batch-guard; the
+# Raised 6Gi -> 10Gi, then 10Gi -> 16Gi after Test Plan row 10 measured an
+# ASCENDING sequence at 84.9% of 10Gi (the first sizing used a single call
+# on a fresh pool, 57%). Spec 2026-09-11--infer--ovms-rerank-batch-guard; the
 # request deliberately did NOT move, so the scheduler's view is unchanged.
 OVMS_MEMORY_REQUEST = "2Gi"
-OVMS_MEMORY_LIMIT = "10Gi"
-OVMS_MEMORY_LIMIT_BEFORE = "6Gi"
+OVMS_MEMORY_LIMIT = "16Gi"
+OVMS_MEMORY_LIMIT_BEFORE = "10Gi"
 
 # Predicted worst case under the bounds the exported graph now carries
 # (max_allowed_chunks 64, max_position_embeddings 640): 6.36 GiB, which is 64%
 # of the new limit and 106% of the old one. Measured on a freshly restarted
 # container, 2026-09-11; see the design spec's "The numbers".
-MEASURED_WORST_CASE_GIB = 6.36
+MEASURED_WORST_CASE_GIB = 8.49
 
 # The rev this plan took the model image to. Asserted as a FLOOR, never as an
 # equality — see the note on test_model_rev_is_the_same_value_in_all_three
@@ -160,7 +162,7 @@ def _ovms_resources_comment() -> str:
 
     Deliberately NARROW. Scanning the whole Deployment would let a future edit
     satisfy the provenance test with a sentence at the other end of the file,
-    which is provenance nobody reading `limits: memory: 10Gi` will ever see.
+    which is provenance nobody reading `limits: memory: 16Gi` will ever see.
     Collected from two places only: the contiguous comment run immediately
     above `resources:`, and every comment inside the block.
     """
@@ -453,7 +455,7 @@ def test_resources_declare_both_requests_and_limits():
     """A limit without a request lets the scheduler over-commit an etcd member.
 
     The two memory halves move independently and only one of them moved. The
-    LIMIT went 6Gi -> 10Gi so the guard's own worst case cannot itself OOM;
+    LIMIT went 6Gi -> 10Gi -> 16Gi so the guard's own worst case cannot itself OOM;
     the REQUEST stayed at 2Gi so the scheduler's view of mini-1 — an etcd
     member — is exactly what it was before. Raising the request as well would
     quietly re-price the control-plane node for a ceiling nothing is expected
@@ -470,7 +472,7 @@ def test_resources_declare_both_requests_and_limits():
     assert _quantity(res["limits"]["memory"]) == OVMS_MEMORY_LIMIT, (
         f"limits.memory is {res['limits']['memory']!r}, want "
         f"{OVMS_MEMORY_LIMIT}. The bounded graph's predicted worst case is "
-        f"{MEASURED_WORST_CASE_GIB} GiB, which is 106% of the previous "
+        f"{MEASURED_WORST_CASE_GIB} GiB measured as an ascending sequence, 84.9% of the previous "
         f"{OVMS_MEMORY_LIMIT_BEFORE} — a guard whose own worst case OOMs is "
         "decorative"
     )
@@ -513,7 +515,7 @@ def test_model_rev_is_the_same_value_in_all_three_places():
 def test_the_raised_ceiling_carries_its_own_provenance():
     """A number in a manifest with no provenance is one nobody can change.
 
-    `limits.memory: 10Gi` reverses the parent spec's posture on purpose — that
+    `limits.memory: 16Gi` reverses the parent spec's posture on purpose — that
     spec kept the ceiling small precisely BECAUSE mini-1 is an etcd member, so
     a later reader who finds a bigger number and no reason has every incentive
     to "restore" it. The comment beside it therefore has to carry the four
