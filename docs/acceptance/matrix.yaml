@@ -1111,4 +1111,8 @@ rows:
     still held while the new one is allocated, and it could not be measured before merge because the 10Gi
     limit did not exist yet. Two remedies were then measured on the same ascent: max_position_embeddings 512
     peaks at 6.96 GiB (69.6 percent of 10Gi), and a 16Gi ceiling puts the shipped 640 bound at 53.1 percent.
-    The operator chose 16Gi plus a faster watchdog tick. The cap is now evidence rather than an estimate.
+    The operator chose 16Gi plus a faster watchdog tick, and row 10 was RE-RUN against the deployed 16Gi
+    limit on 2026-09-16: the same ascent peaks at 9.59 GiB, 59.9 percent, so the row now PASSES. Note it is
+    9.59 and not the predicted 8.49 — the same requests peaked 13 percent higher once the limit was larger,
+    so the pinned pool sizes itself partly against available memory and a further raise would again return
+    less than proportional headroom. The cap is now evidence rather than an estimate.
