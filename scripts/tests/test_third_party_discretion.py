@@ -130,17 +130,22 @@ SCANNED_PATHS = [
     # the OPERATIONAL one was not. Verified clean as a whole file, so it goes in
     # whole rather than scoped.
     REPO / "docs/runbooks/frank-gotchas/agent-shells.md",
-    # frank#793 — the rerank batch guard. Note what is NOT repeated here: the
+    # frank#793 — the rerank batch guard. ARCHIVED 2026-09-16 when the plan
+    # completed, so these five entries moved under `implemented/` exactly as
+    # #748's did. They are repointed rather than removed: the artefacts are
+    # still public and still describe the same private consumer, so dropping
+    # them would narrow the scan while looking like tidying.
+    # Note what is NOT repeated here: the
     # injector `apps/ovms-retrieval/docker/inject_rerank_guard.py` is already
     # covered by the `apps/ovms-retrieval` directory entry above, which
     # `_files()` walks with `rglob`. Listing it again would double-report every
     # hit in it and, worse, imply the directory entry does not cover its
     # contents. Verified by walking `_files()`, not assumed.
-    REPO / "docs/superpowers/specs" / f"{RERANK_GUARD_SLUG}-design.md",
-    REPO / "docs/superpowers/journals/specs" / f"{RERANK_GUARD_SLUG}.md",
-    REPO / "docs/superpowers/plans" / RERANK_GUARD_SLUG,
-    REPO / "docs/superpowers/journals/plans" / f"{RERANK_GUARD_SLUG}.md",
-    REPO / "docs/superpowers/runs/2026-09-11-fix-ovms-rerank-oom-guard.yaml",
+    REPO / "docs/superpowers/implemented/specs" / f"{RERANK_GUARD_SLUG}-design.md",
+    REPO / "docs/superpowers/implemented/journals/specs" / f"{RERANK_GUARD_SLUG}.md",
+    REPO / "docs/superpowers/implemented/plans" / RERANK_GUARD_SLUG,
+    REPO / "docs/superpowers/implemented/journals/plans" / f"{RERANK_GUARD_SLUG}.md",
+    REPO / "docs/superpowers/implemented/runs/2026-09-11-fix-ovms-rerank-oom-guard.yaml",
     REPO / "scripts/tests/fixtures/ovms-retrieval",
     REPO / "scripts/tests/test_ovms_retrieval_rerank_guard.py",
     REPO / "scripts/tests/test_ovms_pool_watchdog.py",
