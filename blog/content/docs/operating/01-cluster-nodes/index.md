@@ -9,8 +9,8 @@ summary: "Day-to-day commands for checking cluster health, managing Talos nodes,
 weight: 2
 reader_goal: "Diagnose node and networking issues on a Talos+Cilium cluster using kubectl, talosctl, cilium CLI, and Omni's declarative patch system."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
-last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
+last_updated: 2026-09-19
+last_updated_commit: https://github.com/derio-net/frank/commit/202ca547b393e5a17b5ea85c05c2bd9addc237ec
 description: "Day-to-day commands for checking cluster health, managing Talos nodes, and debugging Cilium networking on Frank — including the real failure patterns the gotcha docs cover."
 ---
 
@@ -179,7 +179,7 @@ All node customization on Frank flows through Omni config patches (`patches/phas
 omnictl apply -f patches/phase01-node-config/03-labels-mini-1.yaml
 ```
 
-Omni merges the patch into the node's machine config. Depending on the change, the node may reboot automatically:
+Omni merges the patch into the node's machine config. Depending on the change, the node may reboot automatically — or apply the value to a resource and leave the running service alone (see the gotcha below), in which case you reboot it yourself:
 
 ```bash
 talosctl reboot --nodes 192.168.55.21
@@ -190,6 +190,19 @@ To roll back a patch:
 ```bash
 omnictl delete configpatch <patch-id>
 ```
+
+**Gotcha:** an applied patch can change *nothing*, with no error anywhere. Talos writes the new value into the machine config and the relevant resource, but a service already running does not necessarily restart to pick it up — and some services cannot be restarted through the API at all. `cluster.etcd.extraArgs` is the worst case: Talos rewrites the `EtcdSpec`, etcd keeps running with its old arguments, and `talosctl service etcd restart` is refused (etcd implements none of the restartable-service hooks; upstream treats etcd config changes as reboot-only). Frank opened etcd's metrics listener this way and the port stayed closed for **41 days**.
+
+The tell is a spec that is newer than the process it configures:
+
+```bash
+talosctl -n 192.168.55.21 get etcdspec -o yaml | grep -E 'updated:|extraArgs' -A1
+talosctl -n 192.168.55.21 service etcd | grep 'Started task'
+# spec updated 2026-08-03T15:32:14Z, etcd "Started task … (1004h54m50s ago)"
+# the process predates the spec it is supposed to be running
+```
+
+If the resource does *not* carry the new value, the patch never reached the node — that is the Omni reconcile wedge in the Missteps table below, not this. If it does, the node has to reboot; see the rolling reboot playbook below.
 
 **Gotcha:** On {{< abbr "UKI" >}}-booted machines (gpu-1 with SecureBoot), `ConfigPatches` with `machine.install.extraKernelArgs` is **inert** — the UKI cmdline is baked into the signed image and `extraKernelArgs` doesn't change the schematic ID, so Omni never reinstalls. Use `KernelArgs.omni.sidero.dev` instead (`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml:38`):
 
@@ -221,7 +234,52 @@ The cluster-wide terminated-pod garbage collector threshold is 12,500 pods, so o
 talosctl reboot --nodes 192.168.55.31
 ```
 
-The node drains itself before rebooting. For control-plane nodes, make sure etcd quorum will survive (at least two of three must remain up).
+This is a graceful shutdown, **not a drain**. The kubelet terminates pods on its way down, and Kubernetes leaves `Failed` tombstones behind (`reason: NodeShutdown`) that nothing garbage-collects. `talosctl reboot --drain` exists and does cordon and evict first — but through an Omni endpoint it fails in about a second, because the drain needs a kubeconfig from the Talos API and Omni's proxy refuses that even to an `Admin` service account:
+
+```
+error creating Kubernetes client for drain: error fetching kubeconfig
+from Talos API: rpc error: code = PermissionDenied desc = not authorized
+```
+
+So drain with `kubectl` first, and reboot with `talosctl` after.
+
+#### Rolling the control plane
+
+All three minis are etcd members, so this is one node at a time, non-leaders first. Measured on Frank, 2026-09-13:
+
+```bash
+talosctl -n <leader-ip> etcd snapshot <scratch>/etcd.db    # restore point, outside the repo
+kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --timeout=15m
+talosctl -n <ip> reboot
+talosctl -n 192.168.55.21,192.168.55.22,192.168.55.23 etcd status   # 3 members, one leader
+kubectl uncordon <node>
+```
+
+Between nodes, require all of: the node `Ready` and uncordoned, `talosctl -n <ip> service etcd` reporting `HEALTH OK`, three members with exactly one leader, and **every attached Longhorn volume back to `healthy`**.
+
+| Step | Measured |
+|---|---|
+| drain | under 2 minutes when it works |
+| reboot | 68–83 s |
+| etcd healthy after boot | 25–47 s |
+| Longhorn rebuild before the next node | **~50 minutes** |
+
+That last row dominates. Rebooting all three took about 1h50m, and nearly all of it was waiting for replicas to rebuild. Rebooting the next node while the previous one's replicas are still rebuilding can leave a three-replica volume with a single live copy.
+
+Two traps worth knowing before you start:
+
+- **The drain can stall forever on a detached volume.** Every node carries a Longhorn instance-manager PDB at `disruptionsAllowed=0`. Under `node-drain-policy: block-if-contains-last-replica` it lifts once no volume's *only* replica lives there — but a **1-replica** volume's replica is always its last, so the guard holds indefinitely. On Frank these were workspace PVCs from CI runs that had finished weeks earlier. A pre-flight that checks only *attached* volumes will not see them: detached volumes report robustness `unknown`.
+
+  ```bash
+  # volumes whose every replica is on one node
+  kubectl -n longhorn-system get replicas.longhorn.io -o json | jq -r '
+    [.items[] | {v: .spec.volumeName, n: .spec.nodeID}] | group_by(.v)[]
+    | select(all(.n == "<node>")) | .[0].v'
+  ```
+
+  Rebooting through it is safe when the drain has already evicted everything else: a reboot does not delete a replica, it takes the on-disk copy offline for about a minute.
+
+- **If you script the roll, tolerate errors while polling.** For a few seconds after boot etcd is not yet registered and `talosctl service etcd` exits non-zero — under `set -euo pipefail` that kills the poll loop silently, leaving the node rebooted, still cordoned, and nothing logged.
 
 ## Runbook
 
@@ -356,6 +414,8 @@ omnictl talosconfig .talos/Frank_Talos_Config.yaml -c frank -f --merge=false
 | `ConfigPatches` `machine.install.extraKernelArgs` works on UKI machines | The UKI cmdline is baked into the signed image; `extraKernelArgs` doesn't change the schematic ID, so Omni never reinstalls | Hours debugging why PCIe ASPM args wouldn't stick on gpu-1. Fixed via `KernelArgs.omni.sidero.dev` resource (`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml`). |
 | Omni cert auto-renews via snap's certbot timer | The snap certbot scans `/etc/letsencrypt/`; Omni's install uses a custom `--config-dir` | Cert expired silently for 30+ days, taking down the management plane. Fixed via dedicated systemd unit (`omni/certbot/certbot.md`). |
 | Omni reconcile is resilient to clock jumps | A cold-boot clock skew freezes the reconcile runtime — Omni serves cached reads but applies nothing | Config patches silently unapplied; reboot of affected nodes did nothing. Fixed by `docker restart omni`. |
+| A ConfigPatch that applies has taken effect | Talos writes the value into the machine config and the resource, but a running service is not necessarily restarted — and etcd cannot be restarted through the API at all | etcd's metrics listener stayed closed for 41 days after its patch was applied; fixed by a drained rolling reboot of all three control planes |
+| `talosctl reboot` drains the node | It is a graceful shutdown; pods are terminated, not evicted, and `NodeShutdown` tombstones accumulate. `--drain` is refused through the Omni proxy | A control-plane roll that left tombstones and, on another occasion, 48 alerts against a healthy cluster |
 | Static-IP nodes get DNS from {{< abbr "DHCP" >}} | Static `dhcp: false` → Talos falls back to public resolvers blocked by homelab ACL | Nodes ping but never reach `Ready` (time-sync gate). Fixed fleet-wide by cluster-wide nameservers patch (`patches/phase01-node-config/02-cluster-wide-nameservers.yaml`). |
 
 ## Quick Reference

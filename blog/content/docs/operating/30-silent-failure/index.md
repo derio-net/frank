@@ -5,12 +5,12 @@ layer: obs
 date: 2026-07-27
 draft: false
 tags: ["operations", "argocd", "victoriametrics", "longhorn", "tekton", "alerting", "debugging", "obs"]
-summary: "Four ways a healthy dashboard lies — wrong artifact, unconsumed signal, out of scope, stale view — and the command that checks each"
+summary: "Five ways a healthy dashboard lies — wrong artifact, unconsumed signal, out of scope, stale view, never applied — and the command that checks each"
 weight: 31
-reader_goal: "Verify that a green ArgoCD tile, a Synced Application and a quiet alert stack reflect reality — and know which artifact to assert on for each of the four ways they do not"
+reader_goal: "Verify that a green ArgoCD tile, a Synced Application and a quiet alert stack reflect reality — and know which artifact to assert on for each of the five ways they do not"
 diataxis: [how-to, reference]
-last_updated: 2026-07-27
-description: "Four ways a healthy dashboard lies — wrong artifact, unconsumed signal, out of scope, stale view — and the command that checks each"
+last_updated: 2026-09-19
+description: "Five ways a healthy dashboard lies — wrong artifact, unconsumed signal, out of scope, stale view, never applied — and the command that checks each"
 ---
 
 {{< last-updated >}}
@@ -19,7 +19,7 @@ Companion to [Operating on ArgoCD Drift]({{< relref "/docs/operating/23-argocd-d
 
 Nothing was misconfigured. Every limit involved was reasonable when it was set. The signals were, mostly, honest. What failed was the assumption that a green tile is a statement about the cluster.
 
-It isn't. **A green tile is a statement about the reporter's view of the cluster** — and there are four distinct ways that view diverges from reality. Each needs a different check, and this post is those checks.
+It isn't. **A green tile is a statement about the reporter's view of the cluster** — and there are five distinct ways that view diverges from reality. Each needs a different check, and this post is those checks.
 
 To follow along you need the ground the earlier posts built: [GitOps with ArgoCD]({{< relref "/docs/operating/03-gitops" >}}) for the sync model, [Observability]({{< relref "/docs/operating/05-observability" >}}) for the VictoriaMetrics scrape path, [Storage and Backups]({{< relref "/docs/operating/02-storage-backups" >}}) for Longhorn, and [Health Bridge]({{< relref "/docs/operating/16-health-bridge" >}}) for how alerts become board state.
 
@@ -41,7 +41,7 @@ flowchart TD
 
 Ask the questions in that order and each maps to one failure class: *observed at all* catches *out of scope*, *current / right field* catches *stale view* and *wrong artifact*, and *anyone listening* catches *unconsumed signal*.
 
-Four ways "green" and "true" come apart. The class determines the check — running the wrong check finds nothing and reassures you.
+Five ways "green" and "true" come apart. The class determines the check — running the wrong check finds nothing and reassures you.
 
 | Class | The reporter… | Example from this incident | What to assert on instead |
 |---|---|---|---|
@@ -49,12 +49,13 @@ Four ways "green" and "true" come apart. The class determines the check — runn
 | **Unconsumed signal** | says exactly what's wrong, to nobody | vmagent's scrape target error; the {{< abbr "GC" "GC's" >}} `exit 137` | read the source directly, then wire a consumer |
 | **Out of scope** | never made a claim at all | 75Gi of resources not in git, under `prune: false` | the tracking annotation, not the manifests |
 | **Stale view** | reports truthfully about an older revision | `Synced` against a pre-merge commit | compare reported revision to the one you merged |
+| **Never applied** | accepted the manifest and created nothing | ArgoCD dropped a static `Endpoints` object as an excluded kind; the scrape had zero targets | the Application's `conditions`, and the object itself |
 
-Only the first is the reporter being wrong. The other three are the reporter being *right about something else* — which is why they survive so long.
+Only the first is the reporter being wrong. The other four are the reporter being *right about something else* — which is why they survive so long. The last one sits upstream of the diagram: it removes the artifact rather than losing it in transit.
 
 ## Verify
 
-Six checks. Each is copy-pasteable, and each has a signature that distinguishes "fine" from "lying".
+Seven checks. Each is copy-pasteable, and each has a signature that distinguishes "fine" from "lying".
 
 ### 1. Is the app synced to the commit you actually merged?
 
@@ -205,6 +206,33 @@ kubectl -n <ns> get pod -l job-name=<probe> \
 # exit=137 reason=OOMKilled
 ```
 
+### 7. Will ArgoCD even apply the kinds in your manifests?
+
+A manifest can be correct, committed, rendered and synced — and never applied. ArgoCD refuses whole *kinds*, before it ever reaches your object:
+
+```bash
+# the only trace: a condition on the Application, not an error
+kubectl -n argocd get application <app> -o jsonpath='{.status.conditions}' | jq .
+
+# what is excluded, live
+kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}'
+```
+
+The failure signature, verbatim:
+
+```
+ExcludedResourceWarning: Resource /Endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd
+is excluded in the settings
+```
+
+The argo-cd chart's default `resource.exclusions` drop `Endpoints` and `EndpointSlice` for every cluster, because the control plane creates and churns those objects constantly. That default is right. It is also silent: the object renders in `helm template`, the sync reports success, the Application reads `Synced/Healthy`, and nothing is created.
+
+Frank shipped an etcd scrape built on exactly that — a static `Endpoints` object pointing at the three control-plane nodes. After the merge the Service moved to its new port (Services are not excluded, so that half *did* apply, which is what made it look deployed) while its `Endpoints` stayed empty. The scrape had **zero targets** and stayed that way until the layer's own `absent()` watchdog fired, fifteen minutes later.
+
+Note what check 2 does here: it asks whether every scrape target is up, and finds nothing wrong, because there were no targets to be down. Each class needs its own check.
+
+The durable fix is not to un-exclude the kind — that would make ArgoCD track every controller-managed `Endpoints` object on the cluster, which is the churn the default exists to avoid. Scrape host services with a `VMStaticScrape` or `VMProbe` instead, kinds ArgoCD does apply. Frank now guards this repo-wide: a tripwire parses the exclusion list out of `apps/argocd/values.yaml` and fails any manifest under `apps/*/manifests/` whose kind ArgoCD would drop.
+
 ## Recover
 
 | Symptom | Fix | File |
@@ -215,6 +243,7 @@ kubectl -n <ns> get pod -l job-name=<probe> \
 | GC {{< abbr "OOM" >}}Killed on a large backlog | raise the memory limit; bound the list with `--chunk-size` | `apps/tekton/manifests/pipelinerun-ttl-gc.yaml` |
 | Object cardinality inflating the scrape | shorten retention | same file, `AGE_DAYS` |
 | Untracked resources holding capacity | audit by tracking annotation, delete deliberately | — (ongoing practice, not a one-time fix) |
+| Manifest of a kind ArgoCD excludes | use a kind it applies — `VMStaticScrape`/`VMProbe`, never a hand-rolled `Endpoints` | `apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml` |
 
 On Frank the retention change did the heavy lifting. Cutting {{< abbr "TTL" >}} from 7 days to 3 removed 1369 of 1820 PipelineRuns in a single 100-second sweep:
 
@@ -235,7 +264,7 @@ Three of every four pods on the cluster were completed Tekton pods. The payload 
 
 ## Explanation — why green survives so long
 
-The four classes are not four bugs. They are four places the chain from *artifact* to *tile* can break, and each one is individually defensible.
+The five classes are not five bugs. They are five places the chain from *artifact* to *tile* can break, and each one is individually defensible.
 
 **Wrong artifact** is the only outright falsehood, and even it is a reasonable design. ArgoCD's job is to make live spec match git spec; it does that, and says so. It has no opinion about whether the {{< abbr "CSI" >}} driver honoured the request, because that isn't its layer. The mistake is entirely on the reader who takes "the spec is applied" as "the change took effect".
 
@@ -247,6 +276,8 @@ There is a second-order version of this worth naming. Frank's Health Bridge deli
 
 **Stale view** is the one to be humblest about. Two Applications reported `Synced/Healthy` against pre-merge content, minutes after their merges, and a `refresh: hard` did not clear either. An explicit sync did. What this post cannot tell you is *why* — webhook lag, poll interval, a values-ref cache — because that was never established. The recovery is known and the cause is not, and it would be dishonest to dress a procedure up as an explanation.
 
+**Never applied** is the newest of the five and the hardest to see, because it breaks *upstream* of the diagram above. The other four assume an artifact exists to be observed, reported and consumed; this one removes the artifact. Every check that reads manifests — `helm template`, a CI tripwire asserting the values are right, a review of the diff — passes, because the manifests genuinely are right. The object simply never reaches the cluster, and the reporter that dropped it records a *condition*, not an error, on an Application that still reads `Synced/Healthy`.
+
 The through-line: every one of these systems reports on **its own view**, faithfully. None of them is lying. The error is ours, for reading a report about a view as a report about the world.
 
 ## Missteps
@@ -257,6 +288,7 @@ The through-line: every one of these systems reports on **its own view**, faithf
 | A quiet alert stack means nothing is wrong | 25 rule references had no data; a rule with no data neither fires nor complains | Unknown duration of total blindness — the rules cannot tell you when they went dark |
 | The GC failing caused the scrape to break | Measurement: the outage added ~76 PipelineRuns, about 4%. Both limits were crossed independently by the same growth curve | Nearly shipped a tidy causal story that was wrong |
 | A volume can be expanded because the disk has room | Longhorn's ceiling counts declared replica size, not bytes written | A half-empty node refused a 20Gi expansion |
+| A manifest in git plus a `Synced` app means the object exists | `resource.exclusions` drop whole kinds before apply; the only trace is a condition on the Application | An etcd scrape with zero targets, invisible until the `absent()` watchdog fired fifteen minutes after the merge |
 | A subagent dispatched into a worktree sees current code | The worktree was cut from a local branch 7 commits stale; nothing inside it can detect that | A thorough, internally consistent research brief reporting that none of the work existed |
 
 That last row is this post's own thesis, arrived at while writing it. The research pass for this article was dispatched into a worktree cut from a stale local `main`, and reported — carefully, with citations — that none of the changes described here were present. It even noted it had found no stale-worktree explanation, which is precisely what a stale worktree cannot find from the inside. A worktree inherits the staleness of whatever it was cut from, and reports faithfully about its own view. Same class as row one.
@@ -271,6 +303,7 @@ That last row is this post's own thesis, arrived at while writing it. The resear
 | Did the volume grow? | `status.capacity.storage`, then `df -h` in the pod | both, not either |
 | What is untracked? | `jq` over `argocd.argoproj.io/tracking-id` | an untracked workload or PVC |
 | Is the CronJob succeeding? | `lastSuccessfulTime` vs `lastScheduleTime` | a gap measured in days |
+| Will ArgoCD apply this kind? | `kubectl -n argocd get application <app> -o jsonpath='{.status.conditions}'` | an `ExcludedResourceWarning`, or silence |
 
 **Not guarded by tests.** Only the PVC floor has a tripwire (`scripts/tests/test_hermes_agent_shell_home_pvc.py`, asserting `>= 40Gi`). The scrape cap, the GC memory limit, `AGE_DAYS` and the Longhorn ceiling are documented in comments and runbooks, not enforced in CI. And there is still **no alert on PVC capacity at all** — the failure that started this whole thread would, today, still happen silently.
 
