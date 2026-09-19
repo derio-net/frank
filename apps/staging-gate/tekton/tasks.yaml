@@ -1,8 +1,9 @@
 # staging-gate Tekton Tasks (tekton.dev/v1). Schema-valid + structurally complete; on-cluster
 # RUNTIME (git push, ArgoCD polling, vCluster kubectl) is verified in the manual phase (P7).
 # Design: alpine/git for git (no apk → works nonroot), mikefarah/yq for nested value edits
-# (no fragile sed), bitnamilegacy/kubectl for cluster ops. Images pinned by tag; add digests once
-# verified against the registry (P7). Gotchas honoured: computeResources, HOME=/tekton/home,
+# (no fragile sed), bitnamilegacy/kubectl for cluster ops. bitnamilegacy/kubectl is digest-pinned
+# (P9 review, M7 — verified live via `docker pull`); the other two stay tag-pinned. Gotchas
+# honoured: computeResources, HOME=/tekton/home,
 # non-root (securityContext inlined per step — YAML anchors do NOT cross `---` doc boundaries).
 # Image tag convention is `sha-<commit>` (spec Component 1): params.sha is the SHORT commit sha
 # the GHA repository_dispatch sends; the tag is `sha-$(params.sha)`.
@@ -17,6 +18,15 @@
 # bitnamilegacy/kubectl:1.33.4 (Debian-based; has bash/date/base64/awk; already used elsewhere in
 # the repo at apps/tekton/manifests/pipelinerun-ttl-gc.yaml, runAsUser 1001). Guarded by
 # test_no_step_with_a_script_uses_a_shell_less_image.
+#
+# P9 review (M7): bitnamilegacy/* is Broadcom's FROZEN mirror of the retired free bitnami/*
+# rolling tags (no further updates ship under bitnamilegacy/kubectl:1.33.4 -- it exists purely so
+# consumers of the old free tags have something to pin to while they migrate) -- digest-pinned
+# here (verified live via `docker pull`, matches sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6-
+# cf69debb27fa1893a06d2246) so the tag can't be silently re-pushed underneath this pipeline, NOT
+# because upstream is still moving. The repo-wide kubectl pin (this file and
+# apps/tekton/manifests/pipelinerun-ttl-gc.yaml, still tag-only) needs a maintained successor once
+# one exists.
 #
 # Git plumbing: every clone/push step `ref:`s the shared `staging-gate-git` StepAction
 # (stepactions.yaml, P8.T2 REFACTOR) — one script authenticating over HTTPS with the
@@ -77,7 +87,7 @@ spec:
     - {name: timeoutSeconds, type: string, default: "600"}
   steps:
     - name: wait
-      image: bitnamilegacy/kubectl:1.33.4
+      image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env: [{name: HOME, value: /tekton/home}]
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
@@ -118,7 +128,7 @@ spec:
     # test_kubeconfig_file_is_never_catd and the behaviour test that executes
     # this script directly.
     - name: fetch-kubeconfig
-      image: bitnamilegacy/kubectl:1.33.4
+      image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env: [{name: HOME, value: /tekton/home}]
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
@@ -152,7 +162,7 @@ spec:
         curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
           "$url" -o "${SMOKE_RBAC_PATH:-/tekton/home/smoke-rbac.yaml}"
     - name: smoke
-      image: bitnamilegacy/kubectl:1.33.4
+      image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env:
         - {name: HOME, value: /tekton/home}
         - {name: KUBECONFIG, value: /tekton/home/vc.kubeconfig}
@@ -275,7 +285,7 @@ spec:
     # separate pod/TaskRun, so each needs its own fetch even though they share
     # the identical script.
     - name: fetch-kubeconfig
-      image: bitnamilegacy/kubectl:1.33.4
+      image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env: [{name: HOME, value: /tekton/home}]
       computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1001, seccompProfile: {type: RuntimeDefault}}
@@ -286,7 +296,7 @@ spec:
         dest="${VC_KUBECONFIG_PATH:-/tekton/home/vc.kubeconfig}"
         kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > "$dest"
     - name: reset
-      image: bitnamilegacy/kubectl:1.33.4
+      image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env:
         - {name: HOME, value: /tekton/home}
         - {name: KUBECONFIG, value: /tekton/home/vc.kubeconfig}

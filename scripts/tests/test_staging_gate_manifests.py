@@ -734,7 +734,22 @@ def test_no_manifest_references_the_retired_vcluster_kubeconfig_workspace():
                     )
 
 
-NO_SHELL_IMAGES = ("rancher/kubectl",)
+KUBECTL_DIGEST = "sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246"
+# P9 review (M10, Minor): generalised from a denylist of the one shell-less
+# image encountered (rancher/kubectl:v1.31.4 -- see the docstring below for
+# the origin story) to an allowlist of images VETTED to ship a shell. Any new
+# image used in a `script:` step must be added here deliberately, after
+# confirming (the same way rancher/kubectl was disproven) that it has one.
+ALLOWED_SCRIPT_IMAGES = (
+    "alpine/git:2.45.2",
+    "mikefarah/yq:4.44.3",
+    "curlimages/curl:8.7.1",
+    # P9 review (M7): digest-pinned -- bitnamilegacy/* is Broadcom's FROZEN
+    # mirror of the retired free bitnami/* rolling tags (no further updates
+    # ship under this tag), so pinning by digest is what keeps it from
+    # drifting underneath us, not what protects against drift going forward.
+    f"bitnamilegacy/kubectl:1.33.4@{KUBECTL_DIGEST}",
+)
 
 
 def test_no_step_with_a_script_uses_a_shell_less_image():
@@ -748,16 +763,33 @@ def test_no_step_with_a_script_uses_a_shell_less_image():
     and to structural pytest, exactly the class of bug this phase's admission
     gate and behaviour tests exist to catch. Fixed by switching to
     bitnamilegacy/kubectl:1.33.4 (Debian-based, has bash/date/base64/awk),
-    already used elsewhere in the repo (apps/tekton/manifests/pipelinerun-ttl-gc.yaml)."""
+    already used elsewhere in the repo (apps/tekton/manifests/pipelinerun-ttl-gc.yaml).
+
+    P9 review (M10): generalised to an ALLOWLIST (ALLOWED_SCRIPT_IMAGES) rather
+    than a one-entry denylist of rancher/kubectl -- a denylist only ever grows
+    by someone rediscovering this exact incident with a different image."""
     for doc, step in _iter_steps(_tekton_docs()):
         if "script" not in step:
             continue
         image = step.get("image", "")
-        for needle in NO_SHELL_IMAGES:
-            assert needle not in image, (
-                f"{doc['_path'].name}/{step.get('name')}: step has a script but uses "
-                f"the shell-less image {image!r}"
-            )
+        assert image in ALLOWED_SCRIPT_IMAGES, (
+            f"{doc['_path'].name}/{step.get('name')}: step has a script but uses "
+            f"an unvetted image {image!r} -- confirm it ships a shell (the class "
+            f"of bug rancher/kubectl:v1.31.4 was) and add it to ALLOWED_SCRIPT_IMAGES"
+        )
+
+
+def test_bitnamilegacy_kubectl_is_pinned_by_digest():
+    """P9 review (M7, Minor): tag-only was noted as a to-do ("add digests once
+    verified against the registry"). Verified live via `docker pull` -- the
+    digest below matches. bitnamilegacy/* is Broadcom's FROZEN mirror (no
+    further updates under this tag), so the pin protects against a REGISTRY
+    that could still be re-pushed, not against upstream movement."""
+    for doc in _tekton_docs():
+        for _, step in _iter_steps([doc]):
+            image = step.get("image", "")
+            if image.startswith("bitnamilegacy/kubectl"):
+                assert image == f"bitnamilegacy/kubectl:1.33.4@{KUBECTL_DIGEST}", image
 
 
 def test_run_smoke_and_reset_fetch_kubeconfig_via_the_host_api_not_a_workspace():
