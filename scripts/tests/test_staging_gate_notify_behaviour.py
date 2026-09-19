@@ -176,3 +176,44 @@ def test_posts_to_the_telegram_sendmessage_endpoint_with_the_token_and_chat_id()
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "https://api.telegram.org/bottok/sendMessage" in calls
     assert "chat_id=12345" in calls
+
+
+def test_fails_loudly_when_the_telegram_credential_is_empty():
+    """P9 review (I4, Important): staging-gate-telegram's ExternalSecret keys are
+    `optional: true` in the notify Task's env now, so a not-yet-synced
+    ExternalSecret leaves TELEGRAM_TOKEN/TELEGRAM_CHAT_ID empty rather than
+    making the whole container un-startable (CreateContainerConfigError). The
+    script itself must then fail loudly and clearly instead of POSTing to
+    Telegram with an empty token/chat_id or crashing on an unbound variable."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        bin_dir = Path(d) / "bin"
+        bin_dir.mkdir()
+        stub = bin_dir / "curl"
+        stub.write_text(_STUB_CURL)
+        stub.chmod(0o755)
+        call_file = Path(d) / "curl-calls"
+
+        env = {
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "HOME": str(d),
+            "CURL_CALL_FILE": str(call_file),
+            "APP": "runs-fr",
+            "SHA": "deadbee",
+            "PIPELINE_RUN": "pr-1",
+            "TELEGRAM_TOKEN": "",
+            "TELEGRAM_CHAT_ID": "",
+            "RESOLVE_STATUS": "Succeeded",
+            "BUMP_STATUS": "Succeeded",
+            "AWAIT_STATUS": "Succeeded",
+            "SMOKE_STATUS": "Failed",
+            "PROMOTE_STATUS": "None",
+        }
+        result = subprocess.run(["sh", "-c", _script()], env=env, capture_output=True, text=True, timeout=30)
+
+    assert result.returncode != 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert not call_file.exists(), (
+        f"curl must never be invoked with an empty token/chat_id: {call_file.read_text() if call_file.exists() else ''}"
+    )
+    assert result.stderr.strip(), "must print a clear message when the credential is empty"

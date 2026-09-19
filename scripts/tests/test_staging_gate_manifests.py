@@ -963,9 +963,15 @@ def test_notify_task_reads_the_telegram_credential_and_sets_no_parse_mode():
     notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
     step = notify_task["spec"]["steps"][0]
     env = {e["name"]: e for e in step.get("env", [])}
-    assert env["TELEGRAM_TOKEN"]["valueFrom"]["secretKeyRef"] == {"name": "staging-gate-telegram", "key": "token"}
+    assert env["TELEGRAM_TOKEN"]["valueFrom"]["secretKeyRef"] == {
+        "name": "staging-gate-telegram", "key": "token", "optional": True
+    }, (
+        "P9 review (I4): optional: true, so an un-synced ExternalSecret leaves "
+        "the env var empty instead of making the whole container un-startable "
+        "(CreateContainerConfigError)"
+    )
     assert env["TELEGRAM_CHAT_ID"]["valueFrom"]["secretKeyRef"] == {
-        "name": "staging-gate-telegram", "key": "chat-id"
+        "name": "staging-gate-telegram", "key": "chat-id", "optional": True
     }
     script = step.get("script", "")
     non_comment = "\n".join(
@@ -977,6 +983,45 @@ def test_notify_task_reads_the_telegram_credential_and_sets_no_parse_mode():
     )
     assert "tr -d '<>&'" in script
     assert "sendMessage" in script
+
+
+def test_notify_step_sets_home_like_every_other_step():
+    """P9 review (M9, Minor): every other step in this dir sets HOME=/tekton/home
+    (several actually need it -- kubectl/git writes under it); notify was the
+    only one that didn't. No functional need today (curlimages/curl writes
+    nothing under HOME), but keep the step consistent with its siblings so a
+    future edit that DOES need a writable HOME doesn't have to discover this."""
+    notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
+    step = notify_task["spec"]["steps"][0]
+    env = {e["name"]: e for e in step.get("env", [])}
+    assert env.get("HOME", {}).get("value") == "/tekton/home", env.get("HOME")
+
+
+def test_notify_step_has_a_short_explicit_timeout():
+    """P9 review (I4): the un-synced-ExternalSecret failure mode is bounded by
+    optional: true above, but an actual Telegram outage/hang should not consume
+    the whole `finally` window either -- a short explicit step timeout."""
+    notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
+    step = notify_task["spec"]["steps"][0]
+    assert step.get("timeout") == "2m", step.get("timeout")
+
+
+def test_notify_script_fails_closed_on_an_empty_telegram_credential():
+    """P9 review (I4): with the secretKeyRefs now optional: true, the script
+    itself is the only thing standing between an un-synced ExternalSecret and
+    either an unbound-variable crash or a silent no-op POST with an empty
+    token/chat_id. It must check and fail loudly BEFORE ever invoking curl."""
+    notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
+    script = notify_task["spec"]["steps"][0].get("script", "")
+    lines = script.splitlines()
+    check_idx = next(
+        i for i, line in enumerate(lines)
+        if "TELEGRAM_TOKEN" in line and ("-z" in line or ":-" in line)
+    )
+    curl_idx = next(i for i, line in enumerate(lines) if "curl -fsS" in line)
+    assert check_idx < curl_idx, (
+        f"the empty-credential check must run before curl is ever invoked: {script}"
+    )
 
 
 def test_repo_credential_comment_documents_the_consumer_namespace_pem():

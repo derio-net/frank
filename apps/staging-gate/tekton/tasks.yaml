@@ -316,7 +316,9 @@ spec:
   steps:
     - name: notify
       image: curlimages/curl:8.7.1
+      timeout: 2m
       env:
+        - {name: HOME, value: /tekton/home}
         - {name: APP, value: $(params.app)}
         - {name: SHA, value: $(params.sha)}
         - {name: PIPELINE_RUN, value: $(params.pipelineRun)}
@@ -325,15 +327,33 @@ spec:
         - {name: AWAIT_STATUS, value: $(params.awaitStatus)}
         - {name: SMOKE_STATUS, value: $(params.smokeStatus)}
         - {name: PROMOTE_STATUS, value: $(params.promoteStatus)}
+        # P9 review (I4): optional: true. Without it, an ExternalSecret that
+        # has not synced yet (staging-gate-telegram is refreshInterval: 5m,
+        # not instant) makes THIS Secret's key missing, and Kubernetes refuses
+        # to start the container at all (CreateContainerConfigError) -- for
+        # the one Task whose entire job is reporting a red run, silently
+        # un-startable is the worst possible failure mode. optional: true lets
+        # the container start with the env var simply unset/empty, and the
+        # script below checks for that explicitly and fails loudly instead.
         - name: TELEGRAM_TOKEN
-          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: token}}
+          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: token, optional: true}}
         - name: TELEGRAM_CHAT_ID
-          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: chat-id}}
+          valueFrom: {secretKeyRef: {name: staging-gate-telegram, key: chat-id, optional: true}}
       computeResources: {requests: {cpu: 20m, memory: 32Mi}, limits: {memory: 64Mi}}
       securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100, seccompProfile: {type: RuntimeDefault}}
       script: |
         #!/bin/sh
         set -eu
+        # P9 review (I4): the secretKeyRefs above are optional: true, so an
+        # un-synced ExternalSecret leaves these EMPTY rather than unset --
+        # under `set -u` an unset var would abort the script anyway, but an
+        # empty one would not, and would otherwise sail into a POST with an
+        # empty token/chat_id (Telegram would just 404/401 it, silently).
+        # Check explicitly and fail loudly BEFORE ever invoking curl.
+        if [ -z "${TELEGRAM_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+          echo "staging-gate-telegram token/chat-id is empty (ExternalSecret not yet synced?) -- cannot notify" >&2
+          exit 1
+        fi
         # app/sha are the RAW trigger-payload values, not a validated/sanitized
         # copy -- if validate-inputs is itself the failing step, notify still
         # needs to report SOMETHING. No parse_mode is set below, so Telegram
