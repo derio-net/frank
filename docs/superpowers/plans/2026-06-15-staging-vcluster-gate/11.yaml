@@ -15,7 +15,19 @@ tasks:
   steps:
   - id: P11.T1.S1
     text: |
-      (manual) Confirm the argo-cd#26529 exclusion is LIVE before registering: `kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep staging.vcluster-staging`, then `kubectl -n argocd rollout restart statefulset/argocd-application-controller` and wait Ready. Only then register: build `cluster-staging` in `argocd` from the LIVE `vc-staging` Secret (label `argocd.argoproj.io/secret-type=cluster`, `name: staging`, `server: https://staging.vcluster-staging.svc:443`, `tlsClientConfig` from the kubeconfig's client cert/key, `insecure: true` like cnc-staging) with a script under `scripts/tmp/`, never storing the key in git. Verify: controller logs carry no `assignment to entry in nil map` across one more controller restart; `runs-fr-staging` goes Synced/Healthy. Recovery: `kubectl delete secret cluster-staging -n argocd` + delete the controller pod, then STOP.
+      (manual) PREFLIGHT (proves C1's NetworkPolicy and C2's SAN fix together, BEFORE
+      registering anything): from a throwaway pod in `tekton-pipelines` (or a
+      port-forward), confirm the syncer cert actually carries the gate-kubeconfig
+      hostname as a SAN (`openssl s_client -connect staging.vcluster-staging:443
+      -servername staging.vcluster-staging </dev/null | openssl x509 -noout -ext
+      subjectAltName` -- expect `staging.vcluster-staging` in the list), then fetch
+      and use the gate's own kubeconfig from inside the cluster (`kubectl -n
+      vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' |
+      base64 -d > /tmp/vc.kubeconfig && kubectl --kubeconfig=/tmp/vc.kubeconfig get
+      ns`) -- that single command only succeeds if BOTH the C1 NetworkPolicy (the
+      pod can reach the vCluster API on 8443) and the C2 SAN fix (TLS verification
+      against that hostname passes) hold. Only then confirm the argo-cd#26529
+      exclusion is LIVE: `kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep staging.vcluster-staging`, then `kubectl -n argocd rollout restart statefulset/argocd-application-controller` and wait Ready. Only then register: build `cluster-staging` in `argocd` from the LIVE `vc-staging` Secret (label `argocd.argoproj.io/secret-type=cluster`, `name: staging`, `server: https://staging.vcluster-staging.svc:443`, `tlsClientConfig` from the kubeconfig's client cert/key, `insecure: true` like cnc-staging -- the `.svc` form is fine here specifically BECAUSE `insecure: true` skips hostname verification; it is the gate's OWN kubeconfig, verified above, that needed the SAN fix) with a script under `scripts/tmp/`, never storing the key in git. Verify: controller logs carry no `assignment to entry in nil map` across one more controller restart; `runs-fr-staging` goes Synced/Healthy. Recovery: `kubectl delete secret cluster-staging -n argocd` + delete the controller pod, then STOP.
 
       ## Manual Operations
 
@@ -26,8 +38,10 @@ tasks:
       app: staging-gate
       plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
       when: "Post-merge, AFTER argocd-cm carries the staging.vcluster-staging exclusion and the application-controller has restarted"
-      why_manual: "The ArgoCD cluster Secret embeds the vCluster admin client key; it is generated from the live vc-staging Secret and must never be ArgoCD-managed or stored in git. Registering before the exclusion is live re-triggers the argo-cd#26529 cluster-wide controller panic."
+      why_manual: "The ArgoCD cluster Secret embeds the vCluster admin client key; it is generated from the live vc-staging Secret and must never be ArgoCD-managed or stored in git. Registering before the exclusion is live re-triggers the argo-cd#26529 cluster-wide controller panic. The preflight commands are here too, ahead of registration, because they prove the C1 NetworkPolicy and C2 SAN fix hold BEFORE the gate's first real run depends on them."
       commands:
+        - kubectl -n tekton-pipelines run staging-gate-preflight --rm -it --restart=Never --image=alpine/openssl -- sh -c "openssl s_client -connect staging.vcluster-staging:443 -servername staging.vcluster-staging </dev/null 2>/dev/null | openssl x509 -noout -ext subjectAltName"   # expect staging.vcluster-staging in the SAN list -- proves C2
+        - kubectl -n tekton-pipelines run staging-gate-preflight-2 --rm -it --restart=Never --image=bitnamilegacy/kubectl:1.33.4 -- sh -c "kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > /tmp/vc.kubeconfig && kubectl --kubeconfig=/tmp/vc.kubeconfig get ns"   # single command proves C1 (netpol reachability) + C2 (SAN/cert) together
         - kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}' | grep -q staging.vcluster-staging
         - kubectl -n argocd rollout restart statefulset/argocd-application-controller && kubectl -n argocd rollout status statefulset/argocd-application-controller
         - bash scripts/tmp/register-staging-vcluster.sh   # builds cluster-staging from vc-staging (name staging, server https://staging.vcluster-staging.svc:443, insecure true)
