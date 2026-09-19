@@ -41,7 +41,43 @@
 # pkg/util/kubeconfig/kubeconfig.go), not guessed: the Secret's kubeconfig
 # bytes land at data key `config` (KubeconfigSecretKey = "config"), which is
 # what apps/staging-gate/tekton/tasks.yaml's fetch-kubeconfig step reads.
+#
+# P9 review correction (C2, Critical): `server` was originally
+# https://staging.vcluster-staging.svc:443 -- the ArgoCD-registration form
+# (P11, tlsClientConfig.insecure: true, which skips hostname verification
+# entirely). The gate's OWN kubeconfig is consumed with FULL TLS verification
+# (no insecure flag anywhere in the fetch-kubeconfig/run-smoke/reset path), so
+# `server`'s hostname must be an actual SAN on the syncer certificate. A live
+# TLS handshake against the cnc-staging vCluster (same chart, same version)
+# proved the syncer cert's SANs include `<name>.<namespace>` (e.g.
+# `cnc-staging.cnc-staging-vcluster`) but NOT `<name>.<namespace>.svc` -- so
+# the `.svc` form here would fail TLS verification the first time the gate
+# actually ran. `extraSANs` below adds the `.svc` forms too, so BOTH consumers
+# (this kubeconfig and any future `.svc`-addressed one) work off the same
+# certificate.
+#
+# exportKubeConfig.secret and .additionalSecrets are MUTUALLY EXCLUSIVE, not
+# "the extra one on top of the default" -- confirmed live: rendering the
+# chart with both set fails outright ("exportKubeConfig.secret and
+# exportKubeConfig.additionalSecrets cannot be set at the same time",
+# vcluster/templates/statefulset.yaml). `secret` stays unset here
+# deliberately; it is not that setting it would be silently ignored.
 exportKubeConfig:
   additionalSecrets:
     - name: vc-staging-gate
-      server: https://staging.vcluster-staging.svc:443
+      server: https://staging.vcluster-staging:443
+
+# controlPlane.proxy.extraSANs -- extra hostnames the syncer certificate is
+# signed for (chart's own values.schema wording). Verified live: rendering
+# this chart with the key set decodes, inside the rendered vc-config-staging
+# Secret's config.yaml, to controlPlane.proxy.extraSANs -- confirming the key
+# actually reaches the syncer config and isn't silently dropped. Covers the
+# `.svc` forms so any future consumer that addresses the vCluster by its
+# Service DNS name (ArgoCD's P11 registration keeps insecure: true and so
+# does not strictly need this, but should not be left unable to drop that
+# flag later) gets a cert that verifies.
+controlPlane:
+  proxy:
+    extraSANs:
+      - staging.vcluster-staging.svc
+      - staging.vcluster-staging.svc.cluster.local

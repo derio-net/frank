@@ -35,7 +35,19 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 ROOT_CHART = REPO / "apps/root"
 
+# The ArgoCD cluster registration (P11, out-of-band) keeps the `.svc` form --
+# tlsClientConfig.insecure: true (cnc-staging precedent) skips hostname
+# verification entirely, so the SAN mismatch below does not apply to it.
 STAGING_VCLUSTER_URL = "https://staging.vcluster-staging.svc:443"
+# P9 review (C2, Critical): the gate's OWN kubeconfig (exportKubeConfig.
+# additionalSecrets, consumed with full TLS verification -- no insecure flag)
+# must use a hostname that is an actual SAN on the syncer certificate. A live
+# TLS handshake against the cnc-staging vCluster (same chart, same version)
+# proved `<name>.<namespace>` IS a SAN (e.g. `cnc-staging.cnc-staging-vcluster`)
+# but `<name>.<namespace>.svc` is NOT -- so the gate kubeconfig's server must
+# be the `.svc`-LESS form, the opposite of the ArgoCD registration above.
+STAGING_GATE_KUBECONFIG_URL = "https://staging.vcluster-staging:443"
+EXTRA_SANS = ["staging.vcluster-staging.svc", "staging.vcluster-staging.svc.cluster.local"]
 RUNS_FR_REPO_URL = "https://github.com/derio-net/runs-fr.git"
 
 # The shared, unscoped generator the scoped one mirrors (same App + install).
@@ -593,10 +605,54 @@ def test_vcluster_staging_chart_renders_with_the_gate_kubeconfig_export():
     _render_vcluster_staging()
     doc = yaml.safe_load(VCLUSTER_STAGING_VALUES.read_text())
     additional = (doc.get("exportKubeConfig") or {}).get("additionalSecrets")
-    assert additional == [{"name": VCLUSTER_GATE_SECRET, "server": STAGING_VCLUSTER_URL}], (
+    assert additional == [{"name": VCLUSTER_GATE_SECRET, "server": STAGING_GATE_KUBECONFIG_URL}], (
         f"exportKubeConfig.additionalSecrets must declare exactly one entry "
-        f"{{name: {VCLUSTER_GATE_SECRET}, server: {STAGING_VCLUSTER_URL}}} "
+        f"{{name: {VCLUSTER_GATE_SECRET}, server: {STAGING_GATE_KUBECONFIG_URL}}} "
         f"(no namespace override -- defaults to the vCluster's own host ns): {additional}"
+    )
+
+
+def test_vcluster_staging_never_sets_the_singular_exportkubeconfig_secret():
+    """P9 review (M6): exportKubeConfig.secret and exportKubeConfig.additionalSecrets
+    are MUTUALLY EXCLUSIVE -- confirmed live: rendering the chart with both set
+    fails outright (`exportKubeConfig.secret and exportKubeConfig.additionalSecrets
+    cannot be set at the same time`, vcluster/templates/statefulset.yaml). Setting
+    `secret` here would not silently coexist with `additionalSecrets`; it would
+    break the whole chart render."""
+    doc = yaml.safe_load(VCLUSTER_STAGING_VALUES.read_text())
+    assert "secret" not in (doc.get("exportKubeConfig") or {}), (
+        "exportKubeConfig.secret must stay unset -- it is mutually exclusive "
+        "with additionalSecrets, not merely 'ignored'"
+    )
+
+
+def test_vcluster_staging_declares_extra_sans_for_the_svc_form_hostnames():
+    """P9 review (C2): the ArgoCD cluster registration (P11, out-of-band) keeps
+    the `.svc` hostname form with tlsClientConfig.insecure: true, but registering
+    it WITHOUT insecure some day (or any other future `.svc` consumer) needs the
+    syncer cert to actually carry that SAN. controlPlane.proxy.extraSANs is the
+    chart's real config key (verified live: helm template with it set decodes,
+    inside the rendered vc-config-staging Secret's config.yaml, to
+    controlPlane.proxy.extraSANs -- exactly where the chart's own values.schema
+    documents it: 'extra hostnames to sign the vCluster proxy certificate for')."""
+    docs = _render_vcluster_staging()
+    doc = yaml.safe_load(VCLUSTER_STAGING_VALUES.read_text())
+    extra_sans = ((doc.get("controlPlane") or {}).get("proxy") or {}).get("extraSANs")
+    assert extra_sans == EXTRA_SANS, (
+        f"controlPlane.proxy.extraSANs must declare {EXTRA_SANS}: {extra_sans}"
+    )
+
+    import base64
+    import re
+
+    config_secret = next(
+        d for d in docs
+        if d.get("kind") == "Secret" and d.get("metadata", {}).get("name") == "vc-config-staging"
+    )
+    rendered_cfg = yaml.safe_load(base64.b64decode(config_secret["data"]["config.yaml"]))
+    assert rendered_cfg["controlPlane"]["proxy"]["extraSANs"] == EXTRA_SANS, (
+        "the chart must actually read controlPlane.proxy.extraSANs into the "
+        f"syncer's config.yaml: {rendered_cfg['controlPlane']['proxy']}"
     )
 
 
