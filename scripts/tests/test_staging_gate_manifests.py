@@ -911,3 +911,98 @@ def test_repo_credential_comment_documents_the_consumer_namespace_pem():
         assert needle in comments, (
             f"{path.relative_to(REPO)} comments must mention {needle!r}"
         )
+
+
+VCLUSTER_API_PORT = 8443
+
+
+def _staging_netpols() -> list[dict]:
+    return [d for d in _tekton_docs() if d.get("kind") == "NetworkPolicy"]
+
+
+def _staging_cp_policies() -> list[dict]:
+    """Policies that select the staging vCluster control-plane pod (release=staging)."""
+    hits = [
+        np for np in _staging_netpols()
+        if (np["spec"].get("podSelector") or {}).get("matchLabels", {}).get("release") == "staging"
+    ]
+    assert hits, "no NetworkPolicy under apps/staging-gate/tekton selects the staging vCluster control-plane pod"
+    return hits
+
+
+def _rules_allowing_staging(np: dict, predicate) -> bool:
+    for rule in np["spec"].get("ingress") or []:
+        ports = [p.get("port") for p in (rule.get("ports") or [])]
+        if VCLUSTER_API_PORT not in ports:
+            continue
+        for src in rule.get("from") or []:
+            if predicate(src):
+                return True
+    return False
+
+
+def test_gate_can_reach_the_staging_vcluster_api():
+    """P9 review (C1, Critical): the chart's own vc-cp-staging NetworkPolicy
+    (policies.networkPolicy.enabled: true, apps/vclusters/template/values.yaml)
+    selects the control-plane pod and allows ingress only from same-namespace
+    release: staging / vcluster.loft.sh/managed-by: staging and app: loft --
+    nothing from tekton-pipelines. Without an additive rule the gate's
+    run-smoke/reset/await-sync Tasks (using the vc-staging-gate kubeconfig,
+    C2) can never reach the vCluster API."""
+    ok = any(
+        _rules_allowing_staging(
+            np,
+            lambda s: (s.get("namespaceSelector") or {})
+            .get("matchLabels", {})
+            .get("kubernetes.io/metadata.name") == "tekton-pipelines",
+        )
+        for np in _staging_cp_policies()
+    )
+    assert ok, f"no ingress rule admits the tekton-pipelines namespace on {VCLUSTER_API_PORT}"
+
+
+def test_argocd_can_reach_the_staging_vcluster_api():
+    """P9 review (C1): the <app>-staging ArgoCD Applications (e.g. runs-fr-staging)
+    sync workloads INTO the vCluster -- same requirement as the cnc-staging
+    precedent (apps/cnc-staging-host/manifests/networkpolicy-argocd.yaml)."""
+    ok = any(
+        _rules_allowing_staging(
+            np,
+            lambda s: (s.get("namespaceSelector") or {})
+            .get("matchLabels", {})
+            .get("kubernetes.io/metadata.name") == "argocd",
+        )
+        for np in _staging_cp_policies()
+    )
+    assert ok, f"no ingress rule admits the argocd namespace on {VCLUSTER_API_PORT}"
+
+
+def test_staging_vcluster_own_pods_can_reach_the_vcluster_api():
+    """P9 review (C1). THE REGRESSION GUARD from the cnc-staging incident
+    (apps/cnc-staging-host/manifests/networkpolicy-argocd.yaml HISTORY block):
+    an empty podSelector in `from` means every pod in the policy's own
+    namespace -- where the vCluster's synced pods (CoreDNS!) run. Without it,
+    CoreDNS cannot watch Services/EndpointSlices and every in-vCluster name
+    NXDOMAINs. Restated here even though the chart's OWN vc-cp-staging policy
+    already grants this, per the cnc incident's lesson: a future edit that
+    "simplifies" this file into replacing rather than adding to the chart's
+    policy must not silently lose this clause."""
+    ok = any(
+        _rules_allowing_staging(np, lambda s: s.get("podSelector") == {})
+        for np in _staging_cp_policies()
+    )
+    assert ok, (
+        f"no ingress rule admits the staging vCluster's own namespace on "
+        f"{VCLUSTER_API_PORT} -- CoreDNS will lose API access"
+    )
+
+
+def test_staging_vcluster_api_netpol_is_ingress_only():
+    """These policies must not add an egress policyType -- doing so would flip
+    the control-plane pod to default-deny EGRESS too (see the #657 incident
+    referenced by the cnc-staging-host HISTORY block)."""
+    for np in _staging_cp_policies():
+        types = np["spec"].get("policyTypes") or []
+        assert "Egress" not in types, (
+            f"{np['metadata']['name']} adds an Egress policyType"
+        )
