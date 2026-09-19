@@ -51,6 +51,17 @@ spec:
         params:
           - {name: app, value: $(tt.params.app)}
           - {name: sha, value: $(tt.params.sha)}
+        # P9 review (I3): Tekton v1.6.0 CANCELS running `finally` TaskRuns (reset,
+        # notify) when timeouts.pipeline elapses UNLESS timeouts.tasks is set
+        # strictly lower -- the unset default (60m pipeline-wide) risks losing
+        # both the vCluster namespace cleanup and the red-path Telegram alert on
+        # exactly the run most likely to need them, since wait-turn alone can
+        # consume up to 30m (waitTurnTimeoutSeconds default 1800) of that budget.
+        # tasks < pipeline leaves finally its own window to actually run.
+        timeouts:
+          pipeline: 1h30m
+          tasks: 1h20m
+          finally: 10m
         workspaces:
           - name: scratch
             emptyDir: {}

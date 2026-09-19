@@ -840,6 +840,31 @@ def test_triggertemplate_labels_pipelineruns_by_app():
     assert labels.get("staging-gate/app") == "$(tt.params.app)", labels
 
 
+def test_triggertemplate_pipelinerun_sets_explicit_timeouts_so_finally_survives_a_timeout():
+    """P9 review (I3, Important): Tekton v1.6.0 CANCELS running `finally` TaskRuns
+    (reset, notify) when timeouts.pipeline elapses, UNLESS timeouts.tasks is set
+    strictly lower -- losing both the vCluster namespace cleanup and the red-path
+    Telegram alert on exactly the run most likely to need them. The default
+    pipeline timeout is 60m and wait-turn alone can consume up to 30m of it
+    (waitTurnTimeoutSeconds default 1800), so an unset timeouts block is a real
+    exposure, not a theoretical one."""
+    tt = next(d for d in _tekton_docs() if d.get("kind") == "TriggerTemplate")
+    pr_spec = tt["spec"]["resourcetemplates"][0]["spec"]
+    timeouts = pr_spec.get("timeouts")
+    assert timeouts == {"pipeline": "1h30m", "tasks": "1h20m", "finally": "10m"}, timeouts
+
+    def _minutes(duration: str) -> int:
+        import re
+        h = re.search(r"(\d+)h", duration)
+        m = re.search(r"(\d+)m", duration)
+        return (int(h.group(1)) if h else 0) * 60 + (int(m.group(1)) if m else 0)
+
+    assert _minutes(timeouts["tasks"]) < _minutes(timeouts["pipeline"]), (
+        "timeouts.tasks must be strictly LESS than timeouts.pipeline, or Tekton "
+        f"still cancels running finally TaskRuns on a pipeline timeout: {timeouts}"
+    )
+
+
 def test_resolve_contract_waits_its_turn_before_cloning():
     pipeline = _find_pipeline(_tekton_docs())
     resolve = _pipeline_task(pipeline, "resolve-contract")
