@@ -29,9 +29,12 @@
 # named `vc-staging` pointing at `https://localhost:8443` -- fine for `vcluster
 # connect` from a laptop, useless for the Tekton gate, which talks to the
 # vCluster from inside the SAME cluster over its in-cluster Service DNS name.
-# `additionalSecrets` (not the deprecated singular `secret` field) writes an
-# EXTRA Secret alongside whatever `secret`/the default would produce, so this
-# does not disturb any other consumer of the default kubeconfig.
+# `additionalSecrets` writes an EXTRA Secret alongside the DEFAULT `vc-staging`
+# one (the default is written unconditionally, before the additional-secret
+# loop), so this does not disturb any other consumer of that kubeconfig --
+# P11's registration still builds the ArgoCD cluster Secret from `vc-staging`.
+# It is NOT "extra on top of an explicit `secret:` override" though: those two
+# fields are mutually exclusive, see the note below.
 #
 # No `namespace` override -- the vCluster writes it into its own host
 # namespace (vcluster-staging), which is where the gate's RBAC Role reads it
