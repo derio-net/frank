@@ -1,0 +1,35 @@
+schema_version: 2
+run: 2026-09-19-feat-infer-pool-watchdog-batch-aware
+workflow: fr-goal@1
+branch: feat/infer-pool-watchdog-batch-aware
+started: '2026-09-19T21:35:50+00:00'
+cursor: implement
+steps:
+  brainstorm:
+    state: done
+    at: '2026-09-19T22:02:15+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  spec-review:
+    state: done
+    at: '2026-09-19T22:06:21+00:00'
+  plan:
+    state: done
+    at: '2026-09-19T22:11:08+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-09-19--infer--ovms-pool-watchdog-activity-signal
+  plan-review:
+    state: done
+    at: '2026-09-19T22:11:12+00:00'
+    exit: 0
+    stdout: 'self-review passed
+
+      '
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  deliver:
+    state: pending

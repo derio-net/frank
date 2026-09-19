@@ -1089,3 +1089,27 @@ rows:
     9.59 and not the predicted 8.49 — the same requests peaked 13 percent higher once the limit was larger,
     so the pinned pool sizes itself partly against available memory and a further raise would again return
     less than proportional headroom. The cap is now evidence rather than an estimate.
+- id: retrieval-batch-job-survives-pool-watchdog
+  capability: Retrieval models
+  acceptance: A long-running batch job against the retrieval tier runs to completion without the pool
+    watchdog restarting the server underneath it.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  levels: {}
+  status: not-implemented
+  notes: >-
+    Proof is Test Plan row 5 — the downstream consumer re-runs its 40-batch index and the window
+    contains zero action=restart lines. Row 3 (synthetic replay) is the agent-drivable precursor,
+    and row 5 is the acceptance proof because it is the case that actually failed.
+- id: retrieval-pool-watchdog-restart-loop-is-visible
+  capability: Feature-health alerting
+  acceptance: A pool-watchdog restart loop announces itself through alerting rather than being
+    discovered by a downstream consumer whose job died.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  levels: {}
+  status: not-implemented
+  notes: >-
+    Proof is Test Plan row 7 — the feature-health rule exists in the provisioned ConfigMap and reads
+    Normal rather than NoData-firing with no restarts in the window. Nothing paged during the five
+    restarts of 2026-09-19; the incident was found by the consumer.

@@ -1,0 +1,99 @@
+schema_version: 2
+phase:
+  number: 4
+  title: The loop becomes visible
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+  acceptance:
+  - retrieval-pool-watchdog-restart-loop-is-visible
+tasks:
+- number: 1
+  title: A feature-health rule counts restarts
+  steps:
+  - id: P4.T1.S1
+    text: |
+      RED. Add `test_a_restart_loop_has_an_alert` to
+      `scripts/tests/test_ovms_pool_watchdog.py`, parsing
+      `apps/grafana-alerting/manifests/alert-rules-cm.yaml`. Require a rule with uid
+      `ovms-pool-watchdog-restart-loop` in the `feature-health` folder whose LogsQL filters on
+      `_msg:` and NOT on `log:`, uses `queryType: stats`, and sets `noDataState: OK`.
+
+      All three are load-bearing, not style. Frank's VictoriaLogs message field is `_msg`;
+      Hop's CrowdSec rules use `log:` and copying that shape to Frank returns zero forever.
+      Without `queryType: stats` the query returns a long series and Grafana's SSE reduce step
+      rejects it. And the query FILTERS, so zero restarts returns no rows rather than a zero -
+      the rule resolves THROUGH NoData, and `Alerting` there would make it unable to ever stop
+      firing.
+  - id: P4.T1.S2
+    text: |
+      GREEN. Add the rule to the `feature-health` folder. Query:
+      `kubernetes.namespace_name:retrieval AND _msg:"pool-watchdog result" AND _msg:"action=restart" | stats count() as value`
+      over `relativeTimeRange: {from: 1800, to: 0}`, threshold `gt 2`, `for: 0s`,
+      `severity: warning`, routed to health-bridge by the folder default (no `telegram_direct` -
+      this is one degraded feature, not a cluster pager). After Phase 2 the design bound is one
+      hygiene restart per 30 minutes, so three is unambiguous.
+
+      `for: 0s` is deliberate: the 30-minute lookback already supplies the smoothing, and a
+      `for:` on top would only delay a signal that is already integrated.
+
+      Validated live while writing the spec - the same LogsQL against
+      `http://192.168.55.225:9428/select/logsql/stats_query` returns a populated vector.
+  - id: P4.T1.S3
+    text: |
+      REFACTOR. Assert the uid is at most 40 characters. A 41-character uid does not skip the
+      rule - it fails provisioning as a unit, CrashLoops the grafana container and takes every
+      dashboard, datasource and alert rule down with it (shipped once, in #797).
+      `ovms-pool-watchdog-restart-loop` is 31, so the assertion is cheap insurance on a future
+      rename rather than a live risk.
+- number: 2
+  title: Guard the class, not just this rule
+  steps:
+  - id: P4.T2.S1
+    text: |
+      RED. Add `test_no_frank_logs_alert_rule_uses_hops_message_field`: scan EVERY
+      VictoriaLogs-datasource rule in `alert-rules-cm.yaml` and fail any whose `expr` contains
+      `log:` as a field selector. A tripwire scoped to one instance of a class gives the
+      reassurance of coverage without the fact of it - the array-item `ignoreDifferences` guard
+      in this repo sat over exactly one file for months while a second instance of the same
+      freeze ran in production.
+  - id: P4.T2.S2
+    text: |
+      GREEN. Fix any hit, or - if the only hits are deliberate - record each as a named
+      exemption in the test with the reason inline, never as a silent skip.
+  - id: P4.T2.S3
+    text: |
+      no-refactor-because: a single scanning assertion with its exemptions stated inline; there
+      is nothing to extract.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
