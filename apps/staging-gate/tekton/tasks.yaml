@@ -137,7 +137,16 @@ spec:
         set -eu
         umask 077
         dest="${VC_KUBECONFIG_PATH:-/tekton/home/vc.kubeconfig}"
-        kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > "$dest"
+        # P9 review (M8a, discovered while tightening the test stub): piping
+        # `kubectl ... | base64 -d > "$dest"` directly masks a kubectl failure
+        # under plain `#!/bin/sh` -- there is no `pipefail` in POSIX sh, so the
+        # pipeline's exit status is base64's (which happily decodes empty
+        # stdin to an empty file and exits 0), not kubectl's. A `var=$(cmd)`
+        # assignment, by contrast, DOES propagate cmd's failure through
+        # `set -e` (verified live: `sh -c 'set -e; x=$(false); echo unreached'`
+        # exits 1 before the echo). Capture first, then decode.
+        raw=$(kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}')
+        printf '%s' "$raw" | base64 -d > "$dest"
     # P9.T2: fetch the app's smoke RBAC manifest pinned to the GATED sha.
     # runs-fr is PRIVATE; frank-gitops-push (the derio-fr-automation App
     # install, `repository_selection: all`) can read it. curl -fsS fails
@@ -294,7 +303,16 @@ spec:
         set -eu
         umask 077
         dest="${VC_KUBECONFIG_PATH:-/tekton/home/vc.kubeconfig}"
-        kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}' | base64 -d > "$dest"
+        # P9 review (M8a, discovered while tightening the test stub): piping
+        # `kubectl ... | base64 -d > "$dest"` directly masks a kubectl failure
+        # under plain `#!/bin/sh` -- there is no `pipefail` in POSIX sh, so the
+        # pipeline's exit status is base64's (which happily decodes empty
+        # stdin to an empty file and exits 0), not kubectl's. A `var=$(cmd)`
+        # assignment, by contrast, DOES propagate cmd's failure through
+        # `set -e` (verified live: `sh -c 'set -e; x=$(false); echo unreached'`
+        # exits 1 before the echo). Capture first, then decode.
+        raw=$(kubectl -n vcluster-staging get secret vc-staging-gate -o jsonpath='{.data.config}')
+        printf '%s' "$raw" | base64 -d > "$dest"
     - name: reset
       image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
       env:

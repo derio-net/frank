@@ -34,8 +34,12 @@ def _fetch_kubeconfig_script() -> str:
 
 _STUB_KUBECTL = """#!/bin/sh
 set -eu
+# P9 review (M8a): the stub used to accept any -o/jsonpath value (or none at
+# all) -- a script that asked for the WRONG data key (e.g. .data.apiserver.crt
+# instead of .data.config) would have passed this test just as cleanly. Check
+# the jsonpath expression explicitly.
 if [ "$1" = "-n" ] && [ "$2" = "vcluster-staging" ] && [ "$3" = "get" ] && [ "$4" = "secret" ] \\
-   && [ "$5" = "vc-staging-gate" ]; then
+   && [ "$5" = "vc-staging-gate" ] && [ "$6" = "-o" ] && [ "$7" = "jsonpath={.data.config}" ]; then
   printf '%s' "$FAKE_SECRET_B64"
   exit 0
 fi
@@ -88,3 +92,33 @@ def test_never_echoes_the_kubeconfig_content(tmp_path):
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
     assert FAKE_KUBECONFIG not in result.stdout and FAKE_KUBECONFIG not in result.stderr
+
+
+def test_stub_rejects_a_script_that_requests_the_wrong_data_key(tmp_path):
+    """P9 review (M8a) negative control: proves the stub's -o jsonpath check is
+    load-bearing, not decorative. A script fetching the wrong key (e.g. the
+    INNER apiserver.crt, not the syncer kubeconfig at .data.config) must be
+    rejected by the stub rather than silently handed the fake secret."""
+    wrong_key_script = (
+        _fetch_kubeconfig_script().replace("{.data.config}", "{.data.apiserver.crt}")
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "kubectl"
+    stub.write_text(_STUB_KUBECTL)
+    stub.chmod(0o755)
+    dest = tmp_path / "vc.kubeconfig"
+    env = {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "HOME": str(tmp_path),
+        "VC_KUBECONFIG_PATH": str(dest),
+        "FAKE_SECRET_B64": "irrelevant",
+    }
+    result = subprocess.run(
+        ["sh", "-c", wrong_key_script], env=env, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode != 0, (
+        f"the stub must reject a jsonpath expression asking for the wrong key:\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert "unhandled args" in result.stderr
