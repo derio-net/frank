@@ -92,20 +92,40 @@ spec:
               #!/bin/sh
               set -eu
               end=$(( $(date +%s) + WAIT_TIMEOUT ))
+              # P9 review (I1): only the TriggerTemplate labels its PipelineRun
+              # staging-gate/app -- a manual `tkn pipeline start` (or phase 11's own
+              # Test Plan) is unlabelled, so "self" never appears in `rows` and,
+              # without this bail-out, the step would spin for the full
+              # WAIT_TIMEOUT (default 30min) before failing with a misleading
+              # "timed out" message on a run that was never blocked by anything.
+              # A FEW short retries (informer/API propagation lag can legitimately
+              # delay self showing up by a poll or two) before giving up and
+              # proceeding without serialization.
+              self_missing_polls=0
               while [ "$(date +%s)" -lt "$end" ]; do
                 rows=$(kubectl -n tekton-pipelines get pipelineruns -l "staging-gate/app=$APP" \
                   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.creationTimestamp}{"\t"}{.status.conditions[-1:].status}{"\n"}{end}')
                 self_ts=$(printf '%s\n' "$rows" | awk -F'\t' -v self="$SELF" '$1==self{print $2}')
                 if [ -z "$self_ts" ]; then
+                  self_missing_polls=$((self_missing_polls + 1))
+                  if [ "$self_missing_polls" -ge "${SELF_NOT_FOUND_RETRIES:-3}" ]; then
+                    echo "self not labelled staging-gate/app -- serialization not enforced for this run" >&2
+                    exit 0
+                  fi
                   echo "self PipelineRun $SELF not found yet -- retrying" >&2
                   sleep "${WAIT_POLL_INTERVAL:-10}"
                   continue
                 fi
+                self_missing_polls=0
                 # Blocking = an OTHER run, for the SAME app, created strictly before
-                # self, whose last condition status is neither True (succeeded) nor
-                # False (failed) -- i.e. still Unknown/running.
+                # self -- OR created in the SAME second (creationTimestamp has
+                # one-second granularity, so a strict timestamp `<` alone lets two
+                # same-second runs both see no older run and proceed concurrently;
+                # P9 review, I2), tiebroken on name so the comparison is a total
+                # order -- whose last condition status is neither True (succeeded)
+                # nor False (failed) -- i.e. still Unknown/running.
                 blocking=$(printf '%s\n' "$rows" | awk -F'\t' -v self="$SELF" -v selfts="$self_ts" \
-                  '$1!=self && $2<selfts && $3!="True" && $3!="False" {print $1}')
+                  '$1!=self && ($2<selfts || ($2==selfts && $1<self)) && $3!="True" && $3!="False" {print $1}')
                 if [ -z "$blocking" ]; then
                   echo "no older unfinished staging-gate run for app=$APP -- proceeding"
                   exit 0

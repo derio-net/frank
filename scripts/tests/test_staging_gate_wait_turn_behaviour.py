@@ -141,3 +141,97 @@ def test_times_out_when_an_older_run_never_finishes(tmp_path):
 
     assert result.returncode == 1, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     assert "timed out" in result.stderr
+
+
+def test_proceeds_after_a_few_retries_when_self_is_never_labelled(tmp_path):
+    """P9 review (I1): every manual run (`tkn pipeline start`, phase 11's own
+    Test Plan) is NOT labelled staging-gate/app -- only the TriggerTemplate
+    sets that label. Without a bail-out, self would never appear in `rows` and
+    the step would spin for the full waitTurnTimeoutSeconds (default 30min)
+    before failing with a misleading timeout message. It must instead give up
+    after a few short retries and proceed."""
+    other_app_only = _row("some-other-run", "2026-09-15T00:00:00Z", "Unknown")
+    env = _setup_stub(tmp_path, [other_app_only])
+
+    result = _run(env, app="runs-fr", self_name="self-run", timeout="600")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "not labelled staging-gate/app" in result.stderr
+    assert "serialization not enforced" in result.stderr
+    calls = int((tmp_path / "counter").read_text())
+    assert calls <= 5, f"expected a bounded number of retries, not a full spin to timeout, got {calls}"
+
+
+def test_does_not_bail_out_early_once_self_is_found(tmp_path):
+    """The self-not-found bail-out must not fire once self actually appears,
+    even if it took a couple of polls to show up (informer/API propagation
+    lag) -- distinguishing this from I1's case is the whole point of counting
+    consecutive self-missing polls rather than any single condition."""
+    missing = _row("some-other-run", "2026-09-15T00:00:00Z", "Unknown")
+    found = _row("self-run", "2026-09-15T00:01:00Z", "Unknown")
+    env = _setup_stub(tmp_path, [missing, found])
+
+    result = _run(env, app="runs-fr", self_name="self-run", timeout="30")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "not labelled staging-gate/app" not in result.stderr
+    assert "proceeding" in result.stdout
+
+
+def test_waits_on_an_older_run_with_the_same_creation_timestamp_when_its_name_sorts_earlier(tmp_path):
+    """P9 review (I2): creationTimestamp has one-second granularity, so two
+    PipelineRuns created in the same second compare equal on the strict `<`
+    the original script used -- both would see no older run and proceed
+    concurrently. The tiebreak on name (`$2<selfts || ($2==selfts && $1<self)`)
+    must treat a same-timestamp, earlier-sorting name as blocking."""
+    same_ts = "2026-09-15T00:01:00Z"
+    blocked = _row("staging-gate-runs-fr-aaaaa", same_ts, "Unknown") + _row(
+        "staging-gate-runs-fr-bbbbb", same_ts, "Unknown"
+    )
+    done = _row("staging-gate-runs-fr-aaaaa", same_ts, "True") + _row(
+        "staging-gate-runs-fr-bbbbb", same_ts, "Unknown"
+    )
+    env = _setup_stub(tmp_path, [blocked, blocked, done])
+
+    result = _run(env, app="runs-fr", self_name="staging-gate-runs-fr-bbbbb", timeout="30")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "waiting on older run" in result.stdout
+    assert "proceeding" in result.stdout
+
+
+def test_does_not_wait_on_a_same_timestamp_run_whose_name_sorts_later(tmp_path):
+    """The mirror of the above: a same-timestamp OTHER run whose name sorts
+    LATER than self must never block self (the tiebreak is a total order, not
+    a mutual exclusion)."""
+    same_ts = "2026-09-15T00:01:00Z"
+    rows = _row("staging-gate-runs-fr-aaaaa", same_ts, "Unknown") + _row(
+        "staging-gate-runs-fr-zzzzz", same_ts, "Unknown"
+    )
+    env = _setup_stub(tmp_path, [rows])
+
+    result = _run(env, app="runs-fr", self_name="staging-gate-runs-fr-aaaaa", timeout="5")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "proceeding" in result.stdout
+
+
+def test_an_older_run_with_an_empty_condition_status_still_blocks(tmp_path):
+    """P9 review (M8b): kubectl's jsonpath `{.status.conditions[-1:].status}`
+    returns an EMPTY string (allowMissingKeys), not the literal text
+    'Unknown', for a freshly-created PipelineRun with no conditions yet. The
+    blocking predicate (`$3!='True' && $3!='False'`) must still treat that as
+    unfinished."""
+    blocked = _row("older-run", "2026-09-15T00:00:00Z", "") + _row(
+        "self-run", "2026-09-15T00:01:00Z", "Unknown"
+    )
+    done = _row("older-run", "2026-09-15T00:00:00Z", "True") + _row(
+        "self-run", "2026-09-15T00:01:00Z", "Unknown"
+    )
+    env = _setup_stub(tmp_path, [blocked, done])
+
+    result = _run(env, app="runs-fr", self_name="self-run", timeout="30")
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    assert "waiting on older run" in result.stdout
+    assert "proceeding" in result.stdout
