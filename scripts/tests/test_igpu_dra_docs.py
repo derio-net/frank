@@ -260,11 +260,20 @@ _RERANK_GUARD_CLAUSES: list[tuple[str, re.Pattern[str], str]] = [
         "exported tokenizer's model_max_length and never reaches graph.pbtxt.",
     ),
     (
-        "the refusal is a 500, not a 4xx",
-        re.compile(r"\b500\b.{0,300}\b4xx\b|\b4xx\b.{0,300}\b500\b"),
-        "the issue asked for 4xx. Upstream raises std::runtime_error and "
-        "Process() catches it into absl::InternalError, so a test asserting "
-        "4xx fails on correct behaviour.",
+        # Was pinned the other way round (require 500, warn off 4xx) until
+        # 2026-09-19, when the request was actually run: it returns 400, which
+        # also matches #805's own Test Plan row 6. The reasoning behind the 500
+        # prediction was sound — std::runtime_error -> absl::InternalError -> 500
+        # — and the MediaPipe graph wraps the failure before the HTTP layer sees
+        # it. A guard can pin a wrong fact just as firmly as a right one, so this
+        # clause requires the doc to carry the MEASURED status and to keep the
+        # superseded prediction visible as the cautionary note.
+        "the refusal is a 400, measured",
+        re.compile(r"\b400\b.{0,400}\b500\b|\b500\b.{0,400}\b400\b", re.S),
+        "an over-cap rerank returns HTTP 400 naming the limit (measured live "
+        "2026-09-19, matching #805 Test Plan row 6). Assert 400. Keep the "
+        "earlier 500 prediction alongside it so the inference-vs-measurement "
+        "lesson is not lost.",
     ),
     (
         "memory is never released — the floor ratchets",

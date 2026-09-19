@@ -320,7 +320,32 @@ chunks, scored per chunk, and those chunks count against the same 64. That is
 a visible relevance-score change, accepted deliberately, because the
 alternative leaves a guard that one long passage defeats.
 
-### `--max_doc_length` is not a batch cap, and the refusal is a 500
+**And 64 is a cap on chunks AFTER splitting, which real traffic crosses.**
+`chunkDocuments` checks the limit twice — on the document count before
+chunking, then again on the chunk total after (`exceeding max_allowed_chunks
+after chunking limit`). The Test Plan sent 600-token documents against a 640
+cap, so one document was always one chunk and the second check was never
+exercised. Measured 2026-09-16 against the live consumer corpus: 2142 chunks,
+`token_count` p50 386 / p95 695 / max 1235, with **139 (6.5%) over the ~627
+effective budget** (`max_position_embeddings − query_tokens − 4`). The client
+sends **50** candidates, so a request carries `50 + k` chunks and refusal needs
+`k >= 15`.
+
+The base rate predicts `k ~ 3`. The measured median across eight real queries
+is **9**, with one at **21 -> 71 chunks -> HTTP 400**, confirmed end to end
+through the client's own audit log. **Retrieval returns the top 50 by
+similarity and length correlates with matching**, so the reranker sees a
+distribution enriched for exactly the documents the guard is most expensive
+for. A cap sized against corpus statistics is sized against the wrong
+population; size it against the *retrieved* distribution. Headroom on the
+queries that pass is 3-11 chunks.
+
+The two bounds are coupled in opposite directions: lowering
+`max_position_embeddings` to save memory produces MORE chunks and pushes harder
+against `max_allowed_chunks`. Move either and re-measure both. Tracked in
+frank#793.
+
+### `--max_doc_length` is not a batch cap, and the refusal is a 400
 
 Two things that look like the answer and are not.
 
@@ -331,12 +356,21 @@ says nothing about how many documents one request may carry. `--num_streams`
 is orthogonal too, and raising it would increase peak memory rather than bound
 it.
 
-A refused request returns HTTP **500**, not the 4xx that would be idiomatic.
-Every one of those guards raises `std::runtime_error`, and `Process()` catches
-it into `absl::InternalError`, which maps to 500. The load-bearing property
-holds — the caller gets a response naming the limit, and everyone else keeps
-their server — but **record the status code; do not assert 4xx**, or a test
-fails on correct behaviour.
+A refused request returns HTTP **400**, measured live 2026-09-19 and matching
+#805's own Test Plan row 6. An earlier draft of this entry predicted 500 by
+reading the code — those guards raise `std::runtime_error`, `Process()` catches
+it into `absl::InternalError`, and that maps to 500 — but the MediaPipe graph
+wraps the failure before it reaches the HTTP layer, and the observed status is
+400 with the limit named in the body:
+
+```
+HTTP 400  Chunking failed: exceeding max_allowed_chunks after chunking limit: 64; actual: 100
+```
+
+The load-bearing property is unchanged — the caller gets a response naming the
+limit and everyone else keeps their server. **Assert 400**, and treat the
+reasoning-from-source version as the cautionary case: the inference was sound
+and the answer was still wrong, because nobody ran the request.
 
 ### Measure it with the cgroup peak, on a freshly restarted container
 
