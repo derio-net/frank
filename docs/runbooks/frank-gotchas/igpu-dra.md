@@ -224,6 +224,35 @@ and there is no swap — so the kernel may reclaim **nothing** and OOM-kills
 instead. `limits.memory` on this container is the **GPU's memory budget**, not
 a margin around a process.
 
+### Is anything actually using the retrieval tier?
+
+Ask the metric, not the graphs. OVMS runs with `--metrics_enable` and is
+scraped by `apps/ovms-retrieval/manifests/vmservicescrape.yaml`:
+
+```promql
+# requests served, per servable, over the last day
+sum by (name) (increase(ovms_requests_success[1d]))
+
+# guard refusals — an oversized batch being turned away
+sum by (name) (increase(ovms_requests_fail[1d]))
+
+# anything in flight right now
+sum(ovms_current_requests)
+```
+
+**Why this exists.** Before the flag was set, `/metrics` answered 400 and the
+only usage signal was `container_cpu_usage_seconds_total` and
+`container_memory_working_set_bytes` — so "is anyone calling this?" had to be
+inferred from graph shapes. That is how the whole #793 investigation had to
+proceed, and after the fix shipped the endpoint served nothing for four days
+in a way that was **indistinguishable from a downstream client that had
+stopped calling**. That client fails open silently, so nothing else would have
+reported it either.
+
+**An idle retrieval tier is normal here** — five-day quiet stretches are in the
+measured record — so there is deliberately no alert on zero traffic. The point
+is to be able to answer the question, not to be paged about it.
+
 **Diagnose from `memory.stat`, not from a proxy.** This point cost three
 successive wrong explanations during the investigation, each from a different
 proxy: `memory.current` counts shmem *and* page cache, so a high-water reading

@@ -1,0 +1,35 @@
+# Scrapes OVMS's own request counters, so "is anything using the retrieval
+# tier?" is a query rather than an inference from CPU and memory graphs.
+#
+# WHY THIS EXISTS. The #793 investigation had to establish usage by reading
+# container_cpu_usage_seconds_total and container_memory_working_set_bytes and
+# reasoning backwards, because `/metrics` was disabled. After the fix shipped,
+# the endpoint served nothing for four days — and from this side that is
+# indistinguishable from a downstream client that stopped calling. The client
+# fails open silently, so nothing else would ever report it.
+#
+# Port NAME `http`, not 8000: the VM operator resolves endpoints by Service
+# port name, and a scrape pointed at a name that does not exist comes up
+# Ready with zero series and no error anywhere — the trap the
+# tekton-pipelines-controller scrape records.
+#
+# No metricRelabelConfigs drop rules, deliberately. The OVMS series are
+# labelled by api, interface, method, name and version only; `name` is the
+# servable (two of them) and nothing is labelled per-request, so there is no
+# unbounded-cardinality shape here of the kind that took kube-state-metrics
+# to 21.6 MiB and silently blinded every kube_* rule. If a future OVMS release
+# adds a per-request label, that changes and this comment is where to start.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: ovms-retrieval
+  namespace: retrieval
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ovms-retrieval
+      app.kubernetes.io/component: server
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
