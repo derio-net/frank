@@ -202,6 +202,12 @@ def run_script(tmp_path):
         # Two annotations are read through `get deployment`, and they are told
         # apart by the jsonpath. The activity case MUST come first — both
         # patterns contain "get deployment" and `case` takes the first match.
+        # Failure injection for the one call whose failure would otherwise be
+        # invisible: the idle-clock stamp inside restart(). `set -e` means a
+        # non-zero kubectl there aborts the script, so anything AFTER it in
+        # restart() never runs.
+        '  *"annotate"*"pool-watchdog-last-busy"*)\n'
+        '                 [ -z "${FAKE_ANNOTATE_FAILS:-}" ] || exit 1 ;;\n'
         '  *"pool-watchdog-last-activity"*) echo "$FAKE_LAST_ACTIVITY" ;;\n'
         '  *"get deployment"*) echo "$FAKE_LAST_BUSY" ;;\n'
         '  *) : ;;\n'
@@ -426,6 +432,118 @@ def test_an_unlimited_cgroup_does_not_divide_by_a_word(run_script):
     )
     assert proc.returncode == 0, proc.stderr
     assert "action=restart" in proc.stdout
+
+
+def test_a_restart_stamps_the_idle_clock(run_script):
+    """2026-09-19 replayed: the last-busy clock lives on the Deployment and
+    `rollout restart` never touches it, so once a restart fires the clock is
+    still exactly as stale as it was before the restart — the next tick sees
+    the same `idle_for` and restarts again. Four restarts in six minutes, one
+    per tick, until the caller gave up.
+
+    A restart must stamp `pool-watchdog-last-busy=$now` itself: the annotation
+    means "how long since the server was last known to be doing something",
+    and a restart destroys the process that observation was about."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=1,  # epoch 1: idle for decades
+    )
+    assert "action=restart" in proc.stdout and "idle-with-elevated-pool" in proc.stdout
+    lines = calls.splitlines()
+    restart_idx = next(i for i, line in enumerate(lines) if "rollout restart" in line)
+    assert any(
+        "pool-watchdog-last-busy=" in line
+        for line in lines[restart_idx:]
+    ), (
+        "a restart must stamp the idle clock alongside the rollout restart: "
+        + calls
+    )
+
+
+def test_a_second_consecutive_tick_does_not_restart_again(run_script):
+    """The regression shape for the actual incident: one restart is a
+    decision, five is a machine. A tick immediately following a restart must
+    see a freshly-stamped clock and do nothing."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=1,
+    )
+    assert "action=restart" in proc.stdout and "idle-with-elevated-pool" in proc.stdout
+
+    now = int(__import__("time").time())
+    proc2, calls2 = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=now,
+    )
+    assert "rollout restart" not in calls2, proc2.stdout
+    assert "idle-too-recent" in proc2.stdout, proc2.stdout
+
+
+def test_a_restart_is_logged_even_if_stamping_the_clock_fails(run_script):
+    """The result line is the ONLY record that a restart happened.
+
+    `restart()` does three things under `set -e`: roll the Deployment, stamp
+    the idle clock, print the result line. If the stamp fails — a transient API
+    error is enough — the script aborts before the print, and a restart that
+    really did happen leaves no trace: not in the log, and therefore not in the
+    `action=restart` alert that phase 4 builds on top of it.
+
+    So the print comes first. A failed stamp still aborts the tick non-zero,
+    which is right (the Job fails visibly and the stale clock is not silently
+    accepted), but it can no longer swallow the evidence."""
+    import time
+    proc, calls = run_script(
+        FAKE_SHMEM=int(6.2 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=int(time.time()) - 7200,
+        FAKE_ANNOTATE_FAILS="1",
+    )
+    assert "rollout restart" in calls, calls
+    assert "action=restart" in proc.stdout, (
+        "the restart happened but was never logged: " + repr(proc.stdout)
+    )
+
+
+def test_a_counter_reset_reads_as_busy_not_idle(run_script):
+    """A restarted pod serves `activity` from zero, since OVMS counters start
+    fresh on every process — that is a counter reset, not idleness. Without
+    detecting it, the first requests after every restart would read as idle,
+    reintroducing root cause A through the back door."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=int(__import__("time").time()) - 3600,
+        FAKE_METRICS=METRICS_IDLE,
+        FAKE_LAST_ACTIVITY=IDLE_ACTIVITY + 1000,
+    )
+    assert "reason=busy" in proc.stdout, proc.stdout
+    assert "rollout restart" not in calls, proc.stdout
+    assert "annotate" in calls, "a busy tick (via counter reset) must stamp the last-busy clock"
+
+
+def test_unreadable_metrics_take_no_hygiene_action(run_script):
+    """The cgroup read can succeed while the curl portion of the same exec
+    fails — the scrape can fail without the exec failing. When that happens
+    the tick must not silently treat the missing metrics as zero activity (the
+    quiet way root cause A came back): it must refuse to take hygiene action
+    and say so."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=1,  # idle clock stale
+        FAKE_METRICS="",
+    )
+    assert "reason=metrics-unreadable" in proc.stdout, proc.stdout
+    assert "rollout restart" not in calls, proc.stdout
+
+
+def test_rule_one_still_fires_when_metrics_are_unreadable(run_script):
+    """Rule 1 does not consult `busy`, so unreadable metrics must not disarm
+    it — the cost of failing toward busy is an unreclaimed pool, not a missed
+    OOM-avoiding restart."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(0.95 * LIMIT), FAKE_LIMIT=LIMIT,
+        FAKE_METRICS="",
+    )
+    assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout, proc.stdout
+    assert "rollout restart" in calls
 
 
 def test_every_exit_path_emits_a_greppable_result_line(run_script):

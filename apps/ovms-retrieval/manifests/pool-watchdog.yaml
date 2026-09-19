@@ -200,6 +200,18 @@ spec:
                   limit=$(echo "$state" | sed -n 2p)
                   metrics=$(echo "$state" | tail -n +3)
 
+                  # `curl` shares the exec with the two cgroup reads above, so
+                  # it can fail WITHOUT the exec itself failing — the shmem
+                  # and memory.max lines still come back and `state` is still
+                  # non-empty. Left unguarded, that tick would silently carry
+                  # in_flight=0, activity=0 into the busy determination below,
+                  # which is indistinguishable from "confirmed idle" and
+                  # reopens root cause A through a different door. Caught
+                  # here, before anything downstream trusts an activity
+                  # figure that was never actually read.
+                  metrics_unreadable=no
+                  if [ -z "$metrics" ]; then metrics_unreadable=yes; fi
+
                   # Sum every sample of one Prometheus metric, across all its
                   # label sets.
                   #
@@ -250,22 +262,61 @@ spec:
                   if [ -z "${last_activity:-}" ]; then last_activity=$activity; fi
 
                   busy=no
-                  if [ "$in_flight" -gt 0 ]; then busy=yes; fi
-                  if [ "$activity" -gt "$last_activity" ]; then busy=yes; fi
+                  activity_reset=0
+                  if [ "$metrics_unreadable" = no ]; then
+                    if [ "$in_flight" -gt 0 ]; then busy=yes; fi
+                    if [ "$activity" -gt "$last_activity" ]; then busy=yes; fi
+                    # A restarted pod serves this counter from zero, since
+                    # OVMS counters start fresh on every process — a DROP is
+                    # a counter reset, not idleness. Without this, the first
+                    # requests after every restart would read as idle, which
+                    # reintroduces root cause A (a working server misread as
+                    # asleep) through the back door of the very mechanism
+                    # meant to close it.
+                    if [ "$activity" -lt "$last_activity" ]; then
+                      busy=yes
+                      activity_reset=1
+                    fi
+                  fi
 
+                  # A restart invalidates every prior observation of the last
+                  # -busy clock — the process it was measuring no longer
+                  # exists. `rollout restart` does not touch the annotation
+                  # itself, and until this stamp the clock stayed frozen at
+                  # its pre-restart value: 2026-09-19 restarted a working
+                  # server four times in six minutes, one per tick, because
+                  # every subsequent tick still saw the SAME stale idle_for.
+                  # Stamping here bounds the worst case to one hygiene
+                  # restart per IDLE_SECONDS, whatever the activity signal
+                  # does on the next tick.
                   restart() {
                     kubectl -n "$NS" rollout restart "deployment/$DEPLOY"
+                    # The result line comes BEFORE the stamp, not after. Under
+                    # `set -e` a non-zero kubectl aborts the script, so a
+                    # transient failure on the stamp would otherwise swallow
+                    # the only record that this restart ever happened — and
+                    # that record is what the ovms-pool-watchdog-restart-loop
+                    # alert counts. A failed stamp still aborts the tick, which
+                    # is right: the Job fails visibly rather than quietly
+                    # accepting a clock it could not advance.
                     echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem limit=$limit in_flight=$in_flight activity=$activity"
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
                   }
 
-                  # Stamped on EVERY tick, busy or not. The last-busy clock
-                  # advances only on busy ticks by design — this one is a
-                  # counter reading, and a reading skipped is a delta silently
-                  # attributed to the wrong interval.
-                  kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ACTIVITY_ANNOTATION=$activity" --overwrite >/dev/null
+                  # Stamped on EVERY tick with a real reading, busy or not.
+                  # The last-busy clock advances only on busy ticks by
+                  # design — this one is a counter reading, and a reading
+                  # skipped is a delta silently attributed to the wrong
+                  # interval. Skipped entirely when metrics are unreadable:
+                  # $activity is a placeholder 0 in that case, and stamping
+                  # it would poison the NEXT tick's baseline into reading a
+                  # real count as a rise.
+                  if [ "$metrics_unreadable" = no ]; then
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ACTIVITY_ANNOTATION=$activity" --overwrite >/dev/null
 
-                  if [ "$busy" = yes ]; then
-                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                    if [ "$busy" = yes ]; then
+                      kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                    fi
                   fi
 
                   # Rule 1 — safety. Ignores idleness on purpose: see
@@ -282,8 +333,22 @@ spec:
                     fi
                   fi
 
+                  # Rule 1 above does not consult `busy` and stays fully
+                  # armed even here — an unreadable scrape must not disarm
+                  # the OOM-avoiding restart. Past this point every decision
+                  # DOES depend on a real activity reading, so refuse to take
+                  # hygiene action rather than act on a placeholder. The cost
+                  # of failing this way is an elevated pool that goes
+                  # unreclaimed for one tick, which is strictly the lesser
+                  # harm next to restarting (or not restarting) on a made-up
+                  # zero.
+                  if [ "$metrics_unreadable" = yes ]; then
+                    echo "pool-watchdog result: action=none reason=metrics-unreadable shmem=$shmem limit=$limit"
+                    exit 0
+                  fi
+
                   if [ "$busy" = yes ]; then
-                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem in_flight=$in_flight activity=$activity"
+                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem in_flight=$in_flight activity=$activity activity_reset=$activity_reset"
                     exit 0
                   fi
 

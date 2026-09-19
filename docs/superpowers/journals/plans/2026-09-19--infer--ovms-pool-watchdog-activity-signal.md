@@ -29,3 +29,85 @@ Review of phase 1. Both the script's awk helper and the test's mirror used a bar
 ### r1 · review · Phase 1 review: three claims checked objectively, two cleared (phase 1)
 
 (1) awk large-integer printing — a scientific-notation result would abort $(( )) under set -e and silently kill the watchdog every tick. Checked: awk prints integral values as integers (12345678, 10000000, 2147483648 all exact), so counters cannot trigger it. Cleared. (2) Prefix collisions among the ten current ovms_* names: none today, which is why this was a latent hazard rather than a live bug — see f1. (3) Removal of millicores= from the result lines: no consumer anywhere in the repo reads that field (the remaining 'millicores' hits are the DRA ResourceSlice's unrelated capacity figure). Cleared. Also confirmed the phase left Rule 1's thresholds, cost model and comments untouched as scoped.
+
+<!-- fr:journal kind=discovery scope=plan id=bd7d1406a681 created=2026-09-20T00:46:57 phase=2 -->
+### bd7d1406a681 · discovery · Two REFACTOR-step tests passed before their implementation existed — proved non-vacuous by deliberate breakage (phase 2)
+
+P2.T1.S3 (test_a_second_consecutive_tick_does_not_restart_again) and P2.T3.S3
+(test_rule_one_still_fires_when_metrics_are_unreadable) both passed on first
+run, before their task's GREEN step was implemented — same shape as phase 1's
+p1-success-series-confirmed, but for REFACTOR-labelled steps rather than RED
+ones. Cause differs per test:
+
+1. The second-tick test can't observe the stub's *actual* persisted state
+   (the fake kubectl is stateless across subprocess invocations, driven by env
+   vars), so it approximates "the stamped value" with `int(time.time())`
+   computed after the first run_script() call returns. That means it never
+   exercises whether restart() itself stamped anything — it independently
+   re-tests "a fresh last-busy clock does not restart", which was already true
+   pre-Task-1 (test_does_not_restart_when_idleness_is_recent covers the same
+   ground). The real guard for the stamp mechanism is P2.T1.S1's call-log
+   assertion.
+
+2. The Rule-1-still-fires test passed because unreadable-metrics handling
+   didn't exist AT ALL yet on the pre-Task-3 script — Rule 1 already ran
+   unconditionally before any busy/metrics check, so of course it fired.
+
+Neither is vacuous, though: confirmed by temporarily breaking the
+implementation each is supposed to pin (dispatch-prompt discipline for a
+test that passes where red was expected), then reverting.
+
+  - Broke the idle_for>=IDLE_SECONDS gate to always restart -> the
+    second-tick test failed exactly as expected (spurious second
+    `rollout restart`). Confirms it DOES pin the "no restart on a second
+    consecutive tick" shape, even though it isn't exercising the stamp call
+    site directly.
+  - Moved the metrics-unreadable exit to BEFORE Rule 1 (the literal ordering
+    mistake the step exists to prevent) -> the rule-one test failed exactly
+    as expected (`action=none reason=metrics-unreadable` instead of
+    `action=restart reason=critical-pool`).
+
+Both reverted; 28/28 green afterward.
+
+<!-- fr:journal kind=discovery scope=plan id=9e65f080e861 created=2026-09-20T00:47:19 phase=2 -->
+### 9e65f080e861 · discovery · Phase 2 implementation choices the plan text left implicit (phase 2)
+
+1. UNREADABLE-METRICS DETECTION is a single flag (`metrics_unreadable`, set
+   when the tail'd metrics blob is empty), checked in three places: it guards
+   the busy/activity_reset determination (skipped entirely, so busy stays
+   `no` and the counter-reset branch can't misfire on a bogus 0), it guards
+   BOTH annotate calls (activity stamp and busy stamp — stamping
+   `activity=0` on an unreadable tick would poison the NEXT tick's baseline
+   into reading any real count as a rise, reopening root cause A one tick
+   later than the original bug), and it gates a dedicated exit placed AFTER
+   Rule 1 and BEFORE the `busy=yes` check. Placement is load-bearing: Rule 1
+   does not read this flag at all, by construction, so it fires on shmem/
+   limit alone regardless of metrics health — pinned by
+   test_rule_one_still_fires_when_metrics_are_unreadable (see the
+   deliberate-break confirmation in the sibling discovery entry).
+
+2. `activity_reset=1` is appended only to the `reason=busy` log line (not
+   every line), since it only has meaning when busy is decided partly or
+   wholly by the reset branch. The metrics-unreadable exit line intentionally
+   omits `in_flight=`/`activity=`/`activity_reset=` altogether — both are
+   placeholder zeros on that path and printing them would misrepresent an
+   unread value as a read one, undermining the "greppable result line carries
+   its inputs" contract for exactly the tick where that contract matters
+   most (this is the tick nobody trusts on faith).
+
+3. The restart() stamp uses the SAME `$now` the tick already computed
+   earlier (`date -u +%s`), not a fresh timestamp at stamp time — the two
+   `kubectl` calls inside restart() (rollout restart, then annotate) are
+   sequential but both describe one tick's decision, so reusing `$now` keeps
+   the log line and the stamped value in agreement even though the rollout
+   restart call itself takes real wall time.
+
+<!-- fr:journal kind=finding scope=plan id=f2 created=2026-09-20T00:53:58 phase=2 state=fixed -->
+### f2 · finding [fixed] · restart() stamped the clock before logging, so a failed stamp erased the restart's only record (phase 2)
+
+Review of phase 2. The new idle-clock stamp was placed between 'rollout restart' and the result line. Under 'set -e' a non-zero kubectl aborts the script, so a transient API error on the annotate would abort BEFORE the echo: the Deployment really rolls, and nothing anywhere records it — not the log, and therefore not the ovms-pool-watchdog-restart-loop alert phase 4 builds on that log. The alert exists precisely because the 2026-09-19 loop was invisible; an unlogged restart is the same blindness by a narrower route. Fixed by emitting the result line first, then stamping. Deliberately NOT '|| true' on the annotate: a swallowed stamp failure leaves the stale clock in place and re-opens the per-tick loop, whereas aborting fails the Job visibly (backoffLimit 1 bounds the retry). RED test added first with failure injection in the kubectl stub (test_a_restart_is_logged_even_if_stamping_the_clock_fails): confirmed 'the restart happened but was never logged' with empty stdout and rc=1, then green. 29 passed.
+
+<!-- fr:journal kind=review scope=plan id=r2 created=2026-09-20T00:54:00 phase=2 -->
+### r2 · review · Phase 2 review: the metrics-unreadable placement is right, and checked against both rules (phase 2)
+
+The metrics_unreadable exit sits AFTER Rule 1 and BEFORE the busy check, which is the only correct position: Rule 1 does not consult busy and must stay armed when the scrape fails (an unreadable /metrics is not a reason to stop avoiding an OOM), while every decision past that point needs a real activity reading. Confirmed the phase also skips BOTH annotate calls on that path - stamping the placeholder activity=0 would poison the next tick into reading a genuine count as a rise, which is the mirror image of the bug being fixed. Also confirmed: first-tick default (last_activity=activity) makes the counter-reset branch unreachable on a fresh Deployment rather than firing spuriously; Rule 1's thresholds and comments untouched as scoped; f1's anchored metric matching intact.

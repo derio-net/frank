@@ -72,42 +72,43 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:41:56+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:41:58+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:42:00+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:42:51+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:42:53+00:00'
       note: null
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-19T22:42:55+00:00'
+      note: 'no-refactor-because: three-line guard inside existing busy determination,
+        no duplication introduced'
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:46:38+00:00'
       note: null
     P2.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:46:40+00:00'
       note: null
     P2.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:46:42+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-09-19T22:47:26+00:00'
     note: null
     observed_prs: []
