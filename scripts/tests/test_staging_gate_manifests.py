@@ -1228,3 +1228,126 @@ def test_staging_vcluster_api_netpol_is_ingress_only():
         assert "Egress" not in types, (
             f"{np['metadata']['name']} adds an Egress policyType"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 10: the runs-fr `repository_dispatch` trigger on the SHARED
+# github-listener EventListener (apps/tekton/triggers/eventlistener-github.yaml),
+# its per-org HMAC ExternalSecret, and the declared webhook delivery path.
+# ─────────────────────────────────────────────────────────────────────────
+
+EVENTLISTENER_GITHUB = REPO / "apps/tekton/triggers/eventlistener-github.yaml"
+WEBHOOKS_DECL = REPO / "apps/tekton/webhooks.yaml"
+STAGING_GATE_WEBHOOK_SECRET = REPO / "apps/tekton/manifests/externalsecret-derio-net-github-webhook-secret.yaml"
+RUNS_FR_APP_REGEX = r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+RUNS_FR_SHA_REGEX = r"^[a-f0-9]{7,40}$"
+
+
+def _eventlistener_github_docs() -> list[dict]:
+    return [d for d in yaml.safe_load_all(EVENTLISTENER_GITHUB.read_text()) if d]
+
+
+def _staging_gate_runs_fr_trigger() -> dict:
+    el = next(d for d in _eventlistener_github_docs() if d.get("kind") == "EventListener")
+    for t in el["spec"]["triggers"]:
+        if t["name"] == "staging-gate-runs-fr":
+            return t
+    raise AssertionError("no staging-gate-runs-fr trigger in github-listener's EventListener")
+
+
+def _cel_filter(trigger: dict) -> str:
+    cel = next(ic for ic in trigger["interceptors"] if ic["name"] == "cel")
+    filt = next(p for p in cel["params"] if p["name"] == "filter")
+    return str(filt["value"])
+
+
+def test_staging_gate_trigger_uses_the_derio_net_hmac_secret_and_repository_dispatch():
+    trigger = _staging_gate_runs_fr_trigger()
+    gh = next(ic for ic in trigger["interceptors"] if ic["name"] == "github")
+    params = {p["name"]: p["value"] for p in gh["params"]}
+    assert params.get("secretRef") == {
+        "secretName": "derio-net-github-webhook-secret",
+        "secretKey": "secret",
+    }, params.get("secretRef")
+    assert params.get("eventTypes") == ["repository_dispatch"], params.get("eventTypes")
+
+
+def test_staging_gate_trigger_cel_filter_pins_repo_action_and_payload_shape():
+    filt = _cel_filter(_staging_gate_runs_fr_trigger())
+    assert "'derio-net/runs-fr'" in filt, filt
+    assert "body.action == 'staging-gate'" in filt, filt
+    assert f"body.client_payload.app.matches('{RUNS_FR_APP_REGEX}')" in filt, filt
+    assert f"body.client_payload.sha.matches('{RUNS_FR_SHA_REGEX}')" in filt, filt
+
+
+def test_staging_gate_trigger_binds_app_and_sha_and_refs_the_existing_template():
+    trigger = _staging_gate_runs_fr_trigger()
+    assert trigger.get("template", {}).get("ref") == "staging-gate-template", trigger.get("template")
+
+    # Either an inline (name/value) binding for each param, or a ref to the
+    # existing staging-gate-binding TriggerBinding object (apps/staging-gate/
+    # tekton/triggers.yaml) -- both ultimately source app/sha from the payload
+    # that has already passed the CEL filter above.
+    bindings = trigger.get("bindings") or []
+    assert bindings, "trigger has no bindings"
+    if len(bindings) == 1 and bindings[0].get("ref"):
+        assert bindings[0]["ref"] == "staging-gate-binding", bindings
+        assert bindings[0].get("kind") == "TriggerBinding", bindings
+    else:
+        by_name = {b["name"]: b for b in bindings}
+        assert {"app", "sha"} <= set(by_name), by_name
+        for name in ("app", "sha"):
+            assert by_name[name].get("kind") == "TriggerBinding", by_name[name]
+
+
+def test_staging_gate_webhook_secret_is_a_per_org_externalsecret():
+    assert STAGING_GATE_WEBHOOK_SECRET.exists(), (
+        f"{STAGING_GATE_WEBHOOK_SECRET.relative_to(REPO)} must exist "
+        f"(copy the derio-homelab-github-webhook-secret shape)"
+    )
+    doc = next(
+        d for d in yaml.safe_load_all(STAGING_GATE_WEBHOOK_SECRET.read_text())
+        if d and d.get("kind") == "ExternalSecret"
+    )
+    assert doc["metadata"]["namespace"] == "tekton-pipelines", doc["metadata"]
+    data = doc["spec"]["data"]
+    assert len(data) == 1, data
+    entry = data[0]
+    assert entry["secretKey"] == "secret", entry
+    assert entry["remoteRef"]["key"] == "/derio-net/GITHUB_WEBHOOK_SECRET", entry["remoteRef"]
+    text = STAGING_GATE_WEBHOOK_SECRET.read_text()
+    assert "cicd-staging-gate-runs-fr-webhook" in text, (
+        "the ExternalSecret comment must name the manual op that creates the "
+        "Infisical value"
+    )
+    assert "derio-homelab" in text and "per-org" in text.lower(), (
+        "the comment must cite the derio-homelab precedent's rationale for a "
+        "per-org secret rather than reusing agentic-stoa's"
+    )
+
+
+def test_webhooks_yaml_declares_the_runs_fr_repository_dispatch_delivery_path():
+    decls = yaml.safe_load(WEBHOOKS_DECL.read_text())["webhooks"]
+    matches = [
+        d for d in decls
+        if d.get("forge") == "github"
+        and d.get("target") == "derio-net/runs-fr"
+        and d.get("listener") == "github-listener"
+    ]
+    assert matches, f"no github/derio-net/runs-fr entry in {WEBHOOKS_DECL.relative_to(REPO)}"
+    entry = matches[0]
+    assert entry.get("scope") == "repo", entry
+    assert entry.get("events") == ["repository_dispatch"], entry
+    assert "staging-gate-runs-fr" in (entry.get("serves") or []), entry
+    assert entry.get("note"), "the entry should explain the runs-fr build.yml dispatch + manual hook"
+
+
+def test_staging_gate_triggers_note_no_longer_claims_manual_p7_wiring():
+    text = (REPO / "apps/staging-gate/tekton/triggers.yaml").read_text()
+    assert "NOTE (manual P7)" not in text, (
+        "the stale NOTE block must be removed now that the real trigger exists "
+        "on github-listener (apps/tekton/triggers/eventlistener-github.yaml)"
+    )
+    assert "staging-gate-runs-fr" in text, (
+        "triggers.yaml should point at the real trigger by name instead"
+    )

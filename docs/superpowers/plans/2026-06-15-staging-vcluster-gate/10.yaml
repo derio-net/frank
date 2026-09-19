@@ -23,18 +23,18 @@ tasks:
 state:
   steps:
     P10.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:15:03+00:00'
       note: null
     P10.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:15:06+00:00'
       note: null
     P10.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T22:15:08+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-09-19T22:15:14+00:00'
     note: null
     observed_prs: []
