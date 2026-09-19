@@ -815,6 +815,24 @@ def test_run_smoke_creates_namespace_applies_rbac_and_sets_the_contract_service_
     assert env.get("SMOKE_SA", {}).get("value") == "$(params.smokeServiceAccount)"
     assert env.get("KUBECONFIG", {}).get("value") == "/tekton/home/vc.kubeconfig"
 
+    # P9 review (M5, Minor): reset deletes the namespace with --wait=false
+    # (staging-gate-reset's script, below), so a re-gate of the same app run
+    # back-to-back can hit "the system is terminating" on the next `create
+    # namespace`/`apply`. Wait for the delete to actually finish first.
+    wait_idx = next(
+        i for i, line in enumerate(script.splitlines())
+        if "kubectl wait" in line and "--for=delete" in line and 'ns/"$ns"' in line
+    )
+    create_idx = next(i for i, line in enumerate(script.splitlines()) if "create namespace" in line)
+    assert wait_idx < create_idx, (
+        f"must wait for a prior delete of $ns before (re)creating it: {script}"
+    )
+    wait_line = script.splitlines()[wait_idx]
+    assert "|| true" in wait_line, (
+        f"the wait must not fail the step on a first-ever run (namespace never "
+        f"existed, so there is nothing to wait for): {wait_line}"
+    )
+
 
 def test_pipeline_run_smoke_task_passes_smoke_rbac_and_service_account():
     pipeline = _find_pipeline(_tekton_docs())

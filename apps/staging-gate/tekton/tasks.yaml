@@ -170,6 +170,13 @@ spec:
         #!/bin/sh
         set -eu
         ns="$(params.smokeNamespace)"; job="smoke-${APP}-${SHA}"
+        # P9 review (M5): reset (finally) deletes this namespace with
+        # --wait=false, so a re-gate of the same app run back-to-back can race
+        # a still-terminating namespace and hit "the system is terminating" on
+        # create/apply below. Wait for any prior delete to actually finish
+        # first; `|| true` because on the very first-ever run there is nothing
+        # to wait for (the namespace never existed).
+        kubectl wait --for=delete ns/"$ns" --timeout=120s || true
         # Idempotent namespace create — a re-gate of the same app reuses it.
         kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
         kubectl -n "$ns" apply -f /tekton/home/smoke-rbac.yaml
