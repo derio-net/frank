@@ -1042,6 +1042,28 @@ def test_notify_script_fails_closed_on_an_empty_telegram_credential():
     )
 
 
+README = REPO / "apps/staging-gate/README.md"
+
+
+def test_readme_documents_the_smoke_rbac_namespace_constraint():
+    """P9 review (M3): staging-gate-run-smoke's rbac.yaml is applied with a bare
+    `kubectl -n "$ns" apply -f -` -- the manifest must be namespace-free or
+    match the contract's smokeNamespace, or the SA the Job runs as resolves
+    against the wrong namespace with no apply-time error."""
+    text = README.read_text()
+    assert "smokeNamespace" in text and "namespace-free" in text.lower(), text
+
+
+def test_readme_documents_the_smoke_rbac_blast_radius():
+    """P9 review (M4): that apply is kind-unfiltered, so write access to the
+    app's smoke RBAC manifest is write access to arbitrary objects in the
+    staging vCluster's smoke namespace. Document that the pinned ?ref={sha}
+    is what bounds it."""
+    text = README.read_text()
+    assert "kind-unfiltered" in text.lower() or "unfiltered" in text.lower(), text
+    assert "?ref={sha}" in text or "ref={sha}" in text
+
+
 def test_repo_credential_comment_documents_the_consumer_namespace_pem():
     """ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's
     namespace, which hid frank-gitops-push for seven days. The COMMENT (not the

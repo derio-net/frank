@@ -29,7 +29,19 @@ objects.
    the chart into the staging vCluster, pinned to `<app>/staging-values.yaml`.
 3. Ship an in-cluster smoke-test image (`smokeImage`) that exits 0 (pass) / non-zero (fail), plus
    an RBAC manifest reachable at `smokeRbacUrl` that provisions the `smokeServiceAccount` the
-   Job runs as.
+   Job runs as. **Constraint (P9 review, M3):** `run-smoke` applies that manifest with a bare
+   `kubectl -n "$ns" apply -f -`, where `$ns` is the contract's `smokeNamespace` — the manifest at
+   `smokeRbacUrl` must therefore be **namespace-free** (omit `metadata.namespace` entirely, so it
+   lands in whatever `-n` names) **or match `smokeNamespace` exactly**. runs-fr's `test/e2e/rbac.yaml`
+   hardcodes `namespace: runs-fr`, matching its contract's `smokeNamespace: runs-fr` — if a future
+   app's contract ever sets `smokeNamespace` to something other than what its RBAC manifest
+   hardcodes, the `apply` still succeeds (namespace mismatch is not an error) but the smoke Job's
+   `serviceAccountName` resolves against the WRONG namespace's SA and the Job fails to start.
+   **Blast radius (P9 review, M4):** that `apply` is kind-unfiltered — write access to the app
+   repo's `test/e2e/rbac.yaml` at the gated commit is write access to arbitrary objects inside the
+   staging vCluster's smoke namespace, not just RBAC. This is accepted: the fetch is pinned to the
+   exact gated `sha` (`?ref={sha}`), so the blast radius is bounded to what that one already-merged
+   commit contains, not an arbitrary/mutable ref.
 4. Add the per-commit image build + the gate trigger (GHA `repository_dispatch` action
    `staging-gate`) in the app repo.
 
