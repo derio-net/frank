@@ -13,6 +13,10 @@ spec:
   params:
     - {name: app, type: string}
     - {name: sha, type: string}
+    # P9 review (M1): plumbed through from resolve-contract's taskSpec (whose
+    # own param default this mirrors) so it is an actual Pipeline-level knob,
+    # not just a default with no way to override it.
+    - {name: waitTurnTimeoutSeconds, type: string, default: "1800"}
   workspaces:
     - {name: scratch}
   tasks:
@@ -20,6 +24,7 @@ spec:
       params:
         - {name: app, value: $(params.app)}
         - {name: sha, value: $(params.sha)}
+        - {name: waitTurnTimeoutSeconds, value: $(params.waitTurnTimeoutSeconds)}
       workspaces:
         - {name: scratch, workspace: scratch}
       taskSpec:

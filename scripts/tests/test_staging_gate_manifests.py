@@ -900,6 +900,25 @@ def test_resolve_contract_waits_its_turn_before_cloning():
     assert task_params.get("waitTurnTimeoutSeconds", {}).get("default") == "1800"
 
 
+def test_wait_turn_timeout_is_a_real_pipeline_level_knob():
+    """P9 review (M1, Minor): waitTurnTimeoutSeconds was declared on the embedded
+    taskSpec's own params (with a default) but never surfaced as a Pipeline
+    param and never passed into resolve-contract's task node -- so it was a
+    default with no way to actually override it, not a knob. Plumb it through:
+    a Pipeline-level param (same default, so nothing changes if unset) whose
+    value resolve-contract's task node passes explicitly."""
+    pipeline = _find_pipeline(_tekton_docs())
+    pipeline_params = {p["name"]: p for p in pipeline["spec"]["params"]}
+    assert pipeline_params.get("waitTurnTimeoutSeconds", {}).get("default") == "1800", (
+        f"expected a Pipeline-level waitTurnTimeoutSeconds param with default 1800: {pipeline_params}"
+    )
+    resolve = _pipeline_task(pipeline, "resolve-contract")
+    task_values = {p["name"]: p["value"] for p in resolve["params"]}
+    assert task_values.get("waitTurnTimeoutSeconds") == "$(params.waitTurnTimeoutSeconds)", (
+        f"resolve-contract's task node must pass the Pipeline param through: {task_values}"
+    )
+
+
 def test_pipelinerun_read_rbac_exists():
     docs = _rbac_docs()
     role = next(
