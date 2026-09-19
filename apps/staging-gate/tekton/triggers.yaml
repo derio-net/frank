@@ -1,7 +1,14 @@
 # staging-gate trigger plumbing (triggers.tekton.dev/v1beta1). The gate fires from the app's
 # GHA workflow via a GitHub `repository_dispatch` (event_type=staging-gate) delivered to the
-# existing github-listener (.223). RUNTIME (the EventListener trigger wiring + the GHA secret)
-# is finalised in the manual phase (P7); see eventlistener note below.
+# existing github-listener (.223).
+#
+# The binding and template below are wired into that shared listener by the
+# `staging-gate-runs-fr` Trigger in
+# apps/tekton/triggers/eventlistener-github.yaml (Phase 10), which references
+# them by name (`ref: staging-gate-binding` / `ref: staging-gate-template`)
+# rather than duplicating them there, and adds the github+cel interceptors
+# (HMAC via derio-net-github-webhook-secret, CEL pinning repo/action/payload
+# shape). See apps/tekton/webhooks.yaml for the declared delivery path.
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -65,10 +72,3 @@ spec:
         workspaces:
           - name: scratch
             emptyDir: {}
----
-# NOTE (manual P7): add a Trigger to the existing github-listener EventListener
-# (apps/tekton/triggers/eventlistener-github.yaml) referencing the binding+template above,
-# with interceptors: github (validate the webhook secret) → cel filtering
-#   header.match('X-GitHub-Event','repository_dispatch') && body.action == 'staging-gate'
-# It is added to the live EventListener there rather than here to keep all listener triggers
-# in one file. The GHA workflow (runs-fr sibling) POSTs the repository_dispatch.

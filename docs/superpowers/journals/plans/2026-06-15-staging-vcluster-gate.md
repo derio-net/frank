@@ -347,3 +347,8 @@ M8c (wait-turn stub missing I1/I2 coverage): added behaviour tests for both to t
 M9 (notify step missing HOME): every other step in this dir sets HOME=/tekton/home; notify was the only one that didn't. Added for consistency. Folded into the I4 commit. Commit 1e01b0aa.
 
 M10 (shell-image guard was a one-entry denylist): generalised test_no_step_with_a_script_uses_a_shell_less_image from denylisting rancher/kubectl to allowlisting the four vetted shell-bearing images actually used (alpine/git, mikefarah/yq, curlimages/curl, digest-pinned bitnamilegacy/kubectl). Folded into the M7 commit. Commit 74eb2151.
+
+<!-- fr:journal kind=discovery scope=plan id=bb8d0c5b4dc2 created=2026-09-20T00:15:25 phase=10 -->
+### bb8d0c5b4dc2 · discovery · P10.T1: bindings reference the June-authored TriggerBinding/TriggerTemplate by name (phase 10)
+
+The new staging-gate-runs-fr Trigger on github-listener uses 'bindings: [{ref: staging-gate-binding, kind: TriggerBinding}]' and 'template: {ref: staging-gate-template}' rather than duplicating params inline (the shorthand every neighbor trigger in eventlistener-github.yaml uses). This matches the phase's own framing ('the binding/template already exist') and the P5 no-refactor note (nrb-p5t3: 'its follow-on wiring moved to P10.T1'). CEL already filters repo/action/app-shape/sha-shape before admission, so binding straight from body.client_payload via the existing TriggerBinding is safe -- no extensions overlay needed. Verified server-side: the whole EventListener (all 11 triggers incl. the new one) admits with 'eventlistener.triggers.tekton.dev/github-listener configured (server dry run)', proving the CEL .matches() regex syntax is accepted at admission.

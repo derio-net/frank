@@ -352,6 +352,44 @@ spec:
         - {name: cncd-tag, value: $(extensions.cncd_tag), kind: TriggerBinding}
         - {name: fru-tag, value: $(extensions.fru_tag), kind: TriggerBinding}
       template: {ref: cnc-promotion-template}
+    # ──────────────────────────────────────────────────────────────────
+    # Staging-gate dispatch (2026-06-15-staging-vcluster-gate, Phase 10).
+    #
+    # runs-fr's own `build.yml` (GHA) fires a `repository_dispatch` once both
+    # the app and smoke images for a main-branch commit have published,
+    # POSTed to a runs-fr repo webhook (own HMAC, per-org — see the
+    # ExternalSecret comment) that targets this listener via
+    # webhooks.hop.derio.net. The `github` interceptor validates that HMAC;
+    # the `cel` interceptor then pins repo, action AND the shape of both
+    # client_payload fields BEFORE they ever reach a task shell — app/sha
+    # regexes mirror resolve-contract's own validate-inputs defence-in-depth
+    # check (apps/staging-gate/tekton/pipeline.yaml), so a value CEL admits
+    # is also a value the pipeline itself would accept.
+    #
+    # The binding/template (staging-gate-binding, staging-gate-template) were
+    # authored in June (Phase 5) under apps/staging-gate/tekton/triggers.yaml
+    # — only the wiring into this shared listener was deferred to this phase.
+    # ──────────────────────────────────────────────────────────────────
+    - name: staging-gate-runs-fr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: derio-net-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [repository_dispatch]}
+        - name: cel
+          ref: {name: cel, kind: ClusterInterceptor}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name == 'derio-net/runs-fr' &&
+                body.action == 'staging-gate' &&
+                body.client_payload.app.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$') &&
+                body.client_payload.sha.matches('^[a-f0-9]{7,40}$')
+      bindings:
+        - {ref: staging-gate-binding, kind: TriggerBinding}
+      template:
+        ref: staging-gate-template
   resources:
     kubernetesResource:
       spec:

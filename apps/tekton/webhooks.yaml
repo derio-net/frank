@@ -191,3 +191,20 @@ webhooks:
     listener: github-listener
     events: [push, pull_request]
     serves: [agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: derio-net/runs-fr
+    listener: github-listener
+    events: [repository_dispatch]
+    serves: [staging-gate-runs-fr]
+    note: >-
+      Fired by runs-fr's own build.yml (GHA) after both the app image and the
+      smoke image for a main-branch commit have published — the workflow POSTs
+      a repository_dispatch (event_type: staging-gate, client_payload:
+      {app, sha}). Uses its OWN HMAC secret (derio-net-github-webhook-secret),
+      not the agentic-stoa or derio-homelab ones, for the same per-org
+      isolation reason as the kid-laptops entry above. The hook itself is
+      created post-merge by manual-op cicd-staging-gate-runs-fr-webhook
+      (plan 2026-06-15-staging-vcluster-gate, phase 11) — declared here first
+      as desired state.
