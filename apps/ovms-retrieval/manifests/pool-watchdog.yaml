@@ -144,19 +144,23 @@ spec:
                 # request every few minutes never pays a cold start.
                 - name: IDLE_SECONDS
                   value: "1800"
-                # Busy threshold, in millicores averaged over the sample
-                # window below. A serving call pins most of a core; an idle
-                # OVMS is near zero.
-                - name: BUSY_MILLICORES
-                  value: "50"
-                - name: SAMPLE_SECONDS
-                  value: "10"
+                # There is deliberately NO busy threshold here. Until
+                # 2026-09-19 "busy" was a 10-second cpu.stat delta against
+                # BUSY_MILLICORES=50, and it restarted a working server five
+                # times in sixteen minutes, killing a batch-index job at batch
+                # 7 of 40. OpenVINO offloads inference to the iGPU, so those
+                # ticks read 5, 29, 41 and 5 millicores while the pool climbed
+                # 5.10 -> 7.24 -> 8.31 GiB: no value of that threshold
+                # separates "indexing" from "asleep" on this workload. The
+                # signal was removed rather than retuned, and busy now comes
+                # from the server's own /metrics — see the read below.
               command: ["/bin/bash", "-euo", "pipefail", "-c"]
               args:
                 - |
                   NS=retrieval
                   DEPLOY=ovms-retrieval
                   ANNOTATION=retrieval.derio.net/pool-watchdog-last-busy
+                  ACTIVITY_ANNOTATION=retrieval.derio.net/pool-watchdog-last-activity
 
                   pod=$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=ovms-retrieval \
                           --field-selector=status.phase=Running \
@@ -166,48 +170,99 @@ spec:
                     exit 0
                   fi
 
-                  # One exec, two samples. Reading the cgroup from inside the
-                  # container is the exact pinned figure; cpu.stat in the same
-                  # read tells us whether it is serving. If the pod is mid
-                  # restart this fails and we simply do nothing this tick.
+                  # ONE exec returns everything this tick decides on, in order:
+                  #   line 1   shmem       — the pinned GPU pool, read from the
+                  #                          container's own cgroup, which is
+                  #                          the exact figure and not a scrape;
+                  #   line 2   memory.max  — the ceiling the kernel kills at;
+                  #   line 3+  the server's own /metrics, which is where
+                  #                          "is it working?" is answered.
+                  #
+                  # It is one exec on purpose: the pool figure and the activity
+                  # figure must describe the same pod at the same instant, or a
+                  # restart decision can be taken from a memory reading and an
+                  # activity reading that disagree about which process they saw.
+                  # If the pod is mid restart this fails and we do nothing.
                   read_state() {
                     kubectl -n "$NS" exec "$pod" -c ovms -- sh -c '
                       grep "^shmem " /sys/fs/cgroup/memory.stat | cut -d" " -f2
                       cat /sys/fs/cgroup/memory.max
-                      grep "^usage_usec " /sys/fs/cgroup/cpu.stat | cut -d" " -f2
+                      curl -s -m 5 http://127.0.0.1:8000/metrics
                     ' 2>/dev/null
                   }
-                  s1=$(read_state) || true
-                  if [ -z "${s1:-}" ]; then
-                    echo "pool-watchdog result: action=none reason=unreadable-cgroup"
-                    exit 0
-                  fi
-                  sleep "$SAMPLE_SECONDS"
-                  s2=$(read_state) || true
-                  if [ -z "${s2:-}" ]; then
+                  state=$(read_state) || true
+                  if [ -z "${state:-}" ]; then
                     echo "pool-watchdog result: action=none reason=unreadable-cgroup"
                     exit 0
                   fi
 
-                  shmem=$(echo "$s1" | sed -n 1p)
-                  limit=$(echo "$s1" | sed -n 2p)
-                  cpu1=$(echo "$s1" | sed -n 3p)
-                  cpu2=$(echo "$s2" | sed -n 3p)
+                  shmem=$(echo "$state" | sed -n 1p)
+                  limit=$(echo "$state" | sed -n 2p)
+                  metrics=$(echo "$state" | tail -n +3)
+
+                  # Sum every sample of one Prometheus metric, across all its
+                  # label sets.
+                  #
+                  # The match is anchored on the metric name AND the character
+                  # that must follow it — `{` when the sample carries labels, a
+                  # space when it does not, which the exposition format
+                  # guarantees. A bare prefix match would also be anchored and
+                  # would also skip the `# HELP` / `# TYPE` lines, but it would
+                  # fold in any FUTURE series whose name merely starts with this
+                  # one. That is not a hypothetical worry: this same endpoint
+                  # already ships ovms_graph_processing_time_us_bucket/_count/
+                  # _sum, so suffixing a base name is the habit of the source.
+                  # Counting a stray series here fails quietly — the watchdog
+                  # reads busy forever and stops reclaiming, with nothing to
+                  # show for it until the ceiling.
+                  #
+                  # `print s+0` is load-bearing too: a name that matches nothing
+                  # must yield 0, not the empty string, or the integer
+                  # comparisons below abort the script under `set -e`.
+                  sum_series() {
+                    echo "$metrics" | awk -v name="$1" '
+                      index($0, name "{") == 1 || index($0, name " ") == 1 {s += $NF}
+                      END {print s+0}'
+                  }
+                  in_flight=$(sum_series ovms_current_graphs)
+                  activity=$(( $(sum_series ovms_requests_accepted) + $(sum_series ovms_requests_rejected) ))
 
                   # `memory.max` reads "max" when unlimited; treat that as
                   # "no critical threshold" rather than dividing by a word.
                   if [ "$limit" = "max" ]; then limit=0; fi
 
-                  millicores=$(( (cpu2 - cpu1) / (SAMPLE_SECONDS * 1000) ))
                   now=$(date -u +%s)
 
+                  # Is the server working? Two terms, because one instant and
+                  # one interval are different questions:
+                  #
+                  #   in_flight  — the gauge, true only for the moment sampled;
+                  #   activity   — the counter, so a request that arrived at ANY
+                  #                point since the previous tick still counts.
+                  #
+                  # The counter term is the important half: a batch job with
+                  # gaps between its batches is idle at most instants, and that
+                  # shape is precisely what the old 10-second CPU sample missed.
+                  last_activity=$(kubectl -n "$NS" get "deployment/$DEPLOY" \
+                                    -o "jsonpath={.metadata.annotations.retrieval\.derio\.net/pool-watchdog-last-activity}" 2>/dev/null || true)
+                  # First tick against this Deployment: no delta is knowable,
+                  # so claim none rather than inventing one.
+                  if [ -z "${last_activity:-}" ]; then last_activity=$activity; fi
+
                   busy=no
-                  if [ "$millicores" -ge "$BUSY_MILLICORES" ]; then busy=yes; fi
+                  if [ "$in_flight" -gt 0 ]; then busy=yes; fi
+                  if [ "$activity" -gt "$last_activity" ]; then busy=yes; fi
 
                   restart() {
                     kubectl -n "$NS" rollout restart "deployment/$DEPLOY"
-                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem limit=$limit millicores=$millicores"
+                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem limit=$limit in_flight=$in_flight activity=$activity"
                   }
+
+                  # Stamped on EVERY tick, busy or not. The last-busy clock
+                  # advances only on busy ticks by design — this one is a
+                  # counter reading, and a reading skipped is a delta silently
+                  # attributed to the wrong interval.
+                  kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ACTIVITY_ANNOTATION=$activity" --overwrite >/dev/null
 
                   if [ "$busy" = yes ]; then
                     kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
@@ -228,14 +283,14 @@ spec:
                   fi
 
                   if [ "$busy" = yes ]; then
-                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem millicores=$millicores"
+                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem in_flight=$in_flight activity=$activity"
                     exit 0
                   fi
 
                   # Rule 2 — hygiene. An elevated pool that nobody is using is
                   # headroom the next session will not have.
                   if [ "$shmem" -lt "$ELEVATED_BYTES" ]; then
-                    echo "pool-watchdog result: action=none reason=pool-at-baseline shmem=$shmem"
+                    echo "pool-watchdog result: action=none reason=pool-at-baseline shmem=$shmem in_flight=$in_flight activity=$activity"
                     exit 0
                   fi
 
@@ -245,7 +300,7 @@ spec:
                     # Never seen busy. Stamp now so the idle clock starts from
                     # an observation rather than from pod age, and wait.
                     kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
-                    echo "pool-watchdog result: action=none reason=no-baseline-yet shmem=$shmem"
+                    echo "pool-watchdog result: action=none reason=no-baseline-yet shmem=$shmem in_flight=$in_flight activity=$activity"
                     exit 0
                   fi
 
@@ -255,4 +310,4 @@ spec:
                     exit 0
                   fi
 
-                  echo "pool-watchdog result: action=none reason=idle-too-recent shmem=$shmem idle_for=$idle_for"
+                  echo "pool-watchdog result: action=none reason=idle-too-recent shmem=$shmem idle_for=$idle_for in_flight=$in_flight activity=$activity"

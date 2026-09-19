@@ -33,8 +33,38 @@ import yaml
 REPO = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST = REPO / "apps/ovms-retrieval/manifests/pool-watchdog.yaml"
 
+# Captured from the live server 2026-09-19, not hand-written: the whole point
+# of this signal is that the obvious series is the wrong one, and a fixture
+# invented alongside the parser would agree with whatever the parser assumed.
+FIXTURES = REPO / "scripts/tests/fixtures/ovms-retrieval"
+METRICS_IDLE = FIXTURES / "metrics-idle.txt"
+METRICS_BUSY = FIXTURES / "metrics-busy.txt"
+
 GIB = 1024**3
 LIMIT = 16 * GIB
+
+
+def _sum_series(metrics: pathlib.Path, name: str) -> int:
+    """Sum one metric across its label sets — the fixture's own arithmetic, so
+    a re-capture moves the tests with it instead of stranding a literal."""
+    return sum(
+        int(float(line.rsplit(" ", 1)[1]))
+        for line in metrics.read_text(encoding="utf-8").splitlines()
+        # Same anchoring as the script's sum_series: the name plus the character
+        # the exposition format guarantees follows it. Mirroring the bug here
+        # would make the tests agree with a broken parser.
+        if line.startswith(name + "{") or line.startswith(name + " ")
+    )
+
+
+def _activity(metrics: pathlib.Path) -> int:
+    return (
+        _sum_series(metrics, "ovms_requests_accepted")
+        + _sum_series(metrics, "ovms_requests_rejected")
+    )
+
+
+IDLE_ACTIVITY = _activity(METRICS_IDLE)
 
 
 def _docs() -> list[dict]:
@@ -162,11 +192,17 @@ def run_script(tmp_path):
         '  *"get pods"*)  echo "$FAKE_POD" ;;\n'
         '  *"exec"*)      [ -n "$FAKE_SHMEM" ] || exit 1\n'
         '                 echo "$FAKE_SHMEM"; echo "$FAKE_LIMIT"\n'
-        # The script reads cpu.stat twice and derives millicores from the
-        # delta, so the stub MUST answer differently on the second exec or the
-        # busy branch is unreachable and every test silently exercises "idle".
-        f'                 if [ -e "{tmp_path}/seen" ]; then echo "$FAKE_CPU2"; '
-        f'else touch "{tmp_path}/seen"; echo "$FAKE_CPU1"; fi ;;\n'
+        # The same exec scrapes the server's own /metrics, so the pool figure
+        # and the activity figure describe one pod at one instant. There is no
+        # CPU sample to stub any more, and deliberately so: it was a 10-second
+        # cpu.stat delta that read 5 millicores on a server indexing on the
+        # iGPU, and leaving the plumbing here would imply a signal that no
+        # longer exists.
+        '                 cat "$FAKE_METRICS" ;;\n'
+        # Two annotations are read through `get deployment`, and they are told
+        # apart by the jsonpath. The activity case MUST come first — both
+        # patterns contain "get deployment" and `case` takes the first match.
+        '  *"pool-watchdog-last-activity"*) echo "$FAKE_LAST_ACTIVITY" ;;\n'
         '  *"get deployment"*) echo "$FAKE_LAST_BUSY" ;;\n'
         '  *) : ;;\n'
         'esac\n',
@@ -176,12 +212,14 @@ def run_script(tmp_path):
 
     def _run(**overrides):
         calls.write_text("", encoding="utf-8")
-        (tmp_path / "seen").unlink(missing_ok=True)
         env = dict(os.environ)
         env["PATH"] = f"{bin_dir}:{env['PATH']}"
         env.update({k: str(v) for k, v in _env().items()})
         env.setdefault("FAKE_POD", "ovms-retrieval-abc")
-        env["SAMPLE_SECONDS"] = "1"
+        env.setdefault("FAKE_METRICS", str(METRICS_IDLE))
+        # The idle fixture's counters sum to IDLE_ACTIVITY, so a stamp of the
+        # same value is the "nothing has happened since the last tick" default.
+        env.setdefault("FAKE_LAST_ACTIVITY", str(IDLE_ACTIVITY))
         env.update({k: str(v) for k, v in overrides.items()})
         proc = subprocess.run(
             ["bash", "-euo", "pipefail", str(script)],
@@ -192,9 +230,129 @@ def run_script(tmp_path):
     return _run
 
 
-def _busy_cpu(millicores: int, seconds: int = 1) -> tuple[int, int]:
-    """cpu.stat usage_usec pair producing the given millicores over `seconds`."""
-    return 0, millicores * 1000 * seconds
+def test_the_script_reads_the_servers_own_metrics(run_script):
+    """The activity signal comes from OVMS, not from the cgroup's CPU.
+
+    `metrics-busy.txt` was captured with one `/v3/embeddings` request in flight
+    (`ovms_current_graphs{name="bge-m3"} 1`). If the tick cannot report that,
+    it is deciding on something other than what the server is doing."""
+    proc, _ = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=1, FAKE_METRICS=METRICS_BUSY,
+    )
+    assert "in_flight=1" in proc.stdout, proc.stdout
+
+
+def test_a_gpu_busy_server_with_a_stale_idle_clock_is_not_restarted(run_script):
+    """The 2026-09-19 incident, replayed from its own log line:
+
+        19:36:12 action=restart reason=idle-with-elevated-pool
+                 shmem=5104066560 millicores=5
+
+    OpenVINO offloads inference to the iGPU, so a working server's container
+    CPU is near zero by construction — 5 millicores against a 50 millicore
+    threshold — while `shmem` climbed 5.10 -> 7.24 -> 8.31 GiB across those
+    very ticks. The server was serving; the CPU sampler called it asleep and
+    the watchdog killed a batch-index job at batch 7 of 40."""
+    import time
+    proc, calls = run_script(
+        FAKE_SHMEM=5104066560, FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=int(time.time()) - 3600,
+        FAKE_METRICS=METRICS_BUSY,
+    )
+    assert "rollout restart" not in calls, proc.stdout
+    assert "reason=busy" in proc.stdout, proc.stdout
+
+
+def test_work_since_the_last_tick_counts_as_busy(run_script):
+    """Nothing is in flight at the instant the watchdog looks, but requests
+    have arrived since the last tick — the gaps BETWEEN a batch job's batches,
+    which is exactly what a 10-second CPU window could never see. The counter
+    delta covers the whole two-minute interval; the gauge only covers the two
+    instants sampled."""
+    import time
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=int(time.time()) - 3600,
+        FAKE_METRICS=METRICS_IDLE,
+        FAKE_LAST_ACTIVITY=IDLE_ACTIVITY - 1,
+    )
+    assert "rollout restart" not in calls, proc.stdout
+    assert "reason=busy" in proc.stdout, proc.stdout
+
+
+def _with_probe_traffic_only(dest: pathlib.Path, hits: int = 3) -> pathlib.Path:
+    """The idle fixture, advanced by `hits` readiness probes and nothing else.
+
+    Measured 2026-09-19: over 12 idle seconds the ONLY series that moved was
+    `ovms_requests_success{...,method="ModelReady",name="bge-reranker-v2-m3"}`,
+    because `readinessProbe` hits `/v2/models/bge-reranker-v2-m3/ready` every
+    10s (`deployment.yaml:364`). Every other byte is left alone, so anything
+    this file makes the watchdog do, the probe alone did."""
+    out, bumped = [], 0
+    for line in METRICS_IDLE.read_text(encoding="utf-8").splitlines(keepends=True):
+        if line.startswith("ovms_requests_success{") and 'method="ModelReady"' in line:
+            labels, _, value = line.rstrip("\n").rpartition(" ")
+            out.append(f"{labels} {int(float(value)) + hits}\n")
+            bumped += 1
+        else:
+            out.append(line)
+    assert bumped, "the fixture no longer carries a ModelReady success series"
+    dest.write_text("".join(out), encoding="utf-8")
+    return dest
+
+
+def test_a_suffixed_metric_name_is_not_counted_as_activity(run_script, tmp_path):
+    """`ovms_requests_accepted` must match that series and not one whose name
+    merely STARTS with it.
+
+    This is not hypothetical: the same endpoint already ships
+    `ovms_graph_processing_time_us_bucket` / `_count` / `_sum`, so suffixing a
+    base name is OVMS's established habit. A prefix match would silently fold a
+    future `ovms_requests_accepted_total` into the activity sum — and the
+    failure would be a permanently-busy watchdog, which is the quiet direction:
+    Rule 2 stops reclaiming and nothing reports it until the ceiling."""
+    poisoned = tmp_path / "suffixed.txt"
+    poisoned.write_text(
+        METRICS_IDLE.read_text(encoding="utf-8")
+        + 'ovms_requests_accepted_total{api="V3",name="bge-m3"} 100000\n',
+        encoding="utf-8",
+    )
+    import time
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_LAST_BUSY=int(time.time()) - 3600,
+        FAKE_METRICS=poisoned,
+        FAKE_LAST_ACTIVITY=IDLE_ACTIVITY,
+    )
+    assert f"activity={IDLE_ACTIVITY}" in proc.stdout, proc.stdout
+    assert "rollout restart" in calls, (
+        "an unrelated suffixed series made an idle server look busy: " + proc.stdout
+    )
+
+
+def test_readiness_probe_traffic_alone_does_not_read_as_busy(run_script, tmp_path):
+    """The failure this design came closest to shipping, in the opposite
+    direction to the one it fixes.
+
+    A first draft chose `ovms_requests_success` as the activity counter, on the
+    strength of this repo's own gotchas file. That series counts the readiness
+    probe and never moves on `/v3` inference — so `busy` would have read yes on
+    every tick forever, Rule 2 would be silently dead, the pool never
+    reclaimed, and there would be no symptom until the ceiling. Loud bug traded
+    for a quiet one.
+
+    A server that only its own kubelet is talking to is idle, and an elevated
+    pool on it is exactly what the hygiene rule exists to reclaim."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_METRICS=_with_probe_traffic_only(tmp_path / "metrics-probe-only.txt"),
+        FAKE_LAST_ACTIVITY=IDLE_ACTIVITY,
+        FAKE_LAST_BUSY=1,  # epoch 1: idle for decades
+    )
+    assert "reason=busy" not in proc.stdout, proc.stdout
+    assert "action=restart" in proc.stdout and "idle-with-elevated-pool" in proc.stdout
+    assert "rollout restart" in calls
 
 
 def test_does_nothing_when_no_pod_is_running(run_script):
@@ -211,9 +369,9 @@ def test_does_nothing_when_the_cgroup_cannot_be_read(run_script):
 
 
 def test_never_restarts_a_busy_server_below_critical(run_script):
-    lo, hi = _busy_cpu(900)
     proc, calls = run_script(
-        FAKE_SHMEM=int(5 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(5 * GIB), FAKE_LIMIT=LIMIT,
+        FAKE_METRICS=METRICS_BUSY,
     )
     assert "reason=busy" in proc.stdout
     assert "rollout restart" not in calls
@@ -224,18 +382,16 @@ def test_restarts_a_busy_server_once_the_pool_is_critical(run_script):
     """Deliberate: past this point the next cap-sized request takes the process
     down anyway, and an OOM costs the in-flight request plus ~10s of refused
     connections. A controlled 11s restart is strictly cheaper."""
-    lo, hi = _busy_cpu(900)
     proc, calls = run_script(
-        FAKE_SHMEM=int(0.95 * LIMIT), FAKE_LIMIT=LIMIT, FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(0.95 * LIMIT), FAKE_LIMIT=LIMIT,
     )
     assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout
     assert "rollout restart" in calls
 
 
 def test_does_nothing_when_the_pool_is_at_baseline(run_script):
-    lo, hi = _busy_cpu(0)
     proc, calls = run_script(
-        FAKE_SHMEM=int(1.71 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(1.71 * GIB), FAKE_LIMIT=LIMIT,
         FAKE_LAST_BUSY=1,
     )
     assert "pool-at-baseline" in proc.stdout
@@ -243,9 +399,8 @@ def test_does_nothing_when_the_pool_is_at_baseline(run_script):
 
 
 def test_restarts_when_idle_long_enough_with_an_elevated_pool(run_script):
-    lo, hi = _busy_cpu(0)
     proc, calls = run_script(
-        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
         FAKE_LAST_BUSY=1,  # epoch 1: idle for decades
     )
     assert "action=restart" in proc.stdout and "idle-with-elevated-pool" in proc.stdout
@@ -255,9 +410,8 @@ def test_restarts_when_idle_long_enough_with_an_elevated_pool(run_script):
 def test_does_not_restart_when_idleness_is_recent(run_script):
     """The case that would make every caller pay a cold start."""
     import time
-    lo, hi = _busy_cpu(0)
     proc, calls = run_script(
-        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT,
         FAKE_LAST_BUSY=int(time.time()) - 60,
     )
     assert "idle-too-recent" in proc.stdout
@@ -266,9 +420,8 @@ def test_does_not_restart_when_idleness_is_recent(run_script):
 
 def test_an_unlimited_cgroup_does_not_divide_by_a_word(run_script):
     """`memory.max` reads the literal string `max` when unlimited."""
-    lo, hi = _busy_cpu(0)
     proc, calls = run_script(
-        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT="max", FAKE_CPU1=lo, FAKE_CPU2=hi,
+        FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT="max",
         FAKE_LAST_BUSY=1,
     )
     assert proc.returncode == 0, proc.stderr
@@ -282,9 +435,9 @@ def test_every_exit_path_emits_a_greppable_result_line(run_script):
     scenarios = [
         dict(FAKE_POD=""),
         dict(FAKE_SHMEM=""),
-        dict(FAKE_SHMEM=int(1.71 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=0, FAKE_CPU2=0, FAKE_LAST_BUSY=1),
-        dict(FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=0, FAKE_CPU2=0, FAKE_LAST_BUSY=int(time.time())),
-        dict(FAKE_SHMEM=int(9.9 * GIB), FAKE_LIMIT=LIMIT, FAKE_CPU1=0, FAKE_CPU2=0, FAKE_LAST_BUSY=1),
+        dict(FAKE_SHMEM=int(1.71 * GIB), FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=1),
+        dict(FAKE_SHMEM=int(4.18 * GIB), FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=int(time.time())),
+        dict(FAKE_SHMEM=int(9.9 * GIB), FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=1),
     ]
     for kw in scenarios:
         proc, _ = run_script(**kw)

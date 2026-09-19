@@ -27,9 +27,20 @@ steps:
 
       '
   implement:
-    state: pending
+    state: running
+    at: '2026-09-19T22:11:36+00:00'
+    items:
+      phase/1/implement-phase: running
     members:
     - implement-phase
     - review-phase
   deliver:
     state: pending
+accounting:
+  phase/1/implement-phase:
+    at: '2026-09-19T22:11:36+00:00'
+    journal_entries: 0
+    journal_lines: 1
+    handoff_chars: 144
+    spec_bytes: 17705
+    plan_bytes: 28387
