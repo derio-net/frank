@@ -1033,3 +1033,84 @@ def test_seed_sync_takes_no_file_operand() -> None:
                 f"seed script calls sync with an operand ({stripped!r}); "
                 "busybox sync takes none — use the bare form"
             )
+
+
+# --- request metrics ------------------------------------------------------
+#
+# Added after the #793 fix shipped and the endpoint then served nothing for
+# four days. That silence was indistinguishable, from the cluster side, from a
+# downstream client that had stopped calling — because `/metrics` was disabled
+# and the only usage signal was CPU and memory graphs. The client fails open
+# silently, so nothing else would report it either.
+
+def test_ovms_exposes_request_metrics():
+    """`--metrics_enable` or there is no request signal at all.
+
+    Without it OVMS answers `/metrics` with 400 and "is anything using this?"
+    can only be inferred. That inference is how the whole #793 investigation
+    had to proceed.
+    """
+    args = _ovms()["args"]
+    assert "--metrics_enable" in args, (
+        "the ovms container does not enable metrics, so /metrics returns 400 "
+        "and there is no request counter anywhere — usage can then only be "
+        "inferred from CPU and memory graphs"
+    )
+
+
+def test_a_scrape_exists_for_those_metrics():
+    """Enabling the flag alone changes nothing that is queryable.
+
+    A served `/metrics` nobody scrapes is the same silence with extra steps.
+    """
+    path = REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml"
+    assert path.exists(), "metrics are enabled but nothing scrapes them"
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert doc["kind"] == "VMServiceScrape"
+    assert doc["metadata"]["namespace"] == "retrieval"
+
+    kust = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/kustomization.yaml").read_text(encoding="utf-8")
+    )
+    assert "vmservicescrape.yaml" in kust["resources"], (
+        "the scrape exists but is not in the kustomization, so ArgoCD never "
+        "applies it"
+    )
+
+
+def test_the_scrape_targets_a_port_name_the_service_actually_publishes():
+    """The VM operator resolves endpoints by Service port NAME.
+
+    A scrape naming a port that does not exist comes up Ready with zero series
+    and no error anywhere — the exact trap the tekton-pipelines-controller
+    scrape in this repo was written to record. Assert against the Service
+    rather than against a remembered string.
+    """
+    scrape = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml").read_text(encoding="utf-8")
+    )
+    service = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/service.yaml").read_text(encoding="utf-8")
+    )
+    published = {p["name"] for p in service["spec"]["ports"]}
+    for endpoint in scrape["spec"]["endpoints"]:
+        assert endpoint["port"] in published, (
+            f"scrape targets port name {endpoint['port']!r}, but the Service "
+            f"publishes {sorted(published)} — this would scrape nothing, Ready, silently"
+        )
+
+
+def test_the_scrape_selector_matches_the_service_labels():
+    """Same failure shape one level up: a selector that matches no Service."""
+    scrape = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml").read_text(encoding="utf-8")
+    )
+    service = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/service.yaml").read_text(encoding="utf-8")
+    )
+    labels = service["metadata"].get("labels", {})
+    for key, value in scrape["spec"]["selector"]["matchLabels"].items():
+        assert labels.get(key) == value, (
+            f"scrape selects {key}={value!r} but the Service carries "
+            f"{labels.get(key)!r} — it would select no endpoints"
+        )

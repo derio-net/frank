@@ -207,6 +207,21 @@ spec:
             - "9000"
             - --rest_port
             - "8000"
+            # Without this there is NO request signal at all. `/metrics`
+            # answers 400 and the only way to tell whether anything is using
+            # this endpoint is to read CPU and memory graphs and infer — which
+            # is literally how the #793 investigation had to proceed, and how
+            # a four-day silence after the fix shipped could not be told apart
+            # from a downstream client that had simply stopped calling. That
+            # client fails open silently, so nothing else would report it.
+            #
+            # Served on the REST port, so no new port, Service or probe. The
+            # useful series are ovms_requests_success / _fail / _rejected,
+            # labelled by api, interface, method, name and version — all
+            # bounded, none per-request, so this carries none of the unbounded
+            # cardinality that took kube-state-metrics past the scrape cap
+            # (see the tekton-pipelines-controller scrape for that story).
+            - --metrics_enable
           ports:
             - name: http
               containerPort: 8000
