@@ -2311,7 +2311,7 @@ operations:
   - '#    NOT evidence: etcd_request_*, etcd_requests_*, etcd_lease_*, etcd_bookmark_* — those existed throughout the 148 blind days.'
   - '# omnictl exiting 0 proves the patch was ACCEPTED, not that etcd restarted with it. Assert on the series, not the exit status.'
   - '# 4. All six layer-2-etcd-* rules read Normal in Grafana — not NoData, not Error.'
-  status: pending
+  status: done
 - id: obs-etcd-chart-orphans-delete
   layer: obs
   app: victoria-metrics
@@ -2320,7 +2320,7 @@ operations:
   why_manual: 'The victoria-metrics Application is prune: false, so disabling kubeEtcd removes these objects from the chart render but leaves the live copies. All are dead: an empty kube-etcd Endpoints object, a Service and VMServiceScrape with zero targets, an inert VMRule (vmalert is disabled), and an upstream etcd dashboard that duplicates the curated frank-l2-etcd board.'
   commands:
   - source .env
-  - kubectl -n argocd get application victoria-metrics -o jsonpath='{.status.sync.revisions}'   # must include the fix merge commit
+  - 'kubectl -n argocd get application victoria-metrics -o jsonpath=''{.status.sync.revisions}''   # must include the fix merge commit'
   - kubectl -n kube-system delete service victoria-metrics-victoria-metrics-k8s-stack-kube-etcd
   - kubectl -n kube-system delete endpoints victoria-metrics-victoria-metrics-k8s-stack-kube-etcd --ignore-not-found
   - kubectl -n monitoring delete vmservicescrape victoria-metrics-victoria-metrics-k8s-stack-kube-etcd
@@ -2330,4 +2330,4 @@ operations:
   - 'kubectl -n monitoring get vmstaticscrape kube-etcd   # still present: this is the live scrape'
   - '# up{job="kube-etcd"} still returns 3 series, all 1, after the deletions'
   - '# Grafana: no dashboard titled etcd remains; frank-l2-etcd still renders 5 panels'
-  status: pending
+  status: done

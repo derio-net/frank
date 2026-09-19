@@ -34,7 +34,7 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST = REPO / "apps/ovms-retrieval/manifests/pool-watchdog.yaml"
 
 GIB = 1024**3
-LIMIT = 10 * GIB
+LIMIT = 16 * GIB
 
 
 def _docs() -> list[dict]:
@@ -132,9 +132,14 @@ def test_thresholds_are_present_and_ordered():
 
 
 def test_critical_threshold_leaves_room_for_one_cap_sized_request():
-    """64 documents x 600 tokens measured at 3.40 GiB. If the threshold sat
-    above limit-minus-that, the pool could be 'healthy' and the very next
-    cap-sized request would still OOM."""
+    """64 documents x 600 tokens measured at 3.40 GiB as a single call. If the
+    threshold sat above limit-minus-that, the pool could be 'healthy' and the
+    very next cap-sized request would still OOM.
+
+    Note the threshold is sized against the ASCENDING case, not this one: Test
+    Plan row 10 peaked at 8.49 GiB walking 20 -> 40 -> 64 documents, where the
+    same cap as a single call costs 5.67 GiB. That is why CRITICAL_PERCENT is
+    50 rather than a value derived from the single-call figure alone."""
     critical = int(_env()["CRITICAL_PERCENT"]) / 100 * LIMIT
     assert critical + 3.40 * GIB <= LIMIT
 

@@ -69,17 +69,19 @@ RERANK_MODEL_NAME = "bge-reranker-v2-m3"
 
 # The `ovms` container's memory envelope. The request is what the scheduler
 # charges mini-1; the limit is the backstop the workload must not reach.
-# Raised 6Gi -> 10Gi by 2026-09-11--infer--ovms-rerank-batch-guard; the
+# Raised 6Gi -> 10Gi, then 10Gi -> 16Gi after Test Plan row 10 measured an
+# ASCENDING sequence at 84.9% of 10Gi (the first sizing used a single call
+# on a fresh pool, 57%). Spec 2026-09-11--infer--ovms-rerank-batch-guard; the
 # request deliberately did NOT move, so the scheduler's view is unchanged.
 OVMS_MEMORY_REQUEST = "2Gi"
-OVMS_MEMORY_LIMIT = "10Gi"
-OVMS_MEMORY_LIMIT_BEFORE = "6Gi"
+OVMS_MEMORY_LIMIT = "16Gi"
+OVMS_MEMORY_LIMIT_BEFORE = "10Gi"
 
 # Predicted worst case under the bounds the exported graph now carries
 # (max_allowed_chunks 64, max_position_embeddings 640): 6.36 GiB, which is 64%
 # of the new limit and 106% of the old one. Measured on a freshly restarted
 # container, 2026-09-11; see the design spec's "The numbers".
-MEASURED_WORST_CASE_GIB = 6.36
+MEASURED_WORST_CASE_GIB = 8.49
 
 # The rev this plan took the model image to. Asserted as a FLOOR, never as an
 # equality — see the note on test_model_rev_is_the_same_value_in_all_three
@@ -160,7 +162,7 @@ def _ovms_resources_comment() -> str:
 
     Deliberately NARROW. Scanning the whole Deployment would let a future edit
     satisfy the provenance test with a sentence at the other end of the file,
-    which is provenance nobody reading `limits: memory: 10Gi` will ever see.
+    which is provenance nobody reading `limits: memory: 16Gi` will ever see.
     Collected from two places only: the contiguous comment run immediately
     above `resources:`, and every comment inside the block.
     """
@@ -453,7 +455,7 @@ def test_resources_declare_both_requests_and_limits():
     """A limit without a request lets the scheduler over-commit an etcd member.
 
     The two memory halves move independently and only one of them moved. The
-    LIMIT went 6Gi -> 10Gi so the guard's own worst case cannot itself OOM;
+    LIMIT went 6Gi -> 10Gi -> 16Gi so the guard's own worst case cannot itself OOM;
     the REQUEST stayed at 2Gi so the scheduler's view of mini-1 — an etcd
     member — is exactly what it was before. Raising the request as well would
     quietly re-price the control-plane node for a ceiling nothing is expected
@@ -470,7 +472,7 @@ def test_resources_declare_both_requests_and_limits():
     assert _quantity(res["limits"]["memory"]) == OVMS_MEMORY_LIMIT, (
         f"limits.memory is {res['limits']['memory']!r}, want "
         f"{OVMS_MEMORY_LIMIT}. The bounded graph's predicted worst case is "
-        f"{MEASURED_WORST_CASE_GIB} GiB, which is 106% of the previous "
+        f"{MEASURED_WORST_CASE_GIB} GiB measured as an ascending sequence, 84.9% of the previous "
         f"{OVMS_MEMORY_LIMIT_BEFORE} — a guard whose own worst case OOMs is "
         "decorative"
     )
@@ -513,7 +515,7 @@ def test_model_rev_is_the_same_value_in_all_three_places():
 def test_the_raised_ceiling_carries_its_own_provenance():
     """A number in a manifest with no provenance is one nobody can change.
 
-    `limits.memory: 10Gi` reverses the parent spec's posture on purpose — that
+    `limits.memory: 16Gi` reverses the parent spec's posture on purpose — that
     spec kept the ceiling small precisely BECAUSE mini-1 is an etcd member, so
     a later reader who finds a bigger number and no reason has every incentive
     to "restore" it. The comment beside it therefore has to carry the four
@@ -1031,3 +1033,84 @@ def test_seed_sync_takes_no_file_operand() -> None:
                 f"seed script calls sync with an operand ({stripped!r}); "
                 "busybox sync takes none — use the bare form"
             )
+
+
+# --- request metrics ------------------------------------------------------
+#
+# Added after the #793 fix shipped and the endpoint then served nothing for
+# four days. That silence was indistinguishable, from the cluster side, from a
+# downstream client that had stopped calling — because `/metrics` was disabled
+# and the only usage signal was CPU and memory graphs. The client fails open
+# silently, so nothing else would report it either.
+
+def test_ovms_exposes_request_metrics():
+    """`--metrics_enable` or there is no request signal at all.
+
+    Without it OVMS answers `/metrics` with 400 and "is anything using this?"
+    can only be inferred. That inference is how the whole #793 investigation
+    had to proceed.
+    """
+    args = _ovms()["args"]
+    assert "--metrics_enable" in args, (
+        "the ovms container does not enable metrics, so /metrics returns 400 "
+        "and there is no request counter anywhere — usage can then only be "
+        "inferred from CPU and memory graphs"
+    )
+
+
+def test_a_scrape_exists_for_those_metrics():
+    """Enabling the flag alone changes nothing that is queryable.
+
+    A served `/metrics` nobody scrapes is the same silence with extra steps.
+    """
+    path = REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml"
+    assert path.exists(), "metrics are enabled but nothing scrapes them"
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert doc["kind"] == "VMServiceScrape"
+    assert doc["metadata"]["namespace"] == "retrieval"
+
+    kust = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/kustomization.yaml").read_text(encoding="utf-8")
+    )
+    assert "vmservicescrape.yaml" in kust["resources"], (
+        "the scrape exists but is not in the kustomization, so ArgoCD never "
+        "applies it"
+    )
+
+
+def test_the_scrape_targets_a_port_name_the_service_actually_publishes():
+    """The VM operator resolves endpoints by Service port NAME.
+
+    A scrape naming a port that does not exist comes up Ready with zero series
+    and no error anywhere — the exact trap the tekton-pipelines-controller
+    scrape in this repo was written to record. Assert against the Service
+    rather than against a remembered string.
+    """
+    scrape = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml").read_text(encoding="utf-8")
+    )
+    service = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/service.yaml").read_text(encoding="utf-8")
+    )
+    published = {p["name"] for p in service["spec"]["ports"]}
+    for endpoint in scrape["spec"]["endpoints"]:
+        assert endpoint["port"] in published, (
+            f"scrape targets port name {endpoint['port']!r}, but the Service "
+            f"publishes {sorted(published)} — this would scrape nothing, Ready, silently"
+        )
+
+
+def test_the_scrape_selector_matches_the_service_labels():
+    """Same failure shape one level up: a selector that matches no Service."""
+    scrape = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/vmservicescrape.yaml").read_text(encoding="utf-8")
+    )
+    service = yaml.safe_load(
+        (REPO_ROOT / "apps/ovms-retrieval/manifests/service.yaml").read_text(encoding="utf-8")
+    )
+    labels = service["metadata"].get("labels", {})
+    for key, value in scrape["spec"]["selector"]["matchLabels"].items():
+        assert labels.get(key) == value, (
+            f"scrape selects {key}={value!r} but the Service carries "
+            f"{labels.get(key)!r} — it would select no endpoints"
+        )

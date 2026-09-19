@@ -224,6 +224,35 @@ and there is no swap — so the kernel may reclaim **nothing** and OOM-kills
 instead. `limits.memory` on this container is the **GPU's memory budget**, not
 a margin around a process.
 
+### Is anything actually using the retrieval tier?
+
+Ask the metric, not the graphs. OVMS runs with `--metrics_enable` and is
+scraped by `apps/ovms-retrieval/manifests/vmservicescrape.yaml`:
+
+```promql
+# requests served, per servable, over the last day
+sum by (name) (increase(ovms_requests_success[1d]))
+
+# guard refusals — an oversized batch being turned away
+sum by (name) (increase(ovms_requests_fail[1d]))
+
+# anything in flight right now
+sum(ovms_current_requests)
+```
+
+**Why this exists.** Before the flag was set, `/metrics` answered 400 and the
+only usage signal was `container_cpu_usage_seconds_total` and
+`container_memory_working_set_bytes` — so "is anyone calling this?" had to be
+inferred from graph shapes. That is how the whole #793 investigation had to
+proceed, and after the fix shipped the endpoint served nothing for four days
+in a way that was **indistinguishable from a downstream client that had
+stopped calling**. That client fails open silently, so nothing else would have
+reported it either.
+
+**An idle retrieval tier is normal here** — five-day quiet stretches are in the
+measured record — so there is deliberately no alert on zero traffic. The point
+is to be able to answer the question, not to be paged about it.
+
 **Diagnose from `memory.stat`, not from a proxy.** This point cost three
 successive wrong explanations during the investigation, each from a different
 proxy: `memory.current` counts shmem *and* page cache, so a high-water reading
@@ -273,7 +302,9 @@ told him the room holds fifty.
 Frank ships `max_allowed_chunks: 64` and `max_position_embeddings: 640`,
 injected into every exported `graph.pbtxt` by the model image's build
 (`apps/ovms-retrieval/docker/inject_rerank_guard.py`). Worst case at that pair
-is 6.36 GiB — 64% of the 10Gi limit, and 106% of the 6Gi it replaced. Read
+is 5.67 GiB as a SINGLE call — but 8.49 GiB as an ASCENDING sequence
+(20 -> 40 -> 64 documents), which is the case that matters and the reason
+the ceiling is 16Gi rather than 10Gi. Read
 that the right way round: **the ceiling was raised because the guard's own
 worst case must not itself OOM**, not to make room for a bigger workload.
 
@@ -289,7 +320,32 @@ chunks, scored per chunk, and those chunks count against the same 64. That is
 a visible relevance-score change, accepted deliberately, because the
 alternative leaves a guard that one long passage defeats.
 
-### `--max_doc_length` is not a batch cap, and the refusal is a 500
+**And 64 is a cap on chunks AFTER splitting, which real traffic crosses.**
+`chunkDocuments` checks the limit twice — on the document count before
+chunking, then again on the chunk total after (`exceeding max_allowed_chunks
+after chunking limit`). The Test Plan sent 600-token documents against a 640
+cap, so one document was always one chunk and the second check was never
+exercised. Measured 2026-09-16 against the live consumer corpus: 2142 chunks,
+`token_count` p50 386 / p95 695 / max 1235, with **139 (6.5%) over the ~627
+effective budget** (`max_position_embeddings − query_tokens − 4`). The client
+sends **50** candidates, so a request carries `50 + k` chunks and refusal needs
+`k >= 15`.
+
+The base rate predicts `k ~ 3`. The measured median across eight real queries
+is **9**, with one at **21 -> 71 chunks -> HTTP 400**, confirmed end to end
+through the client's own audit log. **Retrieval returns the top 50 by
+similarity and length correlates with matching**, so the reranker sees a
+distribution enriched for exactly the documents the guard is most expensive
+for. A cap sized against corpus statistics is sized against the wrong
+population; size it against the *retrieved* distribution. Headroom on the
+queries that pass is 3-11 chunks.
+
+The two bounds are coupled in opposite directions: lowering
+`max_position_embeddings` to save memory produces MORE chunks and pushes harder
+against `max_allowed_chunks`. Move either and re-measure both. Tracked in
+frank#793.
+
+### `--max_doc_length` is not a batch cap, and the refusal is a 400
 
 Two things that look like the answer and are not.
 
@@ -300,12 +356,21 @@ says nothing about how many documents one request may carry. `--num_streams`
 is orthogonal too, and raising it would increase peak memory rather than bound
 it.
 
-A refused request returns HTTP **500**, not the 4xx that would be idiomatic.
-Every one of those guards raises `std::runtime_error`, and `Process()` catches
-it into `absl::InternalError`, which maps to 500. The load-bearing property
-holds — the caller gets a response naming the limit, and everyone else keeps
-their server — but **record the status code; do not assert 4xx**, or a test
-fails on correct behaviour.
+A refused request returns HTTP **400**, measured live 2026-09-19 and matching
+#805's own Test Plan row 6. An earlier draft of this entry predicted 500 by
+reading the code — those guards raise `std::runtime_error`, `Process()` catches
+it into `absl::InternalError`, and that maps to 500 — but the MediaPipe graph
+wraps the failure before it reaches the HTTP layer, and the observed status is
+400 with the limit named in the body:
+
+```
+HTTP 400  Chunking failed: exceeding max_allowed_chunks after chunking limit: 64; actual: 100
+```
+
+The load-bearing property is unchanged — the caller gets a response naming the
+limit and everyone else keeps their server. **Assert 400**, and treat the
+reasoning-from-source version as the cautionary case: the inference was sound
+and the answer was still wrong, because nobody ran the request.
 
 ### Measure it with the cgroup peak, on a freshly restarted container
 
