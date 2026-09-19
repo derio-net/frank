@@ -932,7 +932,12 @@ def test_pipelinerun_read_rbac_exists():
     assert role is not None, "expected a Role granting pipelinerun read in tekton-pipelines"
     rule = role["rules"][0]
     assert "pipelineruns" in rule.get("resources", [])
-    assert set(rule.get("verbs", [])) >= {"get", "list"}
+    # P9 review (M2, Minor): wait-turn only ever `kubectl get pipelineruns -l
+    # <selector>` -- a label-selector listing, which RBAC scores as the "list"
+    # verb, never a single named "get". "get" was unused; trim it.
+    assert set(rule.get("verbs", [])) == {"list"}, (
+        f"wait-turn only lists by label selector -- 'get' is unused: {rule.get('verbs')}"
+    )
     assert "tekton.dev" in rule.get("apiGroups", [])
 
     binding = next(
