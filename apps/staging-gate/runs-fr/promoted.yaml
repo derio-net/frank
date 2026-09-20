@@ -1,0 +1,8 @@
+# GATE-OWNED — never hand-edited. Written by the staging-gate Pipeline's `promote`
+# Task only after a green run-smoke; the previous record is overwritten in place.
+# Schema: apps/staging-gate/README.md; validated (path existence) by
+# scripts/tests/test_staging_gate_contract.py.
+sha: null
+image: null
+pipelineRun: null
+promotedAt: null

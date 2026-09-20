@@ -1,0 +1,58 @@
+schema_version: 2
+phase:
+  number: 8
+  title: Contract v2 — promote records last-green; push via frank-gitops-push
+  tag: agentic
+  depends_on:
+  - 6
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Contract schema v2 + tripwire (TDD)
+  steps:
+  - id: P8.T1.S1
+    text: |
+      RED — add `scripts/tests/test_staging_gate_contract.py`: (a) runs `scripts/staging-gate/validate-contract.py` and requires exit 0; (b) asserts the validator REJECTS a contract still carrying `prodApp`/`prodValuesPath`/`prodValuesKey` and one missing `promotedRecordPath` or `smokeRbacUrl` (tmp-dir fixtures via an importable `validate_one`); (c) asserts every registry entry's `stagingValuesPath` and `promotedRecordPath` exist in the repo and `smokeRbacUrl` contains the literal placeholder `{sha}`. Expected NOW: FAIL.
+  - id: P8.T1.S2
+    text: |
+      GREEN — update `validate-contract.py` REQUIRED keys (drop the three prod* keys; add `promotedRecordPath`, `smokeRbacUrl`; reject the retired keys explicitly with a pointer to the spec revision), `apps/staging-gate/registry/runs-fr.yaml` (`promotedRecordPath: apps/staging-gate/runs-fr/promoted.yaml`, `smokeRbacUrl` per phase 9's fetch mechanism), create `apps/staging-gate/runs-fr/promoted.yaml` (header comment: gate-owned, never hand-edited; keys `sha`, `image`, `pipelineRun`, `promotedAt` initialised to null), and update the README contract table + onboarding steps. Re-run → PASS.
+- number: 2
+  title: Promote writes the record; git over HTTPS with the App token (TDD)
+  steps:
+  - id: P8.T2.S1
+    text: |
+      RED — extend `scripts/tests/test_staging_gate_manifests.py`: no Task/Pipeline/TriggerTemplate under `apps/staging-gate/tekton/` references `staging-gate-ssh-creds`, `id_rsa` or `git@github.com`; every git-pushing step reads `GITHUB_TOKEN` from secret `frank-gitops-push` key `token`; the `promote` Task writes `.sha`, `.image`, `.pipelineRun`, `.promotedAt` into `$(params.promotedRecordPath)` and has no `prodValuesKey` param; the pipeline's `resolve-contract` exposes `promotedRecordPath` and `smokeRbacUrl` results; the RBAC Role `staging-gate-secrets-read` names `frank-gitops-push` (and not the ssh secret). Expected NOW: FAIL.
+
+      Review note (phase 8 review, finding p8-m3-unneeded-secret-role): the `staging-gate-secrets-read` Role mandated by this step was later DROPPED — `secretKeyRef` env is resolved by the kubelet, not the pod ServiceAccount, so the Role only widened who could read `frank-gitops-push`/the vCluster kubeconfig via the automounted SA token in third-party step images, for no capability the pipeline actually exercises. `test_rbac_secrets_role_names_the_github_app_push_secret` was replaced by `test_no_secrets_read_role_exists`, which requires the Role's absence. Text-only correction; this step's state stays ticked.
+  - id: P8.T2.S2
+    text: |
+      GREEN — rewrite clone/push steps in `pipeline.yaml` + `tasks.yaml` to `git clone https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git` (token via `secretKeyRef`, never echoed; `set +x`), drop the `ssh-creds` workspace from Pipeline, Tasks and the TriggerTemplate, rework `staging-gate-promote` to yq-write the record (`pipelineRun` from `$(context.pipelineRun.name)`, `promotedAt` from `date -u +%FT%TZ`), commit `gate: last-green <app> sha-<sha> [skip ci]`. Update RBAC. Re-run → PASS; full suite green.
+  - id: P8.T2.S3
+    text: |
+      REFACTOR — the clone/commit/push script is now repeated in `resolve-contract`, `bump-staging` and `promote`. Extract it into ONE Tekton `StepAction` (`staging-gate-git`, params `mode: clone|push`, `message`, `path`; `apps/staging-gate/tekton/stepactions.yaml`) referenced by `ref:` from each step, OR — if the cluster's Tekton lacks StepAction (check `kubectl get crd stepactions.tekton.dev` read-only) — a single shared script ConfigMap mounted into each step. Tests from S1 stay green unchanged (they assert behaviour-level fields, so update only the assertions that inspected inline scripts to follow the reference). Full suite green.
+state:
+  steps:
+    P8.T1.S1:
+      state: x
+      ticked_at: '2026-09-14T21:32:06+00:00'
+      note: null
+    P8.T1.S2:
+      state: x
+      ticked_at: '2026-09-14T21:32:09+00:00'
+      note: null
+    P8.T2.S1:
+      state: x
+      ticked_at: '2026-09-14T21:40:34+00:00'
+      note: null
+    P8.T2.S2:
+      state: x
+      ticked_at: '2026-09-14T21:40:37+00:00'
+      note: null
+    P8.T2.S3:
+      state: x
+      ticked_at: '2026-09-14T21:46:30+00:00'
+      note: null
+  completion:
+    at: '2026-09-14T21:47:53+00:00'
+    note: null
+    observed_prs: []

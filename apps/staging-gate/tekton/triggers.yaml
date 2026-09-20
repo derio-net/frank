@@ -1,0 +1,74 @@
+# staging-gate trigger plumbing (triggers.tekton.dev/v1beta1). The gate fires from the app's
+# GHA workflow via a GitHub `repository_dispatch` (event_type=staging-gate) delivered to the
+# existing github-listener (.223).
+#
+# The binding and template below are wired into that shared listener by the
+# `staging-gate-runs-fr` Trigger in
+# apps/tekton/triggers/eventlistener-github.yaml (Phase 10), which references
+# them by name (`ref: staging-gate-binding` / `ref: staging-gate-template`)
+# rather than duplicating them there, and adds the github+cel interceptors
+# (HMAC via derio-net-github-webhook-secret, CEL pinning repo/action/payload
+# shape). See apps/tekton/webhooks.yaml for the declared delivery path.
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: staging-gate-binding
+  namespace: tekton-pipelines
+spec:
+  params:
+    # GitHub repository_dispatch payload: {action, client_payload:{app,sha}, repository:{full_name}}
+    - name: app
+      value: $(body.client_payload.app)
+    - name: sha
+      value: $(body.client_payload.sha)
+    - name: repo-full-name
+      value: $(body.repository.full_name)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: staging-gate-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: app
+    - name: sha
+    - name: repo-full-name
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: staging-gate-$(tt.params.app)-
+        namespace: tekton-pipelines
+        labels:
+          # P9.T3: resolve-contract's wait-turn step lists PipelineRuns by this
+          # label to serialize per app. `app` is CEL-validated at the trigger
+          # (phase 10) and re-validated by resolve-contract's validate-inputs
+          # step (^[a-z0-9]([-a-z0-9]*[a-z0-9])?$), which is also a valid
+          # Kubernetes label value.
+          staging-gate/app: $(tt.params.app)
+      spec:
+        pipelineRef: {name: staging-gate}
+        taskRunTemplate:
+          serviceAccountName: staging-gate
+          podTemplate:
+            securityContext:
+              fsGroup: 65532
+        params:
+          - {name: app, value: $(tt.params.app)}
+          - {name: sha, value: $(tt.params.sha)}
+        # P9 review (I3): Tekton v1.6.0 CANCELS running `finally` TaskRuns (reset,
+        # notify) when timeouts.pipeline elapses UNLESS timeouts.tasks is set
+        # strictly lower -- the unset default (60m pipeline-wide) risks losing
+        # both the vCluster namespace cleanup and the red-path Telegram alert on
+        # exactly the run most likely to need them, since wait-turn alone can
+        # consume up to 30m (waitTurnTimeoutSeconds default 1800) of that budget.
+        # tasks < pipeline leaves finally its own window to actually run.
+        timeouts:
+          pipeline: 1h30m
+          tasks: 1h20m
+          finally: 10m
+        workspaces:
+          - name: scratch
+            emptyDir: {}

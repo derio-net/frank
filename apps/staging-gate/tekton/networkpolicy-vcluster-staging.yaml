@@ -1,0 +1,67 @@
+# Ingress allow-list for the staging vCluster's control-plane pod (API server, port
+# 8443). Applied by the staging-gate Application (apps/root/templates/staging-gate.yaml,
+# `directory: recurse: true` over this whole dir) -- the SAME Application already applies
+# the vcluster-staging Role/RoleBinding in serviceaccount-rbac.yaml, so this manifest is
+# reaching the right namespace by the same proven wiring.
+#
+# apps/vclusters/template/values.yaml sets `policies.networkPolicy.enabled: true` (the
+# template default; NOT overridden in apps/vclusters/staging/values.yaml), so the chart's
+# own vc-cp-staging NetworkPolicy already selects this pod and admits same-namespace
+# `release: staging` / `vcluster.loft.sh/managed-by: staging` (1053/8443), same-namespace
+# `app: vcluster-snapshot`, and `app: loft` in any namespace -- nothing from
+# tekton-pipelines or argocd. This file is purely ADDITIVE on top of that (P9 review,
+# finding C1): DO NOT set policies.networkPolicy.enabled: false to "fix" this instead --
+# that is what apps/vclusters/cnc-staging/values.yaml does for the CNC stack's own
+# reasons (its egress needs), and disabling the chart's policies here would strip the
+# CoreDNS/own-pod ingress clause too, with no replacement.
+#
+# HISTORY (mirrors apps/cnc-staging-host/manifests/networkpolicy-argocd.yaml, which hit
+# this exact class of bug for the CNC staging vCluster, #656/#657): a NetworkPolicy that
+# selects a pod makes that pod default-deny for every ingress it does not itself name.
+# Any future edit here must keep ALL THREE rules below -- dropping the podSelector: {}
+# rule on the theory that "the chart's own policy already grants it" is exactly what
+# collapsed the union of allow-rules for cnc-staging and silently killed its vCluster's
+# CoreDNS (`Failed to watch: ... dial tcp ...: i/o timeout`, `lookup cnc-node: no such
+# host`). Keeping the CoreDNS clause here, self-contained, means this file alone
+# documents the full ingress contract for the staging vCluster API even if the chart's
+# own policy is ever touched or reordered.
+#
+# Consumers admitted:
+#   1. tekton-pipelines -- the staging-gate Pipeline's run-smoke/reset/await-sync Tasks
+#      reach the vCluster over its in-cluster Service (staging.vcluster-staging, C2)
+#      using the fetched vc-staging-gate kubeconfig (P9.T1).
+#   2. argocd -- the <app>-staging ArgoCD Applications (e.g. runs-fr-staging) sync
+#      workloads INTO the vCluster.
+#   3. The vCluster's own synced pods (CoreDNS et al.) -- the incident clause above.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: staging-gate-allow-tekton-and-argocd-to-vcluster-api
+  namespace: vcluster-staging
+spec:
+  podSelector:
+    matchLabels:
+      release: staging
+  policyTypes: [Ingress]
+  ingress:
+    # 1. staging-gate Tekton Pipeline (tekton-pipelines) -> vCluster API.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tekton-pipelines
+      ports:
+        - {port: 8443, protocol: TCP}
+    # 2. ArgoCD application-controller -> vCluster API.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+      ports:
+        - {port: 8443, protocol: TCP}
+    # 3. The vCluster's own synced pods (CoreDNS, ...) -> vCluster API. An empty
+    #    podSelector in `from` means "every pod in THIS policy's namespace"
+    #    (vcluster-staging), which is exactly where they run.
+    - from:
+        - podSelector: {}
+      ports:
+        - {port: 8443, protocol: TCP}

@@ -13,7 +13,11 @@
 # read access); the real protection is that the key is never mounted into a container.
 #
 # To tighten further, scope the minted token with `repositories:` / `permissions:`
-# (omitted here = the App's full install: 10 repos, contents/issues/PRs/workflows).
+# (omitted here = the App's full install: repository_selection ALL derio-net repos,
+# contents/issues/PRs/workflows write — verified 2026-09-14). Consumers that need
+# less get their own scoped generator on the same App instead of scoping this one,
+# which secure-agent-pod and tekton share (see
+# apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml).
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: ClusterGenerator
 metadata:
