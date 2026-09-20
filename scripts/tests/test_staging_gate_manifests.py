@@ -1280,6 +1280,26 @@ def test_staging_gate_trigger_cel_filter_pins_repo_action_and_payload_shape():
     assert f"body.client_payload.sha.matches('{RUNS_FR_SHA_REGEX}')" in filt, filt
 
 
+def test_staging_gate_trigger_cel_filter_guards_client_payload_shape_first():
+    """P10 review #5: a malformed payload (missing client_payload, or missing
+    app/sha inside it) must fail CEL as a clean non-match, not as a cel
+    evaluation error -- has() guards must run before any field access."""
+    filt = _cel_filter(_staging_gate_runs_fr_trigger())
+    assert filt.startswith(
+        "has(body.client_payload) && has(body.client_payload.app) && "
+        "has(body.client_payload.sha) &&"
+    ), filt
+
+
+def test_staging_gate_trigger_cel_filter_clause_count_cannot_be_weakened():
+    """P10 review #6: a substring check alone can't tell '&&' from '||' or a
+    '|| true' escape hatch spliced in -- also assert the clause count."""
+    filt = _cel_filter(_staging_gate_runs_fr_trigger())
+    assert "||" not in filt, filt
+    # 3 has() guards + repo + action + app-shape + sha-shape = 7 clauses, 6 &&.
+    assert filt.count("&&") == 6, filt
+
+
 def test_staging_gate_trigger_binds_app_and_sha_and_refs_the_existing_template():
     trigger = _staging_gate_runs_fr_trigger()
     assert trigger.get("template", {}).get("ref") == "staging-gate-template", trigger.get("template")
@@ -1298,6 +1318,52 @@ def test_staging_gate_trigger_binds_app_and_sha_and_refs_the_existing_template()
         assert {"app", "sha"} <= set(by_name), by_name
         for name in ("app", "sha"):
             assert by_name[name].get("kind") == "TriggerBinding", by_name[name]
+
+
+STAGING_GATE_TRIGGERS = REPO / "apps/staging-gate/tekton/triggers.yaml"
+
+
+def test_referenced_binding_and_template_actually_exist_and_params_line_up():
+    """P10 review #2: staging-gate-runs-fr refs staging-gate-binding /
+    staging-gate-template by name -- nothing verified those objects exist
+    before now. A typo'd ref passes yaml, tests, kubeconform AND admission
+    (a Trigger's bindings/template refs are not validated until an event
+    actually fires), failing only at event time."""
+    trigger = _staging_gate_runs_fr_trigger()
+    binding_ref = next(
+        (b["ref"] for b in (trigger.get("bindings") or []) if b.get("ref")), None
+    )
+    template_ref = trigger.get("template", {}).get("ref")
+    assert binding_ref, "trigger has no ref-style binding to verify"
+    assert template_ref, "trigger has no template ref to verify"
+
+    docs = [d for d in yaml.safe_load_all(STAGING_GATE_TRIGGERS.read_text()) if d]
+    binding = next(
+        (d for d in docs if d.get("kind") == "TriggerBinding" and d["metadata"]["name"] == binding_ref),
+        None,
+    )
+    template = next(
+        (d for d in docs if d.get("kind") == "TriggerTemplate" and d["metadata"]["name"] == template_ref),
+        None,
+    )
+    assert binding is not None, (
+        f"trigger refs TriggerBinding {binding_ref!r} but no such object exists in "
+        f"{STAGING_GATE_TRIGGERS.relative_to(REPO)}"
+    )
+    assert template is not None, (
+        f"trigger refs TriggerTemplate {template_ref!r} but no such object exists in "
+        f"{STAGING_GATE_TRIGGERS.relative_to(REPO)}"
+    )
+    assert binding["metadata"]["namespace"] == "tekton-pipelines", binding["metadata"]
+    assert template["metadata"]["namespace"] == "tekton-pipelines", template["metadata"]
+
+    binding_params = {p["name"] for p in binding["spec"]["params"]}
+    template_params = {p["name"] for p in template["spec"]["params"]}
+    assert template_params <= binding_params, (
+        f"staging-gate-template declares params {sorted(template_params)} that "
+        f"staging-gate-binding does not supply: {sorted(template_params - binding_params)}"
+    )
+    assert {"app", "sha", "repo-full-name"} <= binding_params, binding_params
 
 
 def test_staging_gate_webhook_secret_is_a_per_org_externalsecret():
@@ -1326,6 +1392,17 @@ def test_staging_gate_webhook_secret_is_a_per_org_externalsecret():
     )
 
 
+def test_staging_gate_webhook_secret_store_ref_is_the_infisical_cluster_secret_store():
+    """P10 review #7."""
+    doc = next(
+        d for d in yaml.safe_load_all(STAGING_GATE_WEBHOOK_SECRET.read_text())
+        if d and d.get("kind") == "ExternalSecret"
+    )
+    assert doc["spec"]["secretStoreRef"] == {"name": "infisical", "kind": "ClusterSecretStore"}, (
+        doc["spec"]["secretStoreRef"]
+    )
+
+
 def test_webhooks_yaml_declares_the_runs_fr_repository_dispatch_delivery_path():
     decls = yaml.safe_load(WEBHOOKS_DECL.read_text())["webhooks"]
     matches = [
@@ -1336,10 +1413,18 @@ def test_webhooks_yaml_declares_the_runs_fr_repository_dispatch_delivery_path():
     ]
     assert matches, f"no github/derio-net/runs-fr entry in {WEBHOOKS_DECL.relative_to(REPO)}"
     entry = matches[0]
-    assert entry.get("scope") == "repo", entry
+    # P10 review Critical #1: repository_dispatch is App-only per GitHub's
+    # webhook availability matrix -- a `scope: repo` declaration for it is
+    # impossible, not merely unwired. The real mechanism is a direct signed
+    # POST from runs-fr's own GHA workflow, not a forge webhook at all.
+    assert entry.get("scope") == "direct-post", entry
     assert entry.get("events") == ["repository_dispatch"], entry
     assert "staging-gate-runs-fr" in (entry.get("serves") or []), entry
-    assert entry.get("note"), "the entry should explain the runs-fr build.yml dispatch + manual hook"
+    assert entry.get("note"), "the entry should explain the runs-fr build.yml direct POST"
+    note = entry["note"]
+    assert "webhooks.hop.derio.net" in note, note
+    assert "X-Hub-Signature-256" in note, note
+    assert "FRANK_STAGING_GATE_WEBHOOK_SECRET" in note, note
 
 
 def test_staging_gate_triggers_note_no_longer_claims_manual_p7_wiring():
