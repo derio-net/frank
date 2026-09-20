@@ -52,7 +52,25 @@ tasks:
       ```
   - id: P11.T1.S2
     text: |
-      (manual) Delivery path: seed Infisical `/derio-net/GITHUB_WEBHOOK_SECRET`; force-sync `derio-net-github-webhook-secret`; create the runs-fr GitHub webhook (event `repository_dispatch` only, content-type JSON, same secret, URL `https://webhooks.hop.derio.net/`); make GHCR package `runs-fr-smoke` PUBLIC (a first push creates it private); copy the derio-fr-automation App PEM into `argocd` for the runs-fr repository credential and force-sync it; merge the runs-fr `trigger-gate` permissions PR. Verify: `argocd repo list` shows runs-fr successful; the webhook's recent delivery returns 202.
+      (manual) Delivery path (redesigned by the P10 review, Critical #1):
+      generate the shared HMAC secret, seed Infisical
+      `/derio-net/GITHUB_WEBHOOK_SECRET` with it, mirror the SAME value into
+      runs-fr's own Actions secret `FRANK_STAGING_GATE_WEBHOOK_SECRET`, and
+      force-sync `derio-net-github-webhook-secret`. NO GitHub webhook is
+      created — `repository_dispatch` is App-only per GitHub's webhook
+      availability matrix, so a repo webhook for it cannot exist. Instead
+      runs-fr's own `build.yml` POSTs the signed payload directly to
+      `https://webhooks.hop.derio.net/` (see `apps/tekton/webhooks.yaml`'s
+      `derio-net/runs-fr` entry, `scope: direct-post`, for the exact wire
+      contract). Also: make GHCR package `runs-fr-smoke` PUBLIC (a first push
+      creates it private); copy the derio-fr-automation App PEM into `argocd`
+      for the runs-fr repository credential and force-sync it. runs-fr PR #42
+      (`contents: write`, for the now-abandoned dispatch-API approach) is
+      obsolete and should be CLOSED, not merged. Verify: `argocd repo list`
+      shows runs-fr successful; a signed test POST to the listener with the
+      shared secret returns 202 (or, once runs-fr's build.yml ships the
+      direct-POST step, treat the first real `main`-merge run — P11.T1.S3 —
+      as the verification instead).
 
       ## Manual Operations
 
@@ -62,15 +80,22 @@ tasks:
       layer: cicd
       app: staging-gate
       plan: docs/superpowers/plans/2026-06-15-staging-vcluster-gate
-      when: "Post-merge, before merging the runs-fr trigger-gate permissions PR"
-      why_manual: "GitHub webhooks and Infisical values are forge/secret-store state with no IaC in this repo; the HMAC value must be generated once and set identically in both places."
+      when: "Post-merge. Independent of the runs-fr build.yml change that adds the direct-POST step -- that ships as a separate, parallel PR on runs-fr, not gated on this one."
+      why_manual: "The HMAC secret and its two homes (Infisical, runs-fr's GitHub Actions secret store) are forge/secret-store state with no IaC in this repo; the value must be generated once and set identically in both places. There is no GitHub webhook to create here -- see apps/tekton/webhooks.yaml's derio-net/runs-fr entry (scope: direct-post)."
       commands:
-        - "Infisical: create /derio-net/GITHUB_WEBHOOK_SECRET (openssl rand -hex 32)"
+        - "SECRET=$(openssl rand -hex 32)"
+        - "Infisical: create /derio-net/GITHUB_WEBHOOK_SECRET = $SECRET (must be a folder in the SAME project the infisical ClusterSecretStore targets, not a sibling project)"
         - kubectl -n tekton-pipelines annotate externalsecret derio-net-github-webhook-secret force-sync=$(date +%s) --overwrite
-        - "GitHub derio-net/runs-fr → Settings → Webhooks: URL https://webhooks.hop.derio.net/, JSON, same secret, events: repository_dispatch only"
+        - env -u GITHUB_TOKEN gh secret set FRANK_STAGING_GATE_WEBHOOK_SECRET --repo derio-net/runs-fr --body "$SECRET"
+        - env -u GITHUB_TOKEN gh pr close 42 --repo derio-net/runs-fr --comment "Superseded by the direct-POST delivery path (frank plan 2026-06-15-staging-vcluster-gate, P10 review Critical #1); contents:write is no longer needed."
       verify:
-        - kubectl -n tekton-pipelines get externalsecret derio-net-github-webhook-secret -o jsonpath='{.status.conditions[0].reason}'   # SecretSynced
-        - env -u GITHUB_TOKEN gh api repos/derio-net/runs-fr/hooks --jq '.[]|{url:.config.url,events}'
+        - kubectl -n tekton-pipelines get externalsecret derio-net-github-webhook-secret -o jsonpath='{.status.conditions[0].reason}'   # expect SecretSynced
+        - |
+          BODY='{"action":"staging-gate","client_payload":{"app":"runs-fr","sha":"0000000"},"repository":{"full_name":"derio-net/runs-fr"}}'
+          SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+          curl -s -o /dev/null -w '%{http_code}\n' -X POST https://webhooks.hop.derio.net/ -H "X-GitHub-Event: repository_dispatch" -H "X-Hub-Signature-256: $SIG" -H "Content-Type: application/json" -d "$BODY"
+          # expect 202 -- note this enqueues a real (throwaway) staging-gate-runs-fr PipelineRun; run-smoke fails harmlessly (sha 0000000 doesn't exist) and reset cleans up the vCluster namespace
+        - "Acceptable alternative: skip the test POST and rely on the first real runs-fr main-branch merge (once build.yml ships the direct-POST step) as the verification -- P11.T1.S3 covers that evidence."
       status: pending
       ```
 
