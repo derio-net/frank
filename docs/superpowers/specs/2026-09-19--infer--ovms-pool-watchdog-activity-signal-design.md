@@ -234,6 +234,22 @@ design reasons about — and `current=` joins it.
 asks "are we near the ceiling the kernel kills at", which is a `memory.current`
 question. They are different questions and should not share a numerator.
 
+**The percentage moves with the numerator.** `CRITICAL_PERCENT=50` was
+calibrated against `shmem` readings, and `memory.current` runs a roughly
+*constant* ~0.5 GiB higher (live: shmem 1.72 GiB, anon 0.50, kernel 0.01,
+current 2.22 — none of it reclaimable with swap off, which is exactly why the
+numerator change is right). Carrying 50 across unchanged would tighten the
+trigger by ~3.1 points of the limit with nobody deciding to.
+
+Checked against the incident: peak `shmem` 8313102336 (7.74 GiB) sat under the
+8.00 GiB line, but the same moment as `memory.current` is **8.17 GiB — over it
+by 174 MiB**. Rule 1 would have killed the batch index that Rule 2 killed, and
+Test Plan row 5 would fail for a new reason. So `CRITICAL_PERCENT` becomes
+**53** (8.48 GiB of `memory.current` ≈ 7.98 GiB of `shmem`): the measurement
+becomes honest, the trigger stays where it was actually calibrated. Guarded in
+both directions — a further raise is a new threshold and needs its own
+measurement.
+
 `memory.peak` was considered and rejected for now: it would catch the 0.1–2.5s
 transients a two-minute tick can never sample, but peak runs ≈ settled + ~2 GiB,
 so at an unchanged `CRITICAL_PERCENT=50` it would fire Rule 1 during every

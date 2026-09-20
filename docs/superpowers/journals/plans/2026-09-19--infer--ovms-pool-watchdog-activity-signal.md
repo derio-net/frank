@@ -111,3 +111,75 @@ Review of phase 2. The new idle-clock stamp was placed between 'rollout restart'
 ### r2 · review · Phase 2 review: the metrics-unreadable placement is right, and checked against both rules (phase 2)
 
 The metrics_unreadable exit sits AFTER Rule 1 and BEFORE the busy check, which is the only correct position: Rule 1 does not consult busy and must stay armed when the scrape fails (an unreadable /metrics is not a reason to stop avoiding an OOM), while every decision past that point needs a real activity reading. Confirmed the phase also skips BOTH annotate calls on that path - stamping the placeholder activity=0 would poison the next tick into reading a genuine count as a rise, which is the mirror image of the bug being fixed. Also confirmed: first-tick default (last_activity=activity) makes the counter-reset branch unreachable on a fresh Deployment rather than firing spuriously; Rule 1's thresholds and comments untouched as scoped; f1's anchored metric matching intact.
+
+<!-- fr:journal kind=discovery scope=plan id=58b518d099b3 created=2026-09-20T01:09:24 phase=3 -->
+### 58b518d099b3 · discovery · P3.T1.S1's RED test passed on first write, for the wrong reason — a stub-shift confound (phase 3)
+
+Writing the RED test required first shifting the kubectl-exec stub's output shape
+(shmem, current, limit, metrics — a new line before limit), since the script's
+new `memory.current` comparison can't be expressed against the old stub at all.
+Doing that against the UNMODIFIED script first (before touching pool-watchdog.yaml)
+is what the phase description's "positional sed -n Np parsing must move together"
+warns about: the old script still reads line 2 as `limit`, so it silently received
+FAKE_CURRENT's value instead of the real limit.
+
+`test_rule_one_triggers_on_memory_current_not_shmem`'s first draft
+(FAKE_SHMEM=0.4*LIMIT=6.4GiB, FAKE_CURRENT=0.6*LIMIT=9.6GiB) passed immediately —
+but for the wrong reason: old script's critical = FAKE_CURRENT/2 = 4.8GiB, and
+shmem(6.4GiB) >= 4.8GiB was true by coincidence, not because memory.current was
+read at all. Confirmed by rerunning the isolated test and inspecting its captured
+`limit=` field in the result line: it read `limit=$FAKE_CURRENT`'s value, not
+$FAKE_LIMIT.
+
+Fixed by rechoosing fixture values (FAKE_SHMEM=1.71GiB, well below both the real
+critical of 8GiB AND ELEVATED_BYTES) so the old-broken parsing and the new-correct
+parsing diverge in their VERDICT, not just their internal arithmetic: old script
+(critical = FAKE_CURRENT/2 = 4.8GiB, shmem 1.71GiB < 4.8GiB) falls through to Rule 2
+and reports pool-at-baseline (no restart); new script (critical = real limit/2 =
+8GiB, current 9.6GiB >= 8GiB) restarts on critical-pool. Reran against the
+unmodified script: genuinely RED (action=none/pool-at-baseline, not
+action=restart/critical-pool). Then implemented the GREEN script change; both new
+tests plus the full 29-test baseline passed (31/31).
+
+The collateral effect worth recording: applying ONLY the stub shift (before the
+script fix) flipped 12 of the 29 pre-existing tests red too, all via the same
+mechanism (old `limit` var silently reading FAKE_CURRENT's default-to-FAKE_SHMEM
+value). That is expected fallout of the interface coupling the phase description
+calls out, not a regression — the script fix in the same task restores all of
+them, and the full suite was green again before moving to REFACTOR.
+
+<!-- fr:journal kind=review scope=plan id=029335c90609 created=2026-09-20T01:09:39 phase=3 -->
+### 029335c90609 · review · Phase 3 review: Rule 1/Rule 2 numerators verified to diverge as designed; f1/f2 untouched (phase 3)
+
+Confirmed the split is real, not just log-line cosmetics: Rule 1 (`if [ "$current"
+-ge "$critical" ]`) reads memory.current; Rule 2 (`if [ "$shmem" -lt
+"$ELEVATED_BYTES" ]`) still reads shmem. test_the_elevated_pool_is_still_measured_on_shmem
+pins this directly (current above ELEVATED_BYTES, shmem below it, idle clock stale
+-> no restart, pool-at-baseline) and genuinely reds if Rule 2's comparison is
+swapped to `current` (verified during RED, see the sibling discovery entry for the
+mechanics of getting a clean red here).
+
+Checked the three untouched constraints named in the dispatch:
+- f1 (anchored metric matching, name+'{'/name+' '): sum_series and its
+  awk pattern are byte-identical to before this phase; not touched.
+- f2 (restart() logs before stamping the idle clock): restart()'s statement
+  order is unchanged; only the echo text grew a `current=$current` field.
+  test_a_restart_is_logged_even_if_stamping_the_clock_fails still passes.
+- memory.max="max" guard: unaffected — it still only touches `limit`, and
+  test_an_unlimited_cgroup_does_not_divide_by_a_word passes unchanged (current
+  is simply unused when limit=0, since Rule 1's body is skipped).
+
+Also confirmed every shmem-carrying result line now also carries `current=`
+(restart, metrics-unreadable, busy, pool-at-baseline, no-baseline-yet,
+idle-too-recent) per the task instruction "keep shmem= in every result line and
+add current= beside it" — the two exit paths before the cgroup read
+(no-running-pod, unreadable-cgroup) carry neither, since shmem/current are not
+yet known at that point and never did carry shmem= either.
+
+31/31 pool-watchdog tests green after the REFACTOR step (comment-only change to
+CRITICAL_PERCENT, no behavioural diff, confirmed by an identical 31/31 rerun).
+
+<!-- fr:journal kind=finding scope=plan id=f3 created=2026-09-20T10:24:54 phase=3 state=fixed -->
+### f3 · finding [fixed] · Porting CRITICAL_PERCENT to memory.current would have moved the trigger and re-killed the consumer's index (phase 3)
+
+Review of phase 3, and the most consequential finding in the run. The numerator change is right — memory.current is what memory.max is enforced against, and with swap off none of the difference is reclaimable (live: shmem 1.72 GiB, anon 0.50, kernel 0.01, current 2.22). But memory.current runs a roughly CONSTANT ~0.5 GiB above shmem, and CRITICAL_PERCENT=50 was calibrated against shmem, so carrying it across unchanged tightens the trigger by ~3.1 points of a 16Gi limit with nobody deciding to. Measured against the incident's own log line: peak shmem 8313102336 (7.74 GiB) was under the 8.00 GiB trigger, but the same moment as memory.current is 8.17 GiB — over by 174 MiB. Rule 1 would have killed the batch index that Rule 2 killed, so the PR would have shipped fixing root causes A and B while failing Test Plan row 5 for a third reason. My own framing of the Q&A option ('safety posture unchanged in spirit') was what missed this. Put to the operator, who chose recalibration: CRITICAL_PERCENT 50 -> 53, which is 8.48 GiB of memory.current, about 7.98 GiB of shmem — where the line effectively already sat. RED test first (test_the_numerator_change_did_not_silently_move_the_trigger), asserting BOTH directions so a future raise cannot hide behind this one. Spec and manifest comment updated to match.

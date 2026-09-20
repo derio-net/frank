@@ -169,9 +169,47 @@ def test_critical_threshold_leaves_room_for_one_cap_sized_request():
     Note the threshold is sized against the ASCENDING case, not this one: Test
     Plan row 10 peaked at 8.49 GiB walking 20 -> 40 -> 64 documents, where the
     same cap as a single call costs 5.67 GiB. That is why CRITICAL_PERCENT is
-    50 rather than a value derived from the single-call figure alone."""
+    not a value derived from the single-call figure alone.
+
+    It reads 53 rather than 50 because the numerator became `memory.current`
+    on 2026-09-20; see test_the_numerator_change_did_not_silently_move_the
+    _trigger for the offset that accounts for the difference."""
     critical = int(_env()["CRITICAL_PERCENT"]) / 100 * LIMIT
     assert critical + 3.40 * GIB <= LIMIT
+
+
+def test_the_numerator_change_did_not_silently_move_the_trigger():
+    """`CRITICAL_PERCENT` was calibrated against `shmem`. Rule 1 now reads
+    `memory.current`, which runs a roughly CONSTANT ~0.5 GiB higher (live
+    baseline: shmem 1.72 GiB, anon 0.50, kernel 0.01, current 2.22 — and with
+    swap off none of it is reclaimable, which is why the numerator change is
+    right). Porting the percentage across unchanged would tighten the trigger
+    by ~3.1 points of the limit without anyone deciding to.
+
+    Measured against the incident this whole plan exists to fix: peak
+    `shmem` 8313102336 (7.74 GiB) sat under the old 8.00 GiB line, but the same
+    moment as `memory.current` is ~8.17 GiB — over it. Rule 1 would have killed
+    the batch index that Rule 2 killed, and row 5 of the Test Plan would fail
+    for a new reason.
+
+    So the percentage moves with the numerator: the measurement becomes honest,
+    the trigger stays where it was actually calibrated."""
+    ANON_GAP = 459558912  # measured live: memory.current 2296066048 - shmem 1836507136
+    INCIDENT_PEAK_SHMEM = 8313102336  # the 19:40:12 restart's own log line
+    critical = LIMIT // 100 * int(_env()["CRITICAL_PERCENT"])
+
+    assert INCIDENT_PEAK_SHMEM + ANON_GAP < critical, (
+        "the incident's own peak crosses Rule 1's trigger once read as "
+        "memory.current: the consumer's index would be restarted again, by the "
+        "other rule"
+    )
+    # And the other direction — this is a recalibration, not a licence to
+    # loosen. The trigger must stay within a quarter-GiB of where the shmem
+    # -calibrated line effectively sat.
+    assert critical - ANON_GAP <= LIMIT // 100 * 50 + GIB // 4, (
+        "raised further than the anon offset justifies — that is a new "
+        "threshold, and it needs its own measurement"
+    )
 
 
 # --- behaviour ------------------------------------------------------------
@@ -191,7 +229,7 @@ def run_script(tmp_path):
         'case "$*" in\n'
         '  *"get pods"*)  echo "$FAKE_POD" ;;\n'
         '  *"exec"*)      [ -n "$FAKE_SHMEM" ] || exit 1\n'
-        '                 echo "$FAKE_SHMEM"; echo "$FAKE_LIMIT"\n'
+        '                 echo "$FAKE_SHMEM"; echo "$FAKE_CURRENT"; echo "$FAKE_LIMIT"\n'
         # The same exec scrapes the server's own /metrics, so the pool figure
         # and the activity figure describe one pod at one instant. There is no
         # CPU sample to stub any more, and deliberately so: it was a 10-second
@@ -227,6 +265,11 @@ def run_script(tmp_path):
         # same value is the "nothing has happened since the last tick" default.
         env.setdefault("FAKE_LAST_ACTIVITY", str(IDLE_ACTIVITY))
         env.update({k: str(v) for k, v in overrides.items()})
+        # memory.current defaults to the same value as shmem when a test does
+        # not care about the distinction — this is what every pre-phase-3 test
+        # implicitly assumed (Rule 1 used to compare shmem itself), so it
+        # keeps every existing scenario's Rule 1 outcome unchanged.
+        env.setdefault("FAKE_CURRENT", env.get("FAKE_SHMEM", ""))
         proc = subprocess.run(
             ["bash", "-euo", "pipefail", str(script)],
             capture_output=True, text=True, env=env, timeout=60,
@@ -393,6 +436,33 @@ def test_restarts_a_busy_server_once_the_pool_is_critical(run_script):
     )
     assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout
     assert "rollout restart" in calls
+
+
+def test_rule_one_triggers_on_memory_current_not_shmem(run_script):
+    """The kernel's OOM killer compares `memory.current` against
+    `memory.max`, not `shmem`. Measured live at baseline: shmem 1836507136,
+    memory.current 2296066048 -- a ~25% gap, very likely the "68% with no
+    watchdog action" #813 files as unexplained. `shmem` sits below the 50%
+    line here; `memory.current` sits above it."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(1.71 * GIB), FAKE_CURRENT=int(0.6 * LIMIT),
+        FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=1,
+    )
+    assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout, proc.stdout
+    assert "rollout restart" in calls
+
+
+def test_the_elevated_pool_is_still_measured_on_shmem(run_script):
+    """Rule 2 asks a different question than Rule 1: is the GPU POOL above its
+    post-boot baseline. `memory.current` running above `ELEVATED_BYTES` while
+    the pool itself (`shmem`) sits at baseline is nothing to reclaim -- Rule 2
+    must keep reading `shmem`, not the numerator Rule 1 now reads."""
+    proc, calls = run_script(
+        FAKE_SHMEM=int(1.71 * GIB), FAKE_CURRENT=int(3 * GIB),
+        FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=1,  # idle for decades
+    )
+    assert "rollout restart" not in calls, proc.stdout
+    assert "pool-at-baseline" in proc.stdout, proc.stdout
 
 
 def test_does_nothing_when_the_pool_is_at_baseline(run_script):

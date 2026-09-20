@@ -49,30 +49,31 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T23:08:33+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T23:08:35+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T23:08:37+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T23:08:40+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-19T23:08:43+00:00'
       note: null
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-19T23:08:45+00:00'
+      note: 'no-refactor-because: the distinction is now pinned by a test and stated
+        in the CRITICAL_PERCENT comment written in P3.T1.S3; nothing is duplicated.'
   completion:
-    at: null
+    at: '2026-09-19T23:09:50+00:00'
     note: null
     observed_prs: []
