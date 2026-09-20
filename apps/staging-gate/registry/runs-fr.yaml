@@ -1,0 +1,22 @@
+# staging-gate contract for runs-fr. Consumed by the Tekton staging-gate Pipeline.
+# Schema + field meanings: apps/staging-gate/README.md. Validated by
+# scripts/staging-gate/validate-contract.py.
+app: runs-fr
+sourceRepo: derio-net/runs-fr
+image: ghcr.io/derio-net/runs-fr
+chartRepo: https://github.com/derio-net/runs-fr.git
+chartPath: charts/runs-fr
+stagingApp: runs-fr-staging
+stagingValuesPath: apps/staging-gate/runs-fr/staging-values.yaml
+smokeImage: ghcr.io/derio-net/runs-fr-smoke
+smokeNamespace: runs-fr
+# The smoke Job's RBAC manifest, fetched pinned to the gated sha at run time.
+# {sha} is a literal placeholder — phase 9's run-smoke task substitutes it.
+smokeRbacUrl: https://api.github.com/repos/derio-net/runs-fr/contents/test/e2e/rbac.yaml?ref={sha}
+# The smoke Job's serviceAccountName inside the staging vCluster — created by
+# smokeRbacUrl's manifest (a ServiceAccount/Role/RoleBinding all named this).
+smokeServiceAccount: runs-fr-smoke
+# Promote records last-green — the runs-fr PROD wiring is a PAIRED FOLLOW-UP
+# (Authentik/Ingress/homepage) that doesn't exist yet (spec revision 2026-09-14).
+# promote writes {sha, image, pipelineRun, promotedAt} here; nothing else touches it.
+promotedRecordPath: apps/staging-gate/runs-fr/promoted.yaml

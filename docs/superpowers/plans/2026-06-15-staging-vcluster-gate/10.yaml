@@ -1,0 +1,40 @@
+schema_version: 2
+phase:
+  number: 10
+  title: Wire the runs-fr repository_dispatch trigger into github-listener
+  tag: agentic
+  depends_on:
+  - 8
+  - 9
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Trigger + HMAC secret + declared delivery path (TDD)
+  steps:
+  - id: P10.T1.S1
+    text: |
+      RED — extend `scripts/tests/test_staging_gate_manifests.py`: `apps/tekton/triggers/eventlistener-github.yaml` has a trigger `staging-gate-runs-fr` whose `github` interceptor uses secret `derio-net-github-webhook-secret`/`secret` with `eventTypes: [repository_dispatch]`; its CEL filter pins `body.repository.full_name == 'derio-net/runs-fr'` and `body.action == 'staging-gate'` and matches `client_payload.app` against `^[a-z0-9-]+$` and `client_payload.sha` against `^[a-f0-9]{7,40}$`; it binds `app`/`sha` from CEL-validated fields and references `staging-gate-template`. Also: `apps/tekton/manifests/externalsecret-derio-net-github-webhook-secret.yaml` exists (Infisical key `/derio-net/GITHUB_WEBHOOK_SECRET`). And run `scripts/tests/test_webhook_delivery_paths.py`. Expected NOW: FAIL.
+  - id: P10.T1.S2
+    text: |
+      GREEN — add the trigger (flow-style like its neighbours; set every defaulted per-item field explicitly — the array-freeze gotcha), the ExternalSecret (copy the derio-homelab one; comment names manual op `cicd-staging-gate-runs-fr-webhook`), a `webhooks.yaml` entry `{forge: github, scope: repo, target: derio-net/runs-fr, listener: github-listener, events: [repository_dispatch], serves: [staging-gate-runs-fr]}` with a note, and remove the "NOTE (manual P7)" block from `apps/staging-gate/tekton/triggers.yaml` (point to the trigger instead). Re-run → PASS, including `test_webhook_delivery_paths.py` and `test_tekton_ignore_rules_no_arrays.py`.
+  - id: P10.T1.S3
+    text: |
+      VERIFY — full `uv run --group dev pytest scripts/tests -q` green; `helm template apps/root` renders; `kubeconform -strict -ignore-missing-schemas` over the rendered root + `apps/staging-gate/tekton` + `apps/tekton/manifests` reports 0 invalid. ADMISSION GATE (mandatory): `kubectl apply --dry-run=server --validate=strict -f` on `apps/tekton/triggers/eventlistener-github.yaml`, the new ExternalSecret, and every `apps/staging-gate/tekton/*.yaml` — every object must report `created (server dry run)` (the Triggers webhook validates CEL expressions at admission, which no offline check does).
+state:
+  steps:
+    P10.T1.S1:
+      state: x
+      ticked_at: '2026-09-19T22:15:03+00:00'
+      note: null
+    P10.T1.S2:
+      state: x
+      ticked_at: '2026-09-19T22:15:06+00:00'
+      note: null
+    P10.T1.S3:
+      state: x
+      ticked_at: '2026-09-19T22:15:08+00:00'
+      note: null
+  completion:
+    at: '2026-09-19T22:15:14+00:00'
+    note: null
+    observed_prs: []

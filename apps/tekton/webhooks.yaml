@@ -21,7 +21,37 @@
 # in git. It is NOT yet reconciled against the live forges — a webhook deleted
 # by hand in Gitea would still pass. Closing that needs a verifier CronJob
 # (crowdsec-canary shape) comparing this file to the forge APIs; tracked as the
-# follow-up. Snapshotted while live reality matches, verified 2026-07-26.
+# follow-up. Most entries were snapshotted while live reality matched, verified
+# 2026-07-26 — the `derio-net/runs-fr` entry below is the one exception: it
+# documents a mechanism (a signed direct POST) that is not live until a
+# separate runs-fr-side change ships, so this file is currently ahead of
+# reality for that one entry. See its own note.
+#
+# A SECOND CLASS OF FAILURE (found 2026-09-20, P10 review Critical #1): a
+# `scope: repo`/`scope: org` entry can declare an event GitHub structurally
+# cannot deliver to that webhook type. `repository_dispatch` is **App-only**
+# per GitHub's webhook availability matrix
+# (docs.github.com/en/webhooks/webhook-events-and-payloads, checked
+# 2026-09-20) — a repository or organization webhook cannot subscribe to it at
+# all. `staging-gate-runs-fr` originally shipped exactly this: a correct
+# trigger, a correct-looking `scope: repo` declaration, and no way for it to
+# ever be reached, because no such webhook can exist.
+# `scripts/tests/test_webhook_delivery_paths.py` now asserts this at PR time.
+#
+# `scope:` values:
+#   repo / org    — a real forge webhook, scoped to one repo or a whole org.
+#                   Subject to GitHub's per-scope event restriction above.
+#   direct-post   — NOT a forge webhook. The sender (some CI workflow, agent,
+#                   or other process outside this repo's control) POSTs a
+#                   signed request straight to the listener URL, using the
+#                   same header/HMAC shape a forge webhook would send
+#                   (X-GitHub-Event/X-Gitea-Event + X-Hub-Signature-256), so
+#                   the trigger's `github`/`cel` interceptors validate it
+#                   identically either way and cannot tell the difference.
+#                   Because there is no webhook registration, GitHub's
+#                   per-scope event restriction does not apply — this is the
+#                   escape hatch for events like `repository_dispatch` that a
+#                   repo/org webhook can never carry.
 
 version: 1
 
@@ -167,6 +197,22 @@ webhooks:
     listener: github-listener
     events: [push, pull_request]
     serves: [agentic-stoa-cnc-frd-pr, agentic-stoa-main-sync, cnc-image-promotion]
+    note: >-
+      `cnc-image-promotion`'s github interceptor requires
+      `eventTypes: [repository_dispatch]`, which this scope-repo declaration
+      does NOT (and structurally cannot) cover — repository_dispatch is
+      App-only, same restriction as the direct-post note below. Discovered
+      pre-existing 2026-09-20 during the P10 review of the staging-gate plan
+      (not introduced by it): the live agentic-stoa/cnc-frd webhook carries
+      only [pull_request, push], and no cnc-image-promotion PipelineRun
+      exists in the retained window — this path looks dead, not merely
+      unreached. Left as a documented gap
+      (scripts/tests/test_webhook_delivery_paths.py
+      KNOWN_EVENT_COVERAGE_GAPS; journal:
+      docs/superpowers/journals/plans/2026-06-15-staging-vcluster-gate.md,
+      id=p10-discovery-cnc-image-promotion-unreachable) rather than silently
+      "fixed" by an unrelated plan. Follow-up: either retire
+      cnc-image-promotion or give it its own direct-post/App-webhook path.
 
   - forge: github
     scope: repo
@@ -191,3 +237,45 @@ webhooks:
     listener: github-listener
     events: [push, pull_request]
     serves: [agentic-stoa-main-sync]
+
+  - forge: github
+    scope: direct-post
+    target: derio-net/runs-fr
+    listener: github-listener
+    events: [repository_dispatch]
+    serves: [staging-gate-runs-fr]
+    note: >-
+      NOT a GitHub webhook — GitHub's availability matrix restricts
+      repository_dispatch to App webhooks, so a repo/org webhook for
+      derio-net/runs-fr subscribing to it cannot exist at all (P10 review
+      Critical #1; supersedes the original `scope: repo` shape, which was
+      wrong from the start rather than merely unwired). Instead, runs-fr's
+      own build.yml (GHA) POSTs the payload straight to
+      https://webhooks.hop.derio.net/ after both the app image and the smoke
+      image for a main-branch commit have published:
+        headers: X-GitHub-Event: repository_dispatch,
+                 X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the exact body>,
+                 Content-Type: application/json
+        body: {"action":"staging-gate","client_payload":{"app":"runs-fr",
+               "sha":"<short-sha>"},"repository":
+               {"full_name":"derio-net/runs-fr"}}
+      The github/cel interceptors on staging-gate-runs-fr cannot distinguish
+      this from a real GitHub-originated delivery — they only validate the
+      HMAC signature and the X-GitHub-Event header value, never the sender's
+      identity (see the Gitea-vs-GitHub interceptor gotcha in
+      docs/runbooks/frank-gotchas/tekton.md, which relies on the same
+      header-string-only behavior). Uses its OWN HMAC secret
+      (derio-net-github-webhook-secret), not the agentic-stoa or
+      derio-homelab ones, for the same per-org isolation reason as the
+      kid-laptops entry above; the SAME value must be set as the runs-fr
+      Actions secret FRANK_STAGING_GATE_WEBHOOK_SECRET. Created post-merge by
+      manual-op cicd-staging-gate-runs-fr-webhook (plan
+      2026-06-15-staging-vcluster-gate, phase 11) — declared here first as
+      desired state; runs-fr PR #42 (contents: write, for the now-abandoned
+      dispatch-API approach) is obsolete and should be closed. Journal
+      decision: d-delivery-gha-direct-post. EXPECTED DEGRADED WINDOW: merging
+      the derio-net-github-webhook-secret ExternalSecret makes tekton-extras
+      go (and stay) Degraded in ArgoCD until the manual op seeds the
+      Infisical value — nothing pages on it; see that ExternalSecret's own
+      comment. /derio-net must be a folder in the same Infisical project the
+      `infisical` ClusterSecretStore targets, not a sibling project.

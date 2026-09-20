@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://charts.loft.sh
+      chart: vcluster
+      targetRevision: "0.32.1"
+      helm:
+        releaseName: staging
+        valueFiles:
+          # Template first (base defaults), then instance overrides
+          - $values/apps/vclusters/template/values.yaml
+          - $values/apps/vclusters/staging/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: vcluster-staging
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data
+    # vCluster chart injects a vClusterConfigHash annotation and omits several
+    # StatefulSet fields that Kubernetes defaults (whenScaled, revisionHistoryLimit,
+    # updateStrategy). Ignoring those keeps the essential spec in sync.
+    - group: apps
+      kind: StatefulSet
+      name: staging
+      namespace: vcluster-staging
+      jsonPointers:
+        - /spec/template/metadata/annotations/vClusterConfigHash
+        - /spec/persistentVolumeClaimRetentionPolicy/whenScaled
+        - /spec/revisionHistoryLimit
+        - /spec/updateStrategy
