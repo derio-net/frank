@@ -397,3 +397,22 @@ GREEN: added an EXPECTED DEGRADED WINDOW paragraph to both apps/tekton/manifests
 ### p10-11-app-regex-deviation · decision · #11: shipped app regex is stricter than 10.yaml's text, deliberately (phase 10)
 
 10.yaml's prose describes the app-name regex as ^[a-z0-9-]+$. What shipped in the staging-gate-runs-fr CEL filter (and the plan-8-era resolve-contract validate-inputs step it mirrors) is ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ -- narrower: it additionally rejects a leading/trailing hyphen and a bare "-". This is the correct one to ship, not a bug: it is what makes the value a valid Kubernetes label value (staging-gate/app on the PipelineRun), which ^[a-z0-9-]+$ alone does not guarantee (a leading/trailing "-" is a valid match of the looser regex but an invalid label value). CEL and validate-inputs already agreed on the stricter form before this review; recording the mismatch against 10.yaml's prose as a deliberate deviation rather than leaving it to look like drift.
+
+<!-- fr:journal kind=finding scope=plan id=p10-minors created=2026-09-20T10:47:25 phase=10 state=fixed -->
+### p10-minors · finding [fixed] · P10 review minors #5-#12 (except #11, filed separately) -- all fixed (phase 10)
+
+#5 (CEL has() guards): staging-gate-runs-fr's filter now leads with has(body.client_payload) && has(body.client_payload.app) && has(body.client_payload.sha) && before any field access, so a malformed payload (missing client_payload, or missing app/sha inside it) fails as a clean CEL non-match instead of a cel evaluation error. New test_staging_gate_trigger_cel_filter_guards_client_payload_shape_first. Re-ran the admission dry-run against the edited EventListener afterward (see the admission-gate output in the executor's return) -- Triggers' webhook is the only thing that validates CEL at all.
+
+#6 (CEL clause-count): a substring check alone can't distinguish && from || or a spliced-in || true. New test_staging_gate_trigger_cel_filter_clause_count_cannot_be_weakened asserts no || appears and the && count is exactly 6 (3 has() guards + repo + action + app-shape + sha-shape = 7 clauses).
+
+#7 (ExternalSecret secretStoreRef): new test_staging_gate_webhook_secret_store_ref_is_the_infisical_cluster_secret_store asserts spec.secretStoreRef == {name: infisical, kind: ClusterSecretStore}.
+
+#8 (stale trigger count in bb8d0c5b4dc2): hand-edited "all 11 triggers" -> "all 12 triggers" (verified via yaml.safe_load against the live EventListener). Recorded as its own commit/journal note since fr journal add is a no-op on an existing id.
+
+#9 (webhooks.yaml header claims a snapshot that's no longer fully true): header now says "Most entries were snapshotted while live reality matched... the derio-net/runs-fr entry below is the one exception" and documents the new scope: direct-post / scope: repo-org distinction and the App-only-event failure class.
+
+#10 (manual-operations.yaml has zero entries for this plan): ran the /sync-runbook extraction+merge logic by hand (grep fenced # manual-operation blocks under docs/superpowers/plans/2026-06-15-staging-vcluster-gate/, dedent, parse, insert in the alphabetically-sorted cicd-layer position) -- all four phase-11 manual ops (cicd-staging-gate-register-vcluster, -runs-fr-webhook, -argocd-runs-fr-repo-key, -smoke-package-public) now appear in docs/runbooks/manual-operations.yaml with status: pending. Diff was purely additive (66 insertions, 0 deletions) -- did not re-dump the whole file (an earlier attempt via yaml.dump round-tripped and reformatted all 1700+ lines; reverted, replaced with a targeted text insertion).
+
+#12 (phantom-repo regex risk in test_webhook_delivery_paths.py): _triggers()'s repo-literal extraction is now context-restricted (_REPO_TOKEN_RE requires a preceding ==, !=, in, .startsWith(, `,` or `[` token) so a quoted string beside .matches( -- a CEL REGEX, not a repo name -- can never be misread as a phantom delivery-path requirement. Verified byte-identical output against the old unrestricted regex across every existing trigger before landing (no behavior change for real declarations).
+
+#11 filed separately as a decision: p10-11-app-regex-deviation.
