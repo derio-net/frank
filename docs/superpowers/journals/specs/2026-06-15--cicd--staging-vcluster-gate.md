@@ -15,6 +15,8 @@ Operator chose dedicated staging over reusing cnc-staging. Requires the argo-cd#
 
 runs-fr trigger-gate 403s (GITHUB_TOKEN contents:read). Operator chose: cross-repo runs-fr PR grants contents:write; a runs-fr GitHub webhook (repository_dispatch) with its own derio-net HMAC, declared in apps/tekton/webhooks.yaml, created by manual op.
 
+**SUPERSEDED 2026-09-20 by the plan-scope decision `d-delivery-gha-direct-post` (phase 10).** The webhook half of this decision is impossible, not merely unbuilt: GitHub's availability matrix restricts `repository_dispatch` to App webhooks, so no repository webhook can ever subscribe to it (docs.github.com/en/webhooks/webhook-events-and-payloads; corroborated live — agentic-stoa/cnc-frd's hook carries only [pull_request, push] behind a repository_dispatch trigger, derio-net/runs-fr has no hooks, and no cnc-image-promotion PipelineRun exists in the retained window). The operator re-decided: runs-fr's build.yml POSTs the signed payload straight to the listener, no webhook, and the `contents: write` grant (runs-fr PR #42) is no longer needed. Frank's trigger, CEL filter and HMAC ExternalSecret are unchanged by the switch.
+
 <!-- fr:journal kind=decision scope=spec id=d-test-plan created=2026-09-14T22:12:18 -->
 ### d-test-plan · decision · Test Plan: green + red, agent-driven post-merge
 
