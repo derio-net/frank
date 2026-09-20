@@ -29,9 +29,12 @@ the open decisions in one batched Q&A (journal:
 | The smoke image cannot be pulled | GHCR `runs-fr` is public, but `runs-fr-smoke` is private (an anonymous manifest fetch gets 403). A first push creates a package private | The operator makes `runs-fr-smoke` public (manual op), following Frank's public-package convention |
 | The red path needs a notification | #797's `layer-25-pipeline-failing` fires only on 3 or more failures with zero successes in 24h, so a single red run on a pipeline with green runs never alerts | A per-run `finally` Telegram notify. #797 remains the chronic-failure backstop |
 | The promote step has no target | Frank has no `apps/runs-fr`, and runs-fr was never deployed (`2026-06-14-stoa-frank-infra-design.md`) | **Promote records last-green**: it commits the blessed sha to `apps/staging-gate/runs-fr/promoted.yaml` (decision `d-promote-last-green`) |
+| The declared `repository_dispatch` webhook cannot exist (P10 review Critical #1, 2026-09-20) | GitHub's webhook availability matrix (docs.github.com/en/webhooks/webhook-events-and-payloads) restricts `repository_dispatch` to **App** webhooks — a `derio-net/runs-fr` REPOSITORY webhook subscribing to it is impossible, not merely unwired. Live corroboration: `agentic-stoa/cnc-frd`'s hook carries `[pull_request, push]` although its `cnc-image-promotion` trigger filters `repository_dispatch`, and no such PipelineRun exists in the retained window — the same failure, already live and silent elsewhere | **No GitHub webhook is created.** runs-fr's own `build.yml` POSTs the signed payload straight to `https://webhooks.hop.derio.net/` (decision `d-delivery-gha-direct-post`, supersedes `d-dispatch-webhook`). The `github`/`cel` interceptors are unchanged — they validate purely by HMAC signature + `X-GitHub-Event` header value, never sender identity, so they cannot tell a direct POST from a real GitHub delivery. `webhooks.yaml` gains a first-class `scope: direct-post` declaration kind for this shape, plus two tripwire assertions that would have caught the original mistake (no `scope: repo`/`org` entry may claim a GitHub App-only event; every declaration's `events:` must cover its served trigger's real `eventTypes`) |
 
 Operator decisions: keep the **dedicated `staging` vCluster** (`d-dedicated-vcluster`); trigger
-via the **fixed `repository_dispatch` plus a per-repo webhook** (`d-dispatch-webhook`); the Test
+via a **signed direct POST from runs-fr's own GHA workflow, no GitHub webhook**
+(`d-delivery-gha-direct-post`, 2026-09-20, supersedes the original `d-dispatch-webhook` — a
+`repository_dispatch` webhook on a repository scope cannot exist); the Test
 Plan proves **green and red, driven by the agent after merge** (`d-test-plan`).
 
 Defaults chosen without asking, each following an existing pattern in the repo:
@@ -103,9 +106,11 @@ patterns.
 ```
 merge to main (app repo)
   → GHA: build ghcr.io/<app>:sha-<short> + <smokeImage>:sha-<short>
-  → GHA: repository_dispatch {event_type: staging-gate, client_payload: {app, sha}}
-  → GitHub webhook (repository_dispatch, HMAC) → webhooks.hop.derio.net → github-listener
-  → trigger staging-gate-<app>: github interceptor (HMAC) → CEL (repo, action, sha/app regex)
+  → GHA: sign + POST a repository_dispatch-shaped payload {action: staging-gate,
+         client_payload: {app, sha}} DIRECTLY to webhooks.hop.derio.net (no GitHub
+         webhook -- repository_dispatch is App-only; see Component 1) → github-listener
+  → trigger staging-gate-<app>: github interceptor (HMAC) → CEL (has() guards, repo,
+         action, sha/app regex)
   → Tekton staging-gate Pipeline:
       0. resolve-contract: read apps/staging-gate/registry/<app>.yaml
       1. bump-staging: image.tag → sha-<short> in the staging values (commit + push to frank)
@@ -122,8 +127,32 @@ merge to main (app repo)
 ### Component 1 — Per-commit image (app repo, GHA)
 
 An `on: push: branches: [main]` workflow builds `ghcr.io/<app>:sha-<short>` and the smoke image,
-then sends a `repository_dispatch`. For runs-fr this is `build.yml` (runs-fr#21). The
-`trigger-gate` job needs `permissions: contents: write` for the dispatch API call.
+then delivers a `repository_dispatch`-shaped notification to Frank. For runs-fr this is
+`build.yml` (runs-fr#21, plus the direct-POST follow-up below).
+
+**Delivery mechanism (revised 2026-09-20, P10 review Critical #1):** GitHub's webhook
+availability matrix restricts `repository_dispatch` to **App** webhooks — a repository webhook
+cannot subscribe to it — so the `trigger-gate` job cannot reach Frank via the GitHub
+`repository_dispatch` API + a repo webhook, the original June design. Instead `trigger-gate`
+builds the exact webhook payload itself and **POSTs it directly** to
+`https://webhooks.hop.derio.net/`:
+
+```
+POST https://webhooks.hop.derio.net/
+X-GitHub-Event: repository_dispatch
+X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the exact body, keyed by FRANK_STAGING_GATE_WEBHOOK_SECRET>
+Content-Type: application/json
+
+{"action":"staging-gate","client_payload":{"app":"runs-fr","sha":"<short-sha>"},"repository":{"full_name":"derio-net/runs-fr"}}
+```
+
+The `staging-gate-runs-fr` trigger's `github`/`cel` interceptors validate purely by HMAC
+signature and the `X-GitHub-Event` header value — never sender identity — so they cannot tell
+this from a real GitHub-originated delivery. This needs no special GHA permission: the job only
+needs the shared secret (`FRANK_STAGING_GATE_WEBHOOK_SECRET`, mirrored from Infisical
+`/derio-net/GITHUB_WEBHOOK_SECRET`) as a repo Actions secret and `curl`/`openssl` to sign the
+request — `permissions: contents: write` (the June design's fix for the dispatch-API's 403) is
+no longer needed, and runs-fr PR #42 that added it is obsolete.
 
 ### Component 2 — Staging vCluster + ArgoCD registration (frank)
 
@@ -146,13 +175,32 @@ then sends a `repository_dispatch`. For runs-fr this is `build.yml` (runs-fr#21)
   Telegram ExternalSecret.
 - `apps/tekton/triggers/eventlistener-github.yaml` gains a `staging-gate-runs-fr` trigger. Its
   `github` interceptor validates the HMAC from `derio-net-github-webhook-secret` for
-  `eventTypes: [repository_dispatch]`. Its CEL filter requires
+  `eventTypes: [repository_dispatch]`. Its CEL filter leads with `has()` guards on
+  `body.client_payload`/`.app`/`.sha` (P10 review #5 — a malformed payload fails as a clean
+  non-match instead of a CEL evaluation error), then requires
   `body.repository.full_name == 'derio-net/runs-fr'`, `body.action == 'staging-gate'`, and
-  `client_payload.app` / `client_payload.sha` matching `^[a-z0-9-]+$` / `^[a-f0-9]{7,40}$`
-  before either value reaches a task shell.
-- `apps/tekton/webhooks.yaml` declares the runs-fr `repository_dispatch` webhook serving that
-  trigger. `apps/tekton/manifests/` gains the `derio-net-github-webhook-secret` ExternalSecret,
-  a per-org HMAC following the derio-homelab precedent.
+  `client_payload.app` / `client_payload.sha` matching `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` /
+  `^[a-f0-9]{7,40}$` (a valid Kubernetes label value, not just `^[a-z0-9-]+$` — P10 review #11,
+  deliberate) before either value reaches a task shell. Neither the trigger, the CEL filter's
+  repo/action/shape logic, nor the ExternalSecret changed for the delivery-path revision below —
+  only what sends the request changed.
+- **`apps/tekton/webhooks.yaml` declares the delivery path as `scope: direct-post`, not a GitHub
+  webhook** (revised 2026-09-20, P10 review Critical #1 — see the Revision table). This is a
+  first-class declaration kind alongside `scope: repo`/`org`: it records that the sender (here,
+  runs-fr's own GHA workflow) POSTs a signed request straight to the listener, with no forge
+  webhook registered, so GitHub's per-scope event restriction does not apply to it. Two new
+  tripwire assertions in `scripts/tests/test_webhook_delivery_paths.py` guard the class of bug:
+  no `scope: repo`/`org` declaration may claim a GitHub App-only event (currently
+  `repository_dispatch`), and every declaration's `events:` must cover its served triggers'
+  actual interceptor `eventTypes`. The latter also surfaced a pre-existing, unrelated gap
+  (`agentic-stoa/cnc-frd` ↔ `cnc-image-promotion`, apparently dead — see the plan journal), left
+  as a documented exemption rather than silently fixed by this plan.
+  `apps/tekton/manifests/` gains the `derio-net-github-webhook-secret` ExternalSecret, a per-org
+  HMAC following the derio-homelab precedent, now shared with runs-fr's own
+  `FRANK_STAGING_GATE_WEBHOOK_SECRET` Actions secret instead of a GitHub webhook config. Merging
+  it leaves `tekton-extras` Degraded (ArgoCD's ExternalSecret health check) until the manual op
+  seeds the Infisical value — expected, undocumented before this revision, now noted on both the
+  ExternalSecret and the `webhooks.yaml` entry.
 - **Git writes** clone and push over HTTPS with `frank-gitops-push`.
 - **vCluster writes** (`run-smoke`, `reset`) fetch `vc-staging-gate` with the host
   ServiceAccount token, then operate with that kubeconfig.
@@ -182,7 +230,7 @@ resize.
 ## Walking-skeleton scope
 
 ```
-runs-fr main merge → GHA sha images → repository_dispatch → webhook → github-listener
+runs-fr main merge → GHA sha images → signed direct POST (no GitHub webhook) → github-listener
 → staging-gate → bump runs-fr-staging → ArgoCD deploys into the staging vCluster
 → in-cluster smoke GREEN → promoted.yaml records the sha (or RED → Telegram, record untouched)
 ```
