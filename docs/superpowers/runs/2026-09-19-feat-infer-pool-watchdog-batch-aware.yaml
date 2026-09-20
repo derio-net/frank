@@ -3,7 +3,7 @@ run: 2026-09-19-feat-infer-pool-watchdog-batch-aware
 workflow: fr-goal@1
 branch: feat/infer-pool-watchdog-batch-aware
 started: '2026-09-19T21:35:50+00:00'
-cursor: implement
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -27,8 +27,8 @@ steps:
 
       '
   implement:
-    state: running
-    at: '2026-09-20T09:00:57+00:00'
+    state: done
+    at: '2026-09-20T09:25:45+00:00'
     items:
       phase/1/implement-phase: done
       phase/1/review-phase: done
@@ -38,12 +38,16 @@ steps:
       phase/3/review-phase: done
       phase/4/implement-phase: done
       phase/4/review-phase: done
-      phase/5/implement-phase: running
+      phase/5/implement-phase: done
+      phase/5/review-phase: done
+      phase/6/implement-phase: done
+      phase/6/review-phase: done
     members:
     - implement-phase
     - review-phase
   deliver:
-    state: pending
+    state: running
+    at: '2026-09-20T09:26:15+00:00'
 accounting:
   phase/1/implement-phase:
     at: '2026-09-19T22:37:52+00:00'
@@ -87,3 +91,10 @@ accounting:
     handoff_chars: 6519
     spec_bytes: 19212
     plan_bytes: 29481
+  phase/6/implement-phase:
+    at: '2026-09-20T09:25:21+00:00'
+    journal_entries: 21
+    journal_lines: 239
+    handoff_chars: 31238
+    spec_bytes: 19212
+    plan_bytes: 29588
