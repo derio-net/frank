@@ -260,6 +260,7 @@ _PUBLIC_FRANK_ISSUES = {
     751,  # its follow-on, cited in #759's header
     759,  # the retrieval-store sidecar; `gbrain` is the codename IT uses, publicly
     793,  # the rerank batch guard — filed on frank, cited in its spec header
+    813,  # the pool-watchdog activity signal — filed on frank, cited in its spec header
 }
 
 _WINDOW = 120
