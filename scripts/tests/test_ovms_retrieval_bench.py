@@ -838,18 +838,35 @@ class _FailingRecorder(_Recorder):
 
 def _http_error(documents: int):
     """What an upstream `max_allowed_chunks` refusal looks like on the wire:
-    `std::runtime_error` -> `absl::InternalError` -> HTTP 500 with a message
-    naming the limit. See the spec's "The refusal is a 500, not a 4xx"."""
+    HTTP 400 with a message naming the limit.
+
+    MEASURED, not inferred. This fixture carried 500 until 2026-09-19, from the
+    source chain `std::runtime_error` -> `absl::InternalError` -> 500; the
+    MediaPipe graph wraps the failure before the HTTP layer and the observed
+    status is 400. The spec section that predicted 500 is annotated as
+    superseded; `docs/runbooks/frank-gotchas/igpu-dra.md` carries the body.
+
+    The exact value is deliberately NOT load-bearing for the code under test:
+    `_sweep_rerank` discriminates on `status is None` (a refusal carries the
+    server's status and leaves it serving; only a closed socket means the
+    process died), so it is correct for any non-2xx. That is why a fixture
+    encoding the wrong status passed for eight days — it was never asserting
+    the number, only the shape. Keep it truthful anyway: a fixture is the
+    nearest thing in the suite to a description of the real server.
+    """
     import email.message
     import io
     import urllib.error
 
     return urllib.error.HTTPError(
         "http://example.invalid:8000/v3/rerank",
-        500,
-        "Internal Server Error",
+        400,
+        "Bad Request",
         email.message.Message(),
-        io.BytesIO(b"Number of documents exceeds max_allowed_chunks"),
+        io.BytesIO(
+            b"Chunking failed: exceeding max_allowed_chunks after chunking "
+            b"limit: 64; actual: 100"
+        ),
     )
 
 
@@ -872,7 +889,7 @@ def _connection_refused(documents: int):
 @pytest.mark.parametrize(
     "error_factory",
     [_http_error, _remote_disconnected, _connection_refused],
-    ids=["http-500-refusal", "killed-server", "connection-refused"],
+    ids=["http-400-refusal", "killed-server", "connection-refused"],
 )
 def test_sweep_records_a_failure_and_continues_to_the_next_size(
     monkeypatch, error_factory
@@ -905,7 +922,7 @@ def test_sweep_records_the_refusal_status_and_body_verbatim(monkeypatch):
     sweep = bench._run_rerank_sweep(args)
     refused = sweep["results"][-1]
 
-    assert refused["status"] == 500
+    assert refused["status"] == 400
     assert "max_allowed_chunks" in refused["body"]
     assert "HTTPError" in refused["error"]
 
@@ -1221,7 +1238,7 @@ def test_main_in_sweep_mode_records_failures_and_still_exits_zero(
     assert code == 0
     results = json.loads(out.read_text())["sweep"]["results"]
     assert [r["ok"] for r in results] == [True, False]
-    assert results[-1]["status"] == 500
+    assert results[-1]["status"] == 400
 
 
 def test_main_in_sweep_mode_still_refuses_a_contradicted_arm(
@@ -1365,7 +1382,7 @@ def test_rerank_once_is_a_single_named_place_for_the_tolerance_logic(monkeypatch
         words=None,
     )
     assert record["documents"] == 4
-    assert record["status"] == 500
+    assert record["status"] == 400
     assert record["ok"] is False
     assert "max_allowed_chunks" in record["body"]
 
@@ -1450,7 +1467,7 @@ def test_a_refusal_does_not_wait_for_recovery(monkeypatch):
     sweep = bench._run_rerank_sweep(args)
 
     refused = sweep["results"][1]
-    assert refused["status"] == 500 and refused["ok"] is False
+    assert refused["status"] == 400 and refused["ok"] is False
     assert "recovery" not in refused
     assert probe.calls == []
 

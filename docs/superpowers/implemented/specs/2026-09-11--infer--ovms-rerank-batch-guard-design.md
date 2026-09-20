@@ -143,7 +143,27 @@ about how many documents a request may carry. `--num_streams` is likewise
 orthogonal: it is an OpenVINO plugin concurrency setting, and raising it would
 increase peak memory, not bound it.
 
-### The refusal is a 500, not a 4xx
+### The refusal is a 500, not a 4xx — SUPERSEDED BY MEASUREMENT, 2026-09-19
+
+> **This section's conclusion is wrong, and the reasoning below is kept because
+> the way it is wrong is the useful part.** Measured against the deployed
+> server on 2026-09-19, an over-cap rerank returns HTTP **400**, with the limit
+> named in the body:
+>
+> ```
+> HTTP 400  Chunking failed: exceeding max_allowed_chunks after chunking limit: 64; actual: 100
+> ```
+>
+> That also matches this plan's own Test Plan row 6 ("HTTP 400 in 7 ms"), which
+> recorded the observed value at the time and was never reconciled against this
+> section — so the plan contradicted itself for eight days without anything
+> failing.
+>
+> The chain below (`std::runtime_error` → `absl::InternalError` → 500) is
+> accurate as far as it goes; the MediaPipe graph wraps the failure before it
+> reaches the HTTP layer. **Assert 400.** The lesson is not that the inference
+> was sloppy — it was careful, sourced and specific — but that nobody sent the
+> request. See `docs/runbooks/frank-gotchas/igpu-dra.md`.
 
 The issue asked for "4xx rather than taking the process down". Upstream gives
 the first half but not, apparently, the second. Every guard above raises
@@ -576,7 +596,7 @@ first-push-is-private trap does not apply.
 | 3 | `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- cat /models/bge-reranker-v2-m3/graph.pbtxt` | carries both `max_allowed_chunks` and `max_position_embeddings` at the chosen values |
 | 4 | `GET /v1/config` | both servables `AVAILABLE` — the new fields did not break loading |
 | 5 | `POST /v3/rerank`, 50 documents × 200 words | **200**, with latency recorded |
-| 6 | `POST /v3/rerank`, `N+1` documents | a response, not a closed socket; status code and body **recorded verbatim** (500 expected, not asserted) |
+| 6 | `POST /v3/rerank`, `N+1` documents | a response, not a closed socket; status code and body **recorded verbatim** (**observed 400** — the "500 expected" this row originally carried was superseded by measurement, see the note above) |
 | 7 | Immediately after 6: `POST /v3/rerank`, 3 × 50 | **200** — the server survived the refusal |
 | 8 | `kube_pod_container_status_restarts_total` across 5–7 | unchanged |
 | 9 | Rerank one document long enough to chunk at `T` | scores still well-separated (not the degenerate 1e-9..1e-12 pattern), gap 4 |
