@@ -367,3 +367,55 @@ def test_frank_gotchas_hot_file_carries_the_rerank_guard_one_liner():
         "cap' leaves the next reader without the one fact that explains why a "
         "restart fixes it: " + line.strip()[:160]
     )
+
+
+# --- the usage metric must be the GRAPH counter -----------------------------
+
+_USAGE_SECTION = "Is anything actually using the retrieval tier?"
+
+
+def _usage_section() -> str:
+    text = IGPU_DRA.read_text(encoding="utf-8")
+    start = text.index(_USAGE_SECTION)
+    nxt = text.find("\n### ", start + 1)
+    return text[start : nxt if nxt != -1 else len(text)]
+
+
+def test_usage_queries_use_the_graph_counters():
+    """`ovms_requests_success` is the WRONG metric for these servables.
+
+    Both retrieval models are MediaPipe graphs, and for a graph servable the
+    per-request accounting lives under accepted / responses / graph_error.
+    `ovms_requests_success` on these models counts KServe `ModelReady` — the
+    readiness probe — so it climbs every 10 seconds forever and reads as heavy
+    use on a completely idle server.
+
+    This is not hypothetical: it is what the first version of this section
+    documented, and it would have answered the one question the metric was
+    added to answer with the probe count instead.
+    """
+    section = _usage_section()
+    for metric in ("ovms_requests_accepted", "ovms_graph_error"):
+        assert metric in section, (
+            f"the usage section does not mention {metric}, which is where a "
+            "MediaPipe-graph servable actually counts requests"
+        )
+
+
+def test_the_usage_section_warns_off_requests_success():
+    """Naming the right metric is not enough — the wrong one looks right.
+
+    Anyone reaching for "how many requests succeeded?" will try
+    `ovms_requests_success` first. The section has to say, explicitly, that it
+    answers about the readiness probe on these models.
+    """
+    section = _usage_section().lower()
+    assert "ovms_requests_success" in section, (
+        "the section must NAME the misleading metric — a reader who does not "
+        "see it mentioned will reach for it"
+    )
+    assert "modelready" in section or "readiness probe" in section, (
+        "the section names ovms_requests_success but never says what it "
+        "actually counts on these servables (KServe ModelReady, the readiness "
+        "probe) — so the warning does not land"
+    )

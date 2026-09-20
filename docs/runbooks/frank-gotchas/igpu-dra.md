@@ -227,27 +227,49 @@ a margin around a process.
 ### Is anything actually using the retrieval tier?
 
 Ask the metric, not the graphs. OVMS runs with `--metrics_enable` and is
-scraped by `apps/ovms-retrieval/manifests/vmservicescrape.yaml`:
+scraped by `apps/ovms-retrieval/manifests/vmservicescrape.yaml`.
 
-```promql
-# requests served, per servable, over the last day
-sum by (name) (increase(ovms_requests_success[1d]))
+**Use the GRAPH counters, not `ovms_requests_success`.** Both retrieval
+servables are MediaPipe graphs (`embeddings_ov` / `rerank_ov`), and for a graph
+servable the per-request accounting lives under `accepted` / `responses` /
+`graph_error`. `ovms_requests_success` on these models counts **KServe
+`ModelReady`** — the readiness probe — so it climbs every 10 seconds forever
+and reads as heavy use on a completely idle server. Verified live 2026-09-19:
+four rerank calls (three good, one refused) produced
 
-# guard refusals — an oversized batch being turned away
-sum by (name) (increase(ovms_requests_fail[1d]))
-
-# anything in flight right now
-sum(ovms_current_requests)
+```
+ovms_requests_accepted{api="V3",method="Unary",name="bge-reranker-v2-m3"}  4
+ovms_responses{api="V3",method="Unary",name="bge-reranker-v2-m3"}          3
+ovms_graph_error{api="V3",method="Unary",name="bge-reranker-v2-m3"}        1
+ovms_requests_success{api="KServe",method="ModelReady",...}               12   <- the PROBE
 ```
 
-**Why this exists.** Before the flag was set, `/metrics` answered 400 and the
-only usage signal was `container_cpu_usage_seconds_total` and
+```promql
+# real requests, per servable, over the last day
+sum by (name) (increase(ovms_requests_accepted{api="V3"}[1d]))
+
+# how many succeeded
+sum by (name) (increase(ovms_responses{api="V3"}[1d]))
+
+# guard refusals — an oversized batch turned away
+sum by (name) (increase(ovms_graph_error{api="V3"}[1d]))
+
+# latency
+histogram_quantile(0.95, sum by (le,name) (rate(ovms_graph_processing_time_us_bucket[1h])))
+```
+
+This is the same shape as the `/v2/health/ready` trap above: a MediaPipe-graph
+servable does not behave like a classic model, and the metric that *looks*
+right is the one that answers about something else.
+
+**Why any of this exists.** Before the flag was set, `/metrics` answered 400
+and the only usage signal was `container_cpu_usage_seconds_total` and
 `container_memory_working_set_bytes` — so "is anyone calling this?" had to be
 inferred from graph shapes. That is how the whole #793 investigation had to
-proceed, and after the fix shipped the endpoint served nothing for four days
-in a way that was **indistinguishable from a downstream client that had
-stopped calling**. That client fails open silently, so nothing else would have
-reported it either.
+proceed, and after the fix shipped the endpoint served nothing for four days in
+a way that was **indistinguishable from a downstream client that had stopped
+calling**. That client fails open silently, so nothing else would have reported
+it either.
 
 **An idle retrieval tier is normal here** — five-day quiet stretches are in the
 measured record — so there is deliberately no alert on zero traffic. The point
