@@ -2826,6 +2826,70 @@ data:
               summary: "Headscale API-key expiry heartbeat stale: no checker result from Hop in 3h, so silent credential expiry is unmonitored."
               runbook: "On Hop, check kubectl -n headscale-system get cronjob,jobs,pods -l app.kubernetes.io/name=headscale-api-key-expiry and inspect the latest Job logs."
 
+      # The ovms-retrieval pool-watchdog CronJob (apps/ovms-retrieval/manifests/
+      # pool-watchdog.yaml) restarts the Deployment when the iGPU's pinned
+      # shmem pool crosses a critical threshold. On 2026-09-19 it restarted
+      # five times in sixteen minutes and nothing paged — the incident was
+      # found only by a downstream consumer noticing its job had died. After
+      # the idle-clock stamping fix (see the watchdog script) the design bound
+      # is one hygiene restart per 30 minutes, so three in that window is
+      # unambiguous. Frank's VictoriaLogs message field is `_msg`, NOT Hop's
+      # `log:` (see the alert-agent-cred-expiry comment above — copying Hop's
+      # shape here would return zero forever). `for: 0s` is deliberate: the
+      # 30-minute lookback already supplies the smoothing, and a `for:` on top
+      # would only delay a signal that is already integrated. The query filters,
+      # so zero restarts is NoData, not a zero row -> noDataState: OK lets the
+      # rule resolve through it instead of getting stuck unable to clear.
+      # ROUTING, stated precisely because an earlier draft of this comment got
+      # it wrong: severity=warning matches the Telegram route in
+      # notification-policy-cm.yaml BEFORE the grafana_folder="feature-health"
+      # route, and that Telegram route carries continue: true — so this alert
+      # reaches Telegram AND health-bridge. That is deliberate and is the
+      # folder's plurality (22 of 49 feature-health rules are warning with no
+      # suppression label). It is also the point: this rule exists because five
+      # restarts in sixteen minutes paged nobody. Health-bridge-only would need
+      # an explicit health_bridge_only="true" label, as four rules in this
+      # folder carry; it is NOT the folder default, and the folder has no such
+      # default for warnings.
+      # Spec: docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+      - orgId: 1
+        name: ovms-pool-watchdog
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: ovms-pool-watchdog-restart-loop
+            title: OVMS pool-watchdog restart loop
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:retrieval AND _msg:"pool-watchdog result" AND _msg:"action=restart" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [2] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: warning
+            annotations:
+              summary: "ovms-retrieval pool-watchdog restarted the Deployment more than twice in 30 minutes. After the idle-clock fix this bound is one hygiene restart per 30m, so this is a loop, not routine hygiene — check for a caller sending real, sustained traffic that keeps re-tripping the critical threshold."
+              runbook: "kubectl -n retrieval logs cronjob/ovms-pool-watchdog --tail=50; kubectl -n retrieval get deploy ovms-retrieval; compare request volume via ovms_requests_accepted (NOT ovms_requests_success, which counts the readiness probe and moves whether or not a client exists) against the pool-watchdog's own result lines. Spec: docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md"
+
       # =====================================================================
       # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to
       # the AI Helper Webhook (added in phase 5). For now they route through

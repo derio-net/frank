@@ -70,30 +70,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-20T08:38:08+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-20T08:38:10+00:00'
       note: null
     P4.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-20T08:38:12+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-20T08:38:15+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-09-20T08:38:17+00:00'
       note: null
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-09-20T08:38:19+00:00'
+      note: 'no-refactor-because: a single scanning assertion with its exemptions
+        stated inline; nothing to extract'
   completion:
-    at: null
+    at: '2026-09-20T08:38:26+00:00'
     note: null
     observed_prs: []

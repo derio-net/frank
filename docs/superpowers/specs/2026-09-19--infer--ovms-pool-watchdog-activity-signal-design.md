@@ -276,8 +276,15 @@ Two details that are load-bearing rather than stylistic:
   forever. Validated against the live endpoint while writing this spec: the
   `stats_query` above returns a populated vector.
 
-Routing follows the folder convention — health-bridge, not `telegram_direct`.
-This is a degradation of a single feature, not a cluster pager.
+**Routing, corrected during implementation.** An earlier draft of this section
+said health-bridge only. That is not what `severity: warning` does here: the
+Telegram route in `notification-policy-cm.yaml` matches severity BEFORE the
+`grafana_folder="feature-health"` route and carries `continue: true`, so the
+alert reaches Telegram *and* health-bridge. Health-bridge-only would require an
+explicit `health_bridge_only="true"` label, which four rules in the folder
+carry and this one deliberately does not — 22 of the folder's 49 rules are
+warning-with-no-label, and the whole reason this rule exists is that five
+restarts in sixteen minutes paged nobody.
 
 ### 5. The repo's own "is the tier being used?" query is corrected
 

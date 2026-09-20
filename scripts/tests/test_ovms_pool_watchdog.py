@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import subprocess
 
 import pytest
@@ -32,6 +33,7 @@ import yaml
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST = REPO / "apps/ovms-retrieval/manifests/pool-watchdog.yaml"
+ALERT_RULES = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
 
 # Captured from the live server 2026-09-19, not hand-written: the whole point
 # of this signal is that the obvious series is the wrong one, and a fixture
@@ -630,3 +632,114 @@ def test_every_exit_path_emits_a_greppable_result_line(run_script):
     for kw in scenarios:
         proc, _ = run_script(**kw)
         assert "pool-watchdog result:" in proc.stdout, f"silent exit for {kw}"
+
+
+# --- Phase 4: the loop becomes visible -------------------------------------
+#
+# Nothing paged during five restarts in sixteen minutes on 2026-09-19; the
+# incident was found by the downstream consumer noticing its job had died.
+# These tests guard the feature-health rule that watches for exactly that,
+# plus the class of mistake that would make it silently useless (copying
+# Hop's `log:` field name onto Frank's own `_msg:`-keyed VictoriaLogs data).
+
+VICTORIALOGS_DATASOURCE_UID = "affdoo4s9258gc"
+
+# A `log:` (or any other) field selector, not preceded by a word character —
+# so it catches `AND log:"..."` but not a value string that merely contains
+# the substring "log:" and not Frank's own `_msg:` field (which ends in
+# "sg:", never "log:").
+_LOG_FIELD_SELECTOR = re.compile(r"(?<![\w])log:")
+
+# Deliberate exemptions, named individually with the reason inline (never a
+# silent skip). Headscale and CrowdSec run on Hop, not Frank; their events
+# reach Frank's VictoriaLogs via cross-cluster ingest through a *different*
+# fluent-bit pipeline that maps the message under the field `log`, not
+# Frank's own `_msg` — verified live (see the alert-agent-cred-expiry rule's
+# comment in alert-rules-cm.yaml): `_msg:"..."` matches nothing there,
+# `log:"..."` does. These are not copies of Hop's shape landing on Frank's
+# data by mistake; they are the correct field name for data that originates
+# on Hop.
+_HOP_LOG_FIELD_EXEMPTIONS = {
+    "headscale-api-key-expiry-warning": "queries Hop's headscale-system logs (cross-cluster ingest), which expose `log:` not `_msg:`",
+    "headscale-api-key-expiry-heartbeat-stale": "queries Hop's headscale-system logs (cross-cluster ingest), which expose `log:` not `_msg:`",
+    "crowdsec-decision-burst": "queries Hop's crowdsec-system logs (cross-cluster ingest), which expose `log:` not `_msg:`",
+    "crowdsec-canary-heartbeat-stale": "queries Hop's crowdsec-system logs (cross-cluster ingest), which expose `log:` not `_msg:`",
+}
+
+
+def _alert_groups() -> list[dict]:
+    cm = yaml.safe_load(ALERT_RULES.read_text(encoding="utf-8"))
+    inner = yaml.safe_load(cm["data"]["alert-rules.yaml"])
+    return inner["groups"]
+
+
+def _all_rules() -> list[tuple[dict, dict]]:
+    """Every (group, rule) pair across every folder in the CM."""
+    return [(group, rule) for group in _alert_groups() for rule in group["rules"]]
+
+
+def _rule_by_uid(uid: str) -> tuple[dict, dict]:
+    matches = [(g, r) for g, r in _all_rules() if r["uid"] == uid]
+    assert len(matches) == 1, f"expected exactly one rule with uid {uid!r}, found {len(matches)}"
+    return matches[0]
+
+
+def _query_model(rule: dict, ref_id: str = "A") -> dict:
+    return next(d["model"] for d in rule["data"] if d["refId"] == ref_id)
+
+
+def test_a_restart_loop_has_an_alert():
+    """A `feature-health` rule must count `action=restart` lines and alert
+    when they cluster, using Frank's own `_msg:` field (not Hop's `log:`),
+    `queryType: stats` (or Grafana's SSE reduce step rejects the long series
+    the default query type returns), and `noDataState: OK` (the query
+    filters, so zero restarts returns no rows rather than a zero — the rule
+    must resolve *through* NoData, not get stuck unable to clear)."""
+    group, rule = _rule_by_uid("ovms-pool-watchdog-restart-loop")
+    assert group["folder"] == "feature-health"
+
+    model = _query_model(rule)
+    expr = model["expr"]
+    assert "_msg:" in expr, f"must filter on Frank's own message field: {expr}"
+    assert not _LOG_FIELD_SELECTOR.search(expr), (
+        f"query uses Hop's log: field — on Frank's own VictoriaLogs this "
+        f"returns zero forever: {expr}"
+    )
+    assert model["queryType"] == "stats", (
+        "without queryType: stats the query returns a long series and "
+        "Grafana's SSE reduce step rejects it"
+    )
+    assert rule["noDataState"] == "OK", (
+        "the query filters, so zero restarts is NoData, not a zero row — "
+        "Alerting here would make the rule unable to ever resolve"
+    )
+
+
+def test_the_restart_loop_rules_uid_is_short_enough():
+    """A uid over 40 characters does not skip the rule — it fails Grafana's
+    provisioning as a unit and CrashLoops the whole container, taking every
+    dashboard, datasource and alert rule down with it (#797)."""
+    _, rule = _rule_by_uid("ovms-pool-watchdog-restart-loop")
+    assert len(rule["uid"]) <= 40, rule["uid"]
+
+
+def test_no_frank_logs_alert_rule_uses_hops_message_field():
+    """A tripwire scoped to the one rule that prompted it gives the
+    reassurance of coverage without the fact of it — this repo already
+    learned that lesson once, when an array-item `ignoreDifferences` guard
+    sat over a single file for months while a second instance of the same
+    freeze ran unguarded in production. Scan every VictoriaLogs-datasource
+    rule in the whole CM, not just the new one."""
+    hits = []
+    for _group, rule in _all_rules():
+        for datum in rule.get("data", []):
+            if datum.get("datasourceUid") != VICTORIALOGS_DATASOURCE_UID:
+                continue
+            expr = datum.get("model", {}).get("expr", "")
+            if _LOG_FIELD_SELECTOR.search(expr) and rule["uid"] not in _HOP_LOG_FIELD_EXEMPTIONS:
+                hits.append((rule["uid"], expr))
+    assert not hits, (
+        f"rule(s) filter on Hop's log: field against Frank's own "
+        f"VictoriaLogs, where it matches nothing, with no recorded "
+        f"exemption: {hits}"
+    )
