@@ -273,4 +273,9 @@ webhooks:
       2026-06-15-staging-vcluster-gate, phase 11) — declared here first as
       desired state; runs-fr PR #42 (contents: write, for the now-abandoned
       dispatch-API approach) is obsolete and should be closed. Journal
-      decision: d-delivery-gha-direct-post.
+      decision: d-delivery-gha-direct-post. EXPECTED DEGRADED WINDOW: merging
+      the derio-net-github-webhook-secret ExternalSecret makes tekton-extras
+      go (and stay) Degraded in ArgoCD until the manual op seeds the
+      Infisical value — nothing pages on it; see that ExternalSecret's own
+      comment. /derio-net must be a folder in the same Infisical project the
+      `infisical` ClusterSecretStore targets, not a sibling project.
