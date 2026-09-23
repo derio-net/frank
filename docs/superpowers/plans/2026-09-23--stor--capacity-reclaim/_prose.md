@@ -56,7 +56,7 @@ verify: |
   # storageScheduled on mini-1/mini-2 dropped by ~400 Gi each:
   kubectl -n longhorn-system get nodes.longhorn.io -o json | jq -r '.items[] | .metadata.name + " " + ([.status.diskStatus[].storageScheduled] | add / 1073741824 | floor | tostring)'
   kubectl -n ollama exec deploy/ollama -- ollama list
-status: pending
+status: done
 ```
 
 ```yaml
@@ -83,7 +83,7 @@ verify: |
   kubectl -n litellm get rollout litellm   # Healthy, 2/2
   kubectl -n litellm get pods              # 2 litellm pods + postgresql
   kubectl -n litellm get pod litellm-postgresql-0 -o jsonpath='{.spec.containers[0].resources}'
-status: pending
+status: done
 ```
 
 ```yaml
@@ -105,5 +105,5 @@ verify: |
   kubectl get ns | grep -E 'sympozium|ruflo|vcluster-experiments' || echo "namespaces gone"
   kubectl get crd | grep -c sympozium.ai    # 0
   kubectl -n longhorn-system get volumes.longhorn.io -o json | jq -r '.items[].status.kubernetesStatus.namespace' | grep -E 'ruflo|experiments|sympozium' || echo "volumes gone"
-status: pending
+status: done
 ```

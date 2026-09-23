@@ -374,3 +374,9 @@ The cascade does not reach what the Application never tracked:
 - resources owned by a *different* Application, e.g. IngressRoutes in `apps/traefik/manifests`, owned by `traefik-extras` (`prune: false`).
 
 Retiring an app means deleting its templates, merging, confirming the Application is gone, then sweeping those four categories. The 2026-09-23 retirement of Sympozium, Ruflo and vcluster-experiments did exactly this (manual-op `agents-retire-sympozium-ruflo-sweep`). Restoring one is a revert of the retirement commit plus re-seeding any SOPS secrets it used.
+
+**Trap: a chart with a pre-delete hook cannot be retired in the same commit that deletes its values file.** Before running `helm.sh/hook: pre-delete` hooks, ArgoCD re-renders the chart. A multi-source Application whose `valueFiles` point at `$values/apps/<app>/values.yaml` then fails with `open …/values.yaml: no such file or directory`. The Application sits in `DeletionError` with its `pre-delete-finalizer.argocd.argoproj.io` finalizers, and root's sync stays `Running`, waiting on it. This hit Sympozium on 2026-09-23; the other four retired apps had no hooks and went through. Two ways out:
+
+- **Order it:** delete the root template in one commit and the `apps/<app>/` directory in a later one, once the Application is gone.
+- **Recover:** render the chart from history, read what the hook does, and do that by hand. For Sympozium: scale the controller to 0, then strip finalizers from the `*.sympozium.ai` CRs; a few AgentRuns only accept the patch once the chart's webhook is gone. Then patch the Application's finalizers down to `resources-finalizer.argocd.argoproj.io` and the cascade finishes.
+
