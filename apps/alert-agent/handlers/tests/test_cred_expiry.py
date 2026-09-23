@@ -172,7 +172,7 @@ def test_run_prints_heartbeat_and_warns_when_expiring(wired, monkeypatch, capsys
     ce.run_cred_check(now_ms=NOW_MS)
     out = capsys.readouterr().out
     assert "cred-expiry-check" in out and "tier=soon" in out    # heartbeat printed
-    assert len(wired) == 1 and "expire" in wired[0].lower()      # warning sent
+    assert len(wired) == 2 and "expire" in wired[0].lower()      # warning + command sent
 
 
 def test_run_prints_heartbeat_no_warn_when_ok(wired, monkeypatch, capsys):
@@ -195,7 +195,7 @@ def test_run_missing_file_warns(wired, monkeypatch, capsys):
     monkeypatch.setattr(ce, "_read_cred", lambda: None)         # FileNotFound → None
     ce.run_cred_check(now_ms=NOW_MS)
     assert "tier=error" in capsys.readouterr().out
-    assert len(wired) == 1                                       # error → warns
+    assert len(wired) == 2                                       # error → warns (+ command)
 
 
 def test_read_cred_swallows_non_filenotfound(monkeypatch, tmp_path):
@@ -219,7 +219,7 @@ def test_run_out_of_range_epoch_is_error_not_crash(wired, monkeypatch, capsys):
     monkeypatch.setattr(ce, "_read_cred", lambda: '{"refreshTokenExpiresAt": 1e18}')
     ce.run_cred_check(now_ms=NOW_MS)                            # must NOT raise
     assert "tier=error" in capsys.readouterr().out
-    assert len(wired) == 1
+    assert len(wired) == 2                                       # warning + command
 
 
 def test_run_never_crashes_and_always_heartbeats_on_unexpected_error(wired, monkeypatch, capsys):
@@ -230,4 +230,42 @@ def test_run_never_crashes_and_always_heartbeats_on_unexpected_error(wired, monk
     ce.run_cred_check(now_ms=NOW_MS)                             # must NOT raise
     out = capsys.readouterr().out
     assert "cred-expiry-check" in out and "tier=error" in out   # heartbeat still emitted
-    assert len(wired) == 1                                       # and warned
+    assert len(wired) == 2                                       # and warned (+ command)
+
+
+# --- the re-login instruction is a copy-pastable command -----------------------
+
+# The old wording ("attach the agent tmux and run /login") gave no command, and
+# `tmux attach` lands in a LIVE driver session (alert-agent-digest / -surge), not a
+# login shell. The fix: every warning points at a follow-up message that holds ONLY
+# the command, so a long-press → Copy on Telegram yields exactly what to paste.
+
+def test_login_cmd_is_a_single_plain_line_into_the_agent_container():
+    cmd = ce.LOGIN_CMD
+    assert "\n" not in cmd
+    assert "<" not in cmd and ">" not in cmd and "&" not in cmd
+    assert cmd.startswith("kubectl exec -it -n alert-agent deploy/alert-agent -c agent -- ")
+    assert cmd.endswith("claude auth login")
+
+
+@pytest.mark.parametrize("creds", [_creds(7), _creds(3), _creds(1), _creds(0),
+                                   _creds(26, refresh_token=""), None])
+def test_every_warning_points_at_the_command_not_tmux(creds):
+    m = ce.evaluate_expiry(creds, NOW_MS).message
+    assert "tmux" not in m.lower()
+    assert "next message" in m.lower()
+
+
+@pytest.mark.parametrize("creds", [_creds(2), None])
+def test_run_sends_warning_then_bare_command(wired, monkeypatch, capsys, creds):
+    monkeypatch.setattr(ce, "_read_cred", lambda: creds)
+    ce.run_cred_check(now_ms=NOW_MS)
+    assert len(wired) == 2
+    assert "next message" in wired[0].lower()
+    assert wired[1] == ce.LOGIN_CMD                              # nothing else to trim
+
+
+def test_run_ok_sends_no_command(wired, monkeypatch, capsys):
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds(20))
+    ce.run_cred_check(now_ms=NOW_MS)
+    assert wired == []
