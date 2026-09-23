@@ -184,7 +184,6 @@ MIGRATED_RULES: dict[str, dict[str, str]] = {
     "layer-5-gpu-down": {"severity": "warning", "github_issue": "frank-ops#5"},
     "layer-6-gitops-down": {"severity": "critical", "github_issue": "frank-ops#6"},
     "layer-10-secrets-down": {"severity": "warning", "github_issue": "frank-ops#10"},
-    "layer-12-agents-down": {"severity": "warning", "github_issue": "frank-ops#12"},
     "layer-13-auth-down": {"severity": "critical", "github_issue": "frank-ops#13"},
     "layer-14-vcluster-down": {"severity": "warning", "github_issue": "frank-ops#14"},
     "layer-15-workflows-down": {"severity": "warning", "github_issue": "frank-ops#15"},
@@ -343,14 +342,14 @@ def test_every_feature_health_rule_declares_nodata_and_execerr_states():
 # above; this is the per-rule contract for the batch actually being changed.
 # ---------------------------------------------------------------------------
 
-# The eight rules whose namespaces contain no DaemonSet, so they keep a 5m
+# The seven rules whose namespaces contain no DaemonSet (eight until
+# layer-12-agents-down was retired with Sympozium on 2026-09-23), so they keep a 5m
 # `for:` (a DaemonSet reports replicas unavailable during any node drain, which
 # is why the DaemonSet-bearing namespaces get a longer window in a later phase).
 PHASE_2_UIDS: frozenset[str] = frozenset(
     {
         "layer-6-gitops-down",
         "layer-10-secrets-down",
-        "layer-12-agents-down",
         "layer-13-auth-down",
         "layer-14-vcluster-down",
         "layer-15-workflows-down",
@@ -473,7 +472,6 @@ def test_phase_2_rules_fire_when_replicas_are_unavailable_not_when_they_are_read
 PHASE_2_EXPECTED_FOR: dict[str, str] = {
     "layer-6-gitops-down": "10m",
     "layer-10-secrets-down": "5m",
-    "layer-12-agents-down": "5m",
     "layer-13-auth-down": "5m",
     "layer-14-vcluster-down": "10m",
     "layer-15-workflows-down": "5m",

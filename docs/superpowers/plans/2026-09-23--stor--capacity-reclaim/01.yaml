@@ -1,0 +1,65 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Retire idle apps and right-size the inference stack in git
+  tag: agentic
+  depends_on: []
+  acceptance: []
+  tracking_issue: null
+  tier: mechanical
+tasks:
+- number: 1
+  title: Retire Sympozium, Ruflo and vcluster-experiments
+  steps:
+  - id: P1.T1.S1
+    text: 'Delete the root templates and app directories for sympozium, sympozium-extras, ruflo, ruflo-db, vcluster-experiments and ns-vcluster-experiments. Root prunes and each Application carries resources-finalizer, so merge cascade-deletes their managed resources.
+
+      '
+  - id: P1.T1.S2
+    text: 'Remove the homepage tiles, Traefik IngressRoutes, Layer 12 Sympozium alert rule and doc/README/infrastructure references; tombstone the Ruflo Authentik provider and application with `state: absent`.
+
+      '
+- number: 2
+  title: Right-size LiteLLM and Ollama
+  steps:
+  - id: P1.T2.S1
+    text: 'LiteLLM Rollout replicas 5 → 2; add measured resources (2Gi request / 3Gi limit); raise litellm-postgresql to 256Mi / 768Mi.
+
+      '
+  - id: P1.T2.S2
+    text: 'Ollama requests 16Gi / 4 CPU → 4Gi / 1 CPU, limit unchanged.
+
+      '
+- number: 3
+  title: Validate
+  steps:
+  - id: P1.T3.S1
+    text: 'Render the changed charts, run the repo test suite, and validate this plan.
+
+      '
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-09-23T18:23:24+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-09-23T18:23:24+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-09-23T18:23:24+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-09-23T18:23:24+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-09-23T18:34:21+00:00'
+      note: litellm-helm 1.81.13 + ollama 1.50.0 rendered with new resources; scripts/tests 1010 passed (5 hugo files excluded); validate-agent-config OK
+  completion:
+    at: '2026-09-23T18:34:21+00:00'
+    note: git side complete; live ops in phase 2
+    observed_prs: []

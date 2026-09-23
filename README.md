@@ -53,11 +53,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
 | Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 4 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B), MoE flagship (Qwen3.6 35B-A3B, CPU-offloaded experts) |
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 12 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
-| Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
-| Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
+| Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for cluster UIs |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
 | Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM, with `paperclip-shell` sidecar (SSH+Mosh on `192.168.55.221`, ConfigMap-driven tool inventory) for 24/7 operator access |
-| Swarm Orchestrator | Ruflo (claude-flow + ruvocal) | Hybrid pod (ruvocal SSR + agent-shell-base sidecar), zero direct frontier-LLM keys, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 | Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
 | GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
@@ -108,17 +106,14 @@ frank/
 │   ├── ollama/values.yaml                       # Ollama LLM server on gpu-1
 │   ├── litellm/values.yaml + manifests/         # LiteLLM gateway + canary Rollout + analysis template
 │   ├── cert-manager/values.yaml                 # cert-manager for webhook TLS
-│   ├── sympozium/values.yaml                    # Sympozium agentic control plane
-│   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service, blue-green Rollout
 │   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
 │   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
 │   ├── vclusters/                               # Per-vCluster Helm values
 │   │   ├── template/values.yaml                 # Base config (SQLite, policies, sync)
-│   │   └── experiments/values.yaml              # First sandbox instance
+│   │   ├── staging/values.yaml                  # Staging-gate vCluster
+│   │   └── cnc-staging/values.yaml              # CNC staging vCluster
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
 │   ├── paperclip/manifests/                     # Paperclip Deployment + paperclip-shell sidecar, ConfigMap inventory, two PVCs, two LB Services
-│   ├── ruflo-db/values.yaml                     # Bitnami PostgreSQL (parked) for ruflo
-│   ├── ruflo/manifests/                         # Ruflo hybrid pod: ruvocal SSR + ruflo-shell sidecar, ConfigMap inventory, three PVCs, Traefik route
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
 │   ├── argo-rollouts/values.yaml               # Argo Rollouts controller (no traffic-router plugin — see building/19)
 │   ├── argo-rollouts-extras/manifests/          # Currently empty (cilium RBAC removed 2026-05-04)
@@ -204,7 +199,6 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Grafana | http://192.168.55.203 | 192.168.55.203 |
 | Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
-| Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
 | Gitea | http://192.168.55.209:3000 | 192.168.55.209 |
 | Zot OCI Registry | https://192.168.55.210:5000 | 192.168.55.210 |
 | Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
@@ -218,8 +212,6 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Secure Agent Pod (Mosh) | mosh + tmux persistent sessions — see [operating post](blog/content/docs/operating/14-secure-agent-pod/index.md#persistent-shells-with-mosh--tmux) | 192.168.55.219 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
 | Paperclip Shell (SSH+Mosh) | ssh agent@192.168.55.221 — mosh UDP 60000-60015 | 192.168.55.221 |
-| Ruflo Web UI | https://ruflo.cluster.derio.net | (via Traefik) |
-| Ruflo Shell (SSH+Mosh) | ssh agent@192.168.55.222 — mosh UDP 60016-60031 | 192.168.55.222 |
 | GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
 | GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
 | VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
@@ -272,23 +264,18 @@ argocd app list
 | litellm | litellm | Unified OpenAI-compatible API gateway |
 | litellm-extras | litellm | Model router config, ExternalSecret for API keys, canary Rollout + AnalysisTemplate |
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
-| sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
-| sympozium-extras | sympozium-system | PersonaPacks, Policies, ExternalSecret, LB Service, blue-green Rollout + AnalysisTemplate |
 | argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
 | argocd-notifications | argocd | Telegram bump alerts via webhook service (subscribes secure-agent-pod on-sync-running/succeeded) |
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
-| vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
 | paperclip | paperclip-system | Hybrid pod: Paperclip AI agent orchestrator (192.168.55.212:3100, 12Gi memory limit, defensive nvidia.com/gpu toleration) + paperclip-shell sidecar (`ghcr.io/derio-net/paperclip-shell`), ConfigMap-driven tool inventory, SSH+Mosh on 192.168.55.221 |
-| ruflo-db | ruflo-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 20Gi — parked (ruvocal at pinned SHA uses RVF JSON store, not Postgres) |
-| ruflo | ruflo-system | Hybrid pod: ruvocal SSR (`ghcr.io/derio-net/ruflo-server`) + agent-shell-base sidecar (`ghcr.io/derio-net/ruflo-shell`), 3 PVCs, web UI at `ruflo.cluster.derio.net`, SSH+Mosh on 192.168.55.222 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
 | vk-remote | agents | Self-hosted VK kanban API (PG 16 + ElectricSQL + Rust/Axum) + relay sidecar (vk.cluster.derio.net), Authentik SSO |
 | hermes-agent-shell | hermes-agent-shell | Standalone hermes agent shell on gpu-1 (SSH :22 + mosh UDP 60032-60047 on 192.168.55.226), BYOK → LiteLLM, home PVC |
-| argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM, blue-green for Sympozium) |
+| argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM) |
 | argo-rollouts-extras | argo-rollouts | Currently empty — held the broken Cilium plugin config + CiliumEnvoyConfig RBAC, both removed 2026-05-04 |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
 | n8n-01-postgresql | n8n-01 | Bitnami PostgreSQL 14.1.10 for n8n-01 |

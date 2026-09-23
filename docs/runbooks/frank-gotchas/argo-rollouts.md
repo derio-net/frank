@@ -70,3 +70,18 @@ Workarounds:
 - (c) AR `web` provider against `/health/readiness` (coarsest, doesn't catch model-routing regressions)
 
 Three-option tradeoff captured in `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`.
+
+
+## A canary pause never expires (2026-09-23)
+
+`pause: {}` with no duration is an operator gate with no timeout. The litellm Rollout (`apps/litellm/manifests/rollout.yaml`) paused at step 1 on 2026-07-25 for a config-only change (same image, new `checksum/config`) and stayed there for **60 days**. For that whole time 1 of 5 pods ran the new config and 4 ran the June config. The Service spread requests across both, ArgoCD showed `Synced/Healthy`, and no rule fired, because a paused Rollout is healthy by Argo's definition.
+
+It surfaced only in the 2026-09-23 capacity audit, as "why does an idle gateway run 5 pods?"
+
+**Check after every change to a Rollout-backed app:**
+
+```bash
+kubectl -n litellm get rollout litellm -o jsonpath='{.status.phase} step={.status.currentStepIndex}{"\n"}'
+```
+
+`Paused` means an operator decision is owed: smoke the canary pod by IP, then `kubectl argo rollouts promote litellm -n litellm --full`, or abort. See manual-op `infer-litellm-promote-after-rightsize`.

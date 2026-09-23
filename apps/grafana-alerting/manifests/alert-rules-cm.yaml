@@ -716,9 +716,6 @@ data:
       #     replicas, Rollout 5/5 ready. Excluded by DEPLOYMENT NAME rather than
       #     namespace on purpose, so an unrelated Deployment scaled to 0 in the
       #     litellm namespace is still caught.
-      #     (sympozium-apiserver's Rollout leaves scaleDown at the default
-      #     `never`, so its Deployment stays up and needs no exclusion — the
-      #     comment at the top of that file claiming otherwise is stale.)
       #
       # Coverage is not lost for the excluded three: ollama/comfyui are probed
       # end-to-end by the L11 litellm_chat and L16 comfyui_object_info blackbox
@@ -1840,63 +1837,6 @@ data:
             annotations:
               summary: "L11 Inference: LiteLLM chat-completion probe failing (Ollama-backed models unreachable)"
               runbook: "Check which workload holds gpu-1; probe_success{layer=11} in VMUI; kubectl -n ollama get deploy ollama"
-
-      # --- Layer 12 — Agentic Control Plane (frank-ops#12) ---
-      # Restricted to the Sympozium control-plane workloads. Sympozium also
-      # spawns developer-team-* Job pods that naturally end in NotReady
-      # (Completed) state — those are NOT a Layer 12 health signal.
-      # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
-      # kube_pod_status_ready fires forever on terminal-pod tombstones, of
-      # which this namespace is the repo's most prolific producer. Job pods are
-      # not owned by a Deployment, so they are now excluded by construction
-      # rather than by the pod-name regex. Threshold inverts lt 1 -> gt 0.
-      # Every workload here is a Deployment (`nats` included — it is not a
-      # StatefulSet on Frank), so there is no StatefulSet clause.
-      - orgId: 1
-        name: layer-12-agents-down
-        folder: feature-health
-        interval: 1m
-        rules:
-          - uid: layer-12-agents-down
-            title: Layer 12 Sympozium Down
-            condition: C
-            data:
-              - refId: A
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: P4169E866C3094E38
-                model:
-                  refId: A
-                  expr: |
-                    label_replace(
-                      label_replace(
-                        kube_deployment_status_replicas_unavailable{namespace="sympozium-system",deployment=~"sympozium-(apiserver|controller-manager|webhook|otel-collector)|nats"},
-                        "workload", "$1", "deployment", "(.*)"),
-                      "kind", "deployment", "", "")
-                  instant: true
-                  intervalMs: 1000
-                  maxDataPoints: 43200
-              - refId: B
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: __expr__
-                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
-              - refId: C
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: __expr__
-                model:
-                  refId: C
-                  type: threshold
-                  expression: B
-                  conditions:
-                    - evaluator: { type: gt, params: [0] }
-            noDataState: OK
-            execErrState: Error
-            for: 5m
-            labels:
-              severity: warning
-              github_issue: "frank-ops#12"
-            annotations:
-              summary: "L12 Sympozium: {{ $labels.kind }}/{{ $labels.workload }} has {{ $values.B.Value | printf \"%.0f\" }} replica(s) unavailable"
-              runbook: "kubectl -n sympozium-system rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n sympozium-system describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 13 — Unified Auth / Authentik (frank-ops#13) ---
       # Critical — losing Authentik breaks forward-auth for every SSO-protected service.

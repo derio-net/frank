@@ -65,7 +65,6 @@ EXEMPT: dict[str, str] = {
     # psql operation against the live database, never a ConfigMap edit.
     "apps/hermes-agent-shell/manifests:hermes-agent-shell": "profile.d shims read per-login (rolling evicts live sessions); gbrain initdb.d SQL read once at database initialisation, so rolling could not deliver a change anyway",
     "apps/paperclip/manifests:paperclip": "shell inventory/motd read per-login; rolling evicts live sessions",
-    "apps/ruflo/manifests:ruflo": "shell inventory/motd read per-login; rolling evicts live sessions",
     # n8n-01 mounts agent-session bootstrap/driver scripts, executed per session
     # launch rather than parsed at boot.
     "apps/n8n-01/manifests:n8n-01": "scripts executed per session launch, not parsed at boot",

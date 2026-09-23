@@ -20,7 +20,6 @@
 | Grafana | 192.168.55.203 | Cilium L2 LoadBalancer |
 | Infisical | 192.168.55.204 | Cilium L2 LoadBalancer |
 | LiteLLM Gateway | 192.168.55.206 | Cilium L2 LoadBalancer |
-| Sympozium Web UI | 192.168.55.207 | Cilium L2 LoadBalancer |
 | Gitea | 192.168.55.209 | Cilium L2 LoadBalancer (port 3000 HTTP, 2222 SSH) |
 | Zot OCI Registry | 192.168.55.210 | Cilium L2 LoadBalancer (port 5000 HTTPS) |
 | Authentik | 192.168.55.211 | Cilium L2 LoadBalancer (port 9000) |
@@ -34,8 +33,6 @@
 | Secure Agent Pod (Mosh) | 192.168.55.219 | Cilium L2 LoadBalancer (UDP 60000-60015) |
 | Traefik Ingress | 192.168.55.220 | Cilium L2 LoadBalancer |
 | Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
-| Ruflo Web UI | (via Traefik) | IngressRoute (ruflo.cluster.derio.net) |
-| Ruflo Shell (SSH+Mosh) | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
 | GitHub webhook receiver (Tekton github-listener) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
 | GoatCounter | 192.168.55.224 | Cilium L2 LoadBalancer (port 8080, public ingest via Hop) |
 | VictoriaLogs (LB) | 192.168.55.225 | Cilium L2 LoadBalancer (port 9428, cross-cluster ingest from Hop) |

@@ -6,24 +6,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # TODO ON NEXT IMAGE BUMP — chart-config improvements PR #210 discovered we
 # didn't have. Items 1–3 below are now shipped/resolved; the one remainder
-# before the next bump is item 1's `resources` requests/limits:
+# before the next bump was item 1's `resources` requests/limits (now shipped):
 #
 # 1. ✅ affinity SHIPPED 2026-06-06 (#478) — top-level `affinity:` block below
 #    requires amd64 on the pod template. Background: PR #210's final promote
 #    landed one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler
 #    tiebreaker — every prior amd64 placement was luck. T2 documented this in
 #    docs/agentic-discussion/2026-05-04--litellm-canary-for-real/terminal-2.md.
-#    STILL TODO: `resources` requests/limits — blocked on the dead Metrics
-#    API (#394; `kubectl top` unavailable). Verify numbers from
-#    VictoriaMetrics (container_memory_working_set_bytes / CPU rate for the
-#    litellm pods) before setting. Draft from PR #210:
-#
-#      resources:
-#        requests:
-#          cpu: 200m
-#          memory: 512Mi
-#        limits:
-#          memory: 1Gi
+#    ✅ `resources` SHIPPED 2026-09-23 (capacity audit) — see the
+#    top-level `resources:` block. Measured from VictoriaMetrics
+#    (container_memory_working_set_bytes): ~1.9 GiB per pod steady, 7-day
+#    peak ~1.95 GiB; CPU ~0.01 cores. PR #210's draft (512Mi request /
+#    1Gi limit) would have OOM-killed every pod — the image loads the full
+#    model catalogue + Prisma client at boot.
 #
 # 2. ✅ RESOLVED 2026-06-06 (#478) — the same top-level `affinity:` covers the
 #    PreSync migration Job: chart 1.81.13 templates `.Values.affinity` and
@@ -47,6 +42,16 @@
 # the multi-agent collaboration log at
 # docs/agentic-discussion/2026-05-04--litellm-canary-for-real/.
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Measured 2026-09-23: ~1.9 GiB working set per pod, peak ~1.95 GiB, ~0.01
+# cores. Before this block the pods requested nothing, so the scheduler saw
+# 0 of the 9.4 GiB they held.
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    memory: 3Gi
 
 image:
   repository: ghcr.io/berriai/litellm-database
@@ -280,3 +285,12 @@ postgresql:
       enabled: true
       size: 5Gi
       storageClass: longhorn
+    # The chart's default preset capped this at 192Mi, and a single 60-day
+    # aggregate over LiteLLM_SpendLogs OOM-killed it on 2026-09-23 (crash
+    # recovery, ~3s outage). Spend-log reports need working memory.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 768Mi
