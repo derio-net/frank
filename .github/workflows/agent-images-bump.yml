@@ -83,7 +83,7 @@ jobs:
           # sidecar images the official-Hermes migration adds (willikins#285);
           # both must be here so the bump covers them and Verify-coverage passes
           # once #616's manifests pin them.
-          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell"
+          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell"
 
           tag_exists() {
             local img="$1" sha="$2" out

@@ -12,8 +12,20 @@
 # Current design: replica-count canary (no traffic routing). The stable and
 # canary ReplicaSets share the chart's Service (litellm @ 192.168.55.206:4000),
 # so kube-proxy/Cilium endpoint selection distributes requests across the
-# union of pods proportional to pod count. With replicas=5, setWeight=20
-# → 1 canary + 4 stable; setWeight=50 → 3 canary + 2 stable.
+# union of pods proportional to pod count. With replicas=2, setWeight=20
+# and setWeight=50 each run 1 canary + 1 stable (Argo rounds the canary up to
+# at least one pod), so both pauses still give a real side-by-side window.
+#
+# Replicas 5 → 2 on 2026-09-23 (capacity audit): 5 pods × ~1.9 GiB working
+# set = 9.4 GiB on the minis for a gateway whose only steady traffic is the
+# 1/min blackbox probe (~10 real requests in 14 days). Two keeps a pod
+# serving through a node drain.
+#
+# A pause is INDEFINITE — nothing expires it. The 2026-07-25 config change
+# sat at the first pause for 60 days, so 4 of 5 pods served the June config
+# the whole time while ArgoCD showed Synced. After any litellm change, check
+# `kubectl -n litellm get rollout litellm -o jsonpath='{.status.phase}'`
+# and promote or abort; `Paused` is never a resting state.
 #
 # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
 # scaleDown: onsuccess — controller scales the Deployment to 0 the moment
@@ -24,8 +36,8 @@
 # prevents ArgoCD from fighting the controller's scale-down.
 #
 # Canary steps:
-#   20% (1/5 pods) → manual pause → operator promote →
-#   50% (3/5 pods) → manual pause → operator promote →
+#   20% (1/2 pods) → manual pause → operator promote →
+#   50% (1/2 pods) → manual pause → operator promote →
 #   100% (full promotion)
 #
 # Metric-gated analysis is currently DISABLED. The original design referenced
@@ -53,7 +65,7 @@ metadata:
   name: litellm
   namespace: litellm
 spec:
-  replicas: 5
+  replicas: 2
   workloadRef:
     apiVersion: apps/v1
     kind: Deployment

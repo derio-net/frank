@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Live operations — model-store replicas, rollout promotion, retirement sweep
+  tag: manual
+  depends_on:
+  - 1
+  acceptance: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Collapse the model stores to one replica on gpu-1
+  steps:
+  - id: P2.T1.S1
+    text: 'Run manual-op `stor-model-stores-single-replica` (can run before merge).
+
+      '
+- number: 2
+  title: After merge
+  steps:
+  - id: P2.T2.S1
+    text: 'Run manual-op `infer-litellm-promote-after-rightsize` — smoke the new canary by pod IP, then promote fully.
+
+      '
+  - id: P2.T2.S2
+    text: 'Run manual-op `agents-retire-sympozium-ruflo-sweep` — delete the resources ArgoCD does not own (leftover IngressRoutes, PVCs, namespaces, Sympozium CRDs).
+
+      '
+  - id: P2.T2.S3
+    text: 'Regenerate the capacity audit and confirm Longhorn scheduled on mini-1/mini-2 dropped by ~490 Gi each.
+
+      '
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

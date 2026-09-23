@@ -56,11 +56,6 @@
         href: https://litellm.cluster.derio.net
         description: LLM proxy and gateway
         siteMonitor: http://litellm.litellm:4000
-    - Sympozium:
-        icon: element
-        href: https://sympozium.cluster.derio.net
-        description: Matrix chat client
-        siteMonitor: http://sympozium-apiserver.sympozium-system:8080
     - n8n:
         icon: n8n
         href: https://n8n.cluster.derio.net
@@ -86,11 +81,6 @@
         href: https://vk.cluster.derio.net
         description: VibeKanban self-hosted kanban board
         siteMonitor: http://vk-remote.agents:8081
-    - Ruflo:
-        icon: mdi-account-group-outline
-        href: https://ruflo.cluster.derio.net
-        description: Ruvocal multi-agent orchestrator
-        siteMonitor: http://ruflo-web.ruflo-system:80
     - Hermes:
         icon: mdi-brain
         href: https://hermes.cluster.derio.net

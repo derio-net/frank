@@ -358,3 +358,19 @@ kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.resource\.exclusions}'
 - Do not "fix" this by removing `Endpoints` from the exclusions. ArgoCD would then track every controller-managed Endpoints object in the cluster, which is the churn the default exists to avoid.
 - `scripts/tests/test_etcd_scrape.py::test_no_git_manifest_is_a_kind_argocd_silently_drops` parses the exclusion list and fails any `apps/*/manifests` document of an excluded kind. `test_the_etcd_scrape_depends_on_no_kind_argocd_excludes` fails any victoria-metrics `kube*` block that supplies `endpoints:`.
 
+
+## Removing a root template cascades — `prune: false` is per-app, not global (2026-09-23)
+
+The repo convention is `prune: false` on every *leaf* Application, and that is why deleting a manifest inside an app removes nothing (see the frank.derio.net retirement entry). The `root` App-of-Apps is the exception: it runs `prune: true`. Every child Application template also sets `finalizers: [resources-finalizer.argocd.argoproj.io]`. So deleting `apps/root/templates/<app>.yaml` causes:
+
+1. root prunes the Application CR;
+2. the finalizer makes ArgoCD delete every resource that Application tracks, before the CR goes away.
+
+The cascade does not reach what the Application never tracked:
+
+- PVCs created from StatefulSet `volumeClaimTemplates` (e.g. `ruflo-db`, the vCluster's `data-*`);
+- namespaces created by `CreateNamespace=true`;
+- CRDs installed by the chart (Sympozium's `*.sympozium.ai`), plus any cluster-scoped leftovers that hooks created;
+- resources owned by a *different* Application, e.g. IngressRoutes in `apps/traefik/manifests`, owned by `traefik-extras` (`prune: false`).
+
+Retiring an app means deleting its templates, merging, confirming the Application is gone, then sweeping those four categories. The 2026-09-23 retirement of Sympozium, Ruflo and vcluster-experiments did exactly this (manual-op `agents-retire-sympozium-ruflo-sweep`). Restoring one is a revert of the retirement commit plus re-seeding any SOPS secrets it used.

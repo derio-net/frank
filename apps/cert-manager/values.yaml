@@ -1,10 +1,11 @@
 # cert-manager — X.509 certificate management for Kubernetes
-# Required by Sympozium for admission webhook TLS
+# Issues zot-tls (selfsigned-issuer). Originally installed for Sympozium
+# (retired 2026-09-23).
 # Deployed as Phase 11 prerequisite
 
 # Install CRDs with the chart
 crds:
   enabled: true
 
-# Minimal install — just webhook TLS for Sympozium
+# Minimal install — a self-signed ClusterIssuer for in-cluster TLS
 # No additional issuers or certificates configured

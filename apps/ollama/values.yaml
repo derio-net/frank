@@ -83,10 +83,15 @@ tolerations:
 nodeSelector:
   kubernetes.io/hostname: gpu-1
 
+# Requests lowered 16Gi/4 CPU → 4Gi/1 CPU on 2026-09-23 (capacity audit):
+# the model runs on the GPU, so steady CPU is ~0.001 cores and the ~15 GiB
+# "resident" figure is mostly reclaimable page cache of the mmapped model
+# blobs. The 64Gi LIMIT stays — CPU offload of qwen3.6:35b-a3b (MoE, ~39%
+# on CPU) genuinely needs the headroom when it is loaded.
 resources:
   requests:
-    memory: 16Gi
-    cpu: 4000m
+    memory: 4Gi
+    cpu: 1000m
   limits:
     memory: 64Gi
 
