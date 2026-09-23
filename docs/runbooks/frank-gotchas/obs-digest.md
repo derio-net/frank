@@ -512,7 +512,10 @@ you blanked out.**
 says ✓ over a blank credential. That lives in the `agent-images` repo, not here.
 
 **Recovery** is the usual re-login — manual op `obs-alert-agent-claude-login`
-(attach the agent tmux in the `agent` container, run `/login`). The fix makes the
+(`kubectl exec -it -n alert-agent deploy/alert-agent -c agent -- claude auth login`;
+the warning sends this command as its own Telegram message). Do not `tmux attach`
+for this: it lands in a live driver session (`alert-agent-digest` / `-surge`), not
+a login shell. The fix makes the
 *next* occurrence page within a day instead of being noticed by a human wondering
 why the bot got terse.
 

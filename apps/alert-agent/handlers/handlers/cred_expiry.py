@@ -8,7 +8,9 @@ The agent's login credential (`/home/agent/.claude/.credentials.json`, on the
   - ALWAYS prints a `cred-expiry-check …` heartbeat line to stdout → supercronic →
     VictoriaLogs, watched by a Grafana dead-man rule (checker-died backstop);
   - sends a plain-text Telegram warning (via `tg_bridge.bridge.tg_send`) when the
-    token is <=7 days from expiry, escalating at <=3 / <=1 / expired.
+    token is <=7 days from expiry, escalating at <=3 / <=1 / expired, followed by a
+    second message holding ONLY the re-login command (`LOGIN_CMD`), so a long-press →
+    Copy on Telegram yields exactly what to paste.
 
 `evaluate_expiry` is a pure function (unit-tested); `run_cred_check` is the thin
 runner the bin wrapper calls.
@@ -26,6 +28,13 @@ from tg_bridge import bridge
 
 CRED_PATH = os.environ.get("CRED_PATH", "/home/agent/.claude/.credentials.json")
 DAY_MS = 86_400_000
+
+# The re-login command, sent as its own message. `claude auth login` is the non-TUI
+# login; do NOT point at `tmux attach` — that lands in a live driver session
+# (alert-agent-digest / -surge), not a login shell. Plain text: no < > &.
+LOGIN_CMD = "kubectl exec -it -n alert-agent deploy/alert-agent -c agent -- claude auth login"
+_RELOGIN = ("run the command in the next message from a machine with Frank kubectl "
+            "access, then open the printed URL and finish the login")
 
 
 @dataclass
@@ -59,23 +68,23 @@ def _message(tier: str, days_left: int | None, exp_iso: str | None,
             return ("alert-agent Claude credential has a BLANK refresh token "
                     f"(at {CRED_PATH}) — the token clock still looks healthy but claude "
                     "cannot authenticate, so the command-and-control bot is dead and every "
-                    "DM falls back to the deterministic snapshot. Re-login now: attach the "
-                    "agent tmux and run /login.")
+                    "DM falls back to the deterministic snapshot. Re-login now: "
+                    f"{_RELOGIN}.")
         return ("alert-agent credential check FAILED to read a valid Claude token "
-                f"(at {CRED_PATH}). Re-login may be needed: attach the agent tmux and run /login.")
+                f"(at {CRED_PATH}). Re-login may be needed: {_RELOGIN}.")
     when = f" (expires {exp_iso})" if exp_iso else ""
     if tier == "expired":
         return (f"alert-agent Claude token EXPIRED{when}. The command-and-control bot "
-                "is or will be dead. Re-login now: attach the agent tmux and run /login.")
+                f"is or will be dead. Re-login now: {_RELOGIN}.")
     if tier == "urgent":
         return (f"alert-agent Claude token expires in {days_left} day{when}. "
-                "Re-login today: attach the agent tmux and run /login.")
+                f"Re-login today: {_RELOGIN}.")
     if tier == "soon":
         return (f"alert-agent Claude token expires in {days_left} days{when}. "
-                "Re-login soon: attach the agent tmux and run /login.")
+                f"Re-login soon: {_RELOGIN}.")
     # notice
     return (f"alert-agent Claude token expires in {days_left} days{when}. "
-            "Plan a re-login (attach the agent tmux and run /login).")
+            f"Plan a re-login: {_RELOGIN}.")
 
 
 def _now_iso(ms: int) -> str:
@@ -169,8 +178,9 @@ def run_cred_check(now_ms: int | None = None) -> None:
     """Daily runner: emit the heartbeat ALWAYS, warn on threshold. The heartbeat is
     load-bearing (the Grafana dead-man rule keys on it), so the whole verdict
     computation is wrapped: ANY unexpected error still yields an `error` heartbeat +
-    warning rather than a silent crash. A tg_send transport error is swallowed
-    (logged) so a send failure can't suppress the heartbeat. `now_ms` injectable."""
+    warning rather than a silent crash. A warning is two messages: the text, then
+    `LOGIN_CMD` alone. A tg_send transport error is swallowed (logged) so a send
+    failure can't suppress the heartbeat. `now_ms` injectable."""
     if now_ms is None:
         now_ms = int(time.time() * 1000)
     try:
@@ -182,5 +192,6 @@ def run_cred_check(now_ms: int | None = None) -> None:
     if v.should_warn:
         try:
             bridge.tg_send(v.message)
+            bridge.tg_send(LOGIN_CMD)
         except Exception as exc:  # noqa: BLE001 — a send failure must not kill the heartbeat
             print(f"WARN cred-expiry-check: tg_send failed: {exc}", file=sys.stderr)
