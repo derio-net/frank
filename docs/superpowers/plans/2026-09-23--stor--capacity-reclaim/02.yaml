@@ -33,22 +33,22 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-23T19:49:07+00:00'
+      note: ollama + comfyui-models at 1 replica on gpu-1 gpu-local disks; mini-1 956->455, mini-2 946->445 GiB scheduled; ollama attached/healthy
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-23T19:49:07+00:00'
+      note: canary smoked by pod IP (real completion), promoted --full; Rollout Healthy 2/2; postgres 256Mi/768Mi
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-23T19:49:07+00:00'
+      note: sympozium stalled on pre-delete hook (values file deleted in same commit) — hook steps replayed by hand; 2 IngressRoutes, 7 CRDs, 3 namespaces gone; no leftover PVs/volumes
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-09-23T19:49:07+00:00'
+      note: audit v2 published; max new 3-replica volume ~29 -> ~530 GiB
   completion:
-    at: null
-    note: null
+    at: '2026-09-23T19:49:07+00:00'
+    note: all live ops done and verified
     observed_prs: []
