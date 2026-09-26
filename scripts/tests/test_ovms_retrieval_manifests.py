@@ -50,6 +50,14 @@ APP_DIR = REPO_ROOT / "apps/ovms-retrieval"
 MANIFESTS = APP_DIR / "manifests"
 APP_CR = REPO_ROOT / "apps/root/templates/ovms-retrieval.yaml"
 WORKFLOW = REPO_ROOT / ".github/workflows/build-ovms-retrieval-models.yml"
+# Named exemption, not a silent skip: this rule ALERTS on the app (an
+# `ovms-pool-watchdog-restart-loop` feature-health rule watching for
+# `action=restart` lines) — it is not one of the three exposure mechanisms
+# (IngressRoute, homepage tile, LiteLLM alias) this tripwire exists to catch,
+# so it carries no auth story to withhold. See
+# docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+# §4 "The loop becomes visible".
+ALERT_RULES = REPO_ROOT / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
 
 NAMESPACE = "retrieval"
 APP_NAME = "ovms-retrieval"
@@ -756,6 +764,7 @@ def test_nothing_outside_the_app_routes_to_it():
         APP_DIR,
         APP_CR,
         WORKFLOW,
+        ALERT_RULES,
         Path(__file__),
     }
     offenders: list[str] = []

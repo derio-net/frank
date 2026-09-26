@@ -216,11 +216,15 @@ spec:
             # client fails open silently, so nothing else would report it.
             #
             # Served on the REST port, so no new port, Service or probe. The
-            # useful series are ovms_requests_success / _fail / _rejected,
+            # useful series are ovms_requests_accepted / _fail / _rejected,
             # labelled by api, interface, method, name and version — all
             # bounded, none per-request, so this carries none of the unbounded
             # cardinality that took kube-state-metrics past the scrape cap
             # (see the tekton-pipelines-controller scrape for that story).
+            # NOT ovms_requests_success — that series counts the readinessProbe
+            # below (every 10s regardless of traffic), so it reports ~8,600/day
+            # for the reranker whether or not a client exists, and ~0 for the
+            # embeddings model however much real traffic it serves. frank#813.
             - --metrics_enable
           ports:
             - name: http

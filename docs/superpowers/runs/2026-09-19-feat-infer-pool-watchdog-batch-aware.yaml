@@ -1,0 +1,100 @@
+schema_version: 2
+run: 2026-09-19-feat-infer-pool-watchdog-batch-aware
+workflow: fr-goal@1
+branch: feat/infer-pool-watchdog-batch-aware
+started: '2026-09-19T21:35:50+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-09-19T22:02:15+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  spec-review:
+    state: done
+    at: '2026-09-19T22:06:21+00:00'
+  plan:
+    state: done
+    at: '2026-09-19T22:11:08+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-09-19--infer--ovms-pool-watchdog-activity-signal
+  plan-review:
+    state: done
+    at: '2026-09-19T22:11:12+00:00'
+    exit: 0
+    stdout: 'self-review passed
+
+      '
+  implement:
+    state: done
+    at: '2026-09-20T09:25:45+00:00'
+    items:
+      phase/1/implement-phase: done
+      phase/1/review-phase: done
+      phase/2/implement-phase: done
+      phase/2/review-phase: done
+      phase/3/implement-phase: done
+      phase/3/review-phase: done
+      phase/4/implement-phase: done
+      phase/4/review-phase: done
+      phase/5/implement-phase: done
+      phase/5/review-phase: done
+      phase/6/implement-phase: done
+      phase/6/review-phase: done
+    members:
+    - implement-phase
+    - review-phase
+  deliver:
+    state: running
+    at: '2026-09-20T09:26:15+00:00'
+accounting:
+  phase/1/implement-phase:
+    at: '2026-09-19T22:37:52+00:00'
+    journal_entries: 4
+    journal_lines: 31
+    handoff_chars: 4846
+    spec_bytes: 17705
+    plan_bytes: 28599
+  phase/1/review-phase:
+    at: '2026-09-19T22:38:03+00:00'
+    journal_entries: 4
+    journal_lines: 31
+    handoff_chars: 4846
+    spec_bytes: 17705
+    plan_bytes: 28599
+  phase/2/implement-phase:
+    at: '2026-09-19T22:38:13+00:00'
+    journal_entries: 4
+    journal_lines: 31
+    handoff_chars: 4846
+    spec_bytes: 17705
+    plan_bytes: 28599
+  phase/3/implement-phase:
+    at: '2026-09-19T22:58:08+00:00'
+    journal_entries: 8
+    journal_lines: 113
+    handoff_chars: 5361
+    spec_bytes: 17705
+    plan_bytes: 28918
+  phase/4/implement-phase:
+    at: '2026-09-20T08:32:28+00:00'
+    journal_entries: 11
+    journal_lines: 185
+    handoff_chars: 11857
+    spec_bytes: 18699
+    plan_bytes: 29222
+  phase/5/implement-phase:
+    at: '2026-09-20T09:00:57+00:00'
+    journal_entries: 17
+    journal_lines: 215
+    handoff_chars: 6519
+    spec_bytes: 19212
+    plan_bytes: 29481
+  phase/6/implement-phase:
+    at: '2026-09-20T09:25:21+00:00'
+    journal_entries: 21
+    journal_lines: 239
+    handoff_chars: 31238
+    spec_bytes: 19212
+    plan_bytes: 29588
