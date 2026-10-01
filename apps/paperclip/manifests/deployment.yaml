@@ -94,23 +94,26 @@ spec:
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
-          # sha-8e6edcd == git tag v2026.824.1 (released 2026-08-25).
-          # v2026.824.1 patches the onboarding service startup (background-
-          # service install, dashboard delivery, diagnostics). Major changes
-          # since v2026.626.0: v2026.817.0 introduced stable release
-          # channels, Decisions governance and full company Import/Export
-          # (which replaced the removed Cloud Sync); v2026.824.0 made
-          # chat-style tasks the default, HTTPS previews via Tailscale, and
-          # direct Claude/Codex sign-in. This bump applies 96 Drizzle
-          # migrations on first boot (journal 0124 -> 0222) — see
-          # apps/paperclip-db/values.yaml for why that resized the DB, and
-          # sync paperclip-db FIRST.
+          # sha-d554c47 == git tag v2026.916.1 (released 2026-09-21).
+          # v2026.916.1 fixes the chat composer send button and DB error
+          # classification (patch on v2026.916.0). v2026.916.0 (503 commits)
+          # introduced Connections for AI credentials, AgentMail, chat
+          # integrations (Slack/Discord/Telegram/Teams/GitHub/iMessage),
+          # GitHub Identity, and the native Paperclip Runner. v2026.831.1
+          # patched onboarding org creation; v2026.831.0 (175 commits) added
+          # Skill Library delivery, Kimi Code adapter, operator env vars,
+          # HTTP/2 sandbox transport, and 8 migrations (0223-0230).
+          # v2026.916.0 adds 49 migrations (0231-0279); v2026.916.1 adds none.
+          # Breaking changes since v2026.824.1: Node ≥24.11.0 required;
+          # invalid agent credentials return 401; company branding fields
+          # removed; cheap model profiles removed; legacy Anthropic REST
+          # connections removed; X-Forwarded-Host requires trusted proxy.
           # Tag scheme is upstream's: only `latest` (master HEAD),
           # `canary`, and `sha-<short>` are published — no semver image
-          # tags. We pin to the sha for traceability: v2026.824.1 → commit
-          # 8e6edcdfa911151adba26be49a41cf5017b3aade.
-          # Bumped from sha-4c6c0c6 (v2026.626.0, 2026-06-26).
-          image: ghcr.io/paperclipai/paperclip:sha-8e6edcd
+          # tags. We pin to the sha for traceability: v2026.916.1 → commit
+          # d554c4789ed3930f8a53ac9fdf6503b3187097da.
+          # Bumped from sha-8e6edcd (v2026.824.1, 2026-08-25).
+          image: ghcr.io/paperclipai/paperclip:sha-d554c47
           ports:
             - name: http
               containerPort: 3100
