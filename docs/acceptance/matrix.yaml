@@ -1118,3 +1118,57 @@ rows:
   status: not-implemented
   notes: Structure guarded by scripts/tests/test_argocd_vcluster_pod_exclusion.py; runtime proven at manual-op registration.
     Appended by hand (super-fr#470).
+- id: paperclip-pure-upstream-pod
+  capability: Paperclip fresh start
+  acceptance: The Paperclip pod runs only the unmodified upstream v2026.916.1 image
+    — one container, no init containers, no Frank agent-CLI installs or adapter config.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R1
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R3
+  levels: {}
+  status: not-implemented
+  notes: ''
+- id: paperclip-shell-retired
+  capability: Paperclip fresh start
+  acceptance: 'The paperclip-shell SSH/Mosh entry point no longer exists: 192.168.55.221
+    is unallocated and its PVC, Secrets and ConfigMaps are gone from the cluster.'
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R2
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: paperclip-instance-starts-empty
+  capability: Paperclip fresh start
+  acceptance: After the wipe the instance contains no company, agent, user, routine
+    or run from before; the operator signs in at paperclip.cluster.derio.net as its
+    first admin.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R4
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R5
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: paperclip-claude-agent-completes-task
+  capability: Paperclip fresh start
+  acceptance: A Claude-adapter agent authenticated through Connections completes an
+    assigned task in a company on the fresh instance.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R7
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: companies-mirror-paused
+  capability: Paperclip fresh start
+  acceptance: A merge to agentic-stoa/companies main fires nothing into Paperclip
+    while the hook is paused, and the Tekton live-mirror chain remains deployed for
+    resumption.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R8
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge

@@ -3,11 +3,14 @@ run: 2026-10-04-feat-paperclip-fresh-start
 workflow: fr-goal@1
 branch: feat/paperclip-fresh-start
 started: '2026-10-04T04:17:51+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-04T04:18:31+00:00'
+    state: done
+    at: '2026-10-04T04:30:20+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md
   spec-review:
     state: pending
   plan:
