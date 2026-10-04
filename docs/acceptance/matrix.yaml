@@ -23,6 +23,7 @@
 # Add rows with `fr acceptance add` (schema-validated append). Keep `rows:`
 # as the LAST top-level key — `add` appends to the end of this file.
 
+schema_version: 3
 org: derio-net
 repo: frank
 rows:
@@ -740,9 +741,9 @@ rows:
   - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
   levels:
     unit:
-    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L143
-    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L156
-    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#L167
+    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#test_litellm_api_route_has_no_forward_auth
+    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#test_litellm_api_route_keeps_network_middlewares
+    - frank:scripts/tests/test_headscale_litellm_mesh_dns.py#test_litellm_public_route_still_has_forward_auth
   status: ci
   notes: 'Implemented phase 2. Both directions asserted, because each failure mode is silent in opposite
     ways: L143 test_litellm_api_route_has_no_forward_auth (the API route never acquires forward-auth —
