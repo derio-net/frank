@@ -1,0 +1,17 @@
+schema_version: 7
+run: 2026-10-04-feat-paperclip-fresh-start
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T1.S2, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T3.S1, P1.T3.S2, P1.T3.S3, P1.T4.S1, P1.T5.S1, P1.T5.S2, P1.T5.S3, P1.T5.S4, P1.T6.S1]
+refactor:
+  P1.T1: "Test-only task; the guard is already minimal."
+  P1.T2: "Manifests were rewritten to the stripped shape directly; nothing left to clean."
+  P1.T3: "Pure deletions plus a doc-comment fix in the purge script."
+  P1.T5: "Docs-only edits; historical content marked in place, not restructured."
+journal:
+  - {kind: discovery, id: acceptance-row-shell-absent, phase: 1, title: "No paperclip-shell acceptance row existed to retire", body: "Only paperclip-litellm-agents-operable was in matrix.yaml; paperclip-shell-retired is this plan's own new row. Retired the former via fr acceptance set-status (status skipped, RETIRED note, prior evidence kept); the CLI committed it and regenerated the reports."}
+  - {kind: discovery, id: runbook-sources-in-implemented, phase: 1, title: "Decommissioned runbook ops live in implemented/ specs and plans", body: "Sources were docs/superpowers/implemented/specs/2026-05-17--orch--paperclip-litellm-agents-design.md and the paperclip-shell-sidecar plan (03.yaml + v1-archive), not plans/. Edited those plus manual-operations.yaml (status decommissioned + decommissioned: field, existing convention) and appended the 5 new blocks by hand rather than running a sync that would reformat the file. The orch-create-infisical-secrets note exists only in manual-operations.yaml (no source block), so it was corrected there only."}
+  - {kind: discovery, id: suite-excluded-hugo-files, phase: 1, title: "Local suite excludes six hugo-referencing test files", body: "Ignored test_blog_craft_version_pin_is_a_release, test_blog_ci_at_repo_root, test_image_optimization_adoption, test_mermaid_bundle_pinned, test_series_index_adoption, test_series_index_resync; CI runs them. Used the base clone's .venv pytest since the worktree has none."}
+resolves: []
+evidence: {tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/5bd12e8a-a28e-4950-8c44-0b3e9d800148/scratchpad/phase1-suite.log}
