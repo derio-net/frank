@@ -1122,9 +1122,20 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R1
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R3
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_single_container_no_init_containers
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_image_is_upstream_sha_pin
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_agent_shim_env
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_llm_key_reference
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_shell_shim_objects
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_deployment_references_no_removed_object
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_config_trust_proxy_and_announcements
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_shell_leftovers_gone
+  status: ci
+  notes: Guarded in CI by scripts/tests/test_paperclip_pure_upstream.py (8 unit tests;
+    repo-tripwires.yml runs pytest scripts/tests on every PR, no paths filter). Red
+    before the change (6 failures), green after.
 - id: paperclip-shell-retired
   capability: Paperclip fresh start
   acceptance: 'The paperclip-shell SSH/Mosh entry point no longer exists: 192.168.55.221
