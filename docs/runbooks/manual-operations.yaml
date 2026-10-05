@@ -2557,6 +2557,12 @@ operations:
     # → assign a second trivial task; it completes without re-signing in.
   verify: |
     kubectl -n paperclip-system logs deploy/paperclip --tail=200 | grep -iE 'req.ip|10\.244\.'   # R4: requests via Traefik log a pod IP
+    # R4 negative: from a LAN host (not a pod), hit the LoadBalancer directly with a forged header —
+    curl -sS -o /dev/null -w '%{http_code}\n' -H 'X-Forwarded-Host: evil.invalid' -H 'X-Forwarded-For: 203.0.113.9' http://192.168.55.212:3100/
+    kubectl -n paperclip-system logs deploy/paperclip --tail=50 | grep -E '203\.0\.113\.9|192\.168\.55\.'
+    # → the request logs the LAN client's own 192.168.55.x address, never 203.0.113.9 or a 10.244.x address
+    #   (eTP Local preserved the source IP and TRUST_PROXY ignored the forged headers).
+    #   .212 must still answer at all — if it times out, Cilium is not announcing it from gpu-1.
     # Admin can sign in; both tasks completed in the UI.
   status: pending
 - id: orch-paperclip-resume-companies-mirror
