@@ -9,6 +9,11 @@ metadata:
     lbipam.cilium.io/ips: "192.168.55.212"
 spec:
   type: LoadBalancer
+  # Local keeps a LAN client's real source IP (no SNAT to a node/router address).
+  # Load-bearing for TRUST_PROXY (loopback + pod CIDR): under Cluster a request
+  # to .212 can arrive from an in-CIDR address and be trusted as a proxy.
+  # Cilium L2 then announces .212 only from the node hosting the pod (gpu-1).
+  externalTrafficPolicy: Local
   selector:
     app.kubernetes.io/name: paperclip
     app.kubernetes.io/component: server

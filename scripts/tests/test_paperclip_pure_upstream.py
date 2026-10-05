@@ -75,8 +75,10 @@ def test_config_trust_proxy_and_announcements():
               if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "paperclip-config")
     data = cm["data"]
     assert "TRUST_PROXY" in data
-    assert data["TRUST_PROXY"] != "true"
-    assert "uniquelocal" not in data["TRUST_PROXY"]
+    tokens = {tok.strip() for tok in data["TRUST_PROXY"].split(",")}
+    assert "true" not in tokens, data["TRUST_PROXY"]
+    assert "uniquelocal" not in tokens, data["TRUST_PROXY"]
+    assert "agent-bin" not in data.get("PATH", "")
     assert data["PAPERCLIP_ANNOUNCEMENTS_ENABLED"] == "false"
 
 
@@ -85,3 +87,20 @@ def test_shell_leftovers_gone():
     assert "paperclip-shell" not in wf
     assert not (REPO / "apps/paperclip/client-setup").exists()
     assert not (REPO / "secrets/paperclip").exists()
+
+
+def test_deployment_references_no_removed_object():
+    # Whole-document scan: catches a removed CM/Secret/PVC creeping back as a
+    # volume, envFrom configMapRef or any other reference, not just as an object.
+    dump = yaml.safe_dump(_deployment())
+    for banned in BANNED_NAME_PREFIXES + ("agent-bin",):
+        assert banned not in dump, banned
+
+
+def test_lb_preserves_client_source_ip():
+    # TRUST_PROXY trusts the pod CIDR. With externalTrafficPolicy: Cluster a LAN
+    # client hitting 192.168.55.212 can arrive SNATed to an in-CIDR address and
+    # be trusted; Local keeps its real source IP, so the LAN stays untrusted.
+    svc = next(d for d in _docs()
+               if d["kind"] == "Service" and d["metadata"]["name"] == "paperclip-lb")
+    assert svc["spec"].get("externalTrafficPolicy") == "Local"
