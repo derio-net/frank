@@ -517,3 +517,84 @@ third, unrelated reason. Caught by measuring the live gap rather than
 reasoning that "the numerator change is safety-neutral in spirit"; the
 percentage was recalibrated (50 → 53) to land back where the trigger already
 sat in `shmem` terms. See docs/superpowers/plans/2026-09-19--infer--ovms-pool-watchdog-activity-signal for the full recalibration.
+
+## `memory.current` carries reclaimable page cache, so a threshold calibrated on a fresh pod drifts tighter with uptime
+
+Found by the post-merge Test Plan of frank#813 on 2026-10-05, two weeks after
+that PR moved the pool watchdog's Rule 1 off `shmem` and onto `memory.current`.
+
+Moving the numerator was right: `memory.max` is enforced by the kernel against
+`memory.current`, not against `memory.stat`'s `shmem`, so the old form
+under-measured its own trigger. The mistake was in how the compensation was
+sized. `CRITICAL_PERCENT` went 50 → 53 against a measured offset:
+
+```
+2026-09-19, pod ~20 minutes old (the watchdog had just restarted it):
+  shmem           1,836,507,136   1.71 GiB
+  memory.current  2,296,066,048   2.14 GiB
+  current - shmem   459,558,912   0.43 GiB   <- what 53% was calibrated against
+  inactive_file 0, active_file 0             <- NO page cache yet
+```
+
+The same pod twelve days later:
+
+```
+2026-10-05, pod 12 days old:
+  shmem           1,836,507,136   1.71 GiB   (identical — the pool is idle)
+  anon              465,276,928   0.43 GiB
+  active_file     1,497,456,640   1.39 GiB   <- RECLAIMABLE
+  inactive_file       7,041,024   0.01 GiB   <- RECLAIMABLE
+  unevictable     1,836,507,136   1.71 GiB   (== shmem, as always)
+  kernel             13,250,560   0.01 GiB
+  memory.current  3,820,539,904   3.56 GiB
+  current - shmem 1,984,032,768   1.85 GiB   <- 4.3x the calibrated offset
+```
+
+The pool has not moved. 1.40 GiB of ordinary page cache has accumulated, and
+`memory.current` counts it. Consequences:
+
+- The 53% line (8.48 GiB) now caps the **pool** at `8.48 - 1.85 = 6.63 GiB`,
+  where the recalibration intended ~7.98 GiB.
+- The 2026-09-19 incident peaked at 7.74 GiB of `shmem`. That is *above* 6.63,
+  so Rule 1 would fire during that index after all — the exact outcome the
+  recalibration was performed to prevent, reintroduced by a term that was not
+  in the measurement.
+- It keeps drifting: the offset is a function of pod uptime, not of the pool.
+
+**The spec's stated reason was also wrong in one clause.** It said "with swap
+off none of it is reclaimable, which is exactly why the numerator change is
+right." True of `shmem` and `anon`; false of the 1.40 GiB on the file LRUs —
+the kernel drops page cache rather than OOM-killing, which is precisely why
+including it over-states OOM proximity.
+
+**The honest numerator** is what the kernel cannot reclaim:
+
+```
+unreclaimable = memory.current - active_file - inactive_file
+              = 3.56 - 1.39 - 0.01 = 2.16 GiB
+              = anon (0.43) + unevictable shmem (1.71) + kernel (0.01)
+```
+
+That restores a ~0.45 GiB offset over `shmem` — almost exactly the 0.43 GiB the
+53% was calibrated against — and it is immune to page-cache drift because the
+drifting term is the one being subtracted.
+
+One cgroup-v2 detail worth stating, because it looks like a double-count and is
+not: **`shmem` is accounted inside `file`**, but shmem pages sit on the
+*unevictable* list, not on `inactive_file`/`active_file`. So subtracting the two
+file LRUs removes the evictable page cache and leaves the pinned pool intact —
+verified by the arithmetic above closing to within 10 MiB.
+
+Not changed in #813 itself: the numerator ships as plain `memory.current`, which
+errs in the safe direction (fires early) but drifts. Tracked as **frank#821**,
+which carries the measurement above and the one-term fix.
+
+## A post-merge check that reads only ArgoCD's sync status passes for weeks while the fix is inert
+
+Same close-out, and the reason the finding above was nearly missed entirely.
+Full prose in `argocd.md`; the short version is that `ovms-retrieval` reported
+`Synced/Healthy` at the pre-merge commit for fifteen days with `reconciledAt`
+refreshing every few minutes, so **every** row of the Test Plan would have run
+against the old script. Test Plan row 1 was written as "`Synced`, *and* the live
+CronJob's script contains `ovms_current_graphs`" — the second clause is the only
+reason anything downstream of it meant anything.

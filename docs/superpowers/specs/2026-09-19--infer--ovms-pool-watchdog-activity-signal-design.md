@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-19
 **Layer:** `infer` (11) — Local Inference
-**Status:** Designed
+**Status:** Deployed
 **Prompted by:** `derio-net/frank` issue #813, a follow-on to #805 (the watchdog) and #793 (the batch guard)
 **Repos:** `derio-net/frank` only
 
