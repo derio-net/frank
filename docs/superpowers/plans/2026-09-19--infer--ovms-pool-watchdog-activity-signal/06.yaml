@@ -56,9 +56,16 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-05T07:14:45+00:00'
+      note: 'Row 1 FAILED then fixed 2026-10-05. ArgoCD read Synced/Healthy at f546afd0
+        (pre-merge) for 15 days with reconciledAt refreshing every few minutes; live
+        CronJob was the pre-merge script (3435 bytes, BUSY_MILLICORES/SAMPLE_SECONDS
+        set, CRITICAL_PERCENT=50). status.operationState named the real last sync:
+        33a1933f, two commits before the merge. grafana-alerting was stale identically
+        (alert rule absent from the live CM); 36 of 68 apps sat at the same pre-merge
+        commit. Cleared by an explicit sync operation per the argocd.md recipe; live
+        script now 10412 bytes with ovms_current_graphs and CRITICAL_PERCENT=53.'
     P6.T1.S2:
       state: ' '
       ticked_at: null
