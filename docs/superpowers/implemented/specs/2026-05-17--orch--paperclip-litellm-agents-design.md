@@ -359,7 +359,8 @@ commands:
   - "Verify from paperclip container: kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- which opencode hermes"
 verify:
   - "Both `opencode --version` and `hermes --version` succeed when exec'd in the paperclip container"
-status: pending
+status: decommissioned
+decommissioned: "2026-10-04 — Paperclip fresh start: the paperclip-shell sidecar and its reconcile were retired; agent CLIs come bundled in the upstream image (specs/2026-10-04--orch--paperclip-fresh-start-design.md)."
 ```
 
 ```yaml
@@ -377,7 +378,8 @@ commands:
 verify:
   - "LiteLLM admin UI request log shows the call from the Paperclip virtual key against model=qwen-coder-14b"
   - "Paperclip run history shows successful completion with non-empty transcript"
-status: pending
+status: decommissioned
+decommissioned: "2026-10-04 — Paperclip fresh start: LiteLLM-routed opencode_local agents and their adapter config were removed; the instance runs pure upstream (specs/2026-10-04--orch--paperclip-fresh-start-design.md)."
 ```
 
 ```yaml
@@ -395,7 +397,8 @@ commands:
 verify:
   - "LiteLLM admin UI request log shows the call from the Paperclip virtual key against model=qwen-think-14b"
   - "Paperclip run history shows successful completion; hermes session ID is captured for --resume continuity"
-status: pending
+status: decommissioned
+decommissioned: "2026-10-04 — Paperclip fresh start: LiteLLM-routed hermes_local agents and the PVC-resident hermes install were removed; the instance runs pure upstream (specs/2026-10-04--orch--paperclip-fresh-start-design.md)."
 ```
 
 (If a declarative initContainer install lands, `orch-paperclip-reconcile-shared-agent-clis` becomes belt-and-braces rather than load-bearing.)
