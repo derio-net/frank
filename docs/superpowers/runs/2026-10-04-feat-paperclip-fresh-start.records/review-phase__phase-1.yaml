@@ -1,0 +1,31 @@
+schema_version: 7
+run: 2026-10-04-feat-paperclip-fresh-start
+step: review-phase
+outcome: done
+journal:
+  - {kind: review, phase: 1, id: p1-review, title: "Phase 1 code review: 10 findings (8 in, 2 out)", body: "Dispatched code-reviewer, read-only, over f546afd0..e11e28a1 against spec + plan. Core change correct; R1/R2/R3/R8 met; findings were the TRUST_PROXY LB-path premise, doc leftovers, guard-test gaps, acceptance linkage, purge-script ids."}
+  - {kind: finding, phase: 1, id: p1-r1, review_scope: in, title: "TRUST_PROXY pod-CIDR premise unverified for the LB path; negative R4 check missing", body: "Cilium tunnel mode + eTP Cluster may SNAT LAN->.212 to an in-CIDR router IP; spec's negative curl in no verify block; no row asserts R4."}
+  - {kind: finding, phase: 1, id: p1-r2, review_scope: out, title: "TRUST_PROXY trusts every pod, not only Traefik", body: "Strict narrowing of the pre-v2026.916 trust-anyone state; residual risk needs a k8s NetworkPolicy (cnc-fru precedent) verified live."}
+  - {kind: finding, phase: 1, id: p1-r3, review_scope: in, title: "Building post References list deleted manifests as current", body: "building/15-paperclip index.md References."}
+  - {kind: finding, phase: 1, id: p1-r4, review_scope: in, title: "Operating post troubleshooting describes deleted paperclip-llm-key ES", body: "operating/18-paperclip ExternalSecret Not Syncing."}
+  - {kind: finding, phase: 1, id: p1-r5, review_scope: in, title: "Top diagrams/frontmatter still show shell/.221/llm-key as current; Four ExternalSecrets", body: "Both posts."}
+  - {kind: finding, phase: 1, id: p1-r6, review_scope: in, title: "paperclip-pure-upstream-pod row not linked to its CI guard", body: "levels {} / not-implemented."}
+  - {kind: finding, phase: 1, id: p1-r7, review_scope: in, title: "Guard test misses volume/envFrom refs, TRUST_PROXY token check, PATH in CM", body: "test_paperclip_pure_upstream.py."}
+  - {kind: finding, phase: 1, id: p1-r8, review_scope: in, title: "Posts state the wipe happened 2026-10-04 though it is a pending post-merge op", body: "Both posts."}
+  - {kind: finding, phase: 1, id: p1-r9, review_scope: in, title: "purge-fs keeps ids of companies the wipe destroys", body: "scripts/paperclip-purge-fs.sh KEEP_ID/DELETED_IDS."}
+  - {kind: finding, phase: 1, id: p1-r10, review_scope: out, title: "fr schema-migration collateral bundled in the PR", body: "fr-profiles.yaml, unrelated _meta.yaml, matrix schema rewrite, staging-vcluster run files."}
+resolves:
+  - {id: p1-r1, state: fixed, body: "paperclip-lb gets externalTrafficPolicy: Local (source IP preserved; L2 announce from gpu-1 only) + guard test test_lb_preserves_client_source_ip (red→green); negative forged-header curl added to orch-paperclip-bootstrap-admin verify in plan block and runbook; new post-merge row paperclip-forwarded-headers-trusted-from-cluster-only; spec records the premise."}
+  - {id: p1-r2, state: out-of-scope, body: "Not caused by this change — v2026.916 narrowed trust from any peer to the pod CIDR; this PR only declares it. A NetworkPolicy restricting ingress to traefik-system + tekton-pipelines needs live verification; follow-up issue at merge."}
+  - {id: p1-r3, state: fixed, body: "References rewritten to current manifests + guard test; deleted files listed as historical."}
+  - {id: p1-r4, state: fixed, body: "Troubleshooting now lists/describes the three live ExternalSecrets."}
+  - {id: p1-r5, state: fixed, body: "Both top diagrams redrawn to the pure-upstream pod; frontmatter reader_goal/summary/description updated; Three ExternalSecrets; Waves diagram ×3; banners moved above diagrams."}
+  - {id: p1-r6, state: fixed, body: "Row linked to 8 unit tests, status ci via fr acceptance set-status; reports in sync (--check)."}
+  - {id: p1-r7, state: fixed, body: "Whole-Deployment scan for banned names + agent-bin, tokenised TRUST_PROXY, PATH in ConfigMap."}
+  - {id: p1-r8, state: fixed, body: "Wipe described as the post-merge runbook step; retirement dates normalised to 2026-10."}
+  - {id: p1-r9, state: fixed, body: "KEEP_ID/DELETED_IDS emptied with a note; script exits early when empty, refuses an empty keeper."}
+  - {id: p1-r10, state: out-of-scope, body: "fr's own schema migration, required before fr would start the run; not caused by the feature. Called out in the PR body."}
+evidence:
+  review: p1-review
+  reviewer: ab5b5fbf07f35b010
+  model: claude-opus-5-5
