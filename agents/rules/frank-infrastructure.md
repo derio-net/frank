@@ -32,7 +32,6 @@
 | Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081) |
 | Secure Agent Pod (Mosh) | 192.168.55.219 | Cilium L2 LoadBalancer (UDP 60000-60015) |
 | Traefik Ingress | 192.168.55.220 | Cilium L2 LoadBalancer |
-| Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
 | GitHub webhook receiver (Tekton github-listener) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
 | GoatCounter | 192.168.55.224 | Cilium L2 LoadBalancer (port 8080, public ingest via Hop) |
 | VictoriaLogs (LB) | 192.168.55.225 | Cilium L2 LoadBalancer (port 9428, cross-cluster ingest from Hop) |

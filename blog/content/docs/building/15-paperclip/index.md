@@ -9,7 +9,7 @@ summary: "Deploying Paperclip — an AI orchestrator that organises agents into 
 weight: 16
 reader_goal: "Deploy Paperclip on Talos with a shell sidecar, work around probe deadlocks, PVC rollout deadlock, fsGroup permissions, and memory tuning, then hire opencode and hermes agents that run on the cluster's own inference through LiteLLM"
 diataxis: tutorial
-last_updated: 2026-09-13
+last_updated: 2026-10-05
 description: "Deploying Paperclip — an AI orchestrator that organises agents into virtual companies with org charts and budgets — alongside Sympozium, to compare two fundamentally different…"
 ---
 
@@ -42,6 +42,8 @@ flowchart LR
   UI --> App
   SSH --> Shell
 ```
+
+> **Update 2026-10-05.** Paperclip was wiped and redeployed as a pure upstream pod. The shell sidecar, the opencode/hermes shims and the LiteLLM-routed agents described below are retired; those sections are kept as history and marked inline. The current state is in [Fresh start (2026-10)](#fresh-start-2026-10).
 
 ## Architecture
 
@@ -146,7 +148,7 @@ Four ExternalSecrets sync from Infisical, all consumed via `envFrom`:
 
 | Secret | Keys | Optional |
 |--------|------|----------|
-| `paperclip-llm-key` | `OPENAI_API_KEY` + `OPENAI_BASE_URL` → LiteLLM | No |
+| `paperclip-llm-key` *(retired 2026-10-04)* | `OPENAI_API_KEY` + `OPENAI_BASE_URL` → LiteLLM | No |
 | `paperclip-auth` | `BETTER_AUTH_SECRET` | No |
 | `paperclip-brave` | `BRAVE_API_KEY` → Brave Search | Yes |
 | `paperclip-resend` | `RESEND_API_KEY` → transactional email | Yes |
@@ -190,6 +192,8 @@ resources:
 Paperclip does not request a GPU. gpu-1 is the cluster's biggest CPU/RAM box — the "anything that needs more than 64GB" node. The `nvidia.com/gpu:NoSchedule` toleration is defensive: the GPU operator can re-assert the taint during driver validation, and any non-GPU workload pinned to gpu-1 without the toleration would be evicted on the spot.
 
 ## Shell Sidecar
+
+> **Historical (retired 2026-10-04).** The `paperclip-shell` sidecar, its PVC, ConfigMaps and the `192.168.55.221` LoadBalancer no longer exist. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 After weeks of production use, the friction with `kubectl exec` got hard to ignore — lost tmux state on disconnect, no `~/.ssh/config` entry, no mosh over flaky connections. The instinct was to install sshd into the upstream Paperclip container. We deliberately rejected that: forking the image to add sshd puts us back on the upstream-rebase treadmill.
 
@@ -243,6 +247,8 @@ The installer fails open: on any non-zero exit, it fires a Telegram message via 
 Layer 3 is the load-bearing one. We do not notice (2) unless we SSH in. Layer 3 interrupts.
 
 ## Hiring Agents on Local Inference
+
+> **Historical (retired 2026-10-04).** The opencode/hermes shims, `paperclip-llm-key` and the LiteLLM-routed agents were removed; agents now use the CLIs bundled in the upstream image. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 The shell sidecar gave the operator a place to live. The next question was whether the agents Paperclip hires could run on the cluster's own inference instead of a cloud provider. Paperclip ships adapters for [opencode](https://github.com/sst/opencode) (`opencode_local`) and [Hermes](https://github.com/NousResearch/hermes-agent) (`hermes_local`). Both speak an OpenAI-shaped API, and so does LiteLLM (`litellm.litellm.svc:4000`, fronting Ollama on gpu-1).
 
@@ -346,7 +352,7 @@ The same table sends other alias families somewhere else entirely. Per `packages
 | Pod CrashLoopBackOff with exit 137 | OOMKilled — memory limit too low | Check `kubectl logs --previous`; bump limits |
 | Pod CrashLoopBackOff with permission errors | `fsGroup` not set | Add `securityContext.fsGroup: 1000` |
 | New pod stuck CreateContainerConfigError | Missing secret (optional one not provisioned) | Add `optional: true` to the secretRef |
-| SSH unreachable on 192.168.55.221 | Shell sidecar not starting | Check `kubectl logs paperclip -c paperclip-shell` |
+| *(historical)* SSH unreachable on 192.168.55.221 | Shell sidecar not starting — the sidecar was retired 2026-10-04 | None needed: there is no shell any more |
 | Agent {{< abbr "JWT" >}} missing on first boot | Need to run onboard command | `kubectl exec -n paperclip-system deploy/paperclip -- pnpm paperclipai onboard` |
 | opencode agent fails `Model not found` | Bare alias in the hire payload | Use the provider-prefixed `litellm/<alias>` form |
 | hermes agent reaches a cloud provider or warns `No LLM API keys found` | `config.yaml` not seeded, or the alias matches a non-`auto` prefix hint and gets a forced `--provider` | Check `kubectl exec -n paperclip-system deploy/paperclip -c paperclip -- cat /paperclip/agent-bin/.hermes/config.yaml`; rename the LiteLLM alias away from `claude`/`gpt-`/`o1-`/`o3-`/`o4-`/`hermes-`/`glm-`/`moonshot`/`kimi`/`minimax` prefixes |
@@ -360,6 +366,28 @@ Wiring two agent CLIs to one gateway taught three things that apply well beyond 
 - **Find where a tool splits config from state before you choose a mount.** opencode separates them, so a read-only ConfigMap works. Hermes keeps both under one home directory, so it needs a writable volume that an initContainer seeds on every boot. The same trick applied to both tools would have failed one of them.
 - **Wire configuration to the binary that actually runs, not to a version you pinned once.** The image-baked opencode and the PVC copy swapped which one was newer within four months. Config keyed to `PATH` resolution survived that; config keyed to a path would not have.
 - **Probe the caller's invocation, not the convenient one.** The hand-run `--provider` probe passed while the adapter's bare `-m` call was the path that failed. Read the adapter's argument builder, then smoke-test with exactly those arguments.
+
+## Fresh start (2026-10)
+
+On 2026-10-04 the Paperclip instance was wiped and rebuilt from nothing. Every company, agent, user, routine and run from before was discarded (no backup, by choice), and the database and `paperclip-data` volumes were recreated empty.
+
+Why: the instance had accreted a Frank-specific layer on top of upstream — a shell sidecar, PVC-resident `opencode` and `hermes` installs, adapter configs pointing at LiteLLM, and agents hired on top of those. Upstream had meanwhile started bundling the agent CLIs (claude-code, codex, opencode, gemini, kimi) and gained a Connections page for signing in with a subscription, so most of the layer was carrying weight upstream now carries itself.
+
+What it runs now:
+
+- **One container, no init containers**: `ghcr.io/paperclipai/paperclip:sha-d554c47`, which is upstream release v2026.916.1. Nothing is layered onto the image.
+- **No shell, no shims**: `paperclip-shell`, its home PVC, SSH keys, ConfigMaps and the `192.168.55.221` LoadBalancer are gone, along with the `hermes-init` initContainer, `PATH`/`XDG_CONFIG_HOME`/`HERMES_HOME` overrides and `paperclip-llm-key`.
+- **Trusted proxies declared**: `TRUST_PROXY: "loopback,10.244.0.0/16"` — loopback plus the cluster pod CIDR, which is where Traefik reaches the pod from. `uniquelocal` was rejected because it trusts the whole LAN.
+- **Upstream announcements off**: `PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false"`.
+- **Companies mirror paused**: the Gitea hook on `agentic-stoa/companies` is deliberately inactive until a reworked company and its routine exist.
+
+Bootstrapping on the fresh instance (operator-run; the live sequence is the `orch-paperclip-*` runbook entries):
+
+```bash
+kubectl -n paperclip-system exec deploy/paperclip -- pnpm paperclipai auth bootstrap-ceo
+# open the printed invite at https://paperclip.cluster.derio.net, create the first admin,
+# then Connections -> connect Claude and hire a Claude-adapter agent.
+```
 
 ## References
 

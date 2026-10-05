@@ -147,6 +147,8 @@ Trap: `__drizzle_migrations` row count does **not** map to the highest migration
 
 ## Paperclip's "Test environment" runs in the app container, NOT the shell sidecar
 
+> **Historical (retired 2026-10-04).** The shell sidecar and PVC-resident agent CLIs no longer exist; agent CLIs are bundled in the upstream image. Paperclip is a pure upstream pod since the fresh start (spec `2026-10-04--orch--paperclip-fresh-start-design.md`); kept for the lessons.
+
 And so does every other agent-CLI invocation paperclip spawns at runtime. Both containers live in the same pod, but they don't share a rootfs and they don't share a PID namespace (the latter forced by the `shareProcessNamespace` gotcha — see `agent-shells.md`). So `gemini`/`codex`/etc. installed via the `paperclip-shell-inventory` ConfigMap — which targets `/home/agent` on the shell's PV — are reachable over SSH but invisible to paperclip's `child_process.spawn()`.
 
 The Node spawn inherits paperclip's container PATH (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`), which has no overlap with the shell sidecar's mise/npm-global tree. The deployment's only cross-container seam is the `paperclip-data` PVC, mounted as `/paperclip` in both containers.
@@ -266,7 +268,7 @@ Discovered 2026-05-16. The board UI's import flow has two source modes: **GitHub
 
 Workarounds, in increasing effort:
 
-1. **Local zip** — clone the package locally (or in `paperclip-shell` using the operator's SSH access), zip the subtree with `git archive` to avoid the macOS resource-fork warning, upload via the UI's **Local zip** tab:
+1. **Local zip** — clone the package locally (or via `kubectl exec` into the `paperclip` container; the former `paperclip-shell` sidecar is retired), zip the subtree with `git archive` to avoid the macOS resource-fork warning, upload via the UI's **Local zip** tab:
 
    ```bash
    git archive --format=zip --prefix=<name>/ HEAD:<subdir> > <name>.zip
@@ -361,6 +363,8 @@ Upstream fix is one line: unwrap the cause chain in `isIssuePrefixConflict`. Wor
 **Update (2026-05-26):** upstream shipped this fix in **v2026.525.0** (PR [#6423](https://github.com/paperclipai/paperclip/pull/6423)) — "the retry detector now walks the Drizzle 0.45.x error cause chain for the `companies_issue_prefix_idx` unique constraint, so generated-prefix collisions retry instead of 500-ing." Deployed to Frank as `ghcr.io/paperclipai/paperclip:sha-60efa38` (commit `3370c41`). **Not yet live-verified** — confirm by importing two companies whose names derive the same 3-char prefix; the second should retry to a new prefix instead of returning a 500. Until then, the rename-at-import workaround above still stands as the safe default.
 
 ## LiteLLM-backed agents (`opencode_local` + `hermes_local`) {#litellm-backed-agents}
+
+> **Historical (retired 2026-10-04).** The LiteLLM-routed opencode/hermes agents, shims and `paperclip-llm-key` were removed. Paperclip is a pure upstream pod since the fresh start (spec `2026-10-04--orch--paperclip-fresh-start-design.md`); kept for the lessons.
 
 Paperclip's local LLM path routes agent runs through Frank's LiteLLM gateway (`litellm.litellm.svc:4000` / `192.168.55.206:4000`) to Ollama models on `gpu-1`. Two adapters implement this:
 
@@ -489,7 +493,7 @@ UPDATE agent_task_sessions
 hermes-agent is Python-based; the Paperclip image is Node-only. Install it onto the shared `/paperclip` PVC using `uv`:
 
 ```bash
-# From paperclip-shell (run once, or after a PVC wipe):
+# (historical — paperclip-shell is retired) From paperclip-shell (run once, or after a PVC wipe):
 # uv binary must already be at /paperclip/agent-bin/bin/uv
 # (installed via curl astral.sh/uv/install.sh | env UV_INSTALL_DIR=... sh)
 
@@ -591,6 +595,8 @@ measuring that cliff (same sandbox task, subscription vs. local workers) is the
 competing-paradigms experiment's whole point.
 
 ### shell-inventory `paperclip-shared` section
+
+> **Historical (retired 2026-10-04).** The shell inventory ConfigMap was deleted. Paperclip is a pure upstream pod since the fresh start (spec `2026-10-04--orch--paperclip-fresh-start-design.md`); kept for the lessons.
 
 The `configmap-shell-inventory.yaml` has a `paperclip-shared:` section (distinct from `npm-global:`, `pipx:`, `cargo:` which target the shell sidecar's home PV). It declares tools that must land on `/paperclip` for the paperclip container to reach them:
 

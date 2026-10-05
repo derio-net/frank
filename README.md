@@ -55,7 +55,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 12 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for cluster UIs |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
-| Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM, with `paperclip-shell` sidecar (SSH+Mosh on `192.168.55.221`, ConfigMap-driven tool inventory) for 24/7 operator access |
+| Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains. Pure upstream pod since the 2026-10 fresh start (agent CLIs bundled upstream; no shell sidecar, no LiteLLM agents) |
 | Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
 | GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
@@ -113,7 +113,7 @@ frank/
 │   │   ├── staging/values.yaml                  # Staging-gate vCluster
 │   │   └── cnc-staging/values.yaml              # CNC staging vCluster
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
-│   ├── paperclip/manifests/                     # Paperclip Deployment + paperclip-shell sidecar, ConfigMap inventory, two PVCs, two LB Services
+│   ├── paperclip/manifests/                     # Paperclip Deployment (single upstream container), ConfigMap, PVC, LB Service
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
 │   ├── argo-rollouts/values.yaml               # Argo Rollouts controller (no traffic-router plugin — see building/19)
 │   ├── argo-rollouts-extras/manifests/          # Currently empty (cilium RBAC removed 2026-05-04)
@@ -211,7 +211,6 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 | Secure Agent Pod (Mosh) | mosh + tmux persistent sessions — see [operating post](blog/content/docs/operating/14-secure-agent-pod/index.md#persistent-shells-with-mosh--tmux) | 192.168.55.219 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
-| Paperclip Shell (SSH+Mosh) | ssh agent@192.168.55.221 — mosh UDP 60000-60015 | 192.168.55.221 |
 | GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
 | GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
 | VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
@@ -269,7 +268,7 @@ argocd app list
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
-| paperclip | paperclip-system | Hybrid pod: Paperclip AI agent orchestrator (192.168.55.212:3100, 12Gi memory limit, defensive nvidia.com/gpu toleration) + paperclip-shell sidecar (`ghcr.io/derio-net/paperclip-shell`), ConfigMap-driven tool inventory, SSH+Mosh on 192.168.55.221 |
+| paperclip | paperclip-system | Paperclip AI agent orchestrator, pure upstream single-container pod (192.168.55.212:3100, 12Gi memory limit, defensive nvidia.com/gpu toleration); the former paperclip-shell sidecar and 192.168.55.221 were retired 2026-10-04 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |

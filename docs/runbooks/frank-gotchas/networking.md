@@ -22,7 +22,7 @@ Stale BPF egress rules persist even after deleting the CiliumNetworkPolicy — m
 
 ## MixedProtocolLBService — TCP + UDP on a single Cilium L2 LB IP
 
-MixedProtocolLBService — TCP/22 + UDP/60000–60015 on a single Cilium L2 LB IP works on Cilium 1.17 + K8s 1.35. `paperclip-shell` (192.168.55.221) and `ruflo-shell` (192.168.55.222) both expose SSH and Mosh on the same `LoadBalancer` Service via a multi-protocol port list. No feature gate flip, no annotation, no per-protocol service split. The ports are bound on a single EndpointSlice and answered by the same sidecar Pod. Useful when adding any future shell sidecar — don't pay the complexity tax of two Services.
+MixedProtocolLBService — TCP/22 + UDP/60000–60015 on a single Cilium L2 LB IP works on Cilium 1.17 + K8s 1.35. `paperclip-shell` (192.168.55.221, retired 2026-10-04) and `ruflo-shell` (192.168.55.222) both expose SSH and Mosh on the same `LoadBalancer` Service via a multi-protocol port list. No feature gate flip, no annotation, no per-protocol service split. The ports are bound on a single EndpointSlice and answered by the same sidecar Pod. Useful when adding any future shell sidecar — don't pay the complexity tax of two Services.
 
 ## `lbipam.cilium.io/ips` alone is NOT a sharing directive
 

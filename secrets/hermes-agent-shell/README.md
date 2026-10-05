@@ -8,7 +8,7 @@ This directory holds:
   see below)* — Secret in `hermes-agent-shell` mounted read-only into the
   `hermes` container at `/etc/ssh-keys`. Same shape as
   `secrets/secure-agent-pod/`'s `agent-ssh-keys`,
-  `secrets/paperclip/`'s `paperclip-shell-ssh-keys`, and
+  `secrets/paperclip/`'s `paperclip-shell-ssh-keys` (retired 2026-10-04), and
   `secrets/ruflo/`'s `ruflo-shell-ssh-keys`.
 
 ## Why SOPS not ESO
