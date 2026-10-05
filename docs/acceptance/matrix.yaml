@@ -1190,3 +1190,17 @@ rows:
   levels: {}
   status: not-implemented
   notes: ''
+- id: paperclip-forwarded-headers-trusted-from-cluster-only
+  capability: Paperclip fresh start
+  acceptance: 'Paperclip honours forwarded headers only from in-cluster peers: a request
+    through paperclip.cluster.derio.net is same-origin, while a LAN client hitting
+    192.168.55.212 directly keeps its own address and cannot spoof X-Forwarded-Host/For.'
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R4
+  levels:
+    unit:
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_lb_preserves_client_source_ip
+  status: not-implemented
+  notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
+    the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
+  verify: post-merge
