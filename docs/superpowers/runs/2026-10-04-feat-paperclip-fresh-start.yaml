@@ -3,7 +3,7 @@ run: 2026-10-04-feat-paperclip-fresh-start
 workflow: fr-goal@1
 branch: feat/paperclip-fresh-start
 started: '2026-10-04T04:17:51+00:00'
-cursor: implement
+cursor: journal-check
 steps:
   brainstorm:
     state: done
@@ -50,8 +50,8 @@ steps:
     stdout: |
       self-review passed
   implement:
-    state: running
-    at: '2026-10-05T18:47:11+00:00'
+    state: done
+    at: '2026-10-05T19:00:02+00:00'
     members:
     - implement-phase
     - review-phase
@@ -79,13 +79,20 @@ steps:
         evidence:
           visual: none
       phase/1/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-05T18:47:11+00:00'
           agent: ab5b5fbf07f35b010
           harness: claude-code
           model: claude-opus-5-5
           session: 5bd12e8a-a28e-4950-8c44-0b3e9d800148
+          returned: '2026-10-05T19:00:02+00:00'
+          outcome: done
+        evidence:
+          review: p1-review
+          reviewer: ab5b5fbf07f35b010
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10
   journal-check:
     state: pending
   deliver:
