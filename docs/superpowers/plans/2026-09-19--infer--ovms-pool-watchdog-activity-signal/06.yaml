@@ -93,9 +93,11 @@ state:
         Row 4 NOT OBSERVED - no restart has occurred since the fix went live, and
         one was not manufactured to tick a box.'
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-05T07:14:57+00:00'
+      note: 'Row 8 PASS, at the extreme: ovms_requests_accepted 0 against ovms_requests_success
+        107,610 on a 12-day-old pod that had served no inference at all. The query
+        the repo used to recommend would have reported a heavily-used tier.'
     P6.T1.S6:
       state: ' '
       ticked_at: null
