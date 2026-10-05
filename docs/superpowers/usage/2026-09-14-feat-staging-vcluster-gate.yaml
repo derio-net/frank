@@ -1,0 +1,172 @@
+schema_version: 1
+run: 2026-09-14-feat-staging-vcluster-gate
+captures:
+- host: h-255dc3fb
+  harness: unknown
+  mode: host-worktree
+  captured_at: '2026-09-20T09:08:42+00:00'
+  at:
+  - migrated
+  sessions:
+  - session: phase/7/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/7/implement-phase: 3831
+  - session: phase/1/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/1/review-phase: 3440
+  - session: phase/2/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/2/review-phase: 3831
+  - session: phase/3/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/3/review-phase: 3831
+  - session: phase/4/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/4/review-phase: 3831
+  - session: phase/5/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/5/review-phase: 4982
+  - session: phase/6/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/6/review-phase: 4982
+  - session: phase/7/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/7/review-phase: 4691
+  - session: phase/8/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/8/implement-phase: 6230
+  - session: phase/8/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/8/review-phase: 7478
+  - session: phase/9/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/9/implement-phase: 20560
+  - session: phase/9/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/9/review-phase: 24215
+  - session: phase/10/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/10/implement-phase: 37069
+  - session: phase/10/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/10/review-phase: 38163
+  - session: phase/11/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/11/implement-phase: 60313
+  - session: phase/11/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/11/review-phase: 61442
+  - session: phase/12/implement-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/12/implement-phase: 10980
+  - session: phase/12/review-phase#1
+    models: {}
+    activity: {}
+    steps:
+      implement:
+        usd: null
+        turns: null
+    briefs:
+      phase/12/review-phase: 10980

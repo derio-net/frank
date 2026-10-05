@@ -380,3 +380,73 @@ Retiring an app means deleting its templates, merging, confirming the Applicatio
 - **Order it:** delete the root template in one commit and the `apps/<app>/` directory in a later one, once the Application is gone.
 - **Recover:** render the chart from history, read what the hook does, and do that by hand. For Sympozium: scale the controller to 0, then strip finalizers from the `*.sympozium.ai` CRs; a few AgentRuns only accept the patch once the chart's webhook is gone. Then patch the Application's finalizers down to `resources-finalizer.argocd.argoproj.io` and the cascade finishes.
 
+
+## The stale-revision state can persist for weeks, and `selfHeal: true` does not clear it
+
+The entry above ("`Synced` can mean synced to a STALE revision") was recorded
+from two cases that were each minutes old. On 2026-10-05, the post-merge
+close-out of frank#813 found the same state fifteen days old.
+
+### What it looked like
+
+PR #815 merged to `main` as `df44f5cd` on 2026-09-20. Fifteen days later:
+
+```
+$ kubectl -n argocd get application ovms-retrieval -o json | ...
+  syncPolicy  : {"automated":{"prune":false,"selfHeal":true}, ...}
+  sync        : Synced f546afd0        <- the commit BEFORE the fix
+  health      : Healthy
+  reconciledAt: 2026-10-05T06:44:00Z   <- minutes ago
+  lastOp      : Succeeded 2026-09-19T19:56:00Z, revision 33a1933f
+  conditions  : []                     <- nothing wrong, by its own account
+```
+
+The live artifact told the truth:
+
+```
+$ kubectl -n retrieval get cronjob ovms-pool-watchdog -o jsonpath='{...args[0]}' | wc -c
+3435                      # the merged script is 10412
+$ ... env
+CRITICAL_PERCENT=50       # merged value is 53
+BUSY_MILLICORES=50        # deleted by the merge
+SAMPLE_SECONDS=10         # deleted by the merge
+```
+
+`grafana-alerting` was stale identically, so the same PR's alert rule did not
+exist on the cluster — the live ConfigMap had zero occurrences of its uid.
+**36 of 68 Applications sat at the same pre-merge commit.** `root` reported
+`OutOfSync` while all 84 of its resources were `Synced`, which is a separate
+cosmetic aggregate and not the cause.
+
+### What to read instead
+
+- **`status.reconciledAt` is useless here.** It refreshed every few minutes for
+  fifteen days while nothing was applied. "It reconciled recently" is not "it
+  applied your commit."
+- **`status.operationState` is the field that tells you.** Its
+  `operation.sync.revision` was `33a1933f` — two commits before the merge — and
+  its `finishedAt` was the date of the last real sync. That disagreed with
+  `status.sync.revision`, and the disagreement is the signal.
+- **`selfHeal: true` does not recover from it.** It was set the whole time.
+
+### Fix and the check that catches it
+
+The documented explicit sync operation cleared both apps in one pass each
+(remember a manual patch does not inherit `spec.syncPolicy.syncOptions`, so pass
+them):
+
+```bash
+kubectl patch application <app> -n argocd --type=merge \
+  -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["CreateNamespace=true","ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+```
+
+Grafana additionally needed `kubectl -n monitoring rollout restart
+deploy/victoria-metrics-grafana`, because provisioning files are read at boot —
+and gate that restart on live ConfigMap content, not on the sync status.
+
+**The durable lesson is about the post-merge check, not about ArgoCD.** A
+check phrased "the app is Synced" passes every day for two weeks. A check
+phrased "the app is Synced **and** the live object contains the new symbol"
+fails immediately. Every post-merge Test Plan row that asserts a cluster
+behaviour should name the artifact it will read, and the first row should be the
+one that proves the merge is live at all.

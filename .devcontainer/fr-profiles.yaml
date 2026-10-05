@@ -1,3 +1,4 @@
+schema_version: 2
 profiles:
   dev:
     purpose: "day-to-day docs/skills/blog/plan work \u2014 checks: cd blog && hugo\
@@ -19,3 +20,9 @@ profiles:
     - KUBECONFIG_B64
     - TALOSCONFIG_B64
 default: dev
+forge:
+  type: github
+ci:
+  type: github-actions
+tracking:
+  type: github
