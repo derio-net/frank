@@ -74,9 +74,14 @@ state:
         readinessProbe kept hitting every 10s - and ovms_requests_success stood at
         107,610 in the same window. Probe traffic contributes nothing to activity.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-05T07:14:51+00:00'
+      note: Row 3 PASS. 13 in-bounds /v3/embeddings spaced 45s over 9.75 min, all
+        HTTP 200, accepted 1->13. Five consecutive ticks reason=busy (06:50/06:52/06:54/06:56/06:58)
+        with activity 2/4/7/10/12, ZERO action=restart. Container CPU 3-12 millicores
+        throughout, so the pre-fix 50m threshold would have read idle on every tick.
+        in_flight=0 on all five - the counter-delta term carried it alone, which is
+        the half the spec called load-bearing.
     P6.T1.S4:
       state: ' '
       ticked_at: null
