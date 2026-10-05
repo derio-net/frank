@@ -83,9 +83,15 @@ state:
         in_flight=0 on all five - the counter-delta term carried it alone, which is
         the half the spec called load-bearing.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-10-05T07:14:54+00:00'
+      note: 'PARTIAL. Row 6 PASS (shmem=1839783936 current=3851288576, current larger)
+        - but see the page-cache finding: the gap is 1.85 GiB, not the 0.43 GiB the
+        53% was calibrated on, because 1.40 GiB of reclaimable page cache has accrued
+        over 12 days of uptime. Row 7 PASS, verified from the ruler API not the ConfigMap:
+        folder feature-health, state inactive, health ok, lastError none, 0 alerts.
+        Row 4 NOT OBSERVED - no restart has occurred since the fix went live, and
+        one was not manufactured to tick a box.'
     P6.T1.S5:
       state: ' '
       ticked_at: null
