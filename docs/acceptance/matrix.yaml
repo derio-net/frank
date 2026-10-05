@@ -1028,14 +1028,11 @@ rows:
   - frank:docs/superpowers/specs/2026-09-13--orch--paperclip-litellm-agents-docs-design.md
   levels: {}
   status: skipped
-  notes: 'Manual live proof 2026-09-13 against image sha-8e6edcd: opencode smoke returned
-    ack; hermes bare-alias smoke returned a reply and session_id; a per-replica LiteLLM
-    grep found POSTs from the paperclip pod IP; agent_task_sessions matches the recovery
-    SQL. Docs-only, no automated test. Row appended via an indent/add/dedent round-trip
-    around super-fr#470. Post-merge live check 2026-09-14 against blog image 034ef965
-    (merge of #382): both posts on blog.derio.net serve every new section anchor, zero
-    dangling in-page links, building/operating cross-links resolve, and the smoke commands
-    appear in both Verify and Quick Reference.'
+  notes: 'RETIRED 2026-10-04: the Paperclip fresh start (specs/2026-10-04--orch--paperclip-fresh-start-design.md)
+    removed the LiteLLM-routed opencode_local/hermes_local agents and the paperclip-shell
+    they were operated from; operating/18-paperclip now marks those sections historical.
+    Prior evidence kept: Manual live proof 2026-09-13 against image sha-8e6edcd (no
+    longer deployed).'
 - id: infer-rerank-supported-batch-succeeds
   capability: Retrieval models
   acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default and receive scored
