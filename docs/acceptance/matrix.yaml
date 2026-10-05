@@ -1204,3 +1204,39 @@ rows:
   notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
     the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
   verify: post-merge
+- id: retrieval-batch-job-survives-pool-watchdog
+  capability: Retrieval models
+  acceptance: A long-running batch job against the retrieval tier runs to completion without the pool
+    watchdog restarting the server underneath it.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  levels: {}
+  status: not-implemented
+  notes: >-
+    Row re-added 2026-10-05: the squash-merge of #815 dropped docs/acceptance/ (conflicting with
+    #551/#818), so the rows the PR declared never reached main. Proof is Test Plan row 5 — the
+    downstream consumer re-runs its 40-batch index with zero action=restart lines in the window —
+    and that has NOT happened: ovms_requests_accepted read 0 across the pod's 12-day life on
+    2026-10-05, so no index has been run against the fixed watchdog. The agent-drivable precursor
+    (Test Plan row 3) PASSED live the same day: 13 in-bounds /v3/embeddings spaced 45s apart over
+    9.75 min produced 5 consecutive reason=busy ticks and ZERO restarts while container CPU stayed
+    at 3-12 millicores, where the pre-fix 50m threshold would have read idle on every tick. Every
+    one of those ticks had in_flight=0, so the counter-delta term carried it alone.
+- id: retrieval-pool-watchdog-restart-loop-is-visible
+  capability: Feature-health alerting
+  acceptance: A pool-watchdog restart loop announces itself through alerting rather than being
+    discovered by a downstream consumer whose job died.
+  origin:
+  - frank:docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
+  levels: {}
+  status: skipped
+  notes: >-
+    MET 2026-10-05 live (Test Plan row 7), but only after the merge was forced to apply. The
+    grafana-alerting Application had been Synced to the pre-merge commit for 15 days and the live
+    ConfigMap contained ZERO occurrences of the rule uid, so the alert did not exist on the cluster
+    at all; an explicit sync operation plus a Grafana restart (provisioning is read at boot) landed
+    it. Verified from the ruler API rather than the ConfigMap: folder feature-health, rule "OVMS
+    pool-watchdog restart loop", state inactive, health ok, lastError none, 0 alerts — i.e. Normal
+    rather than NoData-firing, which is what noDataState: OK exists to produce. Grafana came back
+    3/3 Running with database ok and zero provisioning errors, and no rule uid in the document
+    exceeds Grafana's 40-character limit (ours is 31).

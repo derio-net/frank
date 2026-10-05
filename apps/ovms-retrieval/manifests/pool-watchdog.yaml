@@ -132,8 +132,43 @@ spec:
                 # anyway — and an OOM costs the in-flight request PLUS ~10s of
                 # refused connections, which is strictly worse than a
                 # controlled 11s restart.
+                #
+                # WHAT THIS BOUNDS. As of 2026-09-20 this percentage is
+                # measured against `memory.current`, NOT `shmem` — the kernel's
+                # OOM killer compares memory.current against memory.max, and
+                # the two disagree by roughly a quarter at baseline (measured
+                # live: shmem 1836507136, memory.current 2296066048, a ~25%
+                # gap from the container's other allocations, chiefly the
+                # ~0.55 GiB anon term recorded above). A threshold read against
+                # `shmem` was under-measuring its own trigger by that margin —
+                # very likely the explanation for #813's "68% with no watchdog
+                # action": the watchdog's own shmem reading sat comfortably
+                # below CRITICAL_PERCENT while a memory.current-based consumer
+                # saw 68%.
+                #
+                # `memory.peak` was considered and declined here. It would
+                # catch the sub-tick transients a two-minute schedule can never
+                # sample, but peak runs roughly 2 GiB above settled — at this
+                # same 50% it would fire on every normal index, not just an
+                # anomalous one, turning a threshold meant to prevent spurious
+                # restarts into one that causes them. Only viable paired with
+                # a re-measured ceiling (#813's own point, not extrapolated).
+                # 50 -> 53 on 2026-09-20, together with the numerator
+                # change and BECAUSE of it. The 50 was calibrated against
+                # `shmem` readings; memory.current runs a roughly CONSTANT
+                # ~0.5 GiB higher (anon plus a little kernel), so carrying the
+                # percentage across unchanged would have tightened the trigger
+                # by ~3.1 points of the limit with nobody deciding to. Checked
+                # against the incident this file's history is about: peak
+                # `shmem` 8313102336 sat under the old 8.00 GiB line, but the
+                # same moment as memory.current is ~8.17 GiB — Rule 1 would
+                # have killed the batch index that Rule 2 killed. 53% puts the
+                # line at 8.48 GiB of memory.current, i.e. ~7.98 GiB of shmem,
+                # which is where it effectively was. The measurement moved; the
+                # threshold did not. Guarded both ways by
+                # test_the_numerator_change_did_not_silently_move_the_trigger.
                 - name: CRITICAL_PERCENT
-                  value: "50"
+                  value: "53"
                 # Below this the pool is at or near its post-boot baseline
                 # (1.71 GiB of model weights on the GPU) and there is nothing
                 # worth reclaiming.
@@ -144,19 +179,23 @@ spec:
                 # request every few minutes never pays a cold start.
                 - name: IDLE_SECONDS
                   value: "1800"
-                # Busy threshold, in millicores averaged over the sample
-                # window below. A serving call pins most of a core; an idle
-                # OVMS is near zero.
-                - name: BUSY_MILLICORES
-                  value: "50"
-                - name: SAMPLE_SECONDS
-                  value: "10"
+                # There is deliberately NO busy threshold here. Until
+                # 2026-09-19 "busy" was a 10-second cpu.stat delta against
+                # BUSY_MILLICORES=50, and it restarted a working server five
+                # times in sixteen minutes, killing a batch-index job at batch
+                # 7 of 40. OpenVINO offloads inference to the iGPU, so those
+                # ticks read 5, 29, 41 and 5 millicores while the pool climbed
+                # 5.10 -> 7.24 -> 8.31 GiB: no value of that threshold
+                # separates "indexing" from "asleep" on this workload. The
+                # signal was removed rather than retuned, and busy now comes
+                # from the server's own /metrics — see the read below.
               command: ["/bin/bash", "-euo", "pipefail", "-c"]
               args:
                 - |
                   NS=retrieval
                   DEPLOY=ovms-retrieval
                   ANNOTATION=retrieval.derio.net/pool-watchdog-last-busy
+                  ACTIVITY_ANNOTATION=retrieval.derio.net/pool-watchdog-last-activity
 
                   pod=$(kubectl -n "$NS" get pods -l app.kubernetes.io/name=ovms-retrieval \
                           --field-selector=status.phase=Running \
@@ -166,76 +205,208 @@ spec:
                     exit 0
                   fi
 
-                  # One exec, two samples. Reading the cgroup from inside the
-                  # container is the exact pinned figure; cpu.stat in the same
-                  # read tells us whether it is serving. If the pod is mid
-                  # restart this fails and we simply do nothing this tick.
+                  # ONE exec returns everything this tick decides on, in order:
+                  #   line 1   shmem          — the pinned GPU pool, read from
+                  #                             the container's own cgroup,
+                  #                             which is the exact figure and
+                  #                             not a scrape;
+                  #   line 2   memory.current — what the kernel's OOM killer
+                  #                             actually compares against
+                  #                             memory.max (Rule 1's
+                  #                             numerator — see
+                  #                             CRITICAL_PERCENT below);
+                  #   line 3   memory.max     — the ceiling itself;
+                  #   line 4+  the server's own /metrics, which is where
+                  #                             "is it working?" is answered.
+                  #
+                  # It is one exec on purpose: the pool figure and the activity
+                  # figure must describe the same pod at the same instant, or a
+                  # restart decision can be taken from a memory reading and an
+                  # activity reading that disagree about which process they saw.
+                  # If the pod is mid restart this fails and we do nothing.
                   read_state() {
                     kubectl -n "$NS" exec "$pod" -c ovms -- sh -c '
                       grep "^shmem " /sys/fs/cgroup/memory.stat | cut -d" " -f2
+                      cat /sys/fs/cgroup/memory.current
                       cat /sys/fs/cgroup/memory.max
-                      grep "^usage_usec " /sys/fs/cgroup/cpu.stat | cut -d" " -f2
+                      curl -s -m 5 http://127.0.0.1:8000/metrics
                     ' 2>/dev/null
                   }
-                  s1=$(read_state) || true
-                  if [ -z "${s1:-}" ]; then
-                    echo "pool-watchdog result: action=none reason=unreadable-cgroup"
-                    exit 0
-                  fi
-                  sleep "$SAMPLE_SECONDS"
-                  s2=$(read_state) || true
-                  if [ -z "${s2:-}" ]; then
+                  state=$(read_state) || true
+                  if [ -z "${state:-}" ]; then
                     echo "pool-watchdog result: action=none reason=unreadable-cgroup"
                     exit 0
                   fi
 
-                  shmem=$(echo "$s1" | sed -n 1p)
-                  limit=$(echo "$s1" | sed -n 2p)
-                  cpu1=$(echo "$s1" | sed -n 3p)
-                  cpu2=$(echo "$s2" | sed -n 3p)
+                  shmem=$(echo "$state" | sed -n 1p)
+                  current=$(echo "$state" | sed -n 2p)
+                  limit=$(echo "$state" | sed -n 3p)
+                  metrics=$(echo "$state" | tail -n +4)
+
+                  # `curl` shares the exec with the two cgroup reads above, so
+                  # it can fail WITHOUT the exec itself failing — the shmem
+                  # and memory.max lines still come back and `state` is still
+                  # non-empty. Left unguarded, that tick would silently carry
+                  # in_flight=0, activity=0 into the busy determination below,
+                  # which is indistinguishable from "confirmed idle" and
+                  # reopens root cause A through a different door. Caught
+                  # here, before anything downstream trusts an activity
+                  # figure that was never actually read.
+                  metrics_unreadable=no
+                  if [ -z "$metrics" ]; then metrics_unreadable=yes; fi
+
+                  # Sum every sample of one Prometheus metric, across all its
+                  # label sets.
+                  #
+                  # The match is anchored on the metric name AND the character
+                  # that must follow it — `{` when the sample carries labels, a
+                  # space when it does not, which the exposition format
+                  # guarantees. A bare prefix match would also be anchored and
+                  # would also skip the `# HELP` / `# TYPE` lines, but it would
+                  # fold in any FUTURE series whose name merely starts with this
+                  # one. That is not a hypothetical worry: this same endpoint
+                  # already ships ovms_graph_processing_time_us_bucket/_count/
+                  # _sum, so suffixing a base name is the habit of the source.
+                  # Counting a stray series here fails quietly — the watchdog
+                  # reads busy forever and stops reclaiming, with nothing to
+                  # show for it until the ceiling.
+                  #
+                  # `print s+0` is load-bearing too: a name that matches nothing
+                  # must yield 0, not the empty string, or the integer
+                  # comparisons below abort the script under `set -e`.
+                  sum_series() {
+                    echo "$metrics" | awk -v name="$1" '
+                      index($0, name "{") == 1 || index($0, name " ") == 1 {s += $NF}
+                      END {print s+0}'
+                  }
+                  in_flight=$(sum_series ovms_current_graphs)
+                  activity=$(( $(sum_series ovms_requests_accepted) + $(sum_series ovms_requests_rejected) ))
 
                   # `memory.max` reads "max" when unlimited; treat that as
                   # "no critical threshold" rather than dividing by a word.
                   if [ "$limit" = "max" ]; then limit=0; fi
 
-                  millicores=$(( (cpu2 - cpu1) / (SAMPLE_SECONDS * 1000) ))
                   now=$(date -u +%s)
 
-                  busy=no
-                  if [ "$millicores" -ge "$BUSY_MILLICORES" ]; then busy=yes; fi
+                  # Is the server working? Two terms, because one instant and
+                  # one interval are different questions:
+                  #
+                  #   in_flight  — the gauge, true only for the moment sampled;
+                  #   activity   — the counter, so a request that arrived at ANY
+                  #                point since the previous tick still counts.
+                  #
+                  # The counter term is the important half: a batch job with
+                  # gaps between its batches is idle at most instants, and that
+                  # shape is precisely what the old 10-second CPU sample missed.
+                  last_activity=$(kubectl -n "$NS" get "deployment/$DEPLOY" \
+                                    -o "jsonpath={.metadata.annotations.retrieval\.derio\.net/pool-watchdog-last-activity}" 2>/dev/null || true)
+                  # First tick against this Deployment: no delta is knowable,
+                  # so claim none rather than inventing one.
+                  if [ -z "${last_activity:-}" ]; then last_activity=$activity; fi
 
+                  busy=no
+                  activity_reset=0
+                  if [ "$metrics_unreadable" = no ]; then
+                    if [ "$in_flight" -gt 0 ]; then busy=yes; fi
+                    if [ "$activity" -gt "$last_activity" ]; then busy=yes; fi
+                    # A restarted pod serves this counter from zero, since
+                    # OVMS counters start fresh on every process — a DROP is
+                    # a counter reset, not idleness. Without this, the first
+                    # requests after every restart would read as idle, which
+                    # reintroduces root cause A (a working server misread as
+                    # asleep) through the back door of the very mechanism
+                    # meant to close it.
+                    if [ "$activity" -lt "$last_activity" ]; then
+                      busy=yes
+                      activity_reset=1
+                    fi
+                  fi
+
+                  # A restart invalidates every prior observation of the last
+                  # -busy clock — the process it was measuring no longer
+                  # exists. `rollout restart` does not touch the annotation
+                  # itself, and until this stamp the clock stayed frozen at
+                  # its pre-restart value: 2026-09-19 restarted a working
+                  # server four times in six minutes, one per tick, because
+                  # every subsequent tick still saw the SAME stale idle_for.
+                  # Stamping here bounds the worst case to one hygiene
+                  # restart per IDLE_SECONDS, whatever the activity signal
+                  # does on the next tick.
                   restart() {
                     kubectl -n "$NS" rollout restart "deployment/$DEPLOY"
-                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem limit=$limit millicores=$millicores"
+                    # The result line comes BEFORE the stamp, not after. Under
+                    # `set -e` a non-zero kubectl aborts the script, so a
+                    # transient failure on the stamp would otherwise swallow
+                    # the only record that this restart ever happened — and
+                    # that record is what the ovms-pool-watchdog-restart-loop
+                    # alert counts. A failed stamp still aborts the tick, which
+                    # is right: the Job fails visibly rather than quietly
+                    # accepting a clock it could not advance.
+                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem current=$current limit=$limit in_flight=$in_flight activity=$activity"
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
                   }
 
-                  if [ "$busy" = yes ]; then
-                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                  # Stamped on EVERY tick with a real reading, busy or not.
+                  # The last-busy clock advances only on busy ticks by
+                  # design — this one is a counter reading, and a reading
+                  # skipped is a delta silently attributed to the wrong
+                  # interval. Skipped entirely when metrics are unreadable:
+                  # $activity is a placeholder 0 in that case, and stamping
+                  # it would poison the NEXT tick's baseline into reading a
+                  # real count as a rise.
+                  if [ "$metrics_unreadable" = no ]; then
+                    kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ACTIVITY_ANNOTATION=$activity" --overwrite >/dev/null
+
+                    if [ "$busy" = yes ]; then
+                      kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
+                    fi
                   fi
 
                   # Rule 1 — safety. Ignores idleness on purpose: see
-                  # CRITICAL_PERCENT above.
+                  # CRITICAL_PERCENT above. Compares `current` (memory.current,
+                  # what the kernel's OOM killer actually acts on), not
+                  # `shmem` — see CRITICAL_PERCENT's comment for why.
                   if [ "$limit" -gt 0 ]; then
                     # Integer math on purpose: percent-of-limit is exact
                     # enough for a threshold whose job is to be crossed early,
                     # and it keeps this script to bash + kubectl, matching the
                     # pipelinerun-ttl-gc CronJob's stated constraint.
                     critical=$(( limit / 100 * CRITICAL_PERCENT ))
-                    if [ "$shmem" -ge "$critical" ]; then
+                    if [ "$current" -ge "$critical" ]; then
                       restart critical-pool
                       exit 0
                     fi
                   fi
 
+                  # Rule 1 above does not consult `busy` and stays fully
+                  # armed even here — an unreadable scrape must not disarm
+                  # the OOM-avoiding restart. Past this point every decision
+                  # DOES depend on a real activity reading, so refuse to take
+                  # hygiene action rather than act on a placeholder. The cost
+                  # of failing this way is an elevated pool that goes
+                  # unreclaimed for one tick, which is strictly the lesser
+                  # harm next to restarting (or not restarting) on a made-up
+                  # zero.
+                  if [ "$metrics_unreadable" = yes ]; then
+                    echo "pool-watchdog result: action=none reason=metrics-unreadable shmem=$shmem current=$current limit=$limit"
+                    exit 0
+                  fi
+
                   if [ "$busy" = yes ]; then
-                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem millicores=$millicores"
+                    echo "pool-watchdog result: action=none reason=busy shmem=$shmem current=$current in_flight=$in_flight activity=$activity activity_reset=$activity_reset"
                     exit 0
                   fi
 
                   # Rule 2 — hygiene. An elevated pool that nobody is using is
-                  # headroom the next session will not have.
+                  # headroom the next session will not have. Compares `shmem`
+                  # DELIBERATELY, not `current` — this rule asks "is the GPU
+                  # pool above its post-boot baseline", which is a `shmem`
+                  # question, not "are we near the kernel's kill ceiling",
+                  # which is Rule 1's `current` question. See CRITICAL_PERCENT
+                  # above for the full reasoning; they are different questions
+                  # and must not share a numerator.
                   if [ "$shmem" -lt "$ELEVATED_BYTES" ]; then
-                    echo "pool-watchdog result: action=none reason=pool-at-baseline shmem=$shmem"
+                    echo "pool-watchdog result: action=none reason=pool-at-baseline shmem=$shmem current=$current in_flight=$in_flight activity=$activity"
                     exit 0
                   fi
 
@@ -245,7 +416,7 @@ spec:
                     # Never seen busy. Stamp now so the idle clock starts from
                     # an observation rather than from pod age, and wait.
                     kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
-                    echo "pool-watchdog result: action=none reason=no-baseline-yet shmem=$shmem"
+                    echo "pool-watchdog result: action=none reason=no-baseline-yet shmem=$shmem current=$current in_flight=$in_flight activity=$activity"
                     exit 0
                   fi
 
@@ -255,4 +426,4 @@ spec:
                     exit 0
                   fi
 
-                  echo "pool-watchdog result: action=none reason=idle-too-recent shmem=$shmem idle_for=$idle_for"
+                  echo "pool-watchdog result: action=none reason=idle-too-recent shmem=$shmem current=$current idle_for=$idle_for in_flight=$in_flight activity=$activity"

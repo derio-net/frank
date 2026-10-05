@@ -1,0 +1,79 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Rule 1 measures what the kernel actually kills on
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: The numerator becomes memory.current
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED. `test_rule_one_triggers_on_memory_current_not_shmem`: `memory.max` 16Gi, shmem
+      BELOW the 50% line, `memory.current` ABOVE it. Assert `action=restart reason=critical-pool`.
+      Fails today - Rule 1 compares `shmem` against `memory.max`, while the OOM killer compares
+      `memory.current`. Measured live at baseline: shmem 1836507136, memory.current 2296066048,
+      a ~25% gap that is very likely the issue's unexplained "68% with no action".
+  - id: P3.T1.S2
+    text: |
+      GREEN. Add `cat /sys/fs/cgroup/memory.current` to the exec, and compare THAT against
+      `critical`. Keep `shmem=` in every result line and add `current=` beside it - `shmem` is
+      the pool figure the whole design reasons about and the log should not lose it.
+  - id: P3.T1.S3
+    text: |
+      REFACTOR. Rewrite the `CRITICAL_PERCENT` comment to say which quantity it bounds and why
+      it is not `shmem`, and record in the same comment that `memory.peak` was considered and
+      declined: peak runs about 2 GiB above settled, so at an unchanged 50% it would fire
+      during every normal index. Full suite green.
+- number: 2
+  title: Rule 2 keeps measuring the pool
+  steps:
+  - id: P3.T2.S1
+    text: |
+      RED. `test_the_elevated_pool_is_still_measured_on_shmem`: `memory.current` above
+      `ELEVATED_BYTES` while `shmem` is below it, server idle, clock stale. Assert NO restart -
+      the GPU pool is at baseline and there is nothing to reclaim. This goes red if P3.T1.S2
+      replaced `shmem` globally rather than in Rule 1 only, which is the easy mistake here.
+  - id: P3.T2.S2
+    text: |
+      GREEN. Ensure `ELEVATED_BYTES` is compared against `shmem`. Rule 1 asks "are we near the
+      ceiling the kernel kills at" (`memory.current`); Rule 2 asks "is the GPU pool above its
+      post-boot baseline" (`shmem`). Different questions, different numerators, on purpose.
+  - id: P3.T2.S3
+    text: |
+      no-refactor-because: the distinction is now pinned by a test and stated in the comment
+      written in P3.T1.S3; nothing is duplicated.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-09-19T23:08:33+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-09-19T23:08:35+00:00'
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-09-19T23:08:37+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-09-19T23:08:40+00:00'
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-09-19T23:08:43+00:00'
+      note: null
+    P3.T2.S3:
+      state: '-'
+      ticked_at: '2026-09-19T23:08:45+00:00'
+      note: 'no-refactor-because: the distinction is now pinned by a test and stated
+        in the CRITICAL_PERCENT comment written in P3.T1.S3; nothing is duplicated.'
+  completion:
+    at: '2026-09-19T23:09:50+00:00'
+    note: null
+    observed_prs: []

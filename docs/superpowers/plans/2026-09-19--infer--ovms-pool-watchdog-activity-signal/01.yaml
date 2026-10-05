@@ -1,0 +1,161 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Walking skeleton - activity read from OVMS, with captured metrics deciding
+    the series
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - retrieval-batch-job-survives-pool-watchdog
+  skeleton: true
+tasks:
+- number: 1
+  title: The stubbed harness can serve /metrics, and the script reads it
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. The behavioural harness already exists: `scripts/tests/test_ovms_pool_watchdog.py`
+      extracts the CronJob's inline script from `apps/ovms-retrieval/manifests/pool-watchdog.yaml`
+      and runs it under `bash` against a stubbed `kubectl` (see the `run_script` fixture, ~line 148).
+      Everything must stay OFFLINE - `.github/workflows/repo-tripwires.yml` runs
+      `pytest scripts/tests/ -q` on every PR and nothing in that suite may talk to a cluster.
+
+      The two fixtures are already committed, captured 2026-09-19 from the live server:
+      `scripts/tests/fixtures/ovms-retrieval/metrics-idle.txt` (both models at
+      `ovms_current_graphs 0`) and `metrics-busy.txt` (`bge-m3` at 1 with a request in flight).
+      Do NOT hand-write metrics text; read these files.
+
+      Extend the `run_script` kubectl stub so the `exec` branch also emits the contents of
+      `$FAKE_METRICS` (default: the idle fixture), and add
+      `test_the_script_reads_the_servers_own_metrics`: run with the busy fixture and assert the
+      result line carries `in_flight=1`. Expect FAIL - the script does not curl `/metrics` yet.
+  - id: P1.T1.S2
+    text: |
+      GREEN, minimally. In `pool-watchdog.yaml`, extend the single `kubectl exec ... sh -c`
+      read to also run `curl -s -m 5 http://127.0.0.1:8000/metrics` and emit it after the
+      cgroup lines. `curl` is present in the `ovms` container (verified live via
+      `kubectl -n retrieval exec deploy/ovms-retrieval -c ovms -- curl ...`). Keep it in the
+      SAME exec as the cgroup read so the memory figure and the activity figure describe the
+      same pod at the same instant.
+
+      Parse two numbers from it and add them to every result line:
+        in_flight = sum of `^ovms_current_graphs`
+        activity  = sum of `^ovms_requests_accepted` + sum of `^ovms_requests_rejected`
+      Sum with `awk '{s+=$NF} END {print s+0}'`; the `+0` matters, an empty match must yield 0
+      and not the empty string, or the later `[ "$a" -gt "$b" ]` aborts under `set -u`/`-e`.
+      Re-run: the new test passes and the existing suite still does.
+  - id: P1.T1.S3
+    text: |
+      REFACTOR. Fold the two sums into one `sum_series()` helper in the script so the metric
+      names appear exactly once each. Rewrite the `read_state()` comment to say what the
+      single exec now returns and why it is one exec. Run the whole file:
+      `uv run --quiet --with pytest --with pyyaml pytest -q scripts/tests/test_ovms_pool_watchdog.py`.
+- number: 2
+  title: busy is derived from activity, not from the CPU
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED. Two tests, both reproducing the 2026-09-19 incident from its own log lines.
+
+      `test_a_gpu_busy_server_with_a_stale_idle_clock_is_not_restarted`: shmem elevated
+      (5104066560, the 19:36 reading), `FAKE_LAST_BUSY` 3600s in the past, CPU at 5 millicores
+      (the 19:36 reading), and the BUSY metrics fixture. Assert NO `rollout restart` in the
+      stub's call log. Today this restarts - that is the bug.
+
+      `test_work_since_the_last_tick_counts_as_busy`: idle fixture (nothing in flight) but
+      `activity` above the stamped `pool-watchdog-last-activity` annotation. Assert no restart
+      and `reason=busy`. This is the half that covers the gaps BETWEEN a batch job's requests,
+      which the old 10-second CPU window could not see.
+
+      Expect both to FAIL.
+  - id: P1.T2.S2
+    text: |
+      GREEN. Replace the busy determination with:
+        busy = (in_flight > 0) OR (activity > last_activity)
+      where `last_activity` comes from a new Deployment annotation
+      `retrieval.derio.net/pool-watchdog-last-activity`, stamped every tick (not only on busy
+      ticks - that asymmetry is root cause B and must not be reproduced on the new annotation).
+
+      DELETE the CPU path entirely: both `read_state` samples, the `sleep "$SAMPLE_SECONDS"`,
+      the `millicores` arithmetic, and the `BUSY_MILLICORES` / `SAMPLE_SECONDS` env vars. The
+      spec's reasoning is that a signal proven blind to this workload is not a fallback, it is
+      a way to be confidently wrong again. Both tests pass.
+  - id: P1.T2.S3
+    text: |
+      REFACTOR. The removed env vars are asserted by `test_thresholds_are_present_and_ordered`
+      and the stub carries `FAKE_CPU1`/`FAKE_CPU2` plumbing and a `seen` marker file that now
+      have no reader - delete all of it rather than leaving dead scaffolding that implies a
+      CPU signal still exists. Update the `CRITICAL_PERCENT` / `ELEVATED_BYTES` comment block
+      to describe the activity signal. Full file green.
+- number: 3
+  title: Readiness-probe traffic must not read as busy
+  steps:
+  - id: P1.T3.S1
+    text: |
+      RED, and this is the test that matters most in the phase. A first draft of the spec
+      chose `ovms_requests_success` - on the strength of this repo's own gotchas file - and it
+      counts the readiness probe, not inference. Measured 2026-09-19: over 12 idle seconds the
+      ONLY series that moved was
+      `ovms_requests_success{api="KServe",interface="REST",method="ModelReady",name="bge-reranker-v2-m3"}`,
+      because `readinessProbe` hits `/v2/models/bge-reranker-v2-m3/ready` every 10s
+      (`deployment.yaml:364`). Had it shipped, `busy` would read yes forever and Rule 2 would
+      be silently dead.
+
+      Add `test_readiness_probe_traffic_alone_does_not_read_as_busy`: build the second tick's
+      metrics from the idle fixture with ONLY the `ModelReady` `ovms_requests_success` series
+      incremented, everything else byte-identical, pool elevated, idle clock stale. Assert the
+      tick reads NOT busy and DOES restart (it is genuinely idle hygiene).
+  - id: P1.T3.S2
+    text: |
+      GREEN. If `sum_series` already sums only `ovms_requests_accepted` + `ovms_requests_rejected`
+      this passes on the first run - that is the correct outcome, not a skipped step. Confirm it
+      by deliberately adding `ovms_requests_success` to the sum, watching the test go red, and
+      reverting. Record the confirmation with
+      `fr journal add --scope plan --slug <slug> --kind discovery --phase 1` naming both readings.
+  - id: P1.T3.S3
+    text: |
+      no-refactor-because: the summing helper was extracted in P1.T1.S3 and this task adds a
+      test against it without changing the script.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-09-19T22:17:02+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-09-19T22:17:05+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-09-19T22:17:07+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-09-19T22:21:09+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-09-19T22:21:11+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-09-19T22:22:28+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-09-19T22:25:06+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-09-19T22:25:08+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-09-19T22:25:10+00:00'
+      note: null
+  completion:
+    at: '2026-09-19T22:25:12+00:00'
+    note: null
+    observed_prs: []

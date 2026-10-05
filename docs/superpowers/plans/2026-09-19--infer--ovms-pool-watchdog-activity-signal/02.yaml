@@ -1,0 +1,114 @@
+schema_version: 2
+phase:
+  number: 2
+  title: A restart cannot loop
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: A restart stamps the idle clock
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED. `test_a_restart_stamps_the_idle_clock`: drive a hygiene restart (elevated pool, not
+      busy, idle clock stale) and assert the stub's call log contains BOTH `rollout restart`
+      AND an `annotate ... pool-watchdog-last-busy=` afterwards. Fails today: the annotation
+      lives on the Deployment, `rollout restart` does not touch it, and it advances only on a
+      positive busy sample - which is why 2026-09-19 produced four restarts in six minutes
+      rather than one.
+  - id: P2.T1.S2
+    text: |
+      GREEN. In `restart()`, stamp `pool-watchdog-last-busy=$now` alongside the rollout
+      restart, for BOTH rules. The annotation means "how long since the server was last known
+      to be doing something", and a restart destroys the process that observation was about.
+      Worst case becomes one hygiene restart per `IDLE_SECONDS`, whatever the activity signal
+      does.
+  - id: P2.T1.S3
+    text: |
+      REFACTOR. Add `test_a_second_consecutive_tick_does_not_restart_again`: run the restart
+      tick, then a tick whose `FAKE_LAST_BUSY` is the stamped value, and assert no second
+      restart. This is the regression for the incident's actual shape - one restart is a
+      decision, five is a machine.
+- number: 2
+  title: A counter reset is not idleness
+  steps:
+  - id: P2.T2.S1
+    text: |
+      RED. `test_a_counter_reset_reads_as_busy_not_idle`: `activity` BELOW the stamped
+      `last-activity` - what a fresh pod reports after any restart, since OVMS counters start
+      at zero. Assert the tick reads busy and re-stamps. Fails today: `activity > last_activity`
+      is false, so the first requests after every restart would read as idle, re-introducing
+      root cause A through the back door.
+  - id: P2.T2.S2
+    text: |
+      GREEN. Detect `activity < last_activity`, treat the tick as busy, re-stamp. Standard
+      counter-reset handling; log `reason=busy` with an `activity_reset=1` field so the log
+      can distinguish it.
+  - id: P2.T2.S3
+    text: |
+      no-refactor-because: a three-line guard inside the existing busy determination, with no
+      duplication introduced.
+- number: 3
+  title: Unreadable metrics fail toward busy
+  steps:
+  - id: P2.T3.S1
+    text: |
+      RED. `test_unreadable_metrics_take_no_hygiene_action`: cgroup readable, `/metrics` empty
+      (stub returns nothing for the curl portion), pool elevated, idle clock stale. Assert no
+      restart and `reason=metrics-unreadable`.
+  - id: P2.T3.S2
+    text: |
+      GREEN. When the metrics portion of the exec is empty or unparseable, log
+      `action=none reason=metrics-unreadable` and exit before Rule 2. Rule 1 does not consult
+      `busy`, so it stays armed - the cost of failing this way is an unreclaimed pool, which
+      is strictly the lesser harm.
+  - id: P2.T3.S3
+    text: |
+      REFACTOR. Add `test_rule_one_still_fires_when_metrics_are_unreadable` so the claim in the
+      step above is a test and not a comment: unreadable metrics plus a critical pool must
+      still restart.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-09-19T22:41:56+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-09-19T22:41:58+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-09-19T22:42:00+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-09-19T22:42:51+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-09-19T22:42:53+00:00'
+      note: null
+    P2.T2.S3:
+      state: '-'
+      ticked_at: '2026-09-19T22:42:55+00:00'
+      note: 'no-refactor-because: three-line guard inside existing busy determination,
+        no duplication introduced'
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-09-19T22:46:38+00:00'
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: '2026-09-19T22:46:40+00:00'
+      note: null
+    P2.T3.S3:
+      state: x
+      ticked_at: '2026-09-19T22:46:42+00:00'
+      note: null
+  completion:
+    at: '2026-09-19T22:47:26+00:00'
+    note: null
+    observed_prs: []
