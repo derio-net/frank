@@ -1,0 +1,154 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Paperclip back to pure upstream v2026.916.1 in git
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - paperclip-pure-upstream-pod
+  - paperclip-shell-retired
+  - paperclip-docs-describe-fresh-start
+  - companies-mirror-paused
+  tier: standard
+  files:
+  - apps/paperclip/**
+  - secrets/paperclip/**
+  - .github/workflows/agent-images-bump.yml
+  - scripts/tests/test_config_reaches_the_process.py
+  - scripts/tests/test_paperclip_pure_upstream.py
+  - scripts/paperclip-purge-fs.sh
+  - apps/tekton/webhooks.yaml
+  - blog/content/docs/building/15-paperclip/index.md
+  - blog/content/docs/operating/18-paperclip/index.md
+  - README.md
+  - agents/rules/frank-infrastructure.md
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/frank-gotchas/*.md
+  - docs/runbooks/manual-operations.yaml
+  - docs/acceptance/**
+  - docs/superpowers/plans/**
+  estimate_lines: 1400
+tasks:
+- number: 1
+  title: Guard test for a pure-upstream Paperclip pod (red)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tests/test_paperclip_pure_upstream.py, loading every YAML document under apps/paperclip/manifests. Assert: the paperclip Deployment has exactly one container and no initContainers; its image starts with ghcr.io/paperclipai/paperclip:sha-; no env named OLLAMA_*, HERMES_HOME or XDG_CONFIG_HOME; PATH (if set) contains no agent-bin; no envFrom or secretKeyRef names paperclip-llm-key; no object in the directory is named paperclip-shell*, paperclip-hermes, paperclip-opencode or paperclip-llm-key; paperclip-config has TRUST_PROXY, it is not "true" and contains no "uniquelocal"; PAPERCLIP_ANNOUNCEMENTS_ENABLED is "false". Also assert .github/workflows/agent-images-bump.yml no longer lists paperclip-shell, and apps/paperclip/client-setup/ and secrets/paperclip/ do not exist.
+  - id: P1.T1.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_paperclip_pure_upstream.py -q` and confirm it FAILS on the current manifests (several assertions); record the failure output.
+- number: 2
+  title: Strip the Paperclip pod to upstream (green)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Confirm the pod CIDR live from the repo root (`source .env`): `kubectl get nodes -o jsonpath='{..podCIDR}'`. Every node range must fall inside one covering CIDR, expected 10.244.0.0/16. If it differs, use the real covering CIDR everywhere below and amend the spec.
+  - id: P1.T2.S2
+    text: |-
+      Edit apps/paperclip/manifests/deployment.yaml: image ghcr.io/paperclipai/paperclip:sha-d554c47 with a comment (v2026.916.1 = d554c4789ed3930f8a53ac9fdf6503b3187097da, released 2026-09-21; claude-code/codex/opencode/gemini/kimi CLIs bundled upstream; fresh start per the 2026-10-04 spec). Remove the hermes-init initContainer, the paperclip-shell container, the PATH / XDG_CONFIG_HOME / HERMES_HOME / OLLAMA_BASE_URL / OLLAMA_API_KEY env, the paperclip-llm-key envFrom, the opencode/hermes volumeMounts and the volumes opencode-config, hermes-config, shell-home, shell-ssh-keys, shell-inventory, shell-motd-tips. Drop comments that only explain removed pieces; keep the gpu-1 pin, Recreate, resources, probes, DATABASE_URL and the auth/brave/resend envFrom.
+  - id: P1.T2.S3
+    text: |-
+      Add to apps/paperclip/manifests/configmap.yaml `TRUST_PROXY: "loopback,10.244.0.0/16"` (with a comment on why not uniquelocal) and `PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false"`. Delete configmap-hermes.yaml, configmap-opencode.yaml, configmap-shell-inventory.yaml, configmap-shell-motd-tips.yaml, external-secret-llm.yaml, externalsecret-shell-alerts.yaml, pvc-shell-home.yaml and service-shell.yaml.
+- number: 3
+  title: Remove the rest of the shell and fix its dependants
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Delete apps/paperclip/client-setup/ and secrets/paperclip/; remove paperclip-shell from the AGENT_IMAGES allowlist in .github/workflows/agent-images-bump.yml; delete the apps/paperclip/manifests:paperclip entry from the exemption dict in scripts/tests/test_config_reaches_the_process.py.
+  - id: P1.T3.S2
+    text: |-
+      Rewrite scripts/paperclip-purge-fs.sh to exec into container `paperclip` instead of paperclip-shell and drop the agent-bin keeper, keeping its dry-run default and INSTANCE_ROOT guard.
+  - id: P1.T3.S3
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_paperclip_pure_upstream.py scripts/tests/test_config_reaches_the_process.py scripts/tests/test_agent_images_bump_coverage.py -q`; all pass. Parse every file in apps/paperclip/manifests as YAML; no error.
+- number: 4
+  title: Declare the paused companies hook
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      In apps/tekton/webhooks.yaml add a `note:` to the gitea agentic-stoa/companies → live-mirror-sync entry: deliberately active:false since the Paperclip fresh start (2026-10-04 spec) until the reworked company's routine exists; resume via manual-op orch-paperclip-resume-companies-mirror. Run `.venv/bin/pytest scripts/tests/test_webhook_delivery_paths.py -q`; passes.
+- number: 5
+  title: Docs and runbook describe the fresh start (R9)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Append a dated "Fresh start (2026-10)" section to blog/content/docs/building/15-paperclip/index.md and an operating update to blog/content/docs/operating/18-paperclip/index.md: why the instance was wiped, pure upstream, shell and shims retired, how to bootstrap the admin and connect Claude. Mark superseded shell / LiteLLM-agent sections historical in place rather than deleting them.
+  - id: P1.T5.S2
+    text: |-
+      Update README.md (Paperclip: no shell, no .221), remove the .221 row from agents/rules/frank-infrastructure.md, and mark historical the paperclip-shell / shim / LiteLLM-agent entries in agents/rules/frank-gotchas.md, docs/runbooks/frank-gotchas/paperclip-ruflo.md, agent-shells.md (live-shell list) and networking.md (.221).
+  - id: P1.T5.S3
+    text: |-
+      Runbook: in the source plans' manual-operation blocks set status decommissioned for orch-paperclip-hire-hermes-litellm-agent, orch-paperclip-hire-opencode-litellm-agent, orch-paperclip-reconcile-shared-agent-clis, paperclip-shell-ssh-keys-sops-bootstrap and any other shell-only op; correct the orch-create-infisical-secrets note about PAPERCLIP_LITELLM_KEY; then sync docs/runbooks/manual-operations.yaml from all plans (sync-runbook procedure) so it picks up those changes and this plan's blocks. Retire acceptance rows paperclip-shell and paperclip-litellm-agents-operable using the matrix's retirement convention and regenerate the reports.
+  - id: P1.T5.S4
+    text: |-
+      Run `git grep -nE "paperclip-shell|192\.168\.55\.221|paperclip-llm-key" -- ':!docs/superpowers/implemented' ':!docs/superpowers/archived-plans' ':!docs/superpowers/runs' ':!docs/superpowers/specs' ':!docs/superpowers/plans/2026-10-04--orch--paperclip-fresh-start' ':!docs/papers-dossiers' ':!blog/data/papers' ':!blog/content/docs/papers' ':!docs/superpowers/journals'`; every remaining hit is explicitly historical or a decommissioned runbook entry.
+- number: 6
+  title: REFACTOR + quality gate
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Re-read the deployment.yaml and configmap.yaml diffs for leftover comments about removed pieces and simplify. Run `.venv/bin/pytest scripts/tests -q`, ignoring the hugo-building blog test files (they wedge locally; CI runs them); all pass. `fr plan self-review` on this plan is clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

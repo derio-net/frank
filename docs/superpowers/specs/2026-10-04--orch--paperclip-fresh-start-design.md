@@ -237,3 +237,9 @@ manual-operation so it is not lost.
 - **Native runner default on:** v2026.916 enables `enableNativeRunner` for
   self-hosted; it only affects explicitly configured agents, so the R7 proof
   uses the legacy Claude adapter path unless onboarding chooses otherwise.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-04--orch--paperclip-fresh-start | `derio-net/frank` | `2026-10-04--orch--paperclip-fresh-start` | — |
