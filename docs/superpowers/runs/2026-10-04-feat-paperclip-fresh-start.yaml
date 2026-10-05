@@ -100,8 +100,10 @@ steps:
     stdout: |
       2 out-of-scope finding(s): p1-r2, p1-r10
   deliver:
-    state: running
-    at: '2026-10-05T19:00:08+00:00'
+    state: done
+    at: '2026-10-05T19:13:18+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/823
     units:
       step/deliver:
         attempts:
@@ -109,4 +111,10 @@ steps:
           harness: claude-code
           model: claude-opus-5-5
           session: 5bd12e8a-a28e-4950-8c44-0b3e9d800148
+          returned: '2026-10-05T19:13:16+00:00'
+          outcome: done
+        evidence:
+          tests: full-suite.log@f834ce147bdb
+          proportionality: 248216f6946fba70ef698b102b7efc8ba4b56a76:1747b6f01e1b1819d7c213f36a05e426e5819989d1d58ffbdaf5c7bfd04aef34
+          visual: none
 driver: standalone
