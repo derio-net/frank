@@ -5,17 +5,17 @@
 # been hard-deleted from the database. Defaults to dry-run; pass --apply to act.
 #
 # Where to run:
-#   Inside the paperclip-shell sidecar (or the paperclip container itself —
-#   both mount the same paperclip-data PVC at /paperclip).
+#   Inside the paperclip container (it mounts the paperclip-data PVC at
+#   /paperclip).
 #
-#   kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip-shell -- bash
+#   kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip -- bash
 #   # then run this script
 #
 # What it does:
 #   - Removes per-company subtrees under
 #       /paperclip/instances/default/{companies,projects,data/storage}/<id>
 #     for each deleted company id.
-#   - Refuses to touch the keeper id and refuses to touch /paperclip/agent-bin,
+#   - Refuses to touch the keeper id and refuses to touch
 #     /paperclip/.cache, or anything outside the instance-scoped paths.
 #   - Lists orphan workspaces (named by workspace_id, not company_id) for you
 #     to handle separately — those need a DB lookup to attribute.
