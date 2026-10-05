@@ -67,9 +67,12 @@ state:
         commit. Cleared by an explicit sync operation per the argocd.md recipe; live
         script now 10412 bytes with ovms_current_graphs and CRITICAL_PERCENT=53.'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-05T07:14:48+00:00'
+      note: Row 2 PASS. Four consecutive post-traffic ticks (07:02/07:04/07:06/07:08)
+        read activity=13 unchanged, in_flight=0, reason=pool-at-baseline, while the
+        readinessProbe kept hitting every 10s - and ovms_requests_success stood at
+        107,610 in the same window. Probe traffic contributes nothing to activity.
     P6.T1.S3:
       state: ' '
       ticked_at: null
