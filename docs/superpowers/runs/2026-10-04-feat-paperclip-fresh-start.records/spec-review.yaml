@@ -1,0 +1,36 @@
+schema_version: 7
+run: 2026-10-04-feat-paperclip-fresh-start
+step: spec-review
+outcome: done
+journal:
+  - {kind: review, id: spec-review, title: "independent spec review: 12 findings (10 in, 2 out)", body: "fr-spec-reviewer, separate context, read-only. All four operator decisions honoured."}
+  - {kind: finding, id: s1, review_scope: in, title: "Wipe step 3 order-dependent (PVC Terminating race)", body: "Delete PVCs under running pods races both controllers; paperclip may boot on old DB."}
+  - {kind: finding, id: s2, review_scope: in, title: "TRUST_PROXY uniquelocal trusts the whole LAN via .212", body: "uniquelocal = all RFC1918 incl. 192.168.55.0/24."}
+  - {kind: finding, id: s3, review_scope: in, title: "No Test Plan; R4/R5/R8/R9 unverifiable", body: "Map each R to a check."}
+  - {kind: finding, id: s4, review_scope: in, title: "Connections credential durability unstated", body: "Only /paperclip persists; a Recreate may log the agent out."}
+  - {kind: finding, id: s5, review_scope: in, title: "Guard test misses half of R3; exemption must be dropped", body: "test_exempt_list_has_no_dead_entries fails otherwise."}
+  - {kind: finding, id: s6, review_scope: in, title: "Sequence rationale contradicts its order", body: "New image migrates the doomed DB before the wipe; '57' unsourced."}
+  - {kind: finding, id: s7, review_scope: in, title: "R9 sweep misses named stale docs/ops/rows", body: "infisical-secrets note, agent-shells.md, networking.md, purge-fs script, matrix paperclip-litellm-agents-operable."}
+  - {kind: finding, id: s8, review_scope: in, title: "webhooks.yaml desired state silently wrong after pause", body: "Add a note on the companies entry."}
+  - {kind: finding, id: s9, review_scope: in, title: "Window trips layer-15-workflows-down", body: "Expect it; require resolved before R7 proof."}
+  - {kind: finding, id: s10, review_scope: in, title: "Step 4 should assert Secrets gone; step 2 shouldn't wait on Synced", body: "App is OutOfSync until the sweep under prune:false."}
+  - {kind: finding, id: s11, review_scope: out, title: "orch-traefik-paperclip-route op pending against retired edge/domain", body: "Pre-existing staleness."}
+  - {kind: finding, id: s12, review_scope: out, title: "Paper 17 and sibling-app comments cite paperclip-shell/LITELLM-key pattern", body: "Historical precedent, not wrong."}
+resolves:
+  - {id: s1, state: fixed, body: "Step 3 rewritten: DB PVC+pod first, wait new UID + Ready, then paperclip-data; UIDs recorded and compared; Pending recovery given."}
+  - {id: s2, state: fixed, body: "TRUST_PROXY = loopback,10.244.0.0/16 (Cilium ipam kubernetes, Talos default podSubnets, confirmed live before ship); guard test forbids uniquelocal/true; R4 check added."}
+  - {id: s3, state: fixed, body: "Test Plan section maps R1–R9 to checks with CI/post-merge timing; R8 check needs no push to the third-party repo; R9 acceptance row added."}
+  - {id: s4, state: fixed, body: "R7 proof now includes rollout restart + second task without re-sign-in; fix lands in this PR if it fails."}
+  - {id: s5, state: fixed, body: "Guard test assertions extended to all of R3; exemption 'drop' stated."}
+  - {id: s6, state: fixed, body: "Preamble reworded: migration on old DB is harmless because discarded; unsourced count removed."}
+  - {id: s7, state: fixed, body: "R9 Design bullet names each stale doc, op note, script and matrix row."}
+  - {id: s8, state: fixed, body: "webhooks.yaml note added to Design."}
+  - {id: s9, state: fixed, body: "Expected alert stated; must resolve before step 6."}
+  - {id: s10, state: fixed, body: "Step 4 asserts both Secrets absent; step 2 waits on sync-operation revision + live image."}
+  - {id: s11, state: out-of-scope, body: "Pre-existing; flip it while touching runbook if trivial, else follow-up issue."}
+  - {id: s12, state: out-of-scope, body: "Historical references; left as-is."}
+acceptance:
+  - {id: paperclip-docs-describe-fresh-start, capability: Paperclip fresh start, acceptance: "Frank's operator docs (Layer 15 posts, README, infrastructure table, gotchas, runbook) describe Paperclip as pure upstream with no paperclip-shell, CLI shims or LiteLLM agents as current.", origin: ["frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R9"], status: not-implemented}
+evidence:
+  review: spec-review
+  reviewer: super-fr:fr-spec-reviewer

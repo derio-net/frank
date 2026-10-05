@@ -75,8 +75,14 @@ R9. Docs describe the new reality: the existing Layer 15 building/operating post
   `paperclip-config`, `paperclip-auth`, the optional `paperclip-brave` /
   `paperclip-resend` env, `DATABASE_URL`, the gpu-1 pin, `Recreate`, resources
   and probes (unchanged — sizing is out of scope).
-- `configmap.yaml`: add `TRUST_PROXY: "loopback,uniquelocal"` (Traefik reaches
-  the pod from the RFC 1918 pod CIDR); add `PAPERCLIP_ANNOUNCEMENTS_ENABLED:
+- `configmap.yaml`: add `TRUST_PROXY: "loopback,10.244.0.0/16"` — loopback
+  plus the pod CIDR only (Cilium `ipam.mode: kubernetes`, Talos default
+  `podSubnets`; confirmed live from `kubectl get nodes -o
+  jsonpath='{..podCIDR}'` before shipping). Traefik reaches the pod from a
+  pod IP; a LAN client hitting `192.168.55.212` directly arrives from a
+  `192.168.55.0/24` / node address and stays untrusted. `uniquelocal` was
+  rejected: it covers all of RFC 1918, LAN included, and would hand any LAN
+  host the forwarded-header trust v2026.916.0 took away. Add `PAPERCLIP_ANNOUNCEMENTS_ENABLED:
   "false"` alongside the existing telemetry opt-outs (new in v2026.916.0,
   default on, phones home to `pages.paperclip.ing`).
 - Delete: `configmap-hermes.yaml`, `configmap-opencode.yaml`,
@@ -90,59 +96,116 @@ R9. Docs describe the new reality: the existing Layer 15 building/operating post
 - `.github/workflows/agent-images-bump.yml`: drop `paperclip-shell` from the
   image allowlist (the image itself stays buildable in agent-images; retiring
   it there is a separate repo and out of scope).
-- `scripts/tests/test_config_reaches_the_process.py`: drop or rewrite the
-  `apps/paperclip/manifests:paperclip` exemption whose stated reason (shell
-  inventory/MOTD read per login) no longer exists; a test asserting the pod is
-  pure upstream (single container, no init containers, image from
-  `ghcr.io/paperclipai/paperclip`, no `agent-bin` on `PATH`) guards R1.
+- `scripts/tests/test_config_reaches_the_process.py`: **drop** the
+  `apps/paperclip/manifests:paperclip` exemption. After R1 the pod mounts no
+  ConfigMap volume (`paperclip-config` is envFrom only), so
+  `test_exempt_list_has_no_dead_entries` fails if the entry stays.
+- New guard test (R1 + R3) over the rendered `apps/paperclip/manifests`:
+  exactly one container and no init containers; image from
+  `ghcr.io/paperclipai/paperclip`; no `agent-bin` on `PATH`; no
+  `OLLAMA_*`, `HERMES_HOME` or `XDG_CONFIG_HOME` env; no reference to
+  `paperclip-llm-key` (envFrom or secretKeyRef); no ConfigMap/Service/PVC/
+  ExternalSecret named `paperclip-shell*`, `paperclip-hermes`,
+  `paperclip-opencode` or `paperclip-llm-key` in the directory; `TRUST_PROXY`
+  present and not containing `uniquelocal` or `true`.
+- `apps/tekton/webhooks.yaml`: add a `note:` to the `agentic-stoa/companies`
+  → `live-mirror-sync` entry saying the hook is deliberately `active: false`
+  pending the reworked company, naming the resume manual-op — the file is
+  declared desired state, and an unexplained dead trigger reads as a broken
+  pipeline.
 - Docs (R9): update `blog/content/docs/building/15-paperclip` and
   `operating/18-paperclip` with a dated "fresh start" section rather than
   rewriting history; README (`/update-readme`); remove the `.221` row from
   `agents/rules/frank-infrastructure.md`; in `frank-gotchas.md` and
   `docs/runbooks/frank-gotchas/paperclip-ruflo.md` mark the shell/shim/LiteLLM-agent
-  entries historical; flip the obsolete manual-ops
-  (`orch-paperclip-hire-hermes-litellm-agent`, `…-opencode-…`,
-  `orch-paperclip-reconcile-shared-agent-clis`,
-  `paperclip-shell-ssh-keys-sops-bootstrap`, and any other shell-only op)
-  to a retired status via the plan's blocks + `/sync-runbook`; retire the
-  acceptance-matrix rows that claim shell behaviour.
+  entries historical, and likewise the `paperclip-shell` mentions in
+  `docs/runbooks/frank-gotchas/agent-shells.md` (live-shell list) and the
+  `.221` reference in `docs/runbooks/frank-gotchas/networking.md`; flip the
+  obsolete manual-ops (`orch-paperclip-hire-hermes-litellm-agent`,
+  `…-opencode-…`, `orch-paperclip-reconcile-shared-agent-clis`,
+  `paperclip-shell-ssh-keys-sops-bootstrap`, and any other shell-only op) to
+  a retired status via the plan's blocks + `/sync-runbook`, and correct the
+  `orch-create-infisical-secrets` note that calls `PAPERCLIP_LITELLM_KEY` /
+  `paperclip-llm-key` "still required"; fix `scripts/paperclip-purge-fs.sh`
+  (it execs into `-c paperclip-shell` and keeps `agent-bin`) to exec into the
+  `paperclip` container; retire acceptance-matrix rows `paperclip-shell`
+  (the 2/2-containers claim) and `paperclip-litellm-agents-operable`.
 - Close #820 with a comment pointing at this PR, `--delete-branch`.
 
 ### Live sequence (manual operations, after merge)
 
-The image change and the wipe share one maintenance window, in this order, so
-the 57 v2026.916 migrations never matter against the data being thrown away:
+Merging rolls the new image straight onto the **old** database: upstream runs
+its whole pending migration set against data that step 3 discards. That run
+is wasted work and may crashloop, but its outcome is harmless by construction:
+whatever state it leaves is deleted minutes later. (The pending count is not
+asserted here; the repo's rule is to count it from the journal diff, and on
+this path it does not matter.) Expect `layer-15-workflows-down` (paperclip-system
+Deployment/StatefulSet unavailable, `for: 5m`) to fire during steps 2–3; it
+must have resolved before step 6.
 
 1. **Pause the mirror first** (R8): set the companies repo's Gitea hook to
-   `el-live-mirror-sync` `active: false` (Gitea API, admin creds from
-   `gitea-secrets`). Assert via `GET …/hooks`.
-2. **Merge**, wait for ArgoCD `paperclip` to sync, assert the live Deployment
-   carries the new image and one container (never accept `Synced` alone).
-3. **Wipe** (R5): delete PVCs `paperclip-data` and
-   `data-paperclip-db-postgresql-0`, then the two pods. The StatefulSet
-   recreates its PVC; ArgoCD (selfHeal) recreates `paperclip-data`. Postgres
-   initialises fresh with the existing `paperclip-db-postgresql` password Secret
-   (assert the Secret is untouched before deleting). Paperclip applies the full
-   migration journal to an empty DB.
-4. **Sweep the retired objects** (R2/R3, `prune: false`): delete Service
+   `el-live-mirror-sync` to `active: false` (Gitea API, admin creds from
+   `gitea-secrets`). Assert `active: false` via `GET …/hooks`.
+2. **Merge.** Wait on the `paperclip` Application's sync **operation** reaching
+   the merge revision and on the live Deployment carrying the new image with a
+   single container. Do not wait on `Synced`: under `prune: false` the app is
+   legitimately `OutOfSync` until step 4 deletes the orphans.
+3. **Wipe** (R5). Order matters: deleting a PVC under a running pod only marks
+   it Terminating, and a StatefulSet creates claims only when it creates a pod.
+   a. Assert Secret `paperclip-db-postgresql` exists and record its
+      `resourceVersion`. It is chart-generated, and `ignoreDifferences` on
+      `/data` keeps the live password; it must not change.
+   b. Record the UIDs of PVCs `data-paperclip-db-postgresql-0` and
+      `paperclip-data`.
+   c. Database first: `kubectl delete pvc data-paperclip-db-postgresql-0
+      --wait=false`, then delete pod `paperclip-db-postgresql-0`. Wait for the
+      old PVC to be gone, a new one Bound with a **different UID**, and the DB
+      pod Ready. If the pod sits Pending on the deleted claim, delete the pod
+      again; the StatefulSet then creates the claim.
+   d. Then the data volume: `kubectl delete pvc paperclip-data --wait=false`,
+      then the paperclip pod. ArgoCD selfHeal recreates `paperclip-data`.
+      Wait for a new UID, Bound, and the pod Ready on the empty DB (the full
+      migration journal applies here).
+   e. Re-assert the DB Secret's `resourceVersion` is unchanged.
+4. **Sweep the retired objects** (R2/R3; `prune: false`): delete Service
    `paperclip-shell`, PVC `paperclip-shell-home`, Secret
    `paperclip-shell-ssh-keys`, ExternalSecrets `paperclip-llm-key` and
-   `paperclip-shell-alerts` (Owner policy deletes their Secrets), ConfigMaps
-   `paperclip-hermes`, `paperclip-opencode`, `paperclip-shell-inventory`,
-   `paperclip-shell-motd-tips`. Assert each is gone and `.221` is unallocated;
-   assert the Application is `Synced` afterwards.
+   `paperclip-shell-alerts`, ConfigMaps `paperclip-hermes`,
+   `paperclip-opencode`, `paperclip-shell-inventory`,
+   `paperclip-shell-motd-tips`. Assert each is absent, **including Secrets
+   `paperclip-llm-key` and `paperclip-shell-alerts`** (Owner policy should GC
+   them; assert, don't assume), and that no Service holds `192.168.55.221`.
+   Then the Application must be `Synced`.
 5. **Bootstrap** (R6): `kubectl exec deploy/paperclip -- pnpm paperclipai auth
    bootstrap-ceo`, open the invite through `https://paperclip.cluster.derio.net`
    (Authentik forward-auth still fronts it), create the admin.
 6. **Prove it** (R7): create a throwaway company, connect Claude via
-   Connections, hire one Claude-adapter agent, assign a trivial task, observe
-   it complete. Keep the company as a sandbox or delete it — operator's call.
+   Connections, hire one Claude-adapter agent, assign a trivial task, observe it
+   complete. Then `kubectl rollout restart deploy/paperclip`, assign a second
+   trivial task, and observe it complete without re-signing in. This proves the
+   credential lives somewhere durable (DB or `/paperclip`), not in an
+   ephemeral home directory. If it does not survive, the fix belongs in this
+   PR (point the CLI home at the PVC) before the row flips. Keep the company as
+   a sandbox or delete it: operator's call.
 
 Steps 1–6 are handed over as one idempotent script under `scripts/tmp/`
-(gitignored) plus the manual-operation blocks; the operator runs the parts
-needing interactive sign-in.
+(gitignored) plus the manual-operation blocks. The operator runs the parts
+that need interactive sign-in.
 
-### Resuming the mirror (out of scope, recorded for later)
+## Test Plan
+
+| Req | Check | When |
+|-----|-------|------|
+| R1, R3 | Guard test over `apps/paperclip/manifests` (see Design) | CI |
+| R2 | Guard test (no shell manifests/workflow entry) + step 4 absence assertions incl. Secrets and `.221` | CI + post-merge |
+| R4 | Paperclip request log shows `req.ip` = a `10.244.x.x` Traefik pod IP for a request via `paperclip.cluster.derio.net`; a direct `curl -H 'X-Forwarded-Host: evil.invalid' http://192.168.55.212:3100/…` is not treated as that host (same-origin guard rejects / host ignored) | post-merge |
+| R5 | New PVC UIDs ≠ recorded old UIDs (step 3); before step 5, the health endpoint reports bootstrap not done and the UI shows no companies | post-merge |
+| R6 | Operator signs in as admin through the public URL | post-merge |
+| R7 | Task completes, survives a pod restart (step 6) | post-merge |
+| R8 | Hook `active: false` via Gitea API; after the next natural merge to the companies repo, no new `live-mirror-sync-*` TaskRun in `tekton-pipelines`. No test push to the third-party repo. `webhooks.yaml` note present (CI) | post-merge + CI |
+| R9 | `git grep` finds no current-tense `paperclip-shell` / `192.168.55.221` / `paperclip-llm-key` outside historical sections, implemented plans and blog history | CI-time check in the PR |
+
+## Resuming the mirror (out of scope, recorded for later)
 
 When the reworked company is imported and its routine exists: put the new
 routine's public trigger URL in Infisical `STOA_LIVE_MIRROR_FIRE_URL`, force-sync
@@ -162,10 +225,11 @@ manual-operation so it is not lost.
 ## Risks
 
 - **Bootstrap invite vs forward-auth:** the invite URL is opened through
-  Authentik-fronted Traefik; if `PAPERCLIP_PUBLIC_URL`-derived URLs and
-  `TRUST_PROXY` disagree, sign-in fails same-origin. Mitigation: R4 + verify
-  via the request log's `req.ip` (upstream's own advice); fallback is the LB
-  `192.168.55.212`, already in `PAPERCLIP_ALLOWED_HOSTNAMES`.
+  Authentik-fronted Traefik. If `PAPERCLIP_PUBLIC_URL`-derived URLs and
+  `TRUST_PROXY` disagree, sign-in fails the same-origin guard. Mitigation: R4's
+  check (`req.ip` is a Traefik pod IP). With `TRUST_PROXY` scoped to the pod
+  CIDR, the LB `192.168.55.212` fallback still works for the raw `Host`, but
+  forwarded headers from it are ignored by design.
 - **Chart re-renders the DB password:** if the postgres chart regenerated
   `paperclip-db-postgresql` on a re-render, a fresh PVC would initialise with
   one password and the app read another. Step 3 asserts the Secret before and
