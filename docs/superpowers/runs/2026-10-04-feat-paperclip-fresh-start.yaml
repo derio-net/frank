@@ -3,7 +3,7 @@ run: 2026-10-04-feat-paperclip-fresh-start
 workflow: fr-goal@1
 branch: feat/paperclip-fresh-start
 started: '2026-10-04T04:17:51+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -94,7 +94,11 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-05T19:00:07+00:00'
+    exit: 0
+    stdout: |
+      2 out-of-scope finding(s): p1-r2, p1-r10
   deliver:
     state: pending
 driver: standalone
