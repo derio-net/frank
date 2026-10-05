@@ -82,7 +82,12 @@ R9. Docs describe the new reality: the existing Layer 15 building/operating post
   pod IP; a LAN client hitting `192.168.55.212` directly arrives from a
   `192.168.55.0/24` / node address and stays untrusted. `uniquelocal` was
   rejected: it covers all of RFC 1918, LAN included, and would hand any LAN
-  host the forwarded-header trust v2026.916.0 took away. Add `PAPERCLIP_ANNOUNCEMENTS_ENABLED:
+  host the forwarded-header trust v2026.916.0 took away. The "LAN stays
+  untrusted" premise is made true by construction rather than assumed:
+  `service-lb.yaml` sets `externalTrafficPolicy: Local`, so Cilium never SNATs a
+  LAN request to `.212` onto an in-CIDR node/router address (possible under
+  `Cluster` in tunnel mode), and L2-announces `.212` only from the pod's node
+  (phase-1 review p1-r1). Add `PAPERCLIP_ANNOUNCEMENTS_ENABLED:
   "false"` alongside the existing telemetry opt-outs (new in v2026.916.0,
   default on, phones home to `pages.paperclip.ing`).
 - Delete: `configmap-hermes.yaml`, `configmap-opencode.yaml`,
