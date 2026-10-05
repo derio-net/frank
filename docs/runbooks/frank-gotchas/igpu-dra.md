@@ -244,6 +244,11 @@ ovms_graph_error{api="V3",method="Unary",name="bge-reranker-v2-m3"}        1
 ovms_requests_success{api="KServe",method="ModelReady",...}               12   <- the PROBE
 ```
 
+Scale of the trap, measured on this deployment: the reranker's
+`ovms_requests_success{method="ModelReady"}` accrues **~8,600/day** purely from
+the readiness probe. A reader querying it sees a briskly-climbing counter on a
+server that has served nothing.
+
 ```promql
 # real requests, per servable, over the last day
 sum by (name) (increase(ovms_requests_accepted{api="V3"}[1d]))
@@ -422,3 +427,93 @@ One more, on extrapolation: a fit over the three measured points
 over-predicted an independent check by 28%. The shipped pair is a short
 extrapolation from measured anchors, not a derived bound, so re-measure at the
 new ceiling rather than trusting the curve out to it.
+
+## A CPU-derived busy signal is blind to a GPU-offloaded server, and an idle clock that outlives its own restart turns one wrong reading into a loop
+
+Two properties, and the first one generalises past this cluster: **a busy
+signal built on container CPU cannot see work that the container handed to a
+GPU**, and **an idle clock that a restart does not reset converts a single
+misread tick into a restart every tick thereafter, with no rate limit.**
+Neither is specific to OVMS. frank#813, 2026-09-19.
+
+### What happened
+
+`ovms-pool-watchdog` restarted `ovms-retrieval` five times in sixteen minutes
+during a live downstream batch-index run and killed the job at batch 7 of 40.
+The issue that reported it assumed the OOM-safety rule (Rule 1) was too
+aggressive. The logs said otherwise — `critical-pool` never fired once in the
+whole window; every restart was Rule 2, the hygiene rule, deciding the pod was
+idle with an elevated buffer pool and reclaiming it:
+
+```
+19:26:12 action=restart reason=idle-with-elevated-pool  shmem=6641278976 millicores=4
+19:36:12 action=restart reason=idle-with-elevated-pool  shmem=5104066560 millicores=5
+19:38:12 action=restart reason=idle-with-elevated-pool  shmem=7238967296 millicores=29
+19:40:12 action=restart reason=idle-with-elevated-pool  shmem=8313102336 millicores=41
+19:42:12 action=restart reason=idle-with-elevated-pool  shmem=4089765888 millicores=5
+```
+
+That the decision line carries `shmem=` and `millicores=` beside the verdict
+is what made this a single VictoriaLogs query instead of a guessing exercise:
+the inputs the watchdog acted on are sitting right next to what it did with
+them, so "was this the right call?" is answerable from the log alone.
+
+### Root cause A — `busy` measured the CPU; the work was on the GPU
+
+The watchdog derived `busy` from a `cpu.stat` delta against
+`BUSY_MILLICORES=50`. The four ticks that restarted the pod read 4, 5, 29, 41
+and 5 millicores — while `shmem` climbed 5.10 → 7.24 → 8.31 GiB across those
+same ticks, i.e. the server was demonstrably working. OpenVINO offloads
+inference to the iGPU, so a GPU-bound server's container CPU sits near zero
+**by construction** — this is not a threshold that needed tuning, no value of
+`BUSY_MILLICORES` separates "indexing" from "asleep" when the indexing barely
+touches the CPU at all. Fixed by reading OVMS's own request counters
+(`ovms_requests_accepted` + `ovms_requests_rejected`) instead of CPU — see
+"Is anything actually using the retrieval tier?" above.
+
+### Root cause B — the idle clock survived the restart, so one miss became a loop
+
+The idle-tracking annotation lives on the **Deployment**, and `rollout
+restart` does not touch it — it advances only on a positive `busy` sample.
+Once root cause A pinned `busy=no`, the clock froze at its last-true value and
+every following tick computed an idle duration well past the threshold. The
+result has no rate limit: restart → pool refills within a tick or two →
+elevated again → clock still stale → restart. That is why it was five restarts
+in sixteen minutes and not one — **root cause A is why it started, root cause
+B is why it did not stop**, and B is the more dangerous of the two, because it
+turns *any* future regression in the activity signal into a restart loop
+rather than a single unnecessary restart. A `pool-watchdog-restart-loop`
+feature-health alert now watches for more than two restarts in 30 minutes, so
+the next miss pages instead of running to exhaustion.
+
+### Two near-misses on the fix itself
+
+**`ovms_requests_success` looked like the obvious activity counter, and it is
+the readiness-probe series.** It was the first thing reached for while fixing
+root cause A — this repo's own gotchas file recommended it as the usage
+signal at the time. Measured against the captured fixture: 449 of 450 samples
+in the idle case are the reranker's `ModelReady` series, moved by
+`readinessProbe` hitting `/v2/models/bge-reranker-v2-m3/ready` every 10s, not
+by any client. Shipping it would have made `busy` read `yes` on every tick
+forever — a quieter failure than the one being fixed, since Rule 2 would stop
+reclaiming with no symptom until the pool reached the OOM ceiling. See "Is
+anything actually using the retrieval tier?" above for the corrected query and
+the three doc sites that used to recommend the wrong one.
+
+**Porting `CRITICAL_PERCENT` from `shmem` to `memory.current` unchanged would
+have moved the OOM trigger and re-killed the very index this work exists to
+save.** A separate task in the same plan (frank#813) changed Rule 1's
+numerator from `shmem` to `memory.current`, because that is what the kernel's
+OOM killer actually compares against `memory.max`. `memory.current` runs a
+roughly constant ~0.5 GiB **above** `shmem` (anon + kernel accounting on top
+of the shmem-backed GPU buffers), and `CRITICAL_PERCENT=50` had been
+calibrated against `shmem` — so carrying the same percentage across the
+numerator swap silently tightens the trigger by several points of a 16Gi
+limit. Checked against the incident's own log line: the peak `shmem` reading
+(8313102336 bytes, 7.74 GiB) sat under the 8.00 GiB trigger, but the same
+moment's `memory.current` was 8.17 GiB — over by 174 MiB. An unadjusted port
+would have had Rule 1 kill the same batch-index run that Rule 2 killed, for a
+third, unrelated reason. Caught by measuring the live gap rather than
+reasoning that "the numerator change is safety-neutral in spirit"; the
+percentage was recalibrated (50 → 53) to land back where the trigger already
+sat in `shmem` terms. See docs/superpowers/plans/2026-09-19--infer--ovms-pool-watchdog-activity-signal for the full recalibration.

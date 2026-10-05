@@ -1,0 +1,85 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-merge Test Plan
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  tracking_issue: null
+  acceptance:
+  - retrieval-batch-job-survives-pool-watchdog
+  - retrieval-pool-watchdog-restart-loop-is-visible
+tasks:
+- number: 1
+  title: Verify on the live cluster, in this order
+  steps:
+  - id: P6.T1.S1
+    text: |
+      Row 1 - the artifact actually changed. `kubectl -n argocd get application ovms-retrieval`
+      reads Synced, AND
+      `kubectl -n retrieval get cronjob ovms-pool-watchdog -o yaml | grep ovms_current_graphs`
+      is non-empty. Sync status is not proof a change landed; assert on the artifact.
+  - id: P6.T1.S2
+    text: |
+      Row 2 - probe-noise regression, the one not to skip. Watch three consecutive ticks on an
+      idle server (the readiness probe is still hitting it every 10s) and require every tick to
+      read NOT busy. A `reason=busy` here means the activity counter picked up probe traffic
+      and Rule 2 is disabled - which looks exactly like a healthy quiet watchdog.
+  - id: P6.T1.S3
+    text: |
+      Row 3 - synthetic replay. Drive in-bounds `/v3/embeddings` requests with gaps between
+      them for at least three ticks, and confirm container CPU stayed under 50 millicores
+      throughout, so the result proves the new signal rather than a lucky CPU spike. Require
+      `reason=busy` on every tick and ZERO `action=restart`.
+  - id: P6.T1.S4
+    text: |
+      Rows 4, 6 and 7. After any restart, the next tick's `idle_for` is small rather than
+      inherited. A result line carries both `shmem=` and `current=`, with `current` the larger.
+      The `ovms-pool-watchdog-restart-loop` rule is present in the feature-health folder and
+      reads Normal - not NoData-firing - with no restarts in the window.
+  - id: P6.T1.S5
+    text: |
+      Row 8 - the corrected usage query. On a genuinely idle day,
+      `sum by (name) (increase(ovms_requests_accepted[1d]))` returns about zero for both models,
+      where the old `ovms_requests_success` form returns thousands for `bge-reranker-v2-m3`.
+      Run both and keep the pair as the evidence.
+  - id: P6.T1.S6
+    text: |
+      Row 5 - the acceptance proof, and the only step needing the downstream consumer. Ask them
+      to re-run the full 40-batch index. Require the job to complete and the window to contain
+      zero `action=restart` lines. Then flip both matrix rows off `not-implemented` with the
+      evidence in `notes`.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
