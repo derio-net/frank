@@ -93,62 +93,62 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T5.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T5.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T5.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
     P1.T6.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-05T18:47:07+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-10-05T18:47:07+00:00'
     note: null
     observed_prs: []
