@@ -1172,3 +1172,13 @@ rows:
   status: not-implemented
   notes: ''
   verify: post-merge
+- id: paperclip-docs-describe-fresh-start
+  capability: Paperclip fresh start
+  acceptance: Frank's operator docs (Layer 15 posts, README, infrastructure table,
+    gotchas, runbook) describe Paperclip as pure upstream with no paperclip-shell,
+    CLI shims or LiteLLM agents as current.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R9
+  levels: {}
+  status: not-implemented
+  notes: ''
