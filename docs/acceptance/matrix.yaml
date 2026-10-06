@@ -1028,14 +1028,11 @@ rows:
   - frank:docs/superpowers/specs/2026-09-13--orch--paperclip-litellm-agents-docs-design.md
   levels: {}
   status: skipped
-  notes: 'Manual live proof 2026-09-13 against image sha-8e6edcd: opencode smoke returned
-    ack; hermes bare-alias smoke returned a reply and session_id; a per-replica LiteLLM
-    grep found POSTs from the paperclip pod IP; agent_task_sessions matches the recovery
-    SQL. Docs-only, no automated test. Row appended via an indent/add/dedent round-trip
-    around super-fr#470. Post-merge live check 2026-09-14 against blog image 034ef965
-    (merge of #382): both posts on blog.derio.net serve every new section anchor, zero
-    dangling in-page links, building/operating cross-links resolve, and the smoke commands
-    appear in both Verify and Quick Reference.'
+  notes: 'RETIRED 2026-10-04: the Paperclip fresh start (specs/2026-10-04--orch--paperclip-fresh-start-design.md)
+    removed the LiteLLM-routed opencode_local/hermes_local agents and the paperclip-shell
+    they were operated from; operating/18-paperclip now marks those sections historical.
+    Prior evidence kept: Manual live proof 2026-09-13 against image sha-8e6edcd (no
+    longer deployed).'
 - id: infer-rerank-supported-batch-succeeds
   capability: Retrieval models
   acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default and receive scored
@@ -1118,6 +1115,95 @@ rows:
   status: not-implemented
   notes: Structure guarded by scripts/tests/test_argocd_vcluster_pod_exclusion.py; runtime proven at manual-op registration.
     Appended by hand (super-fr#470).
+- id: paperclip-pure-upstream-pod
+  capability: Paperclip fresh start
+  acceptance: The Paperclip pod runs only the unmodified upstream v2026.916.1 image
+    — one container, no init containers, no Frank agent-CLI installs or adapter config.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R1
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R3
+  levels:
+    unit:
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_single_container_no_init_containers
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_image_is_upstream_sha_pin
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_agent_shim_env
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_llm_key_reference
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_no_shell_shim_objects
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_deployment_references_no_removed_object
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_config_trust_proxy_and_announcements
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_shell_leftovers_gone
+  status: ci
+  notes: Guarded in CI by scripts/tests/test_paperclip_pure_upstream.py (8 unit tests;
+    repo-tripwires.yml runs pytest scripts/tests on every PR, no paths filter). Red
+    before the change (6 failures), green after.
+- id: paperclip-shell-retired
+  capability: Paperclip fresh start
+  acceptance: 'The paperclip-shell SSH/Mosh entry point no longer exists: 192.168.55.221
+    is unallocated and its PVC, Secrets and ConfigMaps are gone from the cluster.'
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R2
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: paperclip-instance-starts-empty
+  capability: Paperclip fresh start
+  acceptance: After the wipe the instance contains no company, agent, user, routine
+    or run from before; the operator signs in at paperclip.cluster.derio.net as its
+    first admin.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R4
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R5
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: paperclip-claude-agent-completes-task
+  capability: Paperclip fresh start
+  acceptance: A Claude-adapter agent authenticated through Connections completes an
+    assigned task in a company on the fresh instance.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R7
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: companies-mirror-paused
+  capability: Paperclip fresh start
+  acceptance: A merge to agentic-stoa/companies main fires nothing into Paperclip
+    while the hook is paused, and the Tekton live-mirror chain remains deployed for
+    resumption.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R8
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: post-merge
+- id: paperclip-docs-describe-fresh-start
+  capability: Paperclip fresh start
+  acceptance: Frank's operator docs (Layer 15 posts, README, infrastructure table,
+    gotchas, runbook) describe Paperclip as pure upstream with no paperclip-shell,
+    CLI shims or LiteLLM agents as current.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R9
+  levels: {}
+  status: not-implemented
+  notes: ''
+- id: paperclip-forwarded-headers-trusted-from-cluster-only
+  capability: Paperclip fresh start
+  acceptance: 'Paperclip honours forwarded headers only from in-cluster peers: a request
+    through paperclip.cluster.derio.net is same-origin, while a LAN client hitting
+    192.168.55.212 directly keeps its own address and cannot spoof X-Forwarded-Host/For.'
+  origin:
+  - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R4
+  levels:
+    unit:
+    - frank:scripts/tests/test_paperclip_pure_upstream.py#test_lb_preserves_client_source_ip
+  status: not-implemented
+  notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
+    the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
+  verify: post-merge
 - id: retrieval-batch-job-survives-pool-watchdog
   capability: Retrieval models
   acceptance: A long-running batch job against the retrieval tier runs to completion without the pool

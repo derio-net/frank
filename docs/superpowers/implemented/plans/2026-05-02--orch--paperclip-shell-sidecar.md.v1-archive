@@ -538,7 +538,8 @@ verify: |
   # expect: secrets/paperclip/paperclip-shell-ssh-keys.yaml
   sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | grep -q "^kind: Secret"
   # expect: exit 0
-status: pending
+status: decommissioned
+decommissioned: "2026-10-04 — Paperclip fresh start: the paperclip-shell sidecar, its SSH-key Secret and secrets/paperclip/ were retired (specs/2026-10-04--orch--paperclip-fresh-start-design.md)."
 ```
 
 ### Task 1: Pod-level health

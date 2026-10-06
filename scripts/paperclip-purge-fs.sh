@@ -5,17 +5,17 @@
 # been hard-deleted from the database. Defaults to dry-run; pass --apply to act.
 #
 # Where to run:
-#   Inside the paperclip-shell sidecar (or the paperclip container itself —
-#   both mount the same paperclip-data PVC at /paperclip).
+#   Inside the paperclip container (it mounts the paperclip-data PVC at
+#   /paperclip).
 #
-#   kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip-shell -- bash
+#   kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip -- bash
 #   # then run this script
 #
 # What it does:
 #   - Removes per-company subtrees under
 #       /paperclip/instances/default/{companies,projects,data/storage}/<id>
 #     for each deleted company id.
-#   - Refuses to touch the keeper id and refuses to touch /paperclip/agent-bin,
+#   - Refuses to touch the keeper id and refuses to touch
 #     /paperclip/.cache, or anything outside the instance-scoped paths.
 #   - Lists orphan workspaces (named by workspace_id, not company_id) for you
 #     to handle separately — those need a DB lookup to attribute.
@@ -24,16 +24,14 @@ set -euo pipefail
 
 INSTANCE_ROOT='/paperclip/instances/default'
 
-# The ONE company we keep. Used as a safety guard — the script aborts if a
-# deleted-id ever matches this. As of 2026-05-16 this is the freshly-imported
-# Stoa company; Stoa-old was deleted on the same day.
-KEEP_ID='cad28615-93e9-46f9-b7f6-016308be4a57'  # Stoa (prefix STO)
+# The ONE company to keep, as a safety guard: the script aborts if a deleted id
+# ever matches it. Empty since the 2026-10 fresh start wiped the instance (the
+# old Stoa/TMP ids no longer exist); fill both in before the next purge.
+KEEP_ID=''
 
-# UUIDs whose FS subtrees should be removed. Each one is already gone from
+# UUIDs whose FS subtrees should be removed. Each one must already be gone from
 # the database.
-DELETED_IDS=(
-  '6433a437-8ac8-435c-b765-2cadd82f2f23'  # TMP
-)
+DELETED_IDS=()
 
 # Subtrees whose immediate child directories are named by company UUID.
 SUBTREES=(
@@ -48,6 +46,15 @@ case "${1:-}" in
   ''|--dry-run) DRY_RUN=1 ;;
   *) echo "usage: $0 [--apply|--dry-run]"; exit 2 ;;
 esac
+
+if [[ ${#DELETED_IDS[@]} -eq 0 ]]; then
+  echo "DELETED_IDS is empty — nothing to purge. Edit the script first." >&2
+  exit 0
+fi
+if [[ -z "$KEEP_ID" ]]; then
+  echo "KEEP_ID is empty — set the company to keep before purging." >&2
+  exit 1
+fi
 
 # Safety: keeper must never appear in the deletion list.
 for id in "${DELETED_IDS[@]}"; do

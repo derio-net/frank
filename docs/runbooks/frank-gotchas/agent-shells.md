@@ -1,4 +1,6 @@
-# Frank Gotchas — Agent shells (paperclip-shell, ruflo-shell, secure-agent-kali)
+# Frank Gotchas — Agent shells (paperclip-shell *[retired 2026-10-04]*, ruflo-shell, secure-agent-kali)
+
+> **Live shells today:** ruflo-shell, secure-agent-kali, hermes-agent-shell, alert-agent and the other multi-agent-shell pods. `paperclip-shell` was retired 2026-10-04 with the Paperclip fresh start; mentions of it below are historical and kept for the lessons.
 
 Long-form companion to the **Agent shells** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
@@ -44,7 +46,7 @@ Defaults `agent` / `/home/agent`. `secure-agent-kali` overrides to `claude` / `/
 
 It COPIES (not symlinks) `/etc/ssh-keys/authorized_keys` into `${AGENT_HOME}/.ssh/authorized_keys`. sshd runs with the default `AuthorizedKeysFile=~/.ssh/authorized_keys` (no drop-in in `/etc/ssh/sshd_config.d/`), so anything that lands in `/etc/ssh-keys/` after boot or that gets rotated mid-life never reaches sshd unless you re-run the hook by hand or restart the pod.
 
-This bites two cases on every shell sidecar (ruflo-shell, paperclip-shell, secure-agent-kali):
+This bites two cases on every shell sidecar (ruflo-shell, secure-agent-kali, and formerly paperclip-shell — retired 2026-10-04):
 - (1) bootstrapping the SOPS-managed `*-ssh-keys` Secret on a pod that's already running with `optional: true` on its volume — the pod booted with `/etc/ssh-keys/` empty so the `[ -f ]` guard short-circuited
 - (2) any operator-key rotation
 
@@ -163,7 +165,7 @@ There's also an upstream `vibe-kanban` server-side bug — the request-handler f
 
 sshd runs with the OpenSSH default `PermitUserEnvironment no` posture and does not preserve the K8s `envFrom` env injected at PID 1, so anything launched via `ssh agent@<host> -- some-command` runs with the bare login env — `FRANK_C2_TELEGRAM_BOT_TOKEN`, `FRANK_C2_TELEGRAM_CHAT_ID`, `INFISICAL_*`, etc. are absent from the SSH session.
 
-Concrete bite (paperclip-shell, ruflo-shell, any future shell sidecar): `ssh agent@<host> -- paperclip-shell-reconcile` runs reconcile fine and the MOTD updates, but `notify-telegram.sh` exits 0 silently on failure because the token isn't there. The boot-time path (`cont-init.d`) and `kubectl exec` both inherit PID-1 env and DO see the secrets.
+Concrete bite (historical: paperclip-shell, retired 2026-10-04; and ruflo-shell, any future shell sidecar): `ssh agent@<host> -- paperclip-shell-reconcile` runs reconcile fine and the MOTD updates, but `notify-telegram.sh` exits 0 silently on failure because the token isn't there. The boot-time path (`cont-init.d`) and `kubectl exec` both inherit PID-1 env and DO see the secrets.
 
 Workarounds, in order of cleanliness:
 - (a) source from `/proc/1/environ` inside the script — see MEMORY.md `pod_env_secrets.md` for the `_env_from_pid1 NAME` helper. **Requires a non-sshd PID 1** (an s6/`dumb-init`-style init that preserves environ): where sshd is PID 1 (e.g. the hermes `ssh` sidecar, no init), OpenSSH clobbers `/proc/1/environ` with its proctitle and this reads junk — capture the env at container start instead (the frank#688 env-snapshot wrapper below).

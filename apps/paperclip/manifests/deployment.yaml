@@ -20,8 +20,6 @@ spec:
         app.kubernetes.io/name: paperclip
         app.kubernetes.io/component: server
     spec:
-      # cont-finish.d (s6 shutdown) saves the shell sidecar's tmux state
-      # and similar housekeeping. Mirrors secure-agent-pod / ruflo grace.
       terminationGracePeriodSeconds: 45
       # Pinned to gpu-1: the 2Gi limit (bumped from 1Gi in 1306b38) was still
       # OOM-killing under load, so we move to a 12Gi limit on the node with
@@ -38,79 +36,15 @@ spec:
           effect: NoSchedule
       securityContext:
         fsGroup: 1000
-      # NOTE: `shareProcessNamespace: true` was in the original Phase 2 plan
-      # so the shell sidecar could `ps -ef` paperclip's tree, but it's
-      # incompatible with the agent-shell-base s6-overlay v3 init under
-      # `runAsNonRoot`: `s6-overlay-suexec: fatal: can only run as pid 1`.
-      # With the shared namespace the second container's entrypoint is not
-      # pid 1, so s6 bails before any service starts. Same trade-off ruflo
-      # made (see PR #196): we forgo the cross-container `ps` for a working
-      # sshd; the shell still gets full visibility into `/paperclip` (the
-      # actual debugging surface) via the shared PVC.
-      initContainers:
-        # Seeds HERMES_HOME from the paperclip-hermes ConfigMap and reconciles
-        # the hermes shim on every pod start.
-        #
-        # 1. config.yaml seed: hermes v0.10.0 writes ALL state (sessions,
-        #    memory, state.db) into HERMES_HOME, so a read-only ConfigMap
-        #    mount at that path is not viable. HERMES_HOME points at
-        #    /paperclip/agent-bin/.hermes (writable PVC); this init lands a
-        #    fresh config.yaml before the main container starts. The config
-        #    sets `model: ollama-cloud/qwen-think-14b` so hermes uses
-        #    ollama-cloud as the default provider (the prefix is what carries
-        #    over when callers pass a bare `-m <alias>`).
-        #
-        # 2. Symlink reconcile: Phase 1's one-shot install created
-        #    /paperclip/agent-bin/bin/hermes as a symlink to the venv binary.
-        #    A short-lived release (PR #296) shipped a wrapper script at the
-        #    same path; reconcile back to the symlink on every boot so PVCs
-        #    that still carry the wrapper get reset.
-        - name: hermes-init
-          image: busybox:1.37
-          command:
-            - sh
-            - -c
-            - |
-              set -eu
-              mkdir -p /paperclip/agent-bin/.hermes /paperclip/agent-bin/bin
-              cp /etc/paperclip/hermes-template/config.yaml /paperclip/agent-bin/.hermes/config.yaml
-              if [ -e /paperclip/agent-bin/hermes-agent/venv/bin/hermes ]; then
-                rm -f /paperclip/agent-bin/bin/hermes
-                ln -s /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bin/hermes
-              fi
-          volumeMounts:
-            - name: data
-              mountPath: /paperclip
-            - name: hermes-config
-              mountPath: /etc/paperclip/hermes-template/config.yaml
-              subPath: config.yaml
-              readOnly: true
-          resources:
-            requests:
-              cpu: 1m
-              memory: 8Mi
-            limits:
-              memory: 32Mi
       containers:
         - name: paperclip
-          # Upstream public image. Pinned by digest-equivalent sha tag.
-          # sha-8e6edcd == git tag v2026.824.1 (released 2026-08-25).
-          # v2026.824.1 patches the onboarding service startup (background-
-          # service install, dashboard delivery, diagnostics). Major changes
-          # since v2026.626.0: v2026.817.0 introduced stable release
-          # channels, Decisions governance and full company Import/Export
-          # (which replaced the removed Cloud Sync); v2026.824.0 made
-          # chat-style tasks the default, HTTPS previews via Tailscale, and
-          # direct Claude/Codex sign-in. This bump applies 96 Drizzle
-          # migrations on first boot (journal 0124 -> 0222) — see
-          # apps/paperclip-db/values.yaml for why that resized the DB, and
-          # sync paperclip-db FIRST.
-          # Tag scheme is upstream's: only `latest` (master HEAD),
-          # `canary`, and `sha-<short>` are published — no semver image
-          # tags. We pin to the sha for traceability: v2026.824.1 → commit
-          # 8e6edcdfa911151adba26be49a41cf5017b3aade.
-          # Bumped from sha-4c6c0c6 (v2026.626.0, 2026-06-26).
-          image: ghcr.io/paperclipai/paperclip:sha-8e6edcd
+          # Pure upstream public image, pinned by sha tag (upstream only
+          # publishes `latest`, `canary` and `sha-<short>`; no semver tags).
+          # sha-d554c47 == v2026.916.1 (d554c4789ed3930f8a53ac9fdf6503b3187097da,
+          # released 2026-09-21). The claude-code / codex / opencode / gemini /
+          # kimi CLIs are bundled upstream; nothing is layered on top. Fresh
+          # start per the 2026-10-04 spec (instance wiped, no Frank shims).
+          image: ghcr.io/paperclipai/paperclip:sha-d554c47
           ports:
             - name: http
               containerPort: 3100
@@ -118,8 +52,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: paperclip-config
-            - secretRef:
-                name: paperclip-llm-key
             - secretRef:
                 name: paperclip-auth
             - secretRef:
@@ -129,48 +61,6 @@ spec:
                 name: paperclip-resend
                 optional: true
           env:
-            # Paperclip's "Test environment" (and every other agent-CLI
-            # invocation paperclip spawns at runtime) runs in *this*
-            # container, NOT in the paperclip-shell sidecar. The two
-            # containers don't share rootfs and `shareProcessNamespace`
-            # is false (see comment above). The only cross-container
-            # seam is the `paperclip-data` PVC mounted at /paperclip in
-            # both. Operator-installed agent CLIs live on that PVC at
-            # /paperclip/agent-bin/, populated via:
-            #   npm install --prefix /paperclip/agent-bin <pkg>
-            # from paperclip-shell. Suffix (not prefix) so image-baked
-            # binaries at /usr/local/bin still win — paperclip's pinned
-            # codex stays authoritative; we only fill gaps (gemini).
-            # opencode is image-baked (/usr/local/bin/opencode); no PVC
-            # install needed. hermes shim lives at /paperclip/agent-bin/bin/hermes
-            # (symlink to the uv venv binary, seeded in Phase 1, reconciled by
-            # the hermes-init initContainer on every boot) — PATH extended to
-            # include /bin.
-            # opencode config: XDG_CONFIG_HOME → paperclip-opencode ConfigMap.
-            # hermes config: seeded by hermes-init initContainer into HERMES_HOME.
-            # hermes routes through LiteLLM via OLLAMA_BASE_URL/OLLAMA_API_KEY
-            # (the "ollama-cloud/" prefix on the config.yaml model sets the
-            # default provider, so adapter-passed bare models still route
-            # through LiteLLM without needing --provider on the CLI).
-            - name: PATH
-              value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin:/paperclip/agent-bin/bin"
-            # opencode reads its config from $XDG_CONFIG_HOME/opencode/opencode.json.
-            # We mount the paperclip-opencode ConfigMap there so the image-baked
-            # opencode binary picks up Frank's LiteLLM provider block on every run.
-            # The adapter's runtime-config.ts copies this base dir to a per-run
-            # tempdir and merges only the permission block — our provider.litellm
-            # block is preserved (verified in Phase 1, P1.T3.S1).
-            - name: XDG_CONFIG_HOME
-              value: /etc/paperclip/opencode-base
-            - name: HERMES_HOME
-              value: /paperclip/agent-bin/.hermes
-            - name: OLLAMA_BASE_URL
-              value: "http://litellm.litellm.svc:4000/v1"
-            - name: OLLAMA_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: paperclip-llm-key
-                  key: LITELLM_API_KEY
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -181,16 +71,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /paperclip
-            - name: opencode-config
-              mountPath: /etc/paperclip/opencode-base/opencode/opencode.json
-              subPath: opencode.json
-              readOnly: true
-            # hermes config template — mounted read-only; hermes-init initContainer
-            # copies this into HERMES_HOME (/paperclip/agent-bin/.hermes/) on boot.
-            - name: hermes-config
-              mountPath: /etc/paperclip/hermes-template/config.yaml
-              subPath: config.yaml
-              readOnly: true
           resources:
             requests:
               memory: 512Mi
@@ -207,117 +87,7 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
-
-        # ----- paperclip-shell (interactive maintainer sidecar) ------
-        # Operator's SSH+Mosh entry point. Independent home PVC keeps
-        # mise/cargo/pipx state across pod restarts. The cont-init.d
-        # inventory installer reconciles the operator's declared toolset
-        # against the home PVC at boot. Image SHA tracks agent-images main
-        # HEAD (bumped by the agent-images-bump workflow) — the image: tag
-        # below is the live pin; see plan Deployment Notes.
-        - name: paperclip-shell
-          image: ghcr.io/derio-net/paperclip-shell:af14415b8029f86a5f6de2519b40b109c2c99a11
-          imagePullPolicy: IfNotPresent
-          ports:
-            - { name: ssh,         containerPort: 2222,  protocol: TCP }
-            - { name: mosh-60000,  containerPort: 60000, protocol: UDP }
-            - { name: mosh-60001,  containerPort: 60001, protocol: UDP }
-            - { name: mosh-60002,  containerPort: 60002, protocol: UDP }
-            - { name: mosh-60003,  containerPort: 60003, protocol: UDP }
-            - { name: mosh-60004,  containerPort: 60004, protocol: UDP }
-            - { name: mosh-60005,  containerPort: 60005, protocol: UDP }
-            - { name: mosh-60006,  containerPort: 60006, protocol: UDP }
-            - { name: mosh-60007,  containerPort: 60007, protocol: UDP }
-            - { name: mosh-60008,  containerPort: 60008, protocol: UDP }
-            - { name: mosh-60009,  containerPort: 60009, protocol: UDP }
-            - { name: mosh-60010,  containerPort: 60010, protocol: UDP }
-            - { name: mosh-60011,  containerPort: 60011, protocol: UDP }
-            - { name: mosh-60012,  containerPort: 60012, protocol: UDP }
-            - { name: mosh-60013,  containerPort: 60013, protocol: UDP }
-            - { name: mosh-60014,  containerPort: 60014, protocol: UDP }
-            - { name: mosh-60015,  containerPort: 60015, protocol: UDP }
-          env:
-            # Consumed by the s6 cont-init.d scripts in paperclip-shell
-            # (agent-images/paperclip-shell/rootfs/etc/cont-init.d/) to
-            # set the user the sshd serves. Default in the image is
-            # `agent`; we set it explicitly so the deployment is the
-            # source of truth if the image default ever changes.
-            - name: PAPERCLIP_SHELL_USER
-              value: "agent"
-            # 1h (vs upstream 168h default) — see service-shell.yaml
-            # for the 16-port-range coupling rationale.
-            - name: MOSH_SERVER_NETWORK_TMOUT
-              value: "3600"
-          envFrom:
-            # Telegram bot creds for notify-telegram.sh. `optional: true`
-            # per frank-gotchas.md: an ESO sync hiccup would otherwise
-            # CreateContainerConfigError instead of letting the shell
-            # boot without alerts. The notify helper is fail-silent if
-            # the env vars are missing.
-            - secretRef:
-                name: paperclip-shell-alerts
-                optional: true
-          volumeMounts:
-            - { name: shell-home,      mountPath: /home/agent }
-            - { name: data,            mountPath: /paperclip }
-            - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
-            - { name: shell-inventory, mountPath: /etc/paperclip-shell, readOnly: true }
-            # Single-file subPath mount alongside the image-baked
-            # /etc/profile.d/50-paperclip-shell-motd.sh (reconcile summary).
-            # Prints the paperclip CLI install pattern on interactive login.
-            - name: shell-motd-tips
-              mountPath: /etc/profile.d/60-paperclip-shell-tips.sh
-              subPath: 60-paperclip-shell-tips.sh
-              readOnly: true
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          resources:
-            requests:
-              cpu: 500m
-              memory: 1Gi
-            limits:
-              cpu: "4"
-              memory: 8Gi
-          readinessProbe:
-            tcpSocket: { port: ssh }
-            initialDelaySeconds: 10
-            periodSeconds: 30
-          livenessProbe:
-            tcpSocket: { port: ssh }
-            initialDelaySeconds: 30
-            periodSeconds: 60
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: paperclip-data
-        - name: opencode-config
-          configMap:
-            name: paperclip-opencode
-        - name: shell-home
-          persistentVolumeClaim:
-            claimName: paperclip-shell-home
-        - name: shell-ssh-keys
-          # SOPS-managed bootstrap secret in secrets/paperclip/. See the
-          # README there for rotation. ESO-via-Infisical was the original
-          # plan, but agent-ssh-keys (the analogous secret on
-          # secure-agent-pod) and ruflo-shell-ssh-keys are SOPS-bootstrap,
-          # so paperclip follows the same pattern.
-          secret:
-            secretName: paperclip-shell-ssh-keys
-            optional: true
-            defaultMode: 0400
-        - name: shell-inventory
-          configMap:
-            name: paperclip-shell-inventory
-        - name: shell-motd-tips
-          configMap:
-            name: paperclip-shell-motd-tips
-            defaultMode: 0644
-        - name: hermes-config
-          configMap:
-            name: paperclip-hermes

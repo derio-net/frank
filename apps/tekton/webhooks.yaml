@@ -96,6 +96,10 @@ webhooks:
     listener: live-mirror-sync
     events: [push]
     serves: [companies-main-push]
+    note: >-
+      Deliberately active:false since the Paperclip fresh start (2026-10-04
+      spec) until the reworked company's routine exists. Resume via manual-op
+      orch-paperclip-resume-companies-mirror.
 
   - forge: gitea
     scope: repo

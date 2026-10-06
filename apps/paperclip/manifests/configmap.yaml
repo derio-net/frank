@@ -39,3 +39,11 @@ data:
   # cache (frank-gotchas.md), and an import stages the zip alongside its
   # expansion, so cap at 512 MB. Raise deliberately if a real import needs it.
   PAPERCLIP_IMPORT_ZIP_MAX_BYTES: "536870912"
+  # Trusted reverse-proxy hops for X-Forwarded-* handling: loopback plus the
+  # cluster pod CIDR (all node podCIDRs are /24s inside 10.244.0.0/16, measured
+  # 2026-10-05), which is where Traefik reaches the pod from. Deliberately NOT
+  # "uniquelocal": that trusts every RFC1918/ULA source, i.e. the whole LAN,
+  # and "true" trusts any client-supplied header.
+  TRUST_PROXY: "loopback,10.244.0.0/16"
+  # Fresh start: no upstream announcement feed in the UI.
+  PAPERCLIP_ANNOUNCEMENTS_ENABLED: "false"

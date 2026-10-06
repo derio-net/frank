@@ -5,34 +5,33 @@ layer: orch
 date: 2026-04-09
 draft: false
 tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1", "litellm", "opencode", "hermes"]
-summary: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
+summary: "Checking Paperclip health, database access and secret sync, handling the RWO PVC constraint, and bootstrapping the pure-upstream instance after the 2026-10 fresh start."
 weight: 19
-reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret sync, shell sidecar reconcile, hiring and smoke-testing LiteLLM-backed opencode and hermes agents, and common failure recovery."
+reader_goal: "Manage Paperclip day-to-day: health checks, database ops, secret sync, bootstrapping the first admin and a Claude-adapter agent on the pure-upstream instance, and common failure recovery."
 diataxis: [how-to, reference]
-last_updated: 2026-09-13
+last_updated: 2026-10-05
 last_updated_commit: https://github.com/derio-net/frank/commit/034ef965
-description: "Checking Paperclip health, database access, secret sync, and handling the RWO PVC constraint and the SSH sidecar."
+description: "Checking Paperclip health, database access and secret sync, handling the RWO PVC constraint, and bootstrapping the pure-upstream instance after the 2026-10 fresh start."
 ---
 
 {{< last-updated >}}
+
+*(Since the 2026-10 fresh start the shell sidecar and LiteLLM-backed agents described in this post's older sections are retired; they are marked historical in place.)*
 
 This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< relref "/docs/building/15-paperclip" >}}). That post covers architecture, deployment, and why the LiteLLM-backed agents are wired the way they are. This one covers health checks, database access, the shell sidecar, hiring agents on local inference, and common failure modes.
 
 ```mermaid
 graph LR
     subgraph ns["paperclip-system namespace"]
-        pc["Paperclip Pod<br/>gpu-1 pinned"]
+        pc["Paperclip Pod<br/>pure upstream, gpu-1 pinned"]
         pg["PostgreSQL Pod<br/>paperclip-db"]
-        shell["Shell Sidecar<br/>sshd + mosh"]
 
         subgraph pvs["Persistent Volumes"]
             pvcData["paperclip-data<br/>10Gi RWO"]
             pvcDB["paperclip-db<br/>5Gi RWO"]
-            pvcShell["paperclip-shell-home<br/>20Gi RWO"]
         end
 
         subgraph secrets["External Secrets"]
-            llm["paperclip-llm-key<br/>→ LiteLLM"]
             auth["paperclip-auth<br/>→ session signing"]
             brave["paperclip-brave<br/>→ Brave Search"]
             resend["paperclip-resend<br/>→ Resend email"]
@@ -41,27 +40,27 @@ graph LR
 
     subgraph infra["Infrastructure"]
         infisical["Infisical<br/>Secret Store"]
-        lb["LoadBalancer<br/>192.168.55.212:3100"]
-        shellLB["LoadBalancer<br/>192.168.55.221:22"]
+        traefik["Traefik<br/>paperclip.cluster.derio.net"]
+        lb["LoadBalancer<br/>192.168.55.212:3100<br/>eTP Local"]
     end
 
     pc --- pvcData
     pg --- pvcDB
-    shell --- pvcShell
-    llm & auth & brave & resend -.->|"ESO sync"| infisical
+    auth & brave & resend -.->|"ESO sync"| infisical
+    traefik --- pc
     pc --- lb
-    shell --- shellLB
     pc --- pg
 ```
 
+> **Update 2026-10.** Paperclip runs as a pure upstream pod, its old instance wiped by the fresh start: one container, no shell sidecar, no opencode/hermes shims, no LiteLLM-routed agents. The shell and LiteLLM-agent sections below are retired and kept as history; see [Fresh Start (2026-10)](#fresh-start-2026-10) for the current procedures.
+
 ## What Healthy Looks Like
 
-- The Paperclip pod is `2/2 Running` on `gpu-1` (the app container plus the `paperclip-shell` sidecar).
+- The Paperclip pod is `1/1 Running` on `gpu-1` (a single upstream container; the former `paperclip-shell` sidecar is retired).
 - PostgreSQL pod is `2/2 Running` (PostgreSQL plus the metrics exporter).
-- All four ExternalSecrets show `SecretSynced`.
+- The remaining ExternalSecrets (`paperclip-auth`, `paperclip-brave`, `paperclip-resend`) show `SecretSynced`.
 - The web UI responds at `http://192.168.55.212:3100`.
-- The shell sidecar {{< abbr "LB" >}} is reachable at `192.168.55.221`.
-- Both agent CLIs answer a one-line prompt through LiteLLM, and the requests show up in LiteLLM's access log from the Paperclip pod IP.
+- A Claude-adapter agent connected through Connections completes a trivial task (see Fresh Start below).
 
 ## Verify
 
@@ -76,11 +75,13 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.212:3100/
 kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- \
   sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U paperclip -d paperclip -c "SELECT count(*) FROM pg_tables;"'
 
-# Shell sidecar
-ssh agent@192.168.55.221 -t tmux new -A -s main
+# (historical) The shell sidecar and its SSH entry point at 192.168.55.221 were retired 2026-10;
+# for filesystem access use: kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip -- bash
 ```
 
 ### Verify the LiteLLM-backed agent CLIs
+
+> **Historical (retired 2026-10).** The opencode/hermes shims and LiteLLM routing no longer exist. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 Run these in the `paperclip` app container, not the shell sidecar — the adapters run in the app container, and only it carries `XDG_CONFIG_HOME`, `HERMES_HOME` and the `OLLAMA_*` env. Use the paths the adapters invoke:
 
@@ -122,6 +123,8 @@ Uses `Recreate` strategy ({{< abbr "RWO" >}} {{< abbr "PVC" >}} — rolling upda
 
 ### Reconcile Shell Inventory
 
+> **Historical (retired 2026-10).** The shell sidecar and its inventory were retired. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
+
 ```bash
 # After editing apps/paperclip/manifests/configmap-shell-inventory.yaml
 kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- \
@@ -132,11 +135,15 @@ Use `kubectl exec`, not SSH — sshd scrubs the container env (no `FRANK_C2_TELE
 
 ### Add a Tool to the Shell Sidecar
 
+> **Historical (retired 2026-10).** The shell sidecar was retired. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
+
 1. Add entry to the relevant section in `configmap-shell-inventory.yaml` (`mise:`, `npm-global:`, `pipx:`, `cargo:`).
 2. Commit and push (ArgoCD syncs the ConfigMap).
 3. Run `paperclip-shell-reconcile` on the live pod.
 
 ### Hire a LiteLLM-Backed Agent
+
+> **Historical (retired 2026-10).** LiteLLM-backed `opencode_local`/`hermes_local` agents were removed. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 The two adapters want different model shapes:
 
@@ -163,6 +170,8 @@ Leave **Provider** on `Auto`. The form only offers the adapter's `VALID_PROVIDER
 Keep LiteLLM aliases for hermes away from the prefixes the adapter maps to a cloud provider, per `constants.ts` at image `sha-8e6edcd`: `claude`, `gpt-4`, `gpt-5`, `o1-`, `o3-`, `o4-`, `hermes-`, `glm-`, `moonshot`, `kimi` and `minimax`. An alias starting with any of them gets a forced `--provider` and bypasses LiteLLM. Re-check the list after a Paperclip image bump.
 
 ### Recover the Agent CLIs on a Cold PVC
+
+> **Historical (retired 2026-10).** The PVC-resident hermes/opencode installs no longer exist. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 On a freshly provisioned `paperclip-data` PVC, both PVC-resident installs are missing: the hermes venv (with its shim and the PVC copy of `uv`) and the PVC copy of opencode. `paperclip-shell-reconcile` restores neither — the inventory's `uv` and `paperclip-shared` sections are declarative records of these installs, not something the reconcile executes. opencode agents keep working, because the adapter uses the image-baked binary; hermes agents fail until you reinstall. The shell MOTD prints a LiteLLM-backed-agents tip on login while either install is missing.
 
@@ -226,13 +235,16 @@ kubectl get pods -n paperclip-system -w
 ### ExternalSecret Not Syncing
 
 ```bash
-kubectl describe externalsecret paperclip-llm-key -n paperclip-system
+kubectl get externalsecret -n paperclip-system   # paperclip-auth, paperclip-brave, paperclip-resend
+kubectl describe externalsecret paperclip-auth -n paperclip-system
 kubectl get clustersecretstore infisical
 ```
 
 Check the Infisical secret path hasn't changed and the ClusterSecretStore is healthy. Retired secrets (`paperclip-anthropic`, `paperclip-ghcr`) can be left in place — they're `optional: true`.
 
 ### Shell Sidecar Tool Install Fails
+
+> **Historical (retired 2026-10).** The shell sidecar was retired. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 ```bash
 cat /var/log/cont-init.d/40-shell-inventory.log
@@ -244,6 +256,8 @@ Common causes:
 - **Inventory typo** — fix the ConfigMap and re-reconcile.
 
 ### hermes Agent Fails from the Second Heartbeat
+
+> **Historical (retired 2026-10).** hermes agents were removed. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 **Symptom:** a `hermes_local` agent's first heartbeat succeeds; every later one fails with `Session not found`, exit 1, in about two seconds. The agent is eventually flagged `Stranded`.
 
@@ -262,6 +276,8 @@ kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- \
 ```
 
 ### Stranded hermes Agent
+
+> **Historical (retired 2026-10).** hermes agents were removed. See [Fresh start (2026-10)](#fresh-start-2026-10) below.
 
 The agent record is fine; only its per-task session row is corrupt. Open an interactive psql session:
 
@@ -288,6 +304,32 @@ kubectl get svc paperclip-lb -n paperclip-system
 kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 ```
 
+## Fresh Start (2026-10)
+
+The fresh start wipes the instance and rebuilds it from pure upstream (v2026.916.1, image `sha-d554c47`); the wipe itself is the post-merge runbook entry `orch-paperclip-fresh-start-wipe`. Everything above marked historical describes the retired shell and LiteLLM agents; this is how to run the fresh instance.
+
+### Bootstrap the First Admin
+
+An authenticated instance has no users after a wipe. Print a one-time invite from inside the pod and accept it in the browser:
+
+```bash
+kubectl -n paperclip-system exec deploy/paperclip -- pnpm paperclipai auth bootstrap-ceo
+# open the printed invite at https://paperclip.cluster.derio.net (Authentik in front)
+```
+
+### Connect Claude and Verify an Agent
+
+In a company, open Connections, connect Claude with the subscription sign-in, hire one agent with the Claude adapter and assign it a trivial task. Then prove the sign-in survives a restart:
+
+```bash
+kubectl -n paperclip-system rollout restart deploy/paperclip
+# assign a second trivial task: it must complete without re-signing in
+kubectl -n paperclip-system logs deploy/paperclip --tail=200 | grep -iE 'req.ip|10\.244\.'
+# requests through Traefik should log a pod-network IP (the TRUST_PROXY range)
+```
+
+There is no shell sidecar any more: for filesystem work use `kubectl -n paperclip-system exec -it deploy/paperclip -c paperclip -- bash`. The live-mirror hook on `agentic-stoa/companies` stays paused until the reworked company's routine exists (runbook entry `orch-paperclip-resume-companies-mirror`).
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
@@ -307,8 +349,8 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 |---------|-------------|
 | `kubectl get pods,pvc,externalsecret -n paperclip-system` | Full status |
 | `kubectl rollout restart deployment/paperclip -n paperclip-system` | Restart (10–30s downtime) |
-| `kubectl exec -c paperclip-shell deploy/paperclip -- paperclip-shell-reconcile` | Reconcile shell tools (not the agent CLIs) |
-| `ssh agent@192.168.55.221` | Connect to shell sidecar |
+| *(historical)* `kubectl exec -c paperclip-shell deploy/paperclip -- paperclip-shell-reconcile` | Retired 2026-10 with the shell sidecar |
+| *(historical)* `ssh agent@192.168.55.221` | Retired 2026-10; use `kubectl exec -it deploy/paperclip -c paperclip -- bash` |
 | `kubectl logs -n paperclip-system -l app.kubernetes.io/name=paperclip --previous` | Last pod's logs |
 | `kubectl describe externalsecret -n paperclip-system <name>` | ExternalSecret sync status |
 | `kubectl top pods -n paperclip-system` | Resource usage (OOM check) |

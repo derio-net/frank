@@ -1,0 +1,61 @@
+schema_version: 1
+run: 2026-10-04-feat-paperclip-fresh-start
+captures:
+- host: h-5a0b7224
+  harness: claude-code
+  mode: host-worktree
+  captured_at: '2026-10-05T19:13:19+00:00'
+  at:
+  - resolve:brainstorm
+  - deliver
+  sessions:
+  - session: 5bd12e8a-a28e-4950-8c44-0b3e9d800148
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 392
+        cache_write: 1032454
+        cache_read: 41760844
+        output: 103918
+        usd: null
+        usd_source: none
+      claude-sonnet-5-5:
+        input: 82
+        cache_write: 370792
+        cache_read: 5716978
+        output: 1904
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 26
+      other:
+        usd: null
+        turns: 122
+      paperwork:
+        usd: null
+        turns: 86
+    steps:
+      (outside run):
+        usd: null
+        turns: 14
+      brainstorm:
+        usd: null
+        turns: 31
+      spec-review:
+        usd: null
+        turns: 45
+      plan:
+        usd: null
+        turns: 14
+      implement:
+        usd: null
+        turns: 107
+      deliver:
+        usd: null
+        turns: 19
+    briefs:
+      step/spec-review: 2036
+      phase/1/implement-phase: 4261
+      phase/1/review-phase: 3785

@@ -1,0 +1,51 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] Post-merge live sequence: pause mirror, wipe, sweep, bootstrap'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - companies-mirror-paused
+  - paperclip-instance-starts-empty
+  - paperclip-shell-retired
+  - paperclip-claude-agent-completes-task
+tasks:
+- number: 1
+  title: Run the live sequence
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Before merging, run manual-op `orch-paperclip-pause-companies-mirror`.
+  - id: P2.T1.S2
+    text: |-
+      Merge the PR, then run manual-op `orch-paperclip-fresh-start-wipe` (DB first, then the data volume).
+  - id: P2.T1.S3
+    text: |-
+      Run manual-op `orch-paperclip-retire-shell-sweep`.
+  - id: P2.T1.S4
+    text: |-
+      Run manual-op `orch-paperclip-bootstrap-admin`, then the R7 proof from the spec Test Plan (task, pod restart, second task).
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
