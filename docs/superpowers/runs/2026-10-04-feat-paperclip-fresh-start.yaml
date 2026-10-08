@@ -1,4 +1,4 @@
-schema_version: 8
+schema_version: 9
 run: 2026-10-04-feat-paperclip-fresh-start
 workflow: fr-goal@1
 branch: feat/paperclip-fresh-start
