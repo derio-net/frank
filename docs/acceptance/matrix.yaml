@@ -23,7 +23,7 @@
 # Add rows with `fr acceptance add` (schema-validated append). Keep `rows:`
 # as the LAST top-level key — `add` appends to the end of this file.
 
-schema_version: 3
+schema_version: 4
 org: derio-net
 repo: frank
 rows:
@@ -1145,7 +1145,7 @@ rows:
   levels: {}
   status: not-implemented
   notes: ''
-  verify: post-merge
+  verify: live
 - id: paperclip-instance-starts-empty
   capability: Paperclip fresh start
   acceptance: After the wipe the instance contains no company, agent, user, routine
@@ -1158,7 +1158,7 @@ rows:
   levels: {}
   status: not-implemented
   notes: ''
-  verify: post-merge
+  verify: live
 - id: paperclip-claude-agent-completes-task
   capability: Paperclip fresh start
   acceptance: A Claude-adapter agent authenticated through Connections completes an
@@ -1168,7 +1168,7 @@ rows:
   levels: {}
   status: not-implemented
   notes: ''
-  verify: post-merge
+  verify: live
 - id: companies-mirror-paused
   capability: Paperclip fresh start
   acceptance: A merge to agentic-stoa/companies main fires nothing into Paperclip
@@ -1179,7 +1179,7 @@ rows:
   levels: {}
   status: not-implemented
   notes: ''
-  verify: post-merge
+  verify: live
 - id: paperclip-docs-describe-fresh-start
   capability: Paperclip fresh start
   acceptance: Frank's operator docs (Layer 15 posts, README, infrastructure table,
@@ -1203,7 +1203,7 @@ rows:
   status: not-implemented
   notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
     the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
-  verify: post-merge
+  verify: live
 - id: retrieval-batch-job-survives-pool-watchdog
   capability: Retrieval models
   acceptance: A long-running batch job against the retrieval tier runs to completion without the pool

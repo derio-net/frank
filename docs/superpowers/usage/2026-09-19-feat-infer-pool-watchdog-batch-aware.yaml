@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 run: 2026-09-19-feat-infer-pool-watchdog-batch-aware
 captures:
 - host: h-1cea7249

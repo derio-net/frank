@@ -1,4 +1,4 @@
-schema_version: 8
+schema_version: 9
 run: 2026-09-19-feat-infer-pool-watchdog-batch-aware
 workflow: fr-goal@1
 branch: feat/infer-pool-watchdog-batch-aware

@@ -1,4 +1,4 @@
-schema_version: 8
+schema_version: 9
 run: 2026-09-14-feat-staging-vcluster-gate
 workflow: fr-goal@1
 branch: feat/staging-vcluster-gate

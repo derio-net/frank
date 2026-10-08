@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 run: 2026-09-14-feat-staging-vcluster-gate
 captures:
 - host: h-255dc3fb
