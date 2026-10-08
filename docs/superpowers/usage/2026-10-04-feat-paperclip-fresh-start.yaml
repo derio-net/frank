@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 run: 2026-10-04-feat-paperclip-fresh-start
 captures:
 - host: h-5a0b7224
