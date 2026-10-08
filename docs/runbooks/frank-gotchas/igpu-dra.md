@@ -381,7 +381,8 @@ only use is `hf_tokenizer.model_max_length = max_length` while the tokenizer
 is exported — a per-document truncation length baked in at export time, which
 says nothing about how many documents one request may carry. `--num_streams`
 is orthogonal too, and raising it would increase peak memory rather than bound
-it.
+it — it is the throughput lever, not a memory one; see "The retrieval server
+is SERIALISED at one inference stream" below for what it actually governs.
 
 A refused request returns HTTP **400**, measured live 2026-09-19 and matching
 #805's own Test Plan row 6. An earlier draft of this entry predicted 500 by
@@ -427,6 +428,68 @@ One more, on extrapolation: a fit over the three measured points
 over-predicted an independent check by 28%. The shipped pair is a short
 extrapolation from measured anchors, not a derived bound, so re-measure at the
 new ceiling rather than trusting the curve out to it.
+
+## The retrieval server is SERIALISED at one inference stream, so its throughput ceiling is 1/latency — and a throughput number without its payload shape is not comparable to anything
+
+`export_model.py`'s `rerank_ov` and `embeddings_ov` parsers both default
+`--num_streams` to **1**, this build never passes the flag, and the emitted
+template writes it straight through, so every servable here runs with:
+
+```
+plugin_config: '{"NUM_STREAMS": "1" }',
+```
+
+One stream means inference serialises. Throughput is therefore pinned at
+`1 / latency` and **client concurrency buys nothing** — it only converts
+itself into queueing delay. Measured on the served 20-candidate shape
+(2026-09-20, 12 sequential in-container calls, payload 2365 bytes):
+
+| | |
+|---|---|
+| cold first call | 189 ms |
+| warm min / p50 / max | 59 / **60** / 63 ms |
+| implied sequential rate | **16.6/s** |
+| 4 calls issued in parallel | **240 ms** — i.e. 4 x 60, no overlap |
+
+That is the whole explanation for the acceptance soaks of 2026-09-14: 16
+workers gave 16.59/s at p50 787 ms and 48 workers gave 16.49/s at p50
+2227 ms. Tripling concurrency tripled latency and left the rate alone,
+because the rate was already the serial rate. **Two concurrency levels
+landing on the sequential figure is the signature to look for** — it is
+much stronger evidence of serialisation than any single parallel probe.
+
+### The "throughput halved" regression was an invalid comparison (frank#810)
+
+This cost a session, and the defect was in the record rather than the server.
+The 2026-09-14 soaks were read against a 2026-08-03 figure of 7500 requests
+in 240 s from **a sequential curl loop** — ~31/s, so ~32 ms per request. But
+the *same day, on the same server*, the 20-candidate bench measured **p50
+77.3 ms** (acceptance row `infer-igpu-rerank-latency-measured`). A sequential
+loop cannot beat its own per-request latency, so the ~31/s run provably did
+not send 20 candidates — and its candidate count and passage length were
+never written down. The two numbers were never comparable, on arithmetic
+alone, before anything about the guard was considered.
+
+The guard from #793/#794 was the headline suspect and is **exonerated twice
+over**: on the one shape measured both before and after it the server is
+*faster* (60 ms vs 77.3 ms), and it cannot have touched concurrency anyway —
+the rerank export invocation is byte-identical across `MODELS_REV` 1 and 2 at
+the same pinned `MODEL_SERVER_REF=v2026.2.1`, so `NUM_STREAMS` has been 1
+since the first export in August. **Record the payload shape and the client
+concurrency beside every throughput figure, or it cannot be re-measured** —
+a rate on its own reads as a property of the server when it is mostly a
+property of the request.
+
+### Raising `--num_streams` is the only lever, and it is unmeasured
+
+It is also not free, and it interacts with everything in the section above:
+each stream carries its own set of the pinned, unevictable iGPU buffers, so
+`n` streams multiply the peak that `limits.memory` has to absorb — against
+the 16Gi ceiling and the watchdog's `CRITICAL_PERCENT`. Treat it as a
+batch-curve measurement (fresh container, `memory.peak`, one shape at a
+time), not a config tweak. Nothing has driven real traffic at this endpoint
+hard enough to need it: an idle retrieval tier is the normal state here, so
+16.6/s may well be an entirely theoretical constraint.
 
 ## A CPU-derived busy signal is blind to a GPU-offloaded server, and an idle clock that outlives its own restart turns one wrong reading into a loop
 
