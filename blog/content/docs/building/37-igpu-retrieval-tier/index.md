@@ -376,7 +376,9 @@ These nodes are etcd members, so the last question is whether any of this hurt. 
 | MemoryPressure / DiskPressure | False | False |
 | ovms working set | | 2254 Mi of 6 Gi |
 
-That 6 Gi ceiling is 10 Gi now, and the September update below is why.
+That 6 Gi ceiling is 16 Gi now, and the September update below is why.
+
+**A correction I owe this paragraph, added later:** "about 31 per second" is the most expensive sentence in this post, and not because it is wrong — because it is unusable. I did not record what that curl loop sent. Six weeks later a re-run of the same soak measured ~16.5/s, that got read against this figure as a halving, and it cost a session to work out that the two numbers were never comparable. The arithmetic was sitting in this same post the whole time: 31/s from a *sequential* loop is ~32 ms per request, and the table two sections up says twenty candidates cost 77.3 ms. A sequential loop cannot beat its own latency, so whatever that loop sent, it was not the twenty-candidate shape — and the server was never the thing that changed. **Write down the payload shape and the client concurrency next to every throughput number, or you have recorded a rate that belongs to a request you can no longer identify.** The full account is in the September update.
 
 Excluding `WATCH` and `CONNECT` from that quantile is essential. Include them and the p99 reads 60 seconds flat both before and during, because long-poll watches sit at the apiserver timeout and swamp everything else. It looks like a catastrophe and carries no information.
 
@@ -418,7 +420,28 @@ And because that peak is monotonic while the floor ratchets, only a single call 
 
 The pair is `max_allowed_chunks: 64` and `max_position_embeddings: 640`, and the container's `limits.memory` went from 6Gi to 10Gi — and then, after the post-merge test plan, to 16Gi. Read that raise the right way round: the ceiling moved so the guard cannot OOM-kill the server it protects, not to make room for a bigger workload. The second raise is the more interesting one, because it corrected a sizing error. I had measured the cap as a **single call on a fresh pool**: 5.67 GiB. The expensive case is an **ascending sequence** — 20 then 40 then 64 documents — which peaks at **8.49 GiB**, because the older pool is still held while the new one is allocated. That is 84.9% of a 10Gi ceiling, against a test-plan threshold of 70%. I could not measure it before merging: the 10Gi limit did not exist yet. These are still etcd members, so `requests.memory` stayed at 2Gi and the scheduler's view of the node did not change — but the honest cost is that this memory is pinned and unevictable, and a third raise should tighten the graph bound instead.
 
-Two costs, both accepted deliberately. A document longer than `T` is no longer scored whole: it is split into chunks, scored per chunk, and its chunks count against the same 64 — so relevance scores move for long passages. And a refused request comes back as HTTP **500**, not the 4xx anyone would expect: each of those guards raises `std::runtime_error`, and `Process()` catches it into `absl::InternalError`. The caller gets a response naming the limit and everybody else keeps their server, which was the whole point — but the status code is upstream's to choose, not mine, so the test plan *records* it rather than asserting 4xx.
+Two costs, both accepted deliberately. A document longer than `T` is no longer scored whole: it is split into chunks, scored per chunk, and its chunks count against the same 64 — so relevance scores move for long passages. And a refused request comes back naming the limit, which was the whole point: `HTTP 400  Chunking failed: exceeding max_allowed_chunks after chunking limit: 64; actual: 100`.
+
+That 400 is worth a sentence, because I predicted 500 here and was wrong. The reasoning was sound as far as it went — each guard raises `std::runtime_error`, `Process()` catches it into `absl::InternalError`, and that maps to 500 — but the MediaPipe graph wraps the failure before it reaches the HTTP layer. I had written the number into this post from the source rather than from a request. The test plan *recorded* the status instead of asserting it, which is the only reason this surfaced as a pleasant surprise rather than a failing row. Reading the code tells you what the code says; it does not tell you what the server returns.
+
+### A throughput number I could not use
+
+One more correction belongs here, and it is the one the earlier paragraph pointed at. Six weeks after this layer went in, the acceptance soak was re-run and measured ~16.5/s — against the "about 31 per second" recorded above. That reads as a halving, and the batch guard was the obvious suspect: it had just shipped, and bounding memory plausibly costs throughput.
+
+It cost nothing. Re-measuring the twenty-candidate shape in-container gave **p50 60 ms**, *faster* than the 77.3 ms this post recorded before the guard existed. What the measurement did explain is the ceiling itself:
+
+| | |
+|---|---|
+| warm p50, 20 candidates | **60 ms** → 16.6/s sequential |
+| 4 calls issued in parallel | **240 ms** — 4 × 60, no overlap at all |
+| soak, 16 workers | 16.59/s, p50 787 ms |
+| soak, 48 workers | 16.49/s, p50 **2227 ms** |
+
+`export_model.py` defaults `--num_streams` to 1 and I never passed it, so every servable here runs `plugin_config: '{"NUM_STREAMS": "1" }'`. One stream means inference serialises, throughput is `1/latency`, and client concurrency converts itself into queueing delay and nothing else. Tripling the workers tripled the latency and left the rate alone — which is the signature to look for, and much better evidence than my four-parallel probe on its own.
+
+So the guard is exonerated twice: the same shape got faster, and it could not have touched concurrency anyway, because the rerank export command is byte-identical across both model revisions at the same pinned exporter ref. `NUM_STREAMS` has been 1 since the first export in August. The regression was never in the server — it was in my notes, and specifically in a rate recorded without the request that produced it.
+
+`--num_streams` is the real lever and I have not pulled it, because each stream carries its own set of those pinned, unevictable buffers: more streams multiply the peak that 16Gi has to absorb, against a watchdog that restarts the pod at 53% of it. That is a batch-curve measurement, not a config tweak — and nothing has yet driven this endpoint hard enough to need it.
 
 ## Missteps
 
@@ -431,6 +454,8 @@ Two costs, both accepted deliberately. A document longer than `T` is no longer s
 | **Seed-source test matched its own explanatory comment** | The block scalar carries its `#` comments into the scanned string, so flipping the real `cp` to the CPU repository still passed | Strip comment lines, assert the executable line | `2a6bb5db` |
 | **Read an ascending memory sweep's per-size deltas as per-call costs** | `memory.peak` is monotonic and the resident floor ratchets, so every size after the first was measuring the sizes before it — it put the fatal batch at forty documents when forty is fine on a fresh pod | Measure one call per container start, and restart between sizes | [#793](https://github.com/derio-net/frank/issues/793) |
 | **Went looking for `--max_doc_length` as the batch cap** | It never reaches `graph.pbtxt`; it sets the exported tokenizer's `model_max_length`, which is a per-document truncation length and says nothing about how many documents a request may carry | Set `max_allowed_chunks` and `max_position_embeddings` in the graph, which is where the calculator reads them | [#793](https://github.com/derio-net/frank/issues/793) |
+| **Published the refusal status as 500, read off the source** | `std::runtime_error` → `absl::InternalError` → 500 is correct about the code and wrong about the server: the MediaPipe graph wraps the failure before the HTTP layer, and the request returns **400** | Run the request. The test plan recorded the status rather than asserting it, which is why the gap surfaced | [#805](https://github.com/derio-net/frank/issues/805) |
+| **Recorded "about 31 per second" without the payload that produced it** | A bare rate is unfalsifiable and uncomparable: six weeks later a ~16.5/s re-run read as a halved-throughput regression, and the suspect was a guard that had in fact made the server *faster* | Record payload shape and client concurrency beside every throughput figure; the ceiling turned out to be `NUM_STREAMS: 1`, unchanged since the first export | [#810](https://github.com/derio-net/frank/issues/810) |
 
 ## Recovery Path
 
@@ -443,7 +468,8 @@ Two costs, both accepted deliberately. A document longer than `T` is no longer s
 | Stale weights served after a model bump | Seed marker still matches the unchanged `MODELS_REV` | Bump `MODELS_REV` so the image tag and the marker both move |
 | ArgoCD `Synced/Healthy` but the change is not live | Synced to a stale revision | Trigger an explicit sync operation with `syncOptions` passed explicitly, then assert on the artifact and not on the sync status |
 | Rerank kills the pod on a batch that worked yesterday | The resident floor has ratcheted to the high-water of the largest call since the last restart | `kubectl -n retrieval rollout restart deploy/ovms-retrieval` resets the floor immediately; the graph's two bounds are what stop it recurring |
-| Rerank returns HTTP 500 on a large batch | The guard refusing the request — `absl::InternalError` is how upstream surfaces it | Read the message: it names the limit. Send fewer or shorter documents; do not raise the cap without re-measuring |
+| Rerank returns HTTP 400 on a large batch | The guard refusing the request, before a single token is allocated | Read the message: it names the limit (`exceeding max_allowed_chunks after chunking limit: 64; actual: 100`). Send fewer or shorter documents; do not raise the cap without re-measuring |
+| Adding client workers raises latency and not throughput | `NUM_STREAMS: 1` — inference is serialised, so the ceiling is `1/latency` (~16.6/s on the 20-candidate shape) and concurrency becomes queueing delay | Nothing to fix on the client. The only lever is `--num_streams` at export, which multiplies the pinned-buffer peak against the 16Gi ceiling — measure it like a batch curve first |
 
 ## What transfers
 

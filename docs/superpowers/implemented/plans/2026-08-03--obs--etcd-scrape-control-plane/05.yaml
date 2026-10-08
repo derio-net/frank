@@ -307,5 +307,9 @@ state:
       Watchdog lifecycle on the real event: frank-ops#126 fired, then auto-closed.
       Acceptance soak re-run: quorum preserved (0 leader changes, mini-1 fsync p99
       2.0->3.5 ms) at the server-bound ~16.5 req/s. Not like-for-like with 2026-08-03
-      (~31/s); follow-up open.'
+      (~31/s); that follow-up is CLOSED as not-a-regression in frank#810 - the server
+      is serialised at one inference stream, so ~16.5/s is 1/latency, and the ~31/s
+      sequential curl loop implies ~32 ms per request against the 77.3 ms the same-day
+      20-candidate bench measured, so it cannot have sent this shape. See the
+      infer-igpu-workload-preserves-quorum acceptance row for the full resolution.'
     observed_prs: []
