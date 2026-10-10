@@ -2,7 +2,12 @@ schema_version: 8
 run: 2026-10-10-feat-batch-frank-alert-gaps
 step: deliver
 outcome: done
-journal: []
+journal:
+- kind: decision
+  id: ci-runs-alert-agent-handler-suite
+  title: CI now runs apps/alert-agent/handlers/tests in the tripwires job
+  body: 'Operator-approved (2026-10-10): the tripwires gate ran only scripts/tests/, so the #746 cred-expiry de-dup had no CI coverage. repo-tripwires.yml now runs the handler suite as a second pytest invocation
+    (its conftest''s sys.path must not leak into scripts/tests/); scripts/tests/test_alert_agent_handlers_run_in_ci.py guards the step. .fr/ci.yaml gate stays [tripwires], which now covers both suites.'
 resolves: []
 acceptance: []
 emitted:
