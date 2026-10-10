@@ -145,9 +145,14 @@ www.derio.net {
 # includeSubDomains, which from the apex would pin EVERY *.derio.net name
 # to HTTPS-only for a year — the same one-way door refused for `preload`
 # above. A bare redirect has nothing to harden.
+#
+# Deliberately NO `crowdsec` and NO `log` either: the apex record is
+# proxied, so every request arrives from a Cloudflare edge IP. The bouncer
+# could only ever ban a Cloudflare POP (blocking every real visitor behind
+# it), and the logs would feed CrowdSec signals naming Cloudflare as the
+# attacker. Visitors follow the redirect to www, which is DNS-only and
+# sees their real IP, so the protection applies there.
 derio.net {
-  log
-  crowdsec
   redir https://www.derio.net{uri} permanent
 }
 

@@ -18,7 +18,9 @@ THE TRAP THIS ALSO PINS. The apex must NOT import `security_headers`: that
 snippet's HSTS carries `includeSubDomains`, which on www/blog scopes to names
 under those hosts, but sent from the apex binds EVERY *.derio.net name to
 HTTPS-only in the browser for a year — the same one-way door the Caddyfile
-already refuses for `preload`. A bare redirect has nothing to harden.
+already refuses for `preload`. A bare redirect has nothing to harden. Nor
+may it carry `crowdsec`/`log`: behind Cloudflare's proxy every remote IP is
+a Cloudflare edge (see the last test).
 """
 
 from pathlib import Path
@@ -74,3 +76,16 @@ def test_apex_does_not_send_hsts() -> None:
         "pins every *.derio.net name to HTTPS-only for a year"
     )
     assert "Strict-Transport-Security" not in block
+
+
+def test_apex_neither_bounces_nor_logs_cloudflare_edges() -> None:
+    """The apex is Cloudflare-proxied, so its remote IP is always a CF edge.
+
+    A `crowdsec` handler there can only ban a Cloudflare POP (and every real
+    visitor behind it); a `log` there feeds CrowdSec signals that name
+    Cloudflare as the attacker. www, which the redirect lands on, is
+    DNS-only and carries both.
+    """
+    directives = _directives(_block(CADDY_FILE.read_text(), "derio.net"))
+    assert "crowdsec" not in directives, directives
+    assert "log" not in directives, directives
