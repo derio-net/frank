@@ -134,3 +134,38 @@ tests only; flat cases sharing two small loaders, nothing to clean
 ### no-refactor-p3-t2 · discovery · no-refactor-because P3.T2 (phase 3)
 
 rules and route follow the existing house shape verbatim; nothing to clean
+
+<!-- fr:journal kind=review scope=plan id=review-p3-r1 created=2026-10-10T19:40:04+00:00 phase=3 -->
+### review-p3-r1 · review · Phase 3 code review: rules and route match spec; 3 minor in-scope test/runbook findings (phase 3)
+
+Independent code-reviewer checked 7eafe10b..eae35f72: exprs byte-identical to the spec table incl. max by and > 0 guard; A-B-C shape, thresholds, for, severities, labels, states, uid lengths; $values.B.Value templating; route placement and Alertmanager child semantics (both receivers, no parent double-send, 4h inherited, nothing else captured); tests non-vacuous; cert-expiry-canary 9->10 route update legitimate; docs accurate. 58 targeted tests passed. Raised p3-r1..p3-r3.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1 created=2026-10-10T19:40:04+00:00 phase=3 state=open review_scope=in -->
+### p3-r1 · finding [open] (reviewer: in scope) · Route test does not pin child shape (no matchers / no repeat_interval on children) (phase 3)
+
+scripts/tests/test_pvc_capacity_alert.py:91-97.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r2 created=2026-10-10T19:40:04+00:00 phase=3 state=open review_scope=in -->
+### p3-r2 · finding [open] (reviewer: in scope) · Annotation <>& check covers summary only, not runbook (phase 3)
+
+scripts/tests/test_pvc_capacity_alert.py:84-86.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3 created=2026-10-10T19:40:04+00:00 phase=3 state=open review_scope=in -->
+### p3-r3 · finding [open] (reviewer: in scope) · Runbook annotation should name storage-secrets-ssa.md where the headroom recipe lives (phase 3)
+
+alert-rules-cm.yaml:1012,1048,1084.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1-resolved created=2026-10-10T19:40:04+00:00 phase=3 state=fixed resolves=p3-r1 -->
+### p3-r1-resolved · finding [fixed] · resolves p3-r1: Route test does not pin child shape (no matchers / no repeat_interval on children) (phase 3)
+
+Each child asserted to carry no matchers/object_matchers and no repeat_interval.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r2-resolved created=2026-10-10T19:40:04+00:00 phase=3 state=fixed resolves=p3-r2 -->
+### p3-r2-resolved · finding [fixed] · resolves p3-r2: Annotation <>& check covers summary only, not runbook (phase 3)
+
+<>& check loops over every annotation.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3-resolved created=2026-10-10T19:40:04+00:00 phase=3 state=fixed resolves=p3-r3 -->
+### p3-r3-resolved · finding [fixed] · resolves p3-r3: Runbook annotation should name storage-secrets-ssa.md where the headroom recipe lives (phase 3)
+
+All three runbooks now name docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check). 46 targeted tests passed.

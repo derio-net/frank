@@ -3,7 +3,7 @@ run: 2026-10-10-feat-batch-frank-alert-gaps
 workflow: fr-goal@1
 branch: feat/batch-frank-alert-gaps
 started: '2026-10-10T18:20:36+00:00'
-cursor: implement
+cursor: journal-check
 steps:
   brainstorm:
     state: done
@@ -52,8 +52,8 @@ steps:
     stdout: |
       self-review passed
   implement:
-    state: running
-    at: '2026-10-10T19:36:37+00:00'
+    state: done
+    at: '2026-10-10T19:40:05+00:00'
     members:
     - implement-phase
     - review-phase
@@ -143,13 +143,20 @@ steps:
           tests: ci:eae35f723ceaae7a6741ebfe029da28465c9300a+9c861418a9f78faeacf0f8d62c0effa9df8f3ed5;tree=1b0102d196efc8d5de95ea6bbaaa57081dc823af7c1553f2874c35ff1e458d29
           visual: none
       phase/3/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-10T19:36:37+00:00'
           agent: a01599dc043e84afc
           harness: claude-code
           model: claude-opus-5-5
           session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:40:05+00:00'
+          outcome: done
+        evidence:
+          review: review-p3-r1
+          reviewer: a01599dc043e84afc
+          visual: none
+          findings: p3-r1,p3-r2,p3-r3
   journal-check:
     state: pending
   deliver:
