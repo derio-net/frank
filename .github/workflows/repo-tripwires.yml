@@ -105,11 +105,18 @@ jobs:
       # WITHOUT pipefail, so `pytest | tee` would exit with tee's status (0) and
       # this job would report success on every failing test — a CI gate that
       # cannot fail, which is the exact bug class this suite exists to catch.
+      #
+      # The alert-agent handler suite runs as its OWN pytest invocation: its
+      # conftest puts the sibling package roots (frank-facts, telegram-bridge,
+      # handlers) on sys.path, mirroring the pod's PYTHONPATH, which must not
+      # leak into scripts/tests/. It holds the cred-expiry warning de-dup logic
+      # (frank#746) — before this step no CI ran it at all.
       - name: Run tripwires
         shell: bash
         run: |
           set -o pipefail
           pytest scripts/tests/ -q -rfEx | tee tripwires.log
+          pytest apps/alert-agent/handlers/tests/ -q -rfEx | tee -a tripwires.log
 
       - name: Summarise
         if: always()
