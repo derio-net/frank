@@ -69,3 +69,48 @@ tests only; new cases are flat and share small helpers (_at, _creds_at), nothing
 ### no-refactor-p2-t2 · discovery · no-refactor-because P2.T2 (phase 2)
 
 implementation already split into small helpers (_warn_key/_read_state/_write_state/_sent_ok); nothing further to clean
+
+<!-- fr:journal kind=review scope=plan id=review-p2-r1 created=2026-10-10T19:30:04+00:00 phase=2 -->
+### review-p2-r1 · review · Phase 2 code review: logic correct vs R4-R6/R11; 3 in-scope doc/test findings, 1 out-of-scope (phase 2)
+
+Independent code-reviewer checked 41825dca: heartbeat-first, _warn_key boundaries, write-only-on-both-ok against tg_bridge's real return shape, fail-open paths, call-time STATE_PATH, autouse isolation, cadence parsing guard, rule arithmetic (fires 15-16h after last heartbeat), PVC-resident state, pod roll via hashed ConfigMap. Targeted tests 72 passed. Raised p2-r1..p2-r4.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1 created=2026-10-10T19:30:04+00:00 phase=2 state=open review_scope=in -->
+### p2-r1 · finding [open] (reviewer: in scope) · Comments say the warning-day rolls at 03:00 UTC; date(now-9h) rolls at 09:00 (phase 2)
+
+cred_expiry.py:181 and test_cred_expiry.py:288-289.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2 created=2026-10-10T19:30:04+00:00 phase=2 state=open review_scope=in -->
+### p2-r2 · finding [open] (reviewer: in scope) · _warn_key test pins only whole hours; add an 08:59 UTC case (phase 2)
+
+test_cred_expiry.py:299-306.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3 created=2026-10-10T19:30:04+00:00 phase=2 state=open review_scope=in -->
+### p2-r3 · finding [open] (reviewer: in scope) · Spliced overlong module docstring line and back-to-back parentheticals (phase 2)
+
+cred_expiry.py:12, obs-digest.md:403.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4 created=2026-10-10T19:30:04+00:00 phase=2 state=open review_scope=out -->
+### p2-r4 · finding [open] (reviewer: out of scope) · Acceptance row obs-cred-expiry-deadman-tolerates-one-miss stays not-implemented until live evidence (phase 2)
+
+docs/acceptance/matrix.yaml:1254 — verify: live, flips post-merge.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1-resolved created=2026-10-10T19:30:04+00:00 phase=2 state=fixed resolves=p2-r1 -->
+### p2-r1-resolved · finding [fixed] · resolves p2-r1: Comments say the warning-day rolls at 03:00 UTC; date(now-9h) rolls at 09:00 (phase 2)
+
+Both comments now say the warning-day runs 09:00 to 09:00 UTC and the 03:00 run joins the previous day.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2-resolved created=2026-10-10T19:30:04+00:00 phase=2 state=fixed resolves=p2-r2 -->
+### p2-r2-resolved · finding [fixed] · resolves p2-r2: _warn_key test pins only whole hours; add an 08:59 UTC case (phase 2)
+
+_at takes a minute; added _warn_key(08:59 day 11) == day 10. 65 passed locally.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3-resolved created=2026-10-10T19:30:04+00:00 phase=2 state=fixed resolves=p2-r3 -->
+### p2-r3-resolved · finding [fixed] · resolves p2-r3: Spliced overlong module docstring line and back-to-back parentheticals (phase 2)
+
+Docstring reflowed into its own sentence; obs-digest parentheticals merged.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved created=2026-10-10T19:30:04+00:00 phase=2 state=open resolves=p2-r4 out_of_scope=true -->
+### p2-r4-resolved · finding [out-of-scope] · resolves p2-r4: Acceptance row obs-cred-expiry-deadman-tolerates-one-miss stays not-implemented until live evidence (phase 2)
+
+Not caused by this change: a verify: live row can only flip on post-merge live evidence (spec Test Plan step 4); listed under post-merge verification owed.
