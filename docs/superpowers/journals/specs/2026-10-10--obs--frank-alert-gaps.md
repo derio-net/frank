@@ -180,3 +180,6 @@ R6 latency 15-16h; summary 'daily' sentence and .crontab:2,5 listed; R11 guard p
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-10--obs--frank-alert-gaps-p2 created=2026-10-10T19:12:19+00:00 -->
 ### phase-split-2026-10-10--obs--frank-alert-gaps-p2 · decision · ask: frank#746 cred-expiry cadence, de-dup and window is an independently reviewable ask (R4-R6)
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-10--obs--frank-alert-gaps-p3 created=2026-10-10T19:12:21+00:00 -->
+### phase-split-2026-10-10--obs--frank-alert-gaps-p3 · decision · ask: frank#722 PVC capacity and inode rules plus their route are an independently reviewable ask (R7-R10)
