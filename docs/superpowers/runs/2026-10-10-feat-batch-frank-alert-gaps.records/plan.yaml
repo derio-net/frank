@@ -1,0 +1,9 @@
+schema_version: 8
+run: 2026-10-10-feat-batch-frank-alert-gaps
+step: plan
+outcome: done
+journal: []
+resolves: []
+emitted:
+  plan: docs/superpowers/plans/2026-10-10--obs--frank-alert-gaps
+evidence: {}
