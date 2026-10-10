@@ -1,0 +1,25 @@
+schema_version: 10
+run: 2026-10-10-feat-batch-frank-alert-gaps
+workflow: fr-goal@1
+branch: feat/batch-frank-alert-gaps
+started: '2026-10-10T18:20:36+00:00'
+cursor: brainstorm
+steps:
+  brainstorm:
+    state: pending
+  spec-review:
+    state: pending
+  plan:
+    state: pending
+  plan-review:
+    state: pending
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  journal-check:
+    state: pending
+  deliver:
+    state: pending
+fr_version: 5.19.1
