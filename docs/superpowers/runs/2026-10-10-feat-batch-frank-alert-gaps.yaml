@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-10-10T18:52:39+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-10-10T18:52:39+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
   plan:
     state: pending
   plan-review:
