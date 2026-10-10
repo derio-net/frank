@@ -103,7 +103,7 @@ kubectl logs -n monitoring deploy/victoria-metrics-grafana -c grafana \
 #         webhook response status 400 Bad Request"
 ```
 
-**Rule:** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values*. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
+**Rule (style, since frank#799):** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values* — under `parse_mode: None` they no longer break delivery, so the older rules that still carry them are harmless and deliberately left as-is, but bracket-free text survives any future parse-mode change. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
 
 **Why static checks miss it:** the YAML is valid, the rule provisions cleanly, routing/labels are correct — the rule looks perfect until it actually tries to *deliver*. Only an end-to-end firing (real or synthetic-metric-import) exercises the Telegram send path. Caught 2026-06-08 on the `layer-1-nic-link-flap` rule: it fired correctly on a real gpu-1 `enp3s0` flap but its annotations carried `talosctl -n <node-ip> dmesg` and `(>6 carrier changes/30m)`, so every page 400'd and the operator got nothing — discovered only by driving the post-merge Test Plan. This is the concrete proof of the repo rule "a layer is not Deployed until its workflow has been triggered + observed end-to-end."
 
