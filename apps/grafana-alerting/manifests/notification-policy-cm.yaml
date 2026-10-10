@@ -84,6 +84,20 @@ data:
             matchers:
               - health_bridge_only="true"
             continue: false
+          # PVC capacity (frank#722): a slow-burn condition that only operator
+          # action clears (expand, prune) would otherwise re-page every 3m for
+          # days. Parent repeats every 4h; continue:false keeps the severity
+          # routes from re-matching it. Children replicate what the severity
+          # route plus the feature-health route would have done.
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - pvc_capacity="true"
+            repeat_interval: 4h
+            continue: false
+            routes:
+              - receiver: "Telegram - Willikins"
+                continue: true
+              - receiver: "Health Bridge Webhook"
           - receiver: "Telegram - Willikins"
             matchers:
               - severity=critical

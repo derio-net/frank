@@ -137,7 +137,7 @@ def test_canary_mute_route_is_second():
 def test_existing_routes_preserved_in_order():
     # pin the total so a stray route inserted between the canary pair and the
     # tail can't hide in the [2:] slice
-    assert len(_routes()) == 9
+    assert len(_routes()) == 10
     tail = _routes()[2:]
     expected = [
         # Dead-man's-switch direct page — must precede blog-edge (see policy comment)
@@ -150,6 +150,8 @@ def test_existing_routes_preserved_in_order():
         # Generic critical-without-paging escape hatch — must also precede the
         # severity routes. First user: vk-executor-pool-wedged.
         ("Health Bridge Webhook", ['health_bridge_only="true"'], False),
+        # PVC capacity (frank#722): 4h-repeat parent, must precede the severity routes.
+        ("Telegram - Willikins", ['pvc_capacity="true"'], False),
         ("Telegram - Willikins", ["severity=critical"], True),
         ("Telegram - Willikins", ["severity=warning"], True),
         ("Health Bridge Webhook", ['grafana_folder="feature-health"'], False),

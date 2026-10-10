@@ -290,6 +290,12 @@ Two windows are load-bearing. The 10m on both paging rules exists because a plan
 
 The 15m on the `absent()` watchdog is its *only* tolerance: `absent()` has no `for`-like patience of its own, so the window is what absorbs a vmagent restart or a rolling etcd apply without paging a false alarm.
 
+### PVC Capacity Alerts
+
+Three rules watch volume fill from the kubelet's own volume stats: **PVC Capacity Above 85 Percent** (warning, 30m), **PVC Capacity Above 95 Percent** (critical, 5m) and **PVC Inodes Above 90 Percent** (warning, 30m). The kubelet is the source, so the kube-state-metrics scrape cap that can blind every `kube_*` rule does not touch them. A volume that is not mounted reports no series; the rule goes NoData and stays quiet, which is right because it cannot fill.
+
+Only an operator can clear a full volume, so these alerts repeat to Telegram every 4 hours rather than every 3 minutes. When one fires, check Longhorn provisioning headroom before expanding the claim, because an expansion can be refused silently while ArgoCD stays green.
+
 ### Exploring Available Metrics
 
 ```bash
