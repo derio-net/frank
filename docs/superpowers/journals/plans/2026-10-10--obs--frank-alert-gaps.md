@@ -169,3 +169,8 @@ Each child asserted to carry no matchers/object_matchers and no repeat_interval.
 ### p3-r3-resolved · finding [fixed] · resolves p3-r3: Runbook annotation should name storage-secrets-ssa.md where the headroom recipe lives (phase 3)
 
 All three runbooks now name docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check). 46 targeted tests passed.
+
+<!-- fr:journal kind=decision scope=plan id=ci-runs-alert-agent-handler-suite created=2026-10-10T19:58:43+00:00 -->
+### ci-runs-alert-agent-handler-suite · decision · CI now runs apps/alert-agent/handlers/tests in the tripwires job
+
+Operator-approved 2026-10-10: the tripwires gate ran only scripts/tests/, so the #746 cred-expiry de-dup had no CI coverage. repo-tripwires.yml now runs the handler suite as a second pytest invocation (its conftest sys.path must not leak into scripts/tests/); scripts/tests/test_alert_agent_handlers_run_in_ci.py guards the step. The .fr/ci.yaml gate stays [tripwires], which now covers both suites (CI log: 1071 passed + 89 passed).
