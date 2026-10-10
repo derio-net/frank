@@ -114,3 +114,23 @@ Docstring reflowed into its own sentence; obs-digest parentheticals merged.
 ### p2-r4-resolved · finding [out-of-scope] · resolves p2-r4: Acceptance row obs-cred-expiry-deadman-tolerates-one-miss stays not-implemented until live evidence (phase 2)
 
 Not caused by this change: a verify: live row can only flip on post-merge live evidence (spec Test Plan step 4); listed under post-merge verification owed.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-live-expr created=2026-10-10T19:36:27+00:00 phase=3 -->
+### p3-live-expr · discovery · PVC exprs verified live against VictoriaMetrics (phase 3)
+
+2026-10-10: bytes expr returns 36 series, top 78.2% secure-agent-pod/agent-home, then 68.4% paperclip-data, 65.5% hermes-agent-shell-home. Inode expr 36 series, max 34.8% agent-home. No zero denominators.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-route-count-guard created=2026-10-10T19:36:27+00:00 phase=3 -->
+### p3-route-count-guard · discovery · test_cert_expiry_canary pins the route count and order (phase 3)
+
+It asserted exactly 9 routes in order; adding the pvc_capacity route needed it bumped to 10 with the new entry before severity=critical.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t1 created=2026-10-10T19:36:27+00:00 phase=3 -->
+### no-refactor-p3-t1 · discovery · no-refactor-because P3.T1 (phase 3)
+
+tests only; flat cases sharing two small loaders, nothing to clean
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t2 created=2026-10-10T19:36:27+00:00 phase=3 -->
+### no-refactor-p3-t2 · discovery · no-refactor-because P3.T2 (phase 3)
+
+rules and route follow the existing house shape verbatim; nothing to clean
