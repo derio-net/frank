@@ -78,9 +78,11 @@ Two corroborating signals from the v2 `/alerts` API:
 
 Established 2026-06-07 proving the cert-expiry canary's perma-mute (issue #251, `apps/grafana-alerting/manifests/notification-policy-cm.yaml`). The canary's two instances (warning 14d + critical 7d) fired, dispatcher count = 2, notification latency count = 0, single receiver — Telegram and health-bridge both silent, operator confirmed no Telegram message.
 
-## Telegram contact point uses HTML parse_mode — `<>&` in annotations → 400 Bad Request, silent non-delivery
+## Unset Telegram parse_mode means HTML — `<>&` in annotations → 400 Bad Request, silent non-delivery
 
-The `Telegram - Willikins` contact point sends messages with Telegram's **HTML `parse_mode`**. Grafana renders the alert's `summary`/`runbook` annotations into the message body **without HTML-escaping**, so any of these in an annotation value breaks Telegram's HTML parser:
+**Status (frank#799):** the `Telegram - Willikins` contact point is now pinned to `parse_mode: None` (plain text), so the failure below no longer occurs. The earlier belief that leaving `parse_mode` unset gives plain text was wrong: grafana/alerting `receivers/telegram/v1/config.go:84-86` falls back to **HTML** when it is unset, and `"None"` is what maps to plain. Proven live on 2026-10-10 with a receivers/test probe on Grafana 12.3.3 containing a bare `<`: unset returned Telegram 400, `None` returned ok. `scripts/tests/test_telegram_parse_mode_explicit.py` asserts every Telegram receiver sets it. Markdown remains rejected (it strips underscores). Keeping `<>&` out of annotations stays a style guard. The rest of this section describes the HTML-mode failure as it presented.
+
+Before the pin, the contact point sent messages with Telegram's **HTML `parse_mode`** (by default). Grafana renders the alert's `summary`/`runbook` annotations into the message body **without HTML-escaping**, so any of these in an annotation value breaks Telegram's HTML parser:
 
 - `<…>` that looks like a tag — e.g. a `<node-ip>` placeholder, `<pod>`, `<name>`
 - a bare `<` or `>` (including `>6`, `<1GiB` written literally)

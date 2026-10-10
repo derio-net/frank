@@ -1005,10 +1005,11 @@ data:
               severity: warning
               github_issue: "frank-ops#1"
             annotations:
-              # NOTE: no < > & in annotations — Grafana's Telegram contact point
-              # sends HTML parse_mode, so '<node-ip>' / bare '>' render as invalid
-              # HTML tags and Telegram rejects the message with 400 Bad Request
-              # (silent non-delivery; logged as ngalert.notifier error). 2026-06-08.
+              # NOTE: no < > & in annotations. The contact point's parse_mode was
+              # UNSET on 2026-06-08, which Grafana treats as HTML, so '<node-ip>' /
+              # bare '>' were invalid tags and Telegram rejected the message with
+              # 400 (silent non-delivery; ngalert.notifier error). It is now pinned
+              # to parse_mode: None (frank#799); keep this as a style guard.
               summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (6+ carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
               runbook: "talosctl -n NODE_IP dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
 
@@ -1123,11 +1124,12 @@ data:
       # repointed at one of them goes green and measures the wrong process.
       # Guarded by scripts/tests/test_etcd_scrape.py.
       #
-      # NOTE: no < > & in annotations — Grafana's Telegram contact point sends
-      # HTML parse_mode, so a bare angle bracket makes Telegram reject the
-      # message with 400 and the alert fires but is never delivered (the
-      # 2026-06-08 layer-1-nic-link-flap incident). Hence NODE_IP, not a
-      # bracketed placeholder, and comparisons spelled out in words.
+      # NOTE: no < > & in annotations. The contact point's parse_mode was UNSET
+      # on 2026-06-08, which Grafana treats as HTML, so a bare angle bracket made
+      # Telegram reject the message with 400 and the alert fired but was never
+      # delivered (the layer-1-nic-link-flap incident). The contact point is now
+      # pinned to parse_mode: None (frank#799); NODE_IP and words-for-comparisons
+      # remain as a style guard.
       - orgId: 1
         name: layer-2-etcd-health
         folder: feature-health

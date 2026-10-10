@@ -1,0 +1,14 @@
+schema_version: 8
+run: 2026-10-10-feat-batch-frank-alert-gaps
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T2.S1, P1.T2.S2, P1.T3.S1, P1.T4.S1, P1.T4.S2, P1.T4.S3, P1.T5.S1]
+refactor:
+  P1.T2: "new test is a single small helper plus one assertion; nothing to clean"
+  P1.T4: "edits were comment/prose rewordings only; no code structure to refactor"
+journal:
+  - {kind: discovery, id: p1-venv-broken, title: "Worktree .venv is a dangling symlink", body: "The worktree .venv/bin/python points at a non-existent interpreter, so .venv/bin/pytest fails. Targeted tests were run with the base clone's .venv python (read-only use) from the worktree cwd.", phase: 1}
+  - {kind: discovery, id: p1-unset-is-html, title: "Unset Telegram parse_mode is HTML", body: "grafana/alerting receivers/telegram/v1/config.go:84-86 falls back to HTML; probe 2026-10-10 unset=400, None=ok. Pinned parse_mode None and guarded by test_telegram_parse_mode_explicit.py (frank#799).", phase: 1}
+resolves: []
+evidence: {tests: ci}

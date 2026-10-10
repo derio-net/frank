@@ -1035,12 +1035,13 @@ def test_only_quorum_loss_pages():
 def test_no_etcd_annotation_contains_html_metacharacters():
     """`<`, `>` and `&` make the alert fire and never deliver.
 
-    Grafana's Telegram contact point sends `parse_mode: HTML`. A bare angle
-    bracket in a summary is parsed as an unclosed tag, Telegram rejects the
-    whole message with 400, and the failure appears only as an
-    `ngalert.notifier` line in the Grafana log. The alert is firing in the UI,
-    the contact point is configured, and nothing arrives — which is
-    indistinguishable from the alert not having fired.
+    Until frank#799 the Telegram contact point left `parse_mode` unset, which
+    Grafana treats as HTML. A bare angle bracket in a summary was parsed as an
+    unclosed tag, Telegram rejected the whole message with 400, and the failure
+    appeared only as an `ngalert.notifier` line in the Grafana log. The contact
+    point is now pinned to `parse_mode: None`, so this is a style guard rather
+    than a delivery guard; the pin is asserted by
+    test_telegram_parse_mode_explicit.py.
 
     It bit `layer-1-nic-link-flap` on 2026-06-08 (`<node-ip>` in a runbook),
     which is why every rule near these writes `NODE_IP`.
@@ -1060,9 +1061,10 @@ def test_no_etcd_annotation_contains_html_metacharacters():
             offenders[uid] = bad
     assert not offenders, (
         "etcd alert annotation(s) contain `<`, `>` or `&`. Grafana's Telegram "
-        "contact point uses HTML parse_mode, so Telegram rejects the message "
-        "with 400 and the alert fires but is NEVER DELIVERED — visible only in "
-        "the Grafana log. Write NODE_IP, not a bracketed placeholder, and "
+        "contact point was historically HTML (unset parse_mode, fixed by the "
+        "frank#799 pin to None), where Telegram rejects the message with 400 "
+        "and the alert is NEVER DELIVERED. Keep annotations free of these as a "
+        "style guard: write NODE_IP, not a bracketed placeholder, and "
         f"spell comparisons out in words: {offenders}"
     )
 
