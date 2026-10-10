@@ -2636,7 +2636,7 @@ data:
               runbook: "Check https://expired.badssl.com/ reachability, the blackbox-exporter http_2xx_insecure_tls module, and VMProbe expired-cert-canary. Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md"
 
       # Dead-man's switch for the alert-agent Claude-credential expiry check. A
-      # daily cron in the alert-agent `agent` container emits a
+      # 6-hourly cron in the alert-agent `agent` container emits a
       # "cred-expiry-check days_left=... tier=..." heartbeat to stdout ->
       # supercronic -> fluent-bit -> VictoriaLogs. The "expiring soon" warning is
       # sent by that script directly (tg_send); THIS rule is the checker-died
@@ -2649,6 +2649,10 @@ data:
       # telegram_direct pages Telegram DIRECTLY (bypassing the LLM agent — the
       # warner is down, so it can't be trusted to triage its own outage), via the
       # top-of-policy route (notification-policy-cm.yaml:57-60, folder-independent).
+      # Timing (frank#746): cron 03/09/15/21 UTC = 6h cadence; window 13h (46800s) = two
+      # cadences + 1h slack, so ONE missed run is tolerated; a dead check fires 15-16h after
+      # its last heartbeat (window drain 13h + eval interval 1h + for 2h at worst) instead
+      # of 30h+. The Telegram warning itself is de-duped to once per warning-day per tier.
       # Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
       - orgId: 1
         name: alert-agent-cred-expiry
@@ -2660,18 +2664,18 @@ data:
             condition: C
             data:
               - refId: A
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: affdoo4s9258gc
                 model:
                   refId: A
                   queryType: stats
                   expr: 'kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check" | stats count() as value'
               - refId: B
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: __expr__
                 model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
               - refId: C
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: __expr__
                 model:
                   refId: C
@@ -2686,7 +2690,7 @@ data:
               severity: critical
               telegram_direct: "true"
             annotations:
-              summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 30h. The daily check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
+              summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 13h. The 6-hourly check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
               runbook: "Check the alert-agent pod + its supercronic cron: kubectl -n alert-agent get pods; kubectl -n alert-agent exec deploy/alert-agent -c agent -- /opt/alert-agent-bin/cred-expiry-check (should print a cred-expiry-check heartbeat). Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md"
 
       # Headscale API keys expire silently: Headplane stays Running and logs no

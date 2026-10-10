@@ -3,12 +3,13 @@
 The agent's login credential (`/home/agent/.claude/.credentials.json`, on the
 `alert-agent-home` PVC) carries a `refreshTokenExpiresAt` epoch-ms field — a hard
 ~30-day clock. It expired silently once (2026-07-18) and the C&C bot went dead for
-3 days with no signal. This runs daily in the `agent` container (supercronic) and:
+3 days with no signal. This runs 6-hourly (03/09/15/21 UTC) in the `agent` container (supercronic) and:
 
   - ALWAYS prints a `cred-expiry-check …` heartbeat line to stdout → supercronic →
     VictoriaLogs, watched by a Grafana dead-man rule (checker-died backstop);
   - sends a plain-text Telegram warning (via `tg_bridge.bridge.tg_send`) when the
-    token is <=7 days from expiry, escalating at <=3 / <=1 / expired, followed by a
+    token is <=7 days from expiry — at most once per warning-day per tier (frank#746:
+    the run is 6-hourly so the dead-man window can be 13h; the WARNING stays daily), escalating at <=3 / <=1 / expired, followed by a
     second message holding ONLY the re-login command (`LOGIN_CMD`), so a long-press →
     Copy on Telegram yields exactly what to paste.
 
@@ -22,11 +23,13 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from tg_bridge import bridge
 
 CRED_PATH = os.environ.get("CRED_PATH", "/home/agent/.claude/.credentials.json")
+# De-dup state: the last warning key sent. Read at call time (tests patch it).
+STATE_PATH = os.environ.get("CRED_WARN_STATE_PATH", "/home/agent/.cache/cred-expiry-last-warn")
 DAY_MS = 86_400_000
 
 # The re-login command, sent as its own message. `claude auth login` is the non-TUI
@@ -174,13 +177,44 @@ def _read_cred() -> str | None:
         return None
 
 
+def _warn_key(tier: str, now_ms: int) -> str:
+    """De-dup key: the warning-day (UTC date of now - 9h, so the day rolls at 03:00 UTC
+    and the 03:00 run joins the previous day) plus the tier, so an escalation re-warns."""
+    day = (datetime.fromtimestamp(now_ms / 1000, timezone.utc) - timedelta(hours=9)).date()
+    return f"{day.isoformat()}:{tier}"
+
+
+def _read_state() -> str | None:
+    try:
+        with open(STATE_PATH, encoding="utf-8") as fh:
+            return fh.read().strip()
+    except (OSError, UnicodeDecodeError):
+        return None          # unreadable → no prior key → warn (fail loud, not silent)
+
+
+def _write_state(key: str) -> None:
+    try:
+        os.makedirs(os.path.dirname(STATE_PATH) or ".", exist_ok=True)
+        with open(STATE_PATH, "w", encoding="utf-8") as fh:
+            fh.write(key)
+    except OSError as exc:
+        print(f"WARN cred-expiry-check: could not write state: {exc}", file=sys.stderr)
+
+
+def _sent_ok(result) -> bool:
+    # bridge.tg_send returns {"ok": False, ...} on HTTP errors instead of raising.
+    return isinstance(result, dict) and bool(result.get("ok"))
+
+
 def run_cred_check(now_ms: int | None = None) -> None:
-    """Daily runner: emit the heartbeat ALWAYS, warn on threshold. The heartbeat is
-    load-bearing (the Grafana dead-man rule keys on it), so the whole verdict
-    computation is wrapped: ANY unexpected error still yields an `error` heartbeat +
-    warning rather than a silent crash. A warning is two messages: the text, then
-    `LOGIN_CMD` alone. A tg_send transport error is swallowed (logged) so a send
-    failure can't suppress the heartbeat. `now_ms` injectable."""
+    """6-hourly runner: emit the heartbeat ALWAYS, warn on threshold at most once per
+    warning-day per tier. The heartbeat is load-bearing (the Grafana dead-man rule keys
+    on it), so the whole verdict computation is wrapped: ANY unexpected error still
+    yields an `error` heartbeat + warning rather than a silent crash. A warning is two
+    messages: the text, then `LOGIN_CMD` alone; the de-dup key is recorded only when
+    BOTH were accepted, so a failed send is retried on the next run. A tg_send
+    transport error is swallowed (logged) so a send failure can't suppress the
+    heartbeat. `now_ms` injectable."""
     if now_ms is None:
         now_ms = int(time.time() * 1000)
     try:
@@ -189,9 +223,16 @@ def run_cred_check(now_ms: int | None = None) -> None:
         print(f"WARN cred-expiry-check: evaluate_expiry raised: {exc}", file=sys.stderr)
         v = _error_verdict(now_ms, "unreadable")
     print(v.heartbeat, flush=True)
-    if v.should_warn:
-        try:
-            bridge.tg_send(v.message)
-            bridge.tg_send(LOGIN_CMD)
-        except Exception as exc:  # noqa: BLE001 — a send failure must not kill the heartbeat
-            print(f"WARN cred-expiry-check: tg_send failed: {exc}", file=sys.stderr)
+    if not v.should_warn:
+        return
+    key = _warn_key(v.tier, now_ms)
+    if _read_state() == key:
+        return
+    try:
+        first = bridge.tg_send(v.message)
+        second = bridge.tg_send(LOGIN_CMD)
+    except Exception as exc:  # noqa: BLE001 — a send failure must not kill the heartbeat
+        print(f"WARN cred-expiry-check: tg_send failed: {exc}", file=sys.stderr)
+        return
+    if _sent_ok(first) and _sent_ok(second):
+        _write_state(key)

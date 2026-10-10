@@ -400,9 +400,9 @@ name. Fixed to descend the wrapper (top-level fallback retained).
 **Design — dual signal, fails independently.** A standalone canary pod is
 impossible: the credential lives on an RWO PVC held by the agent pod, and the pod
 runs `automountServiceAccountToken: false` with no RBAC (no `kubectl exec` path).
-So the check is a **daily cron in the `agent` container** (the one place that
+So the check is a **cron in the `agent` container** (6-hourly since frank#746; originally daily) (the one place that
 already mounts the PVC, has the Telegram secret via `envFrom`, and `tg_bridge.tg_send`
-on `PYTHONPATH`), added to the existing supercronic `.crontab` (`0 9 * * *
+on `PYTHONPATH`), added to the existing supercronic `.crontab` (`0 3,9,15,21 * * *
 /opt/alert-agent-bin/cred-expiry-check`):
 
 - **Expiring-soon warning** — `handlers/cred_expiry.py`'s pure
@@ -411,7 +411,13 @@ on `PYTHONPATH`), added to the existing supercronic `.crontab` (`0 9 * * *
   `tier != ok` the runner sends a plain-text Telegram warning directly via
   `tg_send`, wording escalating with urgency. A missing/unparseable/field-less
   credential → `error` tier + a warning (never a silent skip). A `tg_send`
-  failure is swallowed so it can't suppress the heartbeat.
+  failure is swallowed so it can't suppress the heartbeat. **Warning de-dup
+  (frank#746):** the run is 6-hourly but a warning is sent at most once per
+  warning-day per tier — key `date(utc(now) - 9h):tier` in
+  `/home/agent/.cache/cred-expiry-last-warn` (override `CRED_WARN_STATE_PATH`),
+  written only when BOTH sends return `{"ok": true}` (`tg_send` returns
+  `{"ok": False}` on HTTP errors rather than raising), so a failed send retries on
+  the next run. A tier escalation re-warns.
 - **Checker-died dead-man** — the runner ALWAYS prints a
   `cred-expiry-check days_left=N tier=… refresh_expires=… ts=…` heartbeat line to
   stdout → supercronic → fluent-bit → VictoriaLogs. A Grafana file-provisioned
@@ -433,7 +439,7 @@ returns a real count, while the same query with `log:"…"` returns **0**. A
 copy-paste of the Hop rule would make the dead-man permanently blind (always 0).
 The Frank rule uses `_msg:`; a guard test
 (`scripts/tests/test_cred_expiry_alert_rule.py`) pins the field, `noDataState: OK`,
-the `telegram_direct` label, and the >24h window.
+the `telegram_direct` label, and the window (`2 * cadence < from < 30h`, cadence parsed from the crontab; 13h for the 6h cadence, so one missed run is tolerated and a dead check fires 15-16h after its last heartbeat).
 
 **Deploy notes.** Ships via ConfigMap (no image rebuild); ArgoCD rolls the pod.
 File-provisioned Grafana rules are read at boot — **restart the grafana pod** after
@@ -443,7 +449,7 @@ fire on the empty window — **but the seed must reach VictoriaLogs**: a plain
 container's PID-1 stream that fluent-bit tails, so it never lands in VL. Seed with
 a redirect to PID 1: `kubectl exec -n alert-agent deploy/alert-agent -c agent -- sh
 -c '/opt/alert-agent-bin/cred-expiry-check > /proc/1/fd/1 2>&1'`, then confirm
-`… _msg:"cred-expiry-check" | stats count()` ≥ 1. (The daily 09:00 supercronic run
+`… _msg:"cred-expiry-check" | stats count()` ≥ 1. (The 6-hourly supercronic run
 reaches VL naturally — supercronic captures its child's stdout, same as
 `surge-gate` — so only the manual first-deploy seed needs the redirect.) Verify
 end-to-end: heartbeat in VictoriaLogs + a forced-near-expiry warning delivered

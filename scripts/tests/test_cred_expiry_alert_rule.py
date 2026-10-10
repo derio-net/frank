@@ -45,11 +45,24 @@ def test_fires_on_zero_heartbeats_and_is_blind_safe():
     assert rule["labels"]["severity"] == "critical"
 
 
-def test_pages_telegram_directly_and_window_exceeds_a_day():
+def _cadence_s() -> int:
+    """Largest gap between consecutive runs of the cred-expiry cron line (wraps midnight)."""
+    cron = (REPO / "apps/alert-agent/manifests/files/.crontab").read_text()
+    line = next(ln for ln in cron.splitlines()
+                if "cred-expiry-check" in ln and not ln.lstrip().startswith("#"))
+    hours = sorted(int(h) for h in line.split()[1].split(","))
+    gaps = [b - a for a, b in zip(hours, hours[1:])] + [hours[0] + 24 - hours[-1]]
+    return max(gaps) * 3600
+
+
+def test_pages_telegram_directly_and_window_tolerates_one_missed_run():
     rule = _find_rule()
-    # a daily heartbeat must not read as stale between runs → window > 24h
+    cadence = _cadence_s()
+    # window must span two cadences (one miss tolerated) yet stay well under a day
+    # and a half so a dead check is caught the same day (frank#746)
     for d in rule["data"]:
-        assert d["relativeTimeRange"]["from"] >= 90000, "window must exceed 24h for a daily check"
+        w = d["relativeTimeRange"]["from"]
+        assert 2 * cadence < w < 30 * 3600, f"window {w}s vs cadence {cadence}s"
     # silence is the enemy: this rule pages Telegram directly, not the quiet route
     assert rule["labels"].get("telegram_direct") == "true"
     assert "canary_watchdog" not in rule["labels"]
@@ -57,5 +70,5 @@ def test_pages_telegram_directly_and_window_exceeds_a_day():
 
 def test_flap_suppression_and_error_handling_pinned():
     rule = _find_rule()
-    assert rule["for"] == "2h"                 # a slightly-late daily run must not flap
+    assert rule["for"] == "2h"                 # a slightly-late run must not flap
     assert rule["execErrState"] == "Error"     # a query error is surfaced, not hidden
