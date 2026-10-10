@@ -400,7 +400,7 @@ name. Fixed to descend the wrapper (top-level fallback retained).
 **Design — dual signal, fails independently.** A standalone canary pod is
 impossible: the credential lives on an RWO PVC held by the agent pod, and the pod
 runs `automountServiceAccountToken: false` with no RBAC (no `kubectl exec` path).
-So the check is a **cron in the `agent` container** (6-hourly since frank#746; originally daily) (the one place that
+So the check is a **cron in the `agent` container** (6-hourly since frank#746, originally daily; the one place that
 already mounts the PVC, has the Telegram secret via `envFrom`, and `tg_bridge.tg_send`
 on `PYTHONPATH`), added to the existing supercronic `.crontab` (`0 3,9,15,21 * * *
 /opt/alert-agent-bin/cred-expiry-check`):

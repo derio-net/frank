@@ -8,10 +8,11 @@ The agent's login credential (`/home/agent/.claude/.credentials.json`, on the
   - ALWAYS prints a `cred-expiry-check …` heartbeat line to stdout → supercronic →
     VictoriaLogs, watched by a Grafana dead-man rule (checker-died backstop);
   - sends a plain-text Telegram warning (via `tg_bridge.bridge.tg_send`) when the
-    token is <=7 days from expiry — at most once per warning-day per tier (frank#746:
-    the run is 6-hourly so the dead-man window can be 13h; the WARNING stays daily), escalating at <=3 / <=1 / expired, followed by a
+    token is <=7 days from expiry, escalating at <=3 / <=1 / expired, followed by a
     second message holding ONLY the re-login command (`LOGIN_CMD`), so a long-press →
-    Copy on Telegram yields exactly what to paste.
+    Copy on Telegram yields exactly what to paste. The run is 6-hourly so the
+    dead-man window can be 13h, but the warning is sent at most once per
+    warning-day (09:00 to 09:00 UTC) per tier (frank#746).
 
 `evaluate_expiry` is a pure function (unit-tested); `run_cred_check` is the thin
 runner the bin wrapper calls.
@@ -178,8 +179,8 @@ def _read_cred() -> str | None:
 
 
 def _warn_key(tier: str, now_ms: int) -> str:
-    """De-dup key: the warning-day (UTC date of now - 9h, so the day rolls at 03:00 UTC
-    and the 03:00 run joins the previous day) plus the tier, so an escalation re-warns."""
+    """De-dup key: the warning-day (UTC date of now - 9h, so the warning-day runs
+    09:00 to 09:00 UTC and the 03:00 run joins the previous day) plus the tier, so an escalation re-warns."""
     day = (datetime.fromtimestamp(now_ms / 1000, timezone.utc) - timedelta(hours=9)).date()
     return f"{day.isoformat()}:{tier}"
 

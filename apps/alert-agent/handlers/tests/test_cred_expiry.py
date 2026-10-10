@@ -285,12 +285,12 @@ def test_run_ok_sends_no_command(wired, monkeypatch, capsys):
 
 # --- once-a-day warning de-dup (frank#746) -------------------------------------
 # The check runs 6-hourly (03/09/15/21 UTC) so the dead-man heartbeat window can be
-# 13h, but the WARNING must stay once per warning-day per tier. A warning-day starts
-# at 03:00 UTC (key = date(now - 9h)), so the 03:00 run belongs to the previous day.
+# 13h, but the WARNING must stay once per warning-day per tier. A warning-day runs
+# 09:00 to 09:00 UTC (key = date(now - 9h)), so the 03:00 run joins the previous day.
 
-def _at(day: int, hour: int) -> int:
+def _at(day: int, hour: int, minute: int = 0) -> int:
     from datetime import datetime, timezone
-    return int(datetime(2026, 7, day, hour, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    return int(datetime(2026, 7, day, hour, minute, tzinfo=timezone.utc).timestamp() * 1000)
 
 
 def _creds_at(now_ms: int, days_out: float) -> str:
@@ -303,6 +303,7 @@ def test_warn_key_is_utc_date_minus_nine_hours_and_tier():
     assert ce._warn_key("soon", _at(10, 15)) == "2026-07-10:soon"
     assert ce._warn_key("soon", _at(10, 21)) == "2026-07-10:soon"
     assert ce._warn_key("soon", _at(11, 3)) == "2026-07-10:soon"     # 03:00 = previous warning-day
+    assert ce._warn_key("soon", _at(11, 8, 59)) == "2026-07-10:soon"  # one minute before the roll
     assert ce._warn_key("soon", _at(11, 9)) == "2026-07-11:soon"
     assert ce._warn_key("error", _at(11, 9)) == "2026-07-11:error"
 
