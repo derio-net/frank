@@ -106,6 +106,10 @@ The new group `pvc-capacity`, `folder: feature-health`, `interval: 1m`, datasour
 
 ## Verification
 
+strategy: live
+
+The run-level strategy is `live`: the deliverable is GitOps manifests that take effect only when ArgoCD syncs `main`, and frank has no `.fr/candidate-install`, so there is no candidate to walk before merge. The pre-merge evidence is CI (`tripwires`), the targeted tests, and the live receiver probe below.
+
 Test evidence is CI (`tests: ci`, gated by `.fr/ci.yaml`) plus targeted local tests. Per operator instruction the full suite does not run locally.
 
 - obs-telegram-alerts-deliver-any-text: none — the tripwire (R3) runs in CI. The pre-merge live probe (`parse-mode-live-probe`) proved that unset gives 400 and `None` gives delivery on the real bot. The Test Plan step 2 checks the provisioned receiver after merge.
