@@ -1009,7 +1009,7 @@ data:
               pvc_capacity: "true"
             annotations:
               summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $values.B.Value | printf \"%.0f\" }}% full for 30m"
-              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. agents/rules/frank-gotchas.md, docs/runbooks/frank-gotchas/grafana.md"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
           - uid: pvc-capacity-critical
             title: PVC Capacity Above 95 Percent
             condition: C
@@ -1045,7 +1045,7 @@ data:
               pvc_capacity: "true"
             annotations:
               summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $values.B.Value | printf \"%.0f\" }}% full"
-              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. agents/rules/frank-gotchas.md, docs/runbooks/frank-gotchas/grafana.md"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
           - uid: pvc-inodes-warning
             title: PVC Inodes Above 90 Percent
             condition: C
@@ -1081,7 +1081,7 @@ data:
               pvc_capacity: "true"
             annotations:
               summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has used {{ $values.B.Value | printf \"%.0f\" }}% of its inodes for 30m"
-              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. agents/rules/frank-gotchas.md, docs/runbooks/frank-gotchas/grafana.md"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
 
       # --- Layer 1 — NIC link flap (frank-ops#1) ---
       # Carrier-change RATE, not a down-state: a flapping NIC is up-on-average

@@ -82,8 +82,9 @@ def test_labels_states_and_summary():
         assert rule["noDataState"] == "OK", uid
         assert rule["execErrState"] == "Error", uid
         assert len(uid) <= 40, uid
+        for key, text in rule["annotations"].items():
+            assert not any(ch in text for ch in "<>&"), (uid, key, text)
         summary = rule["annotations"]["summary"]
-        assert not any(ch in summary for ch in "<>&"), summary
         assert "$labels.namespace" in summary and "$labels.persistentvolumeclaim" in summary
 
 
@@ -96,6 +97,11 @@ def test_route_present_with_4h_repeat_before_severity_routes():
     kids = route["routes"]
     assert [k["receiver"] for k in kids] == ["Telegram - Willikins", "Health Bridge Webhook"]
     assert kids[0]["continue"] is True
+    for k in kids:
+        # A child matcher would silently drop alerts from a receiver; a child
+        # repeat_interval would undo the 4h purpose of the parent.
+        assert "matchers" not in k and "object_matchers" not in k, k
+        assert "repeat_interval" not in k, k
     first_sev = next(i for i, r in enumerate(routes) if any(m.startswith("severity=") for m in r.get("matchers", [])))
     assert idx < first_sev
     hbo = next(i for i, r in enumerate(routes) if "health_bridge_only=\"true\"" in r.get("matchers", []))
