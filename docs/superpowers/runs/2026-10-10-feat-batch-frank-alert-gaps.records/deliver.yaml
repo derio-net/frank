@@ -9,3 +9,4 @@ emitted:
   pr: https://github.com/derio-net/frank/pull/832
 evidence:
   tests: ci
+  walk: none
