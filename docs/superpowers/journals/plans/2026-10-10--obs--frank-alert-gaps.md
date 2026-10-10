@@ -54,3 +54,18 @@ Em dash (387a9b89).
 ### p1-r3-resolved · finding [fixed] · resolves p1-r3: grafana.md Rule and frank-gotchas one-liner still read as a hard <>& ban (phase 1)
 
 Rule marked style-only since frank#799 in both places; the older carrying rules are noted as harmless and deliberately left (387a9b89).
+
+<!-- fr:journal kind=discovery scope=plan id=p2-handler-test-log created=2026-10-10T19:27:37+00:00 phase=2 -->
+### p2-handler-test-log · discovery · Handler tests run locally; no CI job covers them (phase 2)
+
+No CI job runs apps/alert-agent/handlers/tests, so the targeted run (89 passed) is logged at /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/4d6fa419-32bc-4dda-9e07-d7a7cca63eaf/scratchpad/p2-handler-tests.log. Scripts guard run with the base clone venv python.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t1 created=2026-10-10T19:27:37+00:00 phase=2 -->
+### no-refactor-p2-t1 · discovery · no-refactor-because P2.T1 (phase 2)
+
+tests only; new cases are flat and share small helpers (_at, _creds_at), nothing to clean
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t2 created=2026-10-10T19:27:37+00:00 phase=2 -->
+### no-refactor-p2-t2 · discovery · no-refactor-because P2.T2 (phase 2)
+
+implementation already split into small helpers (_warn_key/_read_state/_write_state/_sent_ok); nothing further to clean
