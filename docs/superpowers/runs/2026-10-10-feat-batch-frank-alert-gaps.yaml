@@ -3,7 +3,7 @@ run: 2026-10-10-feat-batch-frank-alert-gaps
 workflow: fr-goal@1
 branch: feat/batch-frank-alert-gaps
 started: '2026-10-10T18:20:36+00:00'
-cursor: plan-review
+cursor: implement
 steps:
   brainstorm:
     state: done
@@ -46,7 +46,11 @@ steps:
           returned: '2026-10-10T19:12:34+00:00'
           outcome: done
   plan-review:
-    state: pending
+    state: done
+    at: '2026-10-10T19:12:37+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
   implement:
     state: pending
     members:
