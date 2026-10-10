@@ -3,11 +3,14 @@ run: 2026-10-10-feat-batch-frank-alert-gaps
 workflow: fr-goal@1
 branch: feat/batch-frank-alert-gaps
 started: '2026-10-10T18:20:36+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-10T18:21:08+00:00'
+    state: done
+    at: '2026-10-10T18:52:30+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md
   spec-review:
     state: pending
   plan:
