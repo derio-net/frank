@@ -1,0 +1,105 @@
+schema_version: 8
+run: 2026-10-10-feat-batch-frank-alert-gaps
+step: spec-review
+outcome: done
+journal:
+- kind: review
+  id: spec-review-r1
+  title: 'independent spec review: 9 findings'
+  body: fr-spec-reviewer checked the spec against q1-q5, the codebase (file:line per named artefact), and itself. Routing, folder-wide guards, window arithmetic, PVC-resident state path and parse_mode None
+    provisioning verified; 9 in-scope findings sr-1..sr-9 raised.
+- kind: finding
+  id: sr-1
+  review_scope: in
+  title: R2 claims every parse-mode description is fixed, but four more places still say HTML
+  body: layer-2-etcd-health NOTE (alert-rules-cm.yaml:1126-1130), test_etcd_scrape.py:1038,1062-1063, operating posts 05-observability and 15-health-monitoring.
+- kind: finding
+  id: sr-2
+  review_scope: in
+  title: '"After a successful send" is undefined; tg_send returns an error dict instead of raising'
+  body: 'tg_bridge/bridge.py:59-84 returns {ok: False}; key must be written only on ok:True from both sends.'
+- kind: finding
+  id: sr-3
+  review_scope: in
+  title: Unit tests need STATE_PATH isolated, or the de-dup leaks state between tests
+  body: autouse fixture monkeypatching STATE_PATH, read at call time.
+- kind: finding
+  id: sr-4
+  review_scope: in
+  title: The UTC-day de-dup key moves the daily warning to the 00:00 UTC run
+  body: 0 */6 + utc_date key makes 00:00 UTC the first warning of the day.
+- kind: finding
+  id: sr-5
+  review_scope: in
+  title: 'Test Plan step 3 does not skip a run: deleting the pod 5 minutes early just reschedules it'
+  body: Recreate + cached image restarts within minutes; supercronic runs the slot.
+- kind: finding
+  id: sr-6
+  review_scope: in
+  title: Nothing checks after merge that the provisioned contact point carries parse_mode None
+  body: Add a post-merge GET /api/v1/provisioning/contact-points check.
+- kind: finding
+  id: sr-7
+  review_scope: in
+  title: A persistent PVC warning re-pages Telegram every 3 minutes under the inherited repeat_interval
+  body: notification-policy-cm.yaml:22-25 root repeat_interval 3m.
+- kind: finding
+  id: sr-8
+  review_scope: in
+  title: The ratio expressions do not guard a zero denominator; +Inf would fire forever
+  body: Add (denominator > 0).
+- kind: finding
+  id: sr-9
+  review_scope: in
+  title: Leftover "daily" wording in the rule summary, and the stated latency and test bound are loose
+  body: summary 'daily check is dead', .crontab:2,5; latency 15-16h; guard window > 2x cadence parsed from crontab.
+- kind: discovery
+  id: parse-mode-live-probe
+  title: 'Live receivers/test probe: parse_mode unset → Telegram 400; None → ok'
+  body: '2026-10-10T18:54:50Z, run in the grafana pod (secrets never left it) via POST /api/alertmanager/grafana/config/api/v1/receivers/test with the real bot token and chat id, summary containing bare
+    < > &. Case parse_mode unset: status failed, ''failed to send telegram message: webhook response status 400 Bad Request''. Case parse_mode None: status ok (delivered). Confirms #799 claims B/C and the
+    upstream HTML default; the seven bracket-bearing Telegram rules were genuinely undeliverable.'
+- kind: decision
+  id: cred-slots-09-anchor
+  title: Cred-expiry slots 03/09/15/21 UTC with the warning-day anchored at 09:00 UTC
+  body: 'Resolving sr-4 within the operator''s 6h-cadence decision (q2): keep today''s 09:00 UTC warning time by shifting the slots instead of using 0 */6, and key the de-dup on date(now - 9h).'
+- kind: decision
+  id: pvc-route-4h-repeat
+  title: Dedicated pvc_capacity route with repeat_interval 4h fanning out to Telegram and Health Bridge
+  body: Resolving sr-7 within the operator's q3 routing decision (both tiers page, then Health Bridge) — only the re-notify cadence changes.
+- kind: decision
+  id: tests-ci-evidence
+  title: 'Test evidence via CI (tests: ci); no local full suite'
+  body: 'Operator instruction relayed mid-run: the host is overloaded; use PR CI as test evidence via .fr/ci.yaml gate_checks, run only targeted tests locally.'
+resolves:
+- id: sr-1
+  state: fixed
+  body: R2 + Design now list the etcd NOTE, test_etcd_scrape.py messages and both operating posts.
+- id: sr-2
+  state: fixed
+  body: R5 + Design define success as both tg_send results dicts with ok true; key written only then; ok:False test case added.
+- id: sr-3
+  state: fixed
+  body: 'Design: STATE_PATH read at call time; autouse fixture to tmp_path; wired fixture returns {ok: True}.'
+- id: sr-4
+  state: fixed
+  body: 'R4/R5: slots 0 3,9,15,21 and key date(now - 9h) keep the warning at 09:00 UTC; test for the 03:00 run.'
+- id: sr-5
+  state: fixed
+  body: Test Plan step 4 scales the Deployment to 0 across a slot and asserts the slot's heartbeat is absent.
+- id: sr-6
+  state: fixed
+  body: Test Plan step 2 reads the provisioned contact point and asserts parse_mode None.
+- id: sr-7
+  state: fixed
+  body: 'R10: pvc_capacity route with repeat_interval 4h, child routes to Telegram (continue) and Health Bridge.'
+- id: sr-8
+  state: fixed
+  body: 'R7/R8 + Design: (denominator > 0) filter; live check showed no zero denominators.'
+- id: sr-9
+  state: fixed
+  body: R6 latency 15-16h; summary 'daily' sentence and .crontab:2,5 listed; R11 guard parses cadence, asserts 2x cadence < window < 30h.
+acceptance: []
+evidence:
+  review: spec-review-r1
+  reviewer: ab56d741d535df715
