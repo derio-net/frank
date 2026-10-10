@@ -3,7 +3,7 @@ run: 2026-10-10-feat-batch-frank-alert-gaps
 workflow: fr-goal@1
 branch: feat/batch-frank-alert-gaps
 started: '2026-10-10T18:20:36+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -158,7 +158,11 @@ steps:
           visual: none
           findings: p3-r1,p3-r2,p3-r3
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-10T19:40:09+00:00'
+    exit: 0
+    stdout: |
+      1 out-of-scope finding(s): p2-r4
   deliver:
     state: pending
 fr_version: 5.19.1
