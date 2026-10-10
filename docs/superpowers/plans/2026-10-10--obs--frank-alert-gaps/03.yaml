@@ -1,0 +1,71 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '#722 — PVC byte-capacity and inode rules with a 4h-repeat route'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - obs-pvc-capacity-pages
+  tier: standard
+  files:
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - apps/grafana-alerting/manifests/notification-policy-cm.yaml
+  - scripts/tests/test_pvc_capacity_alert.py
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/frank-gotchas/grafana.md
+  - blog/content/docs/operating/05-observability/index.md
+  estimate_lines: 260
+tasks:
+- number: 1
+  title: PVC rule and route tripwire (red)
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write `scripts/tests/test_pvc_capacity_alert.py`. Find the uids `pvc-capacity-warning`, `pvc-capacity-critical` and `pvc-inodes-warning` in the alert-rules ConfigMap (folder feature-health, group `pvc-capacity`) and assert:
+      - the A expr ratio is `max by (namespace, persistentvolumeclaim)` over the used/capacity (or inodes_used/inodes) metrics, with the denominator wrapped `( … > 0)`
+      - C thresholds are `gt 85` / `gt 95` / `gt 90`, with `for` 30m / 5m / 30m
+      - severities are warning / critical / warning
+      - labels carry `github_issue: frank-ops#4` and `pvc_capacity: "true"`
+      - `noDataState: OK` and `execErrState: Error`
+      - every uid is at most 40 characters
+      - the summary has no `<`, `>` or `&` and names namespace and persistentvolumeclaim
+      In `notification-policy-cm.yaml`, assert a route with matcher `pvc_capacity="true"`, `repeat_interval: 4h`, `continue: false` and child routes to "Telegram - Willikins" (continue true) and "Health Bridge Webhook", positioned before the first `severity=` route. Run it and confirm it FAILS.
+- number: 2
+  title: Rules and route (green)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Add the `pvc-capacity` group (interval 1m, folder feature-health, datasource `P4169E866C3094E38`, the A→B(reduce last dropNN)→C(threshold) shape copied from `layer-1-node-memory-headroom`), with the three rules exactly as in the spec's #722 table. Give it a comment block citing #715/#722, the `> 0` denominator guard, the NoData-when-unmounted rationale, and the 4h route. The runbook points to the Longhorn headroom check (frank-gotchas Storage: expansion can be refused silently). Before committing, run each A expr against VictoriaMetrics from the grafana pod (`wget -qO- 'http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.monitoring.svc:8428/api/v1/query?query=…'`) and record the series count and top values.
+  - id: P3.T2.S2
+    text: |-
+      Add the `pvc_capacity="true"` route to `notification-policy-cm.yaml` after the `health_bridge_only` route and before the `severity=critical` route, with a comment explaining the 4h repeat (a slow-burn condition that only operator action clears would otherwise re-page every 3m). Re-run `test_pvc_capacity_alert.py` and confirm it passes. Then run `.venv/bin/pytest scripts/tests/test_feature_health_workload_metrics.py -q` (the folder-wide guards) and confirm it also passes.
+- number: 3
+  title: Docs, refactor, push
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Add a one-liner to the Grafana section of `agents/rules/frank-gotchas.md`, with prose in `docs/runbooks/frank-gotchas/grafana.md`, covering PVC capacity alerting: the kubelet source (unaffected by KSM scrape caps), NoData when unmounted, and the 4h repeat route. Add a short PVC-capacity alert note to the alerting section of `blog/content/docs/operating/05-observability/index.md`. Refactor, commit, push, and confirm `tripwires` is green on PR #832 (tests: ci).
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

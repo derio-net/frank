@@ -123,3 +123,9 @@ Test evidence is CI (`tests: ci`, gated by `.fr/ci.yaml`) plus targeted local te
 
 - Pruning on agent-shell home volumes (#722's "worth considering", item 1).
 - Fill-rate (`predict_linear`) forecasting. The operator declined it in favour of inode coverage.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-10--obs--frank-alert-gaps | `derio-net/frank` | `2026-10-10--obs--frank-alert-gaps` | — |

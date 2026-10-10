@@ -1,0 +1,82 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '#746 — cred-expiry heartbeat every 6h, once-a-day warning de-dup, 13h dead-man
+    window'
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - obs-cred-expiry-deadman-tolerates-one-miss
+  tier: standard
+  files:
+  - apps/alert-agent/manifests/files/.crontab
+  - apps/alert-agent/handlers/handlers/cred_expiry.py
+  - apps/alert-agent/handlers/tests/test_cred_expiry.py
+  - apps/alert-agent/handlers/tests/test_cred_expiry_wiring.py
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/test_cred_expiry_alert_rule.py
+  - docs/runbooks/frank-gotchas/obs-digest.md
+  - agents/rules/frank-gotchas.md
+  estimate_lines: 220
+tasks:
+- number: 1
+  title: De-dup tests (red)
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      In `apps/alert-agent/handlers/tests/test_cred_expiry.py`, add an autouse fixture that monkeypatches `cred_expiry.STATE_PATH` to a `tmp_path` file. Make the `wired` fixture's `tg_send` record calls and return `{"ok": True}`. Add these cases:
+      - same warning-day and tier → second run sends nothing
+      - next warning-day → warns
+      - a 03:00 UTC run is in the previous warning-day (key `date(now - 9h)`)
+      - tier escalation the same day → warns
+      - `tg_send` returning `{"ok": False}` → key not written → the next run warns
+      - unreadable state (a directory at STATE_PATH) → warns
+      - unwritable state (parent is a file) → warns and the heartbeat still prints
+      - a unit test of `_warn_key`
+      Run `.venv/bin/pytest apps/alert-agent/handlers/tests/test_cred_expiry.py -q` (from the repo root, or the conftest's expected cwd) and confirm the new cases FAIL.
+  - id: P2.T1.S2
+    text: |-
+      Update `test_cred_expiry_wiring.py` to pin the crontab line `0 3,9,15,21 * * * /opt/alert-agent-bin/cred-expiry-check` (the test name says 6-hourly, not daily). In `scripts/tests/test_cred_expiry_alert_rule.py`, parse the cadence from `apps/alert-agent/manifests/files/.crontab` (the gap between hours in the cred-expiry line), assert `2 * cadence_s < from < 30 * 3600` on every refId, and assert `for == "2h"`. Run both and confirm they FAIL.
+- number: 2
+  title: Implement (green)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      In `cred_expiry.py`, add the module attribute `STATE_PATH = os.environ.get("CRED_WARN_STATE_PATH", "/home/agent/.cache/cred-expiry-last-warn")`, read at call time. Add a pure `_warn_key(tier, now_ms)` returning `f"{(utc(now) - 9h).date().isoformat()}:{tier}"`. In `run_cred_check`, print the heartbeat first. Then, if `should_warn` holds and the stored key (read error → None) differs, send both messages. Write the key, with `os.makedirs` on the parent, only when both results are dicts with truthy `ok`. Log and swallow read, write and send errors. Update the docstrings and comments that say "daily".
+  - id: P2.T2.S2
+    text: |-
+      Change `.crontab` to `0 3,9,15,21 * * * /opt/alert-agent-bin/cred-expiry-check` and fix the "daily" wording on its comment lines. In `alert-rules-cm.yaml`, group `alert-agent-cred-expiry`: change `from: 108000` to `46800` on A/B/C, and rewrite the summary to say 13h and "6-hourly check". Update the comment block with the arithmetic: 6h cadence, 13h window, one miss tolerated, a dead check fires 15 to 16h after its last heartbeat (interval 1h + for 2h), frank#746. Re-run the three test files from P2.T1 and confirm they PASS.
+- number: 3
+  title: Docs, refactor, push
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Update the cred-expiry entries in `agents/rules/frank-gotchas.md` (Observability digest, the "~30-day clock" bullet says "daily cron") and `docs/runbooks/frank-gotchas/obs-digest.md` to say 6-hourly, warning de-dup and a 13h dead-man. Refactor for clarity, then commit, push, and confirm `tripwires` is green on PR #832 (tests: ci). Record the targeted alert-agent handler test run's log as local evidence, because no CI job runs `apps/alert-agent/handlers/tests`.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
