@@ -79,3 +79,88 @@ replica-soft-anti-affinity=false (hard node anti-affinity) and only pc-1 carries
 ### gate-question-rounds-brainstorm · decision · Operator gate `brainstorm` took two question rounds
 
 Trigger: design-risk. Round 1 chose "all CI scratch to a new longhorn-hdd class"; the code check then showed only eventlistener-github's pipelines are pinned to pc-1 (kid-laptops-ci and the generic triggertemplate are not), so the scope choice carried an availability trade-off round 1 had not surfaced.
+
+<!-- fr:journal kind=review scope=spec id=spec-review-r1 created=2026-10-11T17:08:17+00:00 -->
+### spec-review-r1 · review · independent spec review: 8 findings (7 in scope, 1 out)
+
+Findings: sr-1 … sr-8 (out of scope: sr-8). All 8 operator decisions reflected in R1–R7, R9, the rulings table and Risks; one wording drift (sr-5). Codebase references verified with file:line (pc-1 UUID patches/README.md:11, chart 1.11.2 apps/root/templates/longhorn.yaml:20, longhorn-extras owns apps/longhorn/manifests, scripts/tests/ runs in CI via .github/workflows/repo-tripwires.yml). No missed per-run consumer (eventlistener.yaml templates have no workspaces; staging-gate uses emptyDir).
+
+<!-- fr:journal kind=finding scope=spec id=sr-1 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-1 · finding [open] (reviewer: in scope) · eventlistener-github.yaml has 9 longhorn-cicd workspace sites, not 11; total 11 not 13
+
+apps/tekton/triggers/eventlistener-github.yaml:473,514,556,584,611,634,671,709,757. Spec Context, R7 and Design §5 overcounted.
+
+<!-- fr:journal kind=finding scope=spec id=sr-2 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-2 · finding [open] (reviewer: in scope) · Workspace sizes are 1/2/5/8 Gi, not 2/8 Gi
+
+triggertemplate.yaml:44 (1Gi); eventlistener-github.yaml:475,515,710 (5Gi).
+
+<!-- fr:journal kind=finding scope=spec id=sr-3 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-3 · finding [open] (reviewer: in scope) · R8 leaves docs still claiming longhorn-cicd is pinned to pc-1 / holds Tekton workspaces
+
+README.md:297; building/27-cicd-platform:62; building/03-storage:386; operating/02-storage-backups:32,54-60; operating/22-cicd-platform:225,285; SC header line 2.
+
+<!-- fr:journal kind=finding scope=spec id=sr-4 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-4 · finding [open] (reviewer: in scope) · Test Plan's R8 row checks an untracked capacity audit and tests none of R8
+
+Capacity-audit tooling lives in gitignored scripts/tmp/; R8 is a documentation requirement whose checks should be reviewable in the PR.
+
+<!-- fr:journal kind=finding scope=spec id=sr-5 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-5 · finding [open] (reviewer: in scope) · R2's "no user data" is softer than the operator's "any content" ruling
+
+Journal decision sdd-stop-and-ask; R2 first sentence invited a judgement call the operator ruled out.
+
+<!-- fr:journal kind=finding scope=spec id=sr-6 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-6 · finding [open] (reviewer: in scope) · R9's disk-path assertion cannot hold for the gpu-1 file; R4 "same convention" ambiguous
+
+gpu-1 paths come from machine.disks in 401-gpu1-extra-disks.yaml:17,20, not a UserVolumeConfig.
+
+<!-- fr:journal kind=finding scope=spec id=sr-7 created=2026-10-11T17:08:17+00:00 state=open review_scope=in -->
+### sr-7 · finding [open] (reviewer: in scope) · Merge window mis-described as Pending PVCs; step 5 checks one Application where three change
+
+volumeBindingMode Immediate → PVC likely binds, volume Scheduled=False; longhorn, longhorn-extras and Tekton triggers apps all change.
+
+<!-- fr:journal kind=finding scope=spec id=sr-8 created=2026-10-11T17:08:17+00:00 state=open review_scope=out -->
+### sr-8 · finding [open] (reviewer: out of scope) · Default-group recurring backups apply to every longhorn-hdd CI scratch volume
+
+apps/longhorn/manifests/recurring-job-daily.yaml:8-10, recurring-job-weekly.yaml:8-10 (groups: [default]).
+
+<!-- fr:journal kind=finding scope=spec id=sr-1-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-1 -->
+### sr-1-resolved · finding [fixed] · resolves sr-1: eventlistener-github.yaml has 9 longhorn-cicd workspace sites, not 11; total 11 not 13
+
+Context, R7 and Design §5 now say 9 + 1 + 1 = 11, with line numbers; Design §5 makes the R9 guard enumerate every volumeClaimTemplate rather than trusting the count.
+
+<!-- fr:journal kind=finding scope=spec id=sr-2-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-2 -->
+### sr-2-resolved · finding [fixed] · resolves sr-2: Workspace sizes are 1/2/5/8 Gi, not 2/8 Gi
+
+Context now reads 1, 2, 5 or 8 Gi.
+
+<!-- fr:journal kind=finding scope=spec id=sr-3-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-3 -->
+### sr-3-resolved · finding [fixed] · resolves sr-3: R8 leaves docs still claiming longhorn-cicd is pinned to pc-1 / holds Tekton workspaces
+
+R8 enumerates every doc that claims longhorn-cicd is pc-1-pinned or holds Tekton workspaces; Design §3 corrects both SC header lines.
+
+<!-- fr:journal kind=finding scope=spec id=sr-4-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-4 -->
+### sr-4-resolved · finding [fixed] · resolves sr-4: Test Plan's R8 row checks an untracked capacity audit and tests none of R8
+
+R8 Test Plan row now checks the R8 clauses in the PR diff (folding testable ones into R9); the capacity audit moved to an R3/R4 corroboration row, named as gitignored operator tooling.
+
+<!-- fr:journal kind=finding scope=spec id=sr-5-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-5 -->
+### sr-5-resolved · finding [fixed] · resolves sr-5: R2's "no user data" is softer than the operator's "any content" ruling
+
+R2 and live step 2 now condition the wipe on sdd1 being empty (nothing beyond the filesystem root).
+
+<!-- fr:journal kind=finding scope=spec id=sr-6-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-6 -->
+### sr-6-resolved · finding [fixed] · resolves sr-6: R9's disk-path assertion cannot hold for the gpu-1 file; R4 "same convention" ambiguous
+
+R9 scopes the path assertion per file (pc-1 ↔ 402 UserVolumeConfig, gpu-1 ↔ 401 machine.disks); R4 says patch-in-git manual-op convention, live gpu-1 names/paths unchanged.
+
+<!-- fr:journal kind=finding scope=spec id=sr-7-resolved created=2026-10-11T17:08:17+00:00 state=fixed resolves=sr-7 -->
+### sr-7-resolved · finding [fixed] · resolves sr-7: Merge window mis-described as Pending PVCs; step 5 checks one Application where three change
+
+Step 5 names all three Applications and their operationState revision check, describes the likely Scheduled=False/attach symptom under Immediate binding (plan confirms), and asks for a quiet CI window with step 6 straight after.
+
+<!-- fr:journal kind=finding scope=spec id=sr-8-resolved created=2026-10-11T17:08:17+00:00 state=open resolves=sr-8 out_of_scope=true -->
+### sr-8-resolved · finding [out-of-scope] · resolves sr-8: Default-group recurring backups apply to every longhorn-hdd CI scratch volume
+
+Default-group recurring jobs already cover every longhorn-cicd workspace; this change only moves where they read from. Recorded as a Risk with a follow-up to opt longhorn-hdd out of the default group.
