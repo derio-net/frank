@@ -11,3 +11,8 @@
 ### 92fbda2702a7 · hypothesis · Batch premise (one shared root cause) does not hold: three independent causes
 
 #827 = SSA field-ownership residue from a hand apply (live metadata, fix is a managedFields deletion plus a gotcha). #821 = the watchdog numerator counts reclaimable page cache (manifest/script change). #774 = an incomplete Headscale autoApprovers policy on Hop (ConfigMap change, coordinated with ice#3). No shared mechanism, no shared file, and two of them are on different clusters. Per the batch rule, stop and ask before fixing any.
+
+<!-- fr:journal kind=finding scope=debug id=310e848709a9 created=2026-10-11T21:39:14+00:00 state=open -->
+### 310e848709a9 · finding [open] · Operator decision: one PR, three independent fixes
+
+Operator chose to keep one draft PR on fix/batch-frank-infra with a separate commit and failing test per member. #827's live managedFields deletion stays an operator manual-op; the PR carries the gotcha and a guard.
