@@ -135,6 +135,27 @@ www.derio.net {
   }
 }
 
+# Apex — a permanent redirect to www, path preserved (frank#830). Without
+# this block Caddy holds no certificate for the bare name, aborts the TLS
+# handshake (alert 80), and Cloudflare, which proxies the apex record,
+# shows visitors a 525. DNS-01 issuance means the cert comes regardless of
+# whether the record is proxied.
+#
+# Deliberately NO `import security_headers`: its HSTS carries
+# includeSubDomains, which from the apex would pin EVERY *.derio.net name
+# to HTTPS-only for a year — the same one-way door refused for `preload`
+# above. A bare redirect has nothing to harden.
+#
+# Deliberately NO `crowdsec` and NO `log` either: the apex record is
+# proxied, so every request arrives from a Cloudflare edge IP. The bouncer
+# could only ever ban a Cloudflare POP (blocking every real visitor behind
+# it), and the logs would feed CrowdSec signals naming Cloudflare as the
+# attacker. Visitors follow the redirect to www, which is DNS-only and
+# sees their real IP, so the protection applies there.
+derio.net {
+  redir https://www.derio.net{uri} permanent
+}
+
 # Analytics ingest (public) — reverse-proxies over Tailscale mesh to
 # GoatCounter on Frank (Cilium L2 LoadBalancer 192.168.55.224).
 # The mesh-only admin UI lives at https://counter.cluster.derio.net.
