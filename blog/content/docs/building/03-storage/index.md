@@ -383,8 +383,17 @@ And a smaller one, cheap to act on: **any step you perform in a web UI is a step
 | **Longhorn 1.11.0 heap leak on gpu-1** — instance manager process grew unbounded over days, {{< abbr "OOM" >}}-killing volumes | Upstream bug (longhorn#12575) triggered by sustained I/O on large SSDs | Bumped chart to 1.11.2, which included the fix | `b99085af`, `78a6c45a` |
 | **raspi-1 memory wedge** — Longhorn replicas consumed all 4GB RAM, node became unresponsive | Pi 4s have 4GB RAM; default cache settings exhaust this under write pressure | Excluded raspi-1/2 from Longhorn scheduling, added headroom alerting | `16385077` |
 | **ArgoCD sync failures on backup manifests** — R2 backup target caused health check timeouts | Backup target validation needs external connectivity that ArgoCD health checks could not reach | Separated backup manifests into own Application with relaxed sync policy | `9fd060fc` |
-| **No CI/CD StorageClass** — all CI pipeline pods consumed 3-replica volumes, wasting storage | CI artifacts are ephemeral; every pipeline run provisioned 3x the requested storage | Added `longhorn-cicd` with 1 replica and nodeSelector for CI nodes | `be9f5743` |
+| **No CI/CD StorageClass** — all CI pipeline pods consumed 3-replica volumes, wasting storage | CI artifacts are ephemeral; every pipeline run provisioned 3x the requested storage | Added `longhorn-cicd` with 1 replica (historical note: it never had a node selector; per-run CI workspaces moved to `longhorn-hdd` in 2026-10) | `be9f5743` |
 | **Default backup target pointed at nonexistent {{< abbr "NAS" >}}** — config referenced a Synology path before the NAS was purchased | Planned infrastructure that was never bought; backup target was unreachable from day one | Switched default to Cloudflare R2, stubbed NAS as future improvement | `3df7c9ad` |
+
+## pc-1 HDD tier (2026-10)
+
+pc-1 carries three idle data HDDs (two WD 1 TB Green, one WD 500 GB Blue, all 2008-09 vintage) that Longhorn never saw; its only Longhorn disk was the 62 GB `EPHEMERAL` partition on the boot SSD, already over-committed. They are now an isolated `hdd` tier:
+
+- Talos `UserVolumeConfig`s select each drive by **WWID** (never `/dev/sdX`, which drifts; the drives report no serial) and mount it at `/var/mnt/hdd-<wwid8>` (`patches/phase03-longhorn/402-pc1-hdd-volumes.yaml`).
+- Each mount is a Longhorn disk on `pc-1` tagged `hdd` (`longhorn-node-disks-pc-1.yaml`, applied by a documented manual operation — ArgoCD never owns the `nodes.longhorn.io` CR). A drive is only admitted after a strict SMART gate.
+- `longhorn-hdd` is a single-replica class with `diskSelector: hdd`. Only pc-1 has such disks and node anti-affinity is hard, so one replica is all it can have: re-creatable CI scratch only. Every Tekton per-run workspace uses it.
+- The setting `allowEmptyDiskSelectorVolume` is now `false`. Measured before the flip: gpu-1's `gpu-local` SSDs held ~1.1 TiB of general replicas while its NVMe default disk had 0 Gi scheduled — a disk tag attracts but never excludes while that setting is `true`, and Longhorn prefers the disk with the most free space. It governs new placement only; existing replicas stay.
 
 ## References
 
