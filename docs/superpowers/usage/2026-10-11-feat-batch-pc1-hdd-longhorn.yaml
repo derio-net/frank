@@ -1,0 +1,58 @@
+schema_version: 2
+run: 2026-10-11-feat-batch-pc1-hdd-longhorn
+captures:
+- host: h-e988bec6
+  harness: claude-code
+  mode: host-worktree
+  captured_at: '2026-10-11T17:03:01+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: f8421e42-9f2f-4905-8b3c-88522bae182b
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 52
+        cache_write: 199244
+        cache_read: 4640780
+        output: 37471
+        usd: null
+        usd_source: none
+    activity:
+      other:
+        usd: null
+        turns: 19
+      paperwork:
+        usd: null
+        turns: 7
+    steps:
+      (outside run):
+        usd: null
+        turns: 2
+        input: 4
+        cache_write: 131367
+        cache_read: 167016
+        output: 681
+      brainstorm:
+        usd: null
+        turns: 24
+        input: 48
+        cache_write: 67877
+        cache_read: 4473764
+        output: 36790
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 2
+          input: 4
+          cache_write: 131367
+          cache_read: 167016
+          output: 681
+        brainstorm:
+          usd: null
+          turns: 24
+          input: 48
+          cache_write: 67877
+          cache_read: 4473764
+          output: 36790

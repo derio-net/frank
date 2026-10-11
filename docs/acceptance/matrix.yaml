@@ -1273,3 +1273,49 @@ rows:
   status: not-implemented
   notes: ''
   verify: live
+- id: stor-pc1-hdd-health-gated
+  capability: storage
+  acceptance: Only pc-1 HDDs that pass a strict SMART check (overall health, long
+    self-test, zero reallocated/pending/uncorrectable sectors) hold Longhorn data,
+    and pc-1's old 500 GB drive is never wiped while it holds data the operator has
+    not ruled on.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: stor-pc1-hdd-stable-binding
+  capability: storage
+  acceptance: pc-1's admitted HDDs are mounted by WWID and come back mounted and schedulable
+    in Longhorn after a reboot, regardless of how the kernel names them.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: stor-hdd-pool-isolated
+  capability: storage
+  acceptance: Volumes on the general classes never get a new replica on an HDD (or
+    other tagged) disk, while volumes on the longhorn-hdd class land only on pc-1's
+    HDDs.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: stor-ci-workspaces-on-hdd
+  capability: storage
+  acceptance: CI pipeline runs provision their per-run workspaces on pc-1's HDDs,
+    while Gitea repositories, registry blobs and runner state stay on SSD-backed storage.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
