@@ -55,8 +55,8 @@ has also drifted: it lists 500/640/640 GB HDDs and gives the SSD as `sdc`.
 - Long-lived: `gitea/gitea-shared-storage` (repos, 10 Gi; `apps/gitea/values.yaml:88`),
   `zot/zot-pvc` (image blobs, 50 Gi; `apps/zot/values.yaml:84`),
   `gitea-runner/act-runner-data` (20 Gi; `apps/gitea-runner/manifests/pvc.yaml:19`).
-- Per-run CI workspaces (`volumeClaimTemplate`s, ~150 live PVCs at 2/8 Gi):
-  - `apps/tekton/triggers/eventlistener-github.yaml`: 11 sites. Their pods are already
+- Per-run CI workspaces (`volumeClaimTemplate`s requesting 1, 2, 5 or 8 Gi; ~150 live PVCs):
+  - `apps/tekton/triggers/eventlistener-github.yaml`: 9 sites (`:473,514,556,584,611,634,671,709,757`). Their pods are already
     pinned to pc-1 (`nodeSelector: {kubernetes.io/hostname: pc-1}`).
   - `apps/tekton/triggers/kid-laptops-ci.yaml:86`: not node-pinned, by design (comment at
     `:84`).
@@ -66,16 +66,16 @@ has also drifted: it lists 500/640/640 GB HDDs and gives the SSD as `sdc`.
 ## Requirements
 
 R1. Before any HDD receives Longhorn data, each of the three drives is SMART-checked from a privileged debug pod: overall health, the attribute table and a completed **long** self-test. A drive is excluded if any of these hold: overall health FAIL, the long test fails, or attribute 5 (Reallocated Sector Count), 197 (Current Pending Sector) or 198 (Offline Uncorrectable) has a non-zero raw value. Power-On Hours (9), Load Cycle Count (193) and UDMA CRC Error Count (199) are recorded but are not gates. Each drive's results and verdict are posted to frank#824.
-R2. `sdd1` is mounted read-only once and its contents listed. If it holds no user data, `sdd` is wiped and proceeds through the same path as the other admitted drives. If it holds anything, a summary (top-level paths and sizes, no file contents) is posted to frank#824 and `sdd` is paused until the operator rules on it. `sdb` and `sdc` go ahead regardless. No agent copies data off `sdd` or wipes it without that ruling.
+R2. `sdd1` is mounted read-only once and its contents listed. If `sdd1` is empty (no files or directories beyond the filesystem root), `sdd` is wiped and proceeds through the same path as the other admitted drives. If it holds anything, a summary (top-level paths and sizes, no file contents) is posted to frank#824 and `sdd` is paused until the operator rules on it. `sdb` and `sdc` go ahead regardless. No agent copies data off `sdd` or wipes it without that ruling.
 R3. Each admitted drive is provisioned by a Talos `UserVolumeConfig` that selects it by WWID, as a CEL `diskSelector.match` on `disk.wwid`, never by `/dev/sdX`. The volume is xfs and mounted at `/var/mnt/hdd-<last 8 hex digits of the WWID>`. All of them ship in one Omni ConfigPatch scoped to pc-1's cluster-machine UUID, and every mount survives a reboot.
-R4. Each admitted drive's mount is a Longhorn disk on `nodes.longhorn.io/pc-1`. The disk is named `hdd-<wwid8>`, tagged `hdd`, has `storageReserved: 0` (the global 15 % `storageMinimalAvailablePercentage` is the floor) and `allowScheduling: true`. The exact disk entries live in git as a patch file applied by a documented `# manual-operation`. ArgoCD never owns the `nodes.longhorn.io` CR. gpu-1's two existing `gpu-local` disks are backfilled into the same convention, and pc-1's existing default disk is left as it is.
+R4. Each admitted drive's mount is a Longhorn disk on `nodes.longhorn.io/pc-1`. The disk is named `hdd-<wwid8>`, tagged `hdd`, has `storageReserved: 0` (the global 15 % `storageMinimalAvailablePercentage` is the floor) and `allowScheduling: true`. The exact disk entries live in git as a patch file applied by a documented `# manual-operation`. ArgoCD never owns the `nodes.longhorn.io` CR. gpu-1's two existing `gpu-local` disks are backfilled into the same patch-in-git manual-op convention, keeping their live names and paths unchanged; pc-1's existing default disk is left as it is.
 R5. `apps/longhorn/values.yaml` sets `defaultSettings.allowEmptyDiskSelectorVolume: false`, so no volume without a `diskSelector` is newly scheduled onto a tagged disk, whether `hdd` or `gpu-local`. Existing replicas are not moved by this change.
 R6. A new StorageClass `longhorn-hdd` (ArgoCD-managed in `apps/longhorn/manifests/`) provisions single-replica volumes restricted to `hdd`-tagged disks.
-R7. Every per-run CI workspace `volumeClaimTemplate` uses `longhorn-hdd`: all 11 sites in `eventlistener-github.yaml`, plus `kid-laptops-ci.yaml` and `triggertemplate.yaml`. Gitea repos, Zot blobs and act-runner data stay on `longhorn-cicd`.
-R8. The repo tells the truth afterwards. `patches/phase03-longhorn/README.md` carries the measured inventory (model, size, WWID, role), names the new files, and fixes its `phase3-longhorn` path typos. `frank-gotchas.md` gains a one-liner (full prose in `docs/runbooks/frank-gotchas/storage-secrets-ssa.md`) that a Longhorn disk tag does not isolate while `allow-empty-disk-selector-volume` is true. The manual ops are synced to `docs/runbooks/manual-operations.yaml`, and the Layer 4 posts `building/03-storage` and `operating/02-storage-backups` describe the HDD tier.
+R7. Every per-run CI workspace `volumeClaimTemplate` uses `longhorn-hdd`: all 9 sites in `eventlistener-github.yaml`, plus `kid-laptops-ci.yaml` and `triggertemplate.yaml` (11 in total). `eventlistener.yaml`'s templates carry no workspaces and staging-gate uses an `emptyDir`, so neither is a consumer. Gitea repos, Zot blobs and act-runner data stay on `longhorn-cicd`.
+R8. The repo tells the truth afterwards. `patches/phase03-longhorn/README.md` carries the measured inventory (model, size, WWID, role), names the new files, and fixes its `phase3-longhorn` path typos. Every doc that claims `longhorn-cicd` is pinned to pc-1, or that Tekton workspaces use it, is corrected: the class's own header (both lines), `README.md:297`, `building/27-cicd-platform` (`:28`, `:62`, `## StorageClass: longhorn-cicd`), `building/03-storage:386`, `operating/02-storage-backups` (`:32`, `:54-60`) and `operating/22-cicd-platform` (`:225`, `:285`). `frank-gotchas.md` gains a one-liner (full prose in `docs/runbooks/frank-gotchas/storage-secrets-ssa.md`) that a Longhorn disk tag does not isolate while `allow-empty-disk-selector-volume` is true. The manual ops are synced to `docs/runbooks/manual-operations.yaml`, and the Layer 4 posts `building/03-storage` and `operating/02-storage-backups` describe the HDD tier.
 R9. An offline guard test, run in CI, pins the declarative half. Its assertions:
    - The ConfigPatch selects disks by WWID and contains no `/dev/sd`.
-   - Every Longhorn disk path in the node-disk patch file equals a `UserVolumeConfig` mount.
+   - Every disk path in `longhorn-node-disks-pc-1.yaml` equals a `UserVolumeConfig` mount in `402-pc1-hdd-volumes.yaml`, and every disk path in `longhorn-node-disks-gpu-1.yaml` equals a `machine.disks` mountpoint in `401-gpu1-extra-disks.yaml`.
    - `longhorn-hdd` has `numberOfReplicas: "1"` and `diskSelector: hdd`.
    - `allowEmptyDiskSelectorVolume` is `false`.
    - Every CI `volumeClaimTemplate` names `longhorn-hdd`, and no long-lived consumer does.
@@ -163,8 +163,8 @@ R9. An offline guard test, run in CI, pins the declarative half. Its assertions:
      dataLocality: "disabled"     # the selector already fixes the replica's node
    ```
 
-   The `longhorn-cicd` header comment is corrected to say what that class really does,
-   which is single-replica, unpinned.
+   Both lines of the `longhorn-cicd` header comment are corrected: it is single-replica
+   and unpinned, and Tekton workspaces no longer use it.
 
 4. **`apps/longhorn/values.yaml`**: `defaultSettings.allowEmptyDiskSelectorVolume:
    false`, with a comment carrying the gpu-local evidence above. Chart 1.11.2 exposes the
@@ -173,8 +173,9 @@ R9. An offline guard test, run in CI, pins the declarative half. Its assertions:
    `gpu-local` SSDs. Existing replicas stay where they are until something rebuilds them
    (`replica-auto-balance` is `disabled`).
 
-5. **CI workspaces → `longhorn-hdd`**: the 13 `storageClassName: longhorn-cicd` lines
-   listed in R7. The `kid-laptops-ci.yaml:84` comment is rewritten, since the class is now
+5. **CI workspaces → `longhorn-hdd`**: the 11 `storageClassName: longhorn-cicd` lines
+   listed in R7. The R9 guard enumerates every `volumeClaimTemplate` in `apps/tekton/`, so the
+   count is checked by the test, not trusted from this spec. The `kid-laptops-ci.yaml:84` comment is rewritten, since the class is now
    pinned to pc-1's disks even though the pod is not.
 
 6. **Docs (R8)** and **guard test (R9)**: `scripts/tests/test_pc1_hdd_longhorn.py`.
@@ -189,7 +190,7 @@ The ordering exists so the default pool never sees an HDD that it could schedule
    each drive's own polling time (`smartctl -c`), then `smartctl -l selftest`. Post results
    to #824 and delete the pod.
 2. **`sdd` inspection (R2).** Mount `sdd1` with `mount -o ro,norecovery` (xfs refuses a
-   plain read-only mount when its log is dirty), list it, unmount. If it is empty, wipe it
+   plain read-only mount when its log is dirty), list it, unmount. If it is empty (nothing beyond the filesystem root), wipe it
    with `talosctl -n 192.168.55.71 wipe disk sdd`, which Talos needs before it will
    provision a disk that already has a partition table. Otherwise post the summary and
    hold `sdd`.
@@ -203,9 +204,15 @@ The ordering exists so the default pool never sees an HDD that it could schedule
 5. **Merge.** ArgoCD lands the setting, `longhorn-hdd` and the CI repoint. Assert on the
    artifact, not on ArgoCD's sync status:
    `kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-volume`
-   must read `false`. Also compare the app's `status.operationState` revision against the
-   merge SHA (see the stale-revision gotchas). Between the merge and step 6, new CI PVCs
-   sit `Pending`. That is expected and clears once scheduling is allowed.
+   must read `false`. The merge changes three Applications: `longhorn` (values),
+   `longhorn-extras` (the StorageClass) and the Tekton triggers app. Compare each one's
+   `status.operationState.operation.sync.revision` against the merge SHA, because the
+   stale-revision gotchas apply to each independently. Between the merge and step 6, CI
+   workspaces cannot get a replica. With `volumeBindingMode: Immediate` the PVC most likely
+   **binds**, and the failure shows as the Longhorn volume's `Scheduled=False` condition and
+   TaskRun pods stuck attaching, not as a `Pending` PVC. The plan confirms the real symptom.
+   Merge in a quiet CI window and run step 6 straight after step 5's assertions; any run
+   that times out in the window is re-run.
 6. **Allow scheduling.** Re-apply `longhorn-node-disks-pc-1.yaml` as written in git
    (`allowScheduling: true`).
 7. **Prove it.** Run three checks:
@@ -236,7 +243,8 @@ strategy: live
 | R4 | `nodes.longhorn.io/pc-1` lists the `hdd-*` disks `Ready`/`Schedulable` with tag `hdd`; the gpu-1 patch re-applies as a no-op | post-merge — operator-driven |
 | R5 | Live setting reads `false`; a fresh `longhorn`-class test PVC has no replica on an `hdd-*` or `gpu-local` disk | post-merge — operator-driven |
 | R6, R7 | A `longhorn-hdd` test PVC and the next real Tekton workspace each have their replica on a `/var/mnt/hdd-*` path | post-merge — operator-driven |
-| R8 | Capacity audit's physical-disk table shows pc-1's admitted drives as `in use` | post-merge — operator-driven |
+| R8 | In the PR diff: the README inventory carries the WWIDs; the `frank-gotchas.md` one-liner and `storage-secrets-ssa.md` prose exist; the manual-op ids are in `manual-operations.yaml`; every R8-listed doc names `longhorn-hdd` or drops the pc-1 pinning claim. The doc assertions that a test can make are folded into the R9 guard | CI + PR review |
+| R3, R4 | The capacity audit (gitignored `scripts/tmp/capacity-audit/`, operator tooling) shows pc-1's admitted drives as `in use`: corroboration only | post-merge — operator-driven |
 
 ## Out of scope
 
@@ -265,6 +273,12 @@ strategy: live
   in the plan: that Longhorn does not mark existing empty-selector replicas on tagged
   disks as failed or unschedulable after the flip. Step 5's assertion plus a
   `kubectl get volumes.longhorn.io` robustness sweep catches it if it does.
+- **Backups read the HDDs.** The `default`-group recurring jobs (`recurring-job-daily.yaml:8-10`
+  daily NAS, `recurring-job-weekly.yaml:8-10` weekly R2) apply to every volume without a
+  recurring-job label. That already includes each `longhorn-cicd` workspace, and after this
+  change those reads come from 2008-era HDDs, for data this spec calls re-creatable. This
+  predates the change and is not fixed here; opting `longhorn-hdd` out of the default group
+  is a follow-up.
 - **WD Green head parking.** The WD10EADS parks its heads after 8 s idle. Load Cycle
   Count (193) is recorded under R1 as a baseline, not a gate.
 - **`sdd` misjudged.** R2 resolves doubt toward the operator, so `sdd` is only wiped

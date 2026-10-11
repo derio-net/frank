@@ -1,0 +1,63 @@
+schema_version: 8
+run: 2026-10-11-feat-batch-pc1-hdd-longhorn
+step: spec-review
+outcome: done
+journal:
+  - kind: review
+    id: spec-review-r1
+    title: "independent spec review: 8 findings (7 in scope, 1 out)"
+    body: |
+      Findings: sr-1 … sr-8 (out of scope: sr-8). All 8 operator decisions reflected in R1–R7, R9, the rulings table and Risks; one wording drift (sr-5). Codebase references verified with file:line (pc-1 UUID patches/README.md:11, chart 1.11.2 apps/root/templates/longhorn.yaml:20, longhorn-extras owns apps/longhorn/manifests, scripts/tests/ runs in CI via .github/workflows/repo-tripwires.yml). No missed per-run consumer (eventlistener.yaml templates have no workspaces; staging-gate uses emptyDir).
+  - kind: finding
+    id: sr-1
+    review_scope: in
+    title: "eventlistener-github.yaml has 9 longhorn-cicd workspace sites, not 11; total 11 not 13"
+    body: "apps/tekton/triggers/eventlistener-github.yaml:473,514,556,584,611,634,671,709,757. Spec Context, R7 and Design §5 overcounted."
+  - kind: finding
+    id: sr-2
+    review_scope: in
+    title: "Workspace sizes are 1/2/5/8 Gi, not 2/8 Gi"
+    body: "triggertemplate.yaml:44 (1Gi); eventlistener-github.yaml:475,515,710 (5Gi)."
+  - kind: finding
+    id: sr-3
+    review_scope: in
+    title: "R8 leaves docs still claiming longhorn-cicd is pinned to pc-1 / holds Tekton workspaces"
+    body: "README.md:297; building/27-cicd-platform:62; building/03-storage:386; operating/02-storage-backups:32,54-60; operating/22-cicd-platform:225,285; SC header line 2."
+  - kind: finding
+    id: sr-4
+    review_scope: in
+    title: "Test Plan's R8 row checks an untracked capacity audit and tests none of R8"
+    body: "Capacity-audit tooling lives in gitignored scripts/tmp/; R8 is a documentation requirement whose checks should be reviewable in the PR."
+  - kind: finding
+    id: sr-5
+    review_scope: in
+    title: "R2's \"no user data\" is softer than the operator's \"any content\" ruling"
+    body: "Journal decision sdd-stop-and-ask; R2 first sentence invited a judgement call the operator ruled out."
+  - kind: finding
+    id: sr-6
+    review_scope: in
+    title: "R9's disk-path assertion cannot hold for the gpu-1 file; R4 \"same convention\" ambiguous"
+    body: "gpu-1 paths come from machine.disks in 401-gpu1-extra-disks.yaml:17,20, not a UserVolumeConfig."
+  - kind: finding
+    id: sr-7
+    review_scope: in
+    title: "Merge window mis-described as Pending PVCs; step 5 checks one Application where three change"
+    body: "volumeBindingMode Immediate → PVC likely binds, volume Scheduled=False; longhorn, longhorn-extras and Tekton triggers apps all change."
+  - kind: finding
+    id: sr-8
+    review_scope: out
+    title: "Default-group recurring backups apply to every longhorn-hdd CI scratch volume"
+    body: "apps/longhorn/manifests/recurring-job-daily.yaml:8-10, recurring-job-weekly.yaml:8-10 (groups: [default])."
+resolves:
+  - {id: sr-1, state: fixed, body: "Context, R7 and Design §5 now say 9 + 1 + 1 = 11, with line numbers; Design §5 makes the R9 guard enumerate every volumeClaimTemplate rather than trusting the count."}
+  - {id: sr-2, state: fixed, body: "Context now reads 1, 2, 5 or 8 Gi."}
+  - {id: sr-3, state: fixed, body: "R8 enumerates every doc that claims longhorn-cicd is pc-1-pinned or holds Tekton workspaces; Design §3 corrects both SC header lines."}
+  - {id: sr-4, state: fixed, body: "R8 Test Plan row now checks the R8 clauses in the PR diff (folding testable ones into R9); the capacity audit moved to an R3/R4 corroboration row, named as gitignored operator tooling."}
+  - {id: sr-5, state: fixed, body: "R2 and live step 2 now condition the wipe on sdd1 being empty (nothing beyond the filesystem root)."}
+  - {id: sr-6, state: fixed, body: "R9 scopes the path assertion per file (pc-1 ↔ 402 UserVolumeConfig, gpu-1 ↔ 401 machine.disks); R4 says patch-in-git manual-op convention, live gpu-1 names/paths unchanged."}
+  - {id: sr-7, state: fixed, body: "Step 5 names all three Applications and their operationState revision check, describes the likely Scheduled=False/attach symptom under Immediate binding (plan confirms), and asks for a quiet CI window with step 6 straight after."}
+  - {id: sr-8, state: out-of-scope, body: "Default-group recurring jobs already cover every longhorn-cicd workspace; this change only moves where they read from. Recorded as a Risk with a follow-up to opt longhorn-hdd out of the default group."}
+acceptance: []
+evidence:
+  review: spec-review-r1
+  reviewer: a1b0c12a9ca469a8b
