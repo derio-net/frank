@@ -648,9 +648,16 @@ not: **`shmem` is accounted inside `file`**, but shmem pages sit on the
 file LRUs removes the evictable page cache and leaves the pinned pool intact —
 verified by the arithmetic above closing to within 10 MiB.
 
-Not changed in #813 itself: the numerator ships as plain `memory.current`, which
-errs in the safe direction (fires early) but drifts. Tracked as **frank#821**,
-which carries the measurement above and the one-term fix.
+#813 itself shipped the numerator as plain `memory.current`, which errs in the
+safe direction (fires early) but drifts. **frank#821 (2026-10-11) applied the
+one-term fix**: the watchdog's single exec now also reads `active_file` and
+`inactive_file` from `memory.stat`, Rule 1 compares
+`memory.current - active_file - inactive_file` against the 53% line, and every
+restart line carries `unreclaimable=` beside `current=`. `CRITICAL_PERCENT`
+stays at 53, because the corrected numerator carries exactly the offset that 53
+was calibrated against. Guards are in `scripts/tests/test_ovms_pool_watchdog.py`
+(`test_rule_one_does_not_count_reclaimable_page_cache` replays the incident peak
+on a 12-day-old pod).
 
 ## A post-merge check that reads only ArgoCD's sync status passes for weeks while the fix is inert
 

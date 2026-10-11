@@ -183,9 +183,10 @@ def test_critical_threshold_leaves_room_for_one_cap_sized_request():
 def test_the_numerator_change_did_not_silently_move_the_trigger():
     """`CRITICAL_PERCENT` was calibrated against `shmem`. Rule 1 now reads
     `memory.current`, which runs a roughly CONSTANT ~0.5 GiB higher (live
-    baseline: shmem 1.72 GiB, anon 0.50, kernel 0.01, current 2.22 — and with
-    swap off none of it is reclaimable, which is why the numerator change is
-    right). Porting the percentage across unchanged would tighten the trigger
+    baseline: shmem 1.72 GiB, anon 0.50, kernel 0.01, current 2.22 — none of
+    which is reclaimable with swap off). Since frank#821 the numerator also
+    subtracts the two file LRUs, which were 0 when ANON_GAP was measured, so
+    this offset is the one the corrected numerator carries. Porting the percentage across unchanged would tighten the trigger
     by ~3.1 points of the limit without anyone deciding to.
 
     Measured against the incident this whole plan exists to fix: peak
@@ -232,6 +233,11 @@ def run_script(tmp_path):
         '  *"get pods"*)  echo "$FAKE_POD" ;;\n'
         '  *"exec"*)      [ -n "$FAKE_SHMEM" ] || exit 1\n'
         '                 echo "$FAKE_SHMEM"; echo "$FAKE_CURRENT"; echo "$FAKE_LIMIT"\n'
+        # The two file LRUs from memory.stat — the page cache the kernel drops
+        # instead of OOM-killing, which Rule 1 subtracts from memory.current
+        # (frank#821). Default 0: a freshly restarted pod, and the shape every
+        # pre-#821 test implicitly assumed.
+        '                 echo "${FAKE_ACTIVE_FILE:-0}"; echo "${FAKE_INACTIVE_FILE:-0}"\n'
         # The same exec scrapes the server's own /metrics, so the pool figure
         # and the activity figure describe one pod at one instant. There is no
         # CPU sample to stub any more, and deliberately so: it was a 10-second
@@ -452,6 +458,68 @@ def test_rule_one_triggers_on_memory_current_not_shmem(run_script):
     )
     assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout, proc.stdout
     assert "rollout restart" in calls
+
+
+# frank#821, measured live on 2026-10-05 on an idle pod 12 days after its last
+# restart. `shmem`, `anon` and `kernel` are the pool and its fixed overhead;
+# `active_file` + `inactive_file` are ordinary page cache that accumulated with
+# uptime and that `memory.current` counts.
+UPTIME_ANON = 465276928
+UPTIME_KERNEL = 13250560
+UPTIME_ACTIVE_FILE = 1497456640
+UPTIME_INACTIVE_FILE = 7041024
+
+
+def test_the_exec_reads_both_file_lrus_from_memory_stat():
+    """Rule 1's numerator needs the reclaimable page cache to subtract, and
+    the only exact source is the container's own cgroup, read in the SAME exec
+    as memory.current so both describe one instant."""
+    script = _script()
+    assert re.search(r'grep "\^active_file " /sys/fs/cgroup/memory\.stat', script), script
+    assert re.search(r'grep "\^inactive_file " /sys/fs/cgroup/memory\.stat', script), script
+
+
+def test_rule_one_does_not_count_reclaimable_page_cache(run_script):
+    """frank#821: the incident's own peak pool on a pod with 12 days of uptime.
+
+    `memory.current` = 7.74 GiB shmem + 0.43 anon + 0.01 kernel + 1.40 GiB of
+    page cache = 9.58 GiB, over the 8.48 GiB line, so the shipped numerator
+    restarts a batch index mid-run, which is exactly the outcome the 50 -> 53
+    recalibration existed to prevent. The kernel drops page cache instead of
+    OOM-killing, so the honest figure is current - active_file - inactive_file
+    = 8.18 GiB, under the line."""
+    shmem = 8313102336
+    current = shmem + UPTIME_ANON + UPTIME_KERNEL + UPTIME_ACTIVE_FILE + UPTIME_INACTIVE_FILE
+    assert current >= LIMIT // 100 * int(_env()["CRITICAL_PERCENT"]), "fixture no longer exercises the drift"
+    proc, calls = run_script(
+        FAKE_SHMEM=shmem, FAKE_CURRENT=current,
+        FAKE_ACTIVE_FILE=UPTIME_ACTIVE_FILE, FAKE_INACTIVE_FILE=UPTIME_INACTIVE_FILE,
+        FAKE_LIMIT=LIMIT, FAKE_METRICS=METRICS_BUSY,
+    )
+    assert "rollout restart" not in calls, proc.stdout
+    assert "reason=busy" in proc.stdout, proc.stdout
+
+
+def test_rule_one_still_fires_when_the_unreclaimable_part_is_critical(run_script):
+    """Subtracting page cache must not disarm the safety rule: a pool that is
+    itself over the line restarts whatever cache sits beside it."""
+    shmem = int(0.9 * LIMIT)
+    proc, calls = run_script(
+        FAKE_SHMEM=shmem,
+        FAKE_CURRENT=shmem + UPTIME_ANON + UPTIME_ACTIVE_FILE,
+        FAKE_ACTIVE_FILE=UPTIME_ACTIVE_FILE,
+        FAKE_LIMIT=LIMIT, FAKE_METRICS=METRICS_BUSY,
+    )
+    assert "action=restart" in proc.stdout and "critical-pool" in proc.stdout, proc.stdout
+    assert "rollout restart" in calls
+
+
+def test_the_restart_line_reports_the_figure_rule_one_compared(run_script):
+    """A restart log that shows only memory.current would show a number over
+    the line on every cache-heavy tick, including ones that did NOT restart. The
+    line must carry the figure the decision was taken on."""
+    proc, _ = run_script(FAKE_SHMEM=int(0.95 * LIMIT), FAKE_LIMIT=LIMIT)
+    assert re.search(r"action=restart reason=critical-pool .*unreclaimable=\d+", proc.stdout), proc.stdout
 
 
 def test_the_elevated_pool_is_still_measured_on_shmem(run_script):

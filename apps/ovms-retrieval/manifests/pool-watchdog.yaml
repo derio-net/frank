@@ -167,6 +167,17 @@ spec:
                 # which is where it effectively was. The measurement moved; the
                 # threshold did not. Guarded both ways by
                 # test_the_numerator_change_did_not_silently_move_the_trigger.
+                #
+                # Numerator refined 2026-10-11 (frank#821): memory.current
+                # MINUS active_file and inactive_file. The 0.43 GiB offset
+                # behind 53 was measured minutes after a restart, when both
+                # file LRUs read 0, so it was really the unreclaimable offset
+                # (anon + kernel). Page cache then grew with uptime: 12 days
+                # later current - shmem was 1.85 GiB and the 53% line capped
+                # the pool at ~6.63 GiB, below the 7.74 GiB incident peak.
+                # The kernel drops that cache rather than OOM-killing, so it
+                # is subtracted, which restores the offset 53 was calibrated
+                # against. 53 is therefore unchanged.
                 - name: CRITICAL_PERCENT
                   value: "53"
                 # Below this the pool is at or near its post-boot baseline
@@ -216,7 +227,12 @@ spec:
                   #                             numerator — see
                   #                             CRITICAL_PERCENT below);
                   #   line 3   memory.max     — the ceiling itself;
-                  #   line 4+  the server's own /metrics, which is where
+                  #   line 4-5 active_file, inactive_file — the page cache the
+                  #                             kernel drops before it OOM
+                  #                             -kills, subtracted from
+                  #                             memory.current for Rule 1
+                  #                             (frank#821);
+                  #   line 6+  the server's own /metrics, which is where
                   #                             "is it working?" is answered.
                   #
                   # It is one exec on purpose: the pool figure and the activity
@@ -229,6 +245,8 @@ spec:
                       grep "^shmem " /sys/fs/cgroup/memory.stat | cut -d" " -f2
                       cat /sys/fs/cgroup/memory.current
                       cat /sys/fs/cgroup/memory.max
+                      grep "^active_file " /sys/fs/cgroup/memory.stat | cut -d" " -f2
+                      grep "^inactive_file " /sys/fs/cgroup/memory.stat | cut -d" " -f2
                       curl -s -m 5 http://127.0.0.1:8000/metrics
                     ' 2>/dev/null
                   }
@@ -241,7 +259,20 @@ spec:
                   shmem=$(echo "$state" | sed -n 1p)
                   current=$(echo "$state" | sed -n 2p)
                   limit=$(echo "$state" | sed -n 3p)
-                  metrics=$(echo "$state" | tail -n +4)
+                  active_file=$(echo "$state" | sed -n 4p)
+                  inactive_file=$(echo "$state" | sed -n 5p)
+                  metrics=$(echo "$state" | tail -n +6)
+
+                  # Rule 1's numerator: memory.current minus the two file LRUs,
+                  # i.e. anon + the unevictable shmem pool + kernel. shmem is
+                  # accounted inside `file` but sits on the UNEVICTABLE list,
+                  # not on either file LRU, so this does not subtract the pool.
+                  # memory.current alone also counts ordinary page cache, which
+                  # grows with pod uptime (1.40 GiB after 12 days, measured
+                  # 2026-10-05) and which the kernel reclaims rather than
+                  # OOM-killing, so counting it moved the trigger tighter
+                  # every day the pod lived (frank#821).
+                  unreclaimable=$(( current - ${active_file:-0} - ${inactive_file:-0} ))
 
                   # `curl` shares the exec with the two cgroup reads above, so
                   # it can fail WITHOUT the exec itself failing — the shmem
@@ -342,7 +373,7 @@ spec:
                     # alert counts. A failed stamp still aborts the tick, which
                     # is right: the Job fails visibly rather than quietly
                     # accepting a clock it could not advance.
-                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem current=$current limit=$limit in_flight=$in_flight activity=$activity"
+                    echo "pool-watchdog result: action=restart reason=$1 shmem=$shmem current=$current unreclaimable=$unreclaimable limit=$limit in_flight=$in_flight activity=$activity"
                     kubectl -n "$NS" annotate "deployment/$DEPLOY" "$ANNOTATION=$now" --overwrite >/dev/null
                   }
 
@@ -363,16 +394,16 @@ spec:
                   fi
 
                   # Rule 1 — safety. Ignores idleness on purpose: see
-                  # CRITICAL_PERCENT above. Compares `current` (memory.current,
-                  # what the kernel's OOM killer actually acts on), not
-                  # `shmem` — see CRITICAL_PERCENT's comment for why.
+                  # CRITICAL_PERCENT above. Compares `unreclaimable`
+                  # (memory.current less reclaimable page cache), not `shmem`
+                  # — see CRITICAL_PERCENT's comment for why.
                   if [ "$limit" -gt 0 ]; then
                     # Integer math on purpose: percent-of-limit is exact
                     # enough for a threshold whose job is to be crossed early,
                     # and it keeps this script to bash + kubectl, matching the
                     # pipelinerun-ttl-gc CronJob's stated constraint.
                     critical=$(( limit / 100 * CRITICAL_PERCENT ))
-                    if [ "$current" -ge "$critical" ]; then
+                    if [ "$unreclaimable" -ge "$critical" ]; then
                       restart critical-pool
                       exit 0
                     fi
