@@ -12,17 +12,3 @@ spec:
       evictionRequested: false
       storageReserved: 0
       tags: ["hdd"]
-    hdd-03581a1f:
-      path: /var/mnt/hdd-03581a1f/
-      diskType: filesystem
-      allowScheduling: true
-      evictionRequested: false
-      storageReserved: 0
-      tags: ["hdd"]
-    hdd-556235e7:
-      path: /var/mnt/hdd-556235e7/
-      diskType: filesystem
-      allowScheduling: true
-      evictionRequested: false
-      storageReserved: 0
-      tags: ["hdd"]

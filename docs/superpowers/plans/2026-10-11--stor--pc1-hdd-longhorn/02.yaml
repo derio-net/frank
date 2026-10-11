@@ -30,11 +30,11 @@ tasks:
       why_manual: "SMART reads the physical drives through a privileged pod on pc-1; Talos ships no smartctl, and the verdict is a human admission decision, not cluster state."
       commands:
         - source .env
-        - "kubectl debug node/pc-1 -it --profile=sysadmin --image=<image shipping smartctl, pinned by @sha256 digest> -- sh"
+        - "kubectl apply -f - <<< '{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"smart-pc1\",\"namespace\":\"longhorn-system\"},\"spec\":{\"nodeName\":\"pc-1\",\"restartPolicy\":\"Never\",\"containers\":[{\"name\":\"smart\",\"image\":\"quay.io/prometheuscommunity/smartctl-exporter@sha256:4b2b5c9912c95899ad4720b3ada368e7b0d46f4c2fd6dc7d174922c325ef9855\",\"command\":[\"/bin/sh\",\"-c\",\"sleep 86400\"],\"securityContext\":{\"privileged\":true,\"runAsUser\":0}}]}}' && kubectl -n longhorn-system wait --for=condition=Ready pod/smart-pc1 && kubectl -n longhorn-system exec -it smart-pc1 -- sh   # NOT kubectl debug node/...: it lands in namespace default, whose PodSecurity baseline refuses a privileged pod; longhorn-system is labelled privileged. smartctl-exporter v0.15.0 ships /usr/sbin/smartctl + busybox sh"
         - "# inside — confirm each drive by WWN first (sdX letters drift): for d in sdb sdc sdd; do smartctl -i /dev/$d | grep -E 'Model|WWN'; done   # LU WWN Device Id: expect 5 0014ee 2ae0311c3 / 5 0014ee 203581a1f / 5 0014ee 0556235e7"
         - "# inside: for d in sdb sdc sdd; do smartctl -H -A /dev/$d; smartctl -t long /dev/$d; done ; smartctl -c /dev/sdb | grep -A1 'Extended self-test'"
         - "# after the polling time: for d in sdb sdc sdd; do smartctl -l selftest /dev/$d; done"
-        - "# exit, then delete the node-debugger-pc-1-* pod you created: kubectl get pods -n default | grep node-debugger-pc-1"
+        - "# exit, then (after the long test has completed): kubectl -n longhorn-system delete pod smart-pc1"
       verify:
         - "Posted to frank#824 per drive: overall health, long-test result, raw 5/197/198 (gates) and 9/193/199 (recorded). EXCLUDE on overall FAIL, a failed long test, or any non-zero raw 5/197/198."
         - "An excluded drive: its UserVolumeConfig doc deleted from patches/phase03-longhorn/402-pc1-hdd-volumes.yaml AND its entry from longhorn-node-disks-pc-1.yaml in one commit on this PR; `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q` still passes."
@@ -54,7 +54,7 @@ tasks:
       why_manual: "Mounting an unknown filesystem and judging whether its contents matter is an operator decision, and the wipe is irreversible."
       commands:
         - source .env
-        - "kubectl debug node/pc-1 -it --profile=sysadmin --image=<image with xfsprogs + util-linux, pinned by @sha256 digest> -- sh"
+        - "# same privileged pod pattern as stor-pc1-hdd-smart-gate (namespace longhorn-system; kubectl debug lands in default and is refused by PodSecurity baseline), with an image carrying xfsprogs + util-linux pinned by @sha256 digest"
         - "# inside — find the disk by WWN, never by letter: ls -l /dev/disk/by-id/ | grep 50014ee0556235e7"
         - "# inside: mkdir -p /mnt/sdd && mount -o ro,norecovery /dev/<that disk>1 /mnt/sdd && find /mnt/sdd -mindepth 1 -maxdepth 2 | head -50 ; du -sh /mnt/sdd/* ; umount /mnt/sdd"
         - "# ONLY if it is empty (nothing beyond the filesystem root) — exit the pod, then:"
