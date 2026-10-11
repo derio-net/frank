@@ -9,3 +9,8 @@ Source: frank#800. Three pull_request events while draft (opened 22:15Z, two syn
 ### a54f20029f61 · ruled-out · Draft state does not suppress pull_request workflows in this repo
 
 Open drafts #839 and #840 (2026-10-11) both carry a tripwires check run from pull_request. No ruleset or Actions setting gates drafts (ruleset 16767331 = deletion + non_fast_forward only; branch protection: none).
+
+<!-- fr:journal kind=root-cause scope=debug id=8f8b7fa01f10 created=2026-10-11T23:57:44+00:00 -->
+### 8f8b7fa01f10 · root-cause · #797 was CONFLICTING with main from creation, so GitHub created no merge ref and no pull_request run; with no required checks, absence rendered as clean
+
+main gained #787 (21:15Z) and #762 (21:28Z) before #797 opened at 22:15Z. `git merge-tree --write-tree f7ecc790 dcb31fe6` -> CONFLICT in agents/rules/frank-gotchas.md, docs/acceptance/matrix.yaml, docs/runbooks/frank-gotchas/grafana.md. GitHub only fires pull_request workflows against refs/pull/N/merge, which does not exist while conflicting. The 08:44Z merge 38b49d6e resolved them; runs followed. The ready flip 9s later was coincidence. Contributing: main has no required status checks, so a missing check is never shown as Expected.
