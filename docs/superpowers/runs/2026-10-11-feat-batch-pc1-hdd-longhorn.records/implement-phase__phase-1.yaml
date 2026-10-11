@@ -1,0 +1,39 @@
+schema_version: 8
+run: 2026-10-11-feat-batch-pc1-hdd-longhorn
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T1.S2, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T2.S4, P1.T3.S1, P1.T3.S2, P1.T3.S3, P1.T4.S1, P1.T4.S2, P1.T5.S1, P1.T5.S2, P1.T5.S3, P1.T5.S4]
+refactor:
+  P1.T1: "Single new test module written once against the spec; nothing to clean."
+  P1.T2: "Three new declarative files, no pre-existing code touched; nothing to clean."
+  P1.T3: "Added one manifest and one commented values key; header comment rewrite was the only edit to existing text."
+  P1.T4: "Mechanical one-token repoint plus a comment rewrite; nothing to clean."
+  P1.T5: "Doc edits only; nothing to clean."
+journal:
+  - kind: discovery
+    id: p1-uservolumeconfig-schema
+    phase: 1
+    title: Talos v1.12 UserVolumeConfig schema matches the spec
+    body: |
+      Checked siderolabs/talos v1.12.6 website/content/v1.12/reference/configuration/block/uservolumeconfig.md:
+      provisioning.diskSelector.match (CEL), minSize (optional), maxSize, grow, filesystem.type, mount at /var/mnt/<name>.
+      `disk.wwid` is a valid CEL field: the CEL `disk` variable is the block.DiskSpec protobuf, which has `wwid` (pkg/machinery/resources/block/disk.go). No spec amendment needed; minSize is optional upstream but kept as a safety floor.
+  - kind: discovery
+    id: p1-vendor-vct-schema
+    phase: 1
+    title: apps/tekton/vendor contains CRD-schema volumeClaimTemplate keys
+    body: The guard's volumeClaimTemplate walk skips apps/tekton/vendor, whose upstream CRD schemas contain `volumeClaimTemplate` mappings that are not workspaces. The 11 real sites are all asserted.
+  - kind: discovery
+    id: p1-helm-render
+    phase: 1
+    title: Chart 1.11.2 exposes allowEmptyDiskSelectorVolume and renders false
+    body: helm show values lists the key (default ~); helm template with apps/longhorn/values.yaml renders `allow-empty-disk-selector-volume: false` in the default-setting ConfigMap.
+  - kind: discovery
+    id: p1-suite-scope
+    phase: 1
+    title: Full suite run excludes hugo-building tests
+    body: scripts/tests ran with test_image_optimization_adoption, test_series_index_adoption and test_series_index_resync ignored (they build with hugo and can hang); alert-agent handler suite not run. Run in CI.
+resolves: []
+evidence:
+  tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/f8421e42-9f2f-4905-8b3c-88522bae182b/scratchpad/p1-suite.log
