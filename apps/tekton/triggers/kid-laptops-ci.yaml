@@ -81,11 +81,10 @@ spec:
               spec:
                 accessModes:
                   - ReadWriteOnce
-                # longhorn-hdd is single-replica and confined to pc-1's hdd disks,
-                # so the volume lives on pc-1 even though the pod is not
-                # node-pinned; a pc-1 outage blocks this run's workspace
-                # (accepted by operator ruling, 2026-10-11 spec).
-                storageClassName: longhorn-hdd
+                # numberOfReplicas 1, dataLocality best-effort — verified NOT
+                # node-pinned, so this does not constrain where the run lands.
+                # Moves to longhorn-hdd once pc-1's hdd disks exist (#824 Phase 2).
+                storageClassName: longhorn-cicd
                 resources:
                   requests:
                     # Checkout plus the uv cache the checks task writes.

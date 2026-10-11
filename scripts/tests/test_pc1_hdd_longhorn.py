@@ -121,7 +121,15 @@ def _walk(node, found):
             _walk(v, found)
 
 
-def test_every_tekton_workspace_uses_longhorn_hdd():
+# Interim: the workspaces stay on longhorn-cicd until #824 Phase 2 has put
+# hdd-tagged disks on pc-1. Pointing them at longhorn-hdd before any disk
+# carries the tag fails every workspace PVC with "specified disk tag hdd does
+# not exist" (2026-10-11, the #836 merge). Flip this back to "longhorn-hdd" in
+# the same PR that moves the workspaces, after stor-pc1-hdd-longhorn-disks pass 2.
+WORKSPACE_CLASS = "longhorn-cicd"
+
+
+def test_every_tekton_workspace_uses_the_workspace_class():
     found = []
     for f in sorted((REPO_ROOT / "apps/tekton").rglob("*.y*ml")):
         if "vendor" in f.relative_to(REPO_ROOT).parts:
@@ -130,7 +138,7 @@ def test_every_tekton_workspace_uses_longhorn_hdd():
             _walk(doc, found)
     assert len(found) >= 11, len(found)
     for t in found:
-        assert t["spec"]["storageClassName"] == "longhorn-hdd"
+        assert t["spec"]["storageClassName"] == WORKSPACE_CLASS
 
 
 def test_long_lived_consumers_stay_on_cicd():

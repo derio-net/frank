@@ -470,7 +470,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources:
                   requests: {storage: 5Gi}
           - name: ssh-creds
@@ -511,7 +511,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources: {requests: {storage: 5Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
@@ -553,7 +553,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources: {requests: {storage: 8Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
@@ -581,7 +581,7 @@ spec:
         taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
         workspaces:
           - name: source
-            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-hdd, resources: {requests: {storage: 8Gi}}}}
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 8Gi}}}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---
@@ -608,7 +608,7 @@ spec:
         taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
         workspaces:
           - name: source
-            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-hdd, resources: {requests: {storage: 8Gi}}}}
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 8Gi}}}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---
@@ -631,7 +631,7 @@ spec:
         taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
         workspaces:
           - name: repo
-            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-hdd, resources: {requests: {storage: 2Gi}}}}
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 2Gi}}}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---
@@ -668,7 +668,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources: {requests: {storage: 2Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
@@ -706,7 +706,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources: {requests: {storage: 5Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
@@ -754,7 +754,7 @@ spec:
             volumeClaimTemplate:
               spec:
                 accessModes: [ReadWriteOnce]
-                storageClassName: longhorn-hdd
+                storageClassName: longhorn-cicd
                 resources: {requests: {storage: 2Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
