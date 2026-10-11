@@ -3,7 +3,7 @@ run: 2026-10-11-feat-batch-pc1-hdd-longhorn
 workflow: fr-goal@1
 branch: feat/batch-pc1-hdd-longhorn
 started: '2026-10-11T16:29:43+00:00'
-cursor: plan-review
+cursor: implement
 steps:
   brainstorm:
     state: done
@@ -46,7 +46,11 @@ steps:
           returned: '2026-10-11T19:15:26+00:00'
           outcome: done
   plan-review:
-    state: pending
+    state: done
+    at: '2026-10-11T19:15:54+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
   implement:
     state: pending
     members:
