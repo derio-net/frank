@@ -14,3 +14,8 @@ Hypothesis: the gitea-status-bridge trigger still forwards a status for every 30
 ### ef1225a712a6 · root-cause · GC namespace is hard-coded; no RBAC outside tekton-pipelines
 
 The GC sweeps one literal namespace. kid-laptops-ci was added later (2026-07-26, kid-laptops CI) as a second PipelineRun target via its TriggerTemplate (`apps/tekton/triggers/kid-laptops-ci.yaml` resourcetemplate `namespace: kid-laptops-ci`). Nothing tied the GC namespace set to the set of namespaces git creates PipelineRuns in. Consequences: unbounded accumulation, leaked longhorn-cicd workspace PVCs (ownerRef cascade never fires), and Longhorn instance-manager PDBs pinned so node drains stall (#791 comment, #762 roll).
+
+<!-- fr:journal kind=finding scope=debug id=7f64e5b4c230 created=2026-10-11T23:59:10+00:00 state=fixed -->
+### 7f64e5b4c230 · finding [fixed] · GC sweeps an explicit NAMESPACES list with per-namespace RBAC
+
+Failing test first (fdd guard `scripts/tests/test_pipelinerun_ttl_gc_namespaces.py`, red on 4 of 5: kid-laptops-ci unswept, literal -n, no RBAC, no per-namespace summary; positive control green). Fix in `apps/tekton/manifests/pipelinerun-ttl-gc.yaml`: NAMESPACES="tekton-pipelines kid-laptops-ci", Role+RoleBinding per namespace bound to the tekton-pipelines SA, per-namespace `pipelinerun-ttl-gc result namespace=<ns> ...` line, list failure in one namespace logged and counted so the others still sweep, job exits non-zero at the end. Behaviour smoke-tested against stub kubectl/date (deletion past cutoff, keep fresh, partial-failure path rc=1). The 12 stale kid-laptops-ci runs and their PVCs go at the first 04:30Z run after merge.
