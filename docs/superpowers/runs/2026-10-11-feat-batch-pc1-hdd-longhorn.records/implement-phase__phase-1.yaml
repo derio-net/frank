@@ -28,7 +28,8 @@ journal:
     id: p1-helm-render
     phase: 1
     title: Chart 1.11.2 exposes allowEmptyDiskSelectorVolume and renders false
-    body: helm show values lists the key (default ~); helm template with apps/longhorn/values.yaml renders `allow-empty-disk-selector-volume: false` in the default-setting ConfigMap.
+    body: |
+      helm show values lists the key (default ~); helm template with apps/longhorn/values.yaml renders `allow-empty-disk-selector-volume: false` in the default-setting ConfigMap.
   - kind: discovery
     id: p1-suite-scope
     phase: 1
