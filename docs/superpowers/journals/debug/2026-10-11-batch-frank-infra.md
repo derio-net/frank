@@ -16,3 +16,8 @@
 ### 310e848709a9 · finding [open] · Operator decision: one PR, three independent fixes
 
 Operator chose to keep one draft PR on fix/batch-frank-infra with a separate commit and failing test per member. #827's live managedFields deletion stays an operator manual-op; the PR carries the gotcha and a guard.
+
+<!-- fr:journal kind=root-cause scope=debug id=673a390a5229 created=2026-10-11T21:44:15+00:00 -->
+### 673a390a5229 · root-cause · #821: Rule 1 counted reclaimable file-LRU page cache in memory.current
+
+memory.current includes active_file+inactive_file, which grow with pod uptime (1.40 GiB at 12 days) and are reclaimed before OOM. The 53% line was calibrated on a fresh pod (LRUs=0), so the trigger drifted tighter: 7.74 GiB incident peak + 12-day cache = 9.58 GiB > 8.48 GiB line.
