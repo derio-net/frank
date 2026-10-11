@@ -7,10 +7,17 @@
 ##
 ## A drive excluded by the SMART gate (spec R1) or held by the sdd ruling (R2) is
 ## deleted from this file AND from longhorn-node-disks-pc-1.yaml in the same commit.
-## sdd carries an old GPT/xfs partition: it must be wiped (`talosctl wipe disk`)
-## before Talos will provision it.
 ##
-## Manual ops: stor-pc1-hdd-smart-gate, stor-pc1-sdd-inspect, stor-pc1-hdd-volumes-apply
+## SMART gate 2026-10-11 (strict: any non-zero raw 5/197/198 excludes; frank#824):
+##   naa.50014ee2ae0311c3 (WD10EADS, 1 TB)  attributes clean -> ADMITTED (long test owed)
+##   naa.50014ee203581a1f (WD10EADS, 1 TB)  5 Reallocated = 1            -> EXCLUDED
+##   naa.50014ee0556235e7 (WD5000AAKS, 500 GB) 197 Pending = 305,
+##                                          198 Uncorrectable = 68       -> EXCLUDED
+## The excluded drives stay physically attached and untouched (sdd keeps its old
+## xfs partition, never inspected or wiped). To re-admit a replacement drive, run
+## the gate on it first, then add a UserVolumeConfig here keyed by ITS WWID.
+##
+## Manual ops: stor-pc1-hdd-smart-gate, stor-pc1-hdd-volumes-apply
 metadata:
     namespace: default
     type: ConfigPatches.omni.sidero.dev
@@ -27,28 +34,6 @@ spec:
             diskSelector:
                 match: disk.wwid == "naa.50014ee2ae0311c3"
             minSize: 900GB
-            grow: true
-        filesystem:
-            type: xfs
-        ---
-        apiVersion: v1alpha1
-        kind: UserVolumeConfig
-        name: hdd-03581a1f
-        provisioning:
-            diskSelector:
-                match: disk.wwid == "naa.50014ee203581a1f"
-            minSize: 900GB
-            grow: true
-        filesystem:
-            type: xfs
-        ---
-        apiVersion: v1alpha1
-        kind: UserVolumeConfig
-        name: hdd-556235e7
-        provisioning:
-            diskSelector:
-                match: disk.wwid == "naa.50014ee0556235e7"
-            minSize: 450GB
             grow: true
         filesystem:
             type: xfs

@@ -21,7 +21,7 @@
 | mini-2 | nvme0n1 (1TB NVMe) | — | replica node (EPHEMERAL partition) |
 | mini-3 | nvme0n1 (1TB NVMe) | — | replica node (EPHEMERAL partition) |
 | gpu-1 | nvme0n1 (1TB NVMe) | sda (4TB SSD), sdb (4TB SSD) | replica + dedicated GPU storage |
-| pc-1 | sda (Crucial M4 64GB SSD, boot, `naa.500a075103235393`) | sdb (WDC WD10EADS-00L 1TB, `naa.50014ee2ae0311c3`), sdc (WDC WD10EADS-00L 1TB, `naa.50014ee203581a1f`), sdd (WDC WD5000AAKS 500GB, `naa.50014ee0556235e7`) | hdd tier, SMART-gated (sdX letters drift; the WWID is the identity) |
+| pc-1 | sda (Crucial M4 64GB SSD, boot, `naa.500a075103235393`) | sdb (WDC WD10EADS-00L 1TB, `naa.50014ee2ae0311c3`, **hdd tier**), sdc (WDC WD10EADS-00L 1TB, `naa.50014ee203581a1f`, excluded: 1 reallocated sector), sdd (WDC WD5000AAKS 500GB, `naa.50014ee0556235e7`, excluded: 305 pending / 68 uncorrectable) | hdd tier = sdb only, per the 2026-10-11 SMART gate (frank#824); sdX letters drift, the WWID is the identity |
 | raspi-1 | mmcblk0 (32GB) | — | minimal (SD card) |
 | raspi-2 | mmcblk0 (32GB) | — | minimal (SD card) |
 
