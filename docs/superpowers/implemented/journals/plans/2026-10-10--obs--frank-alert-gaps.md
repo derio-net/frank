@@ -174,3 +174,8 @@ All three runbooks now name docs/runbooks/frank-gotchas/storage-secrets-ssa.md (
 ### ci-runs-alert-agent-handler-suite · decision · CI now runs apps/alert-agent/handlers/tests in the tripwires job
 
 Operator-approved 2026-10-10: the tripwires gate ran only scripts/tests/, so the #746 cred-expiry de-dup had no CI coverage. repo-tripwires.yml now runs the handler suite as a second pytest invocation (its conftest sys.path must not leak into scripts/tests/); scripts/tests/test_alert_agent_handlers_run_in_ci.py guards the step. The .fr/ci.yaml gate stays [tripwires], which now covers both suites (CI log: 1071 passed + 89 passed).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved-2 created=2026-10-11T07:13:24+00:00 state=open resolves=p2-r4 tracked_by=https://github.com/derio-net/frank/issues/834 -->
+### p2-r4-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/834] · resolves p2-r4: Acceptance row obs-cred-expiry-deadman-tolerates-one-miss stays not-implemented until live evidence
+
+Filed at archive as https://github.com/derio-net/frank/issues/834.

@@ -1246,7 +1246,7 @@ rows:
     annotation containing <, > or & still reaches the operator instead of being silently
     rejected.
   origin:
-  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R1
   levels: {}
   status: not-implemented
   notes: ''
@@ -1257,7 +1257,7 @@ rows:
     while a dead check still pages within about 15 hours, and expiry warnings arrive
     at most once per day per tier.
   origin:
-  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R4
   levels: {}
   status: not-implemented
   notes: ''
@@ -1268,7 +1268,7 @@ rows:
     or 95% (critical) of its bytes, or 90% of its inodes, naming the volume, before
     it fills and writes fail.
   origin:
-  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R7
+  - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R7
   levels: {}
   status: not-implemented
   notes: ''
