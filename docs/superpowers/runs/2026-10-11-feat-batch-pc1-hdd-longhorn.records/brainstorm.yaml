@@ -1,0 +1,106 @@
+schema_version: 8
+run: 2026-10-11-feat-batch-pc1-hdd-longhorn
+step: brainstorm
+outcome: done
+questions:
+  rounds: 2
+  trigger: design-risk
+  reason: >-
+    Round 1 chose "all CI scratch to a new longhorn-hdd class"; the code check then showed
+    only eventlistener-github's pipelines are pinned to pc-1 (kid-laptops-ci and the generic
+    triggertemplate are not), so the scope choice carried an availability trade-off round 1
+    had not surfaced.
+journal:
+  - kind: discovery
+    id: operator-brief
+    input: true
+    title: Operator brief — batch pc1-hdd-longhorn (frank#824)
+    body: |
+      /fr-goal Brainstorm and spec: pc-1's three idle HDDs into Longhorn
+
+      Batch `pc1-hdd-longhorn` of derio-net/frank: 1 issues, delivered as ONE pull request.
+
+      ## frank#824: stor: wire pc-1's three idle HDDs (2×1 TB + 500 GB) into Longhorn
+      2.5 TB of pc-1 HDDs never wired into Longhorn. Confirmed on main: no pc-1 disk patch exists; `patches/phase03-longhorn/401-gpu1-extra-disks.yaml` is the pattern to mirror; no node's Longhorn disk config is declared in git (`patches/phase03-longhorn/README.md` only). Five decisions are open in the operator's 2026-10-11 comment.
+      Note: BRAINSTORM FIRST (operator, 2026-10-11): brainstorm and write the spec settling the five decisions in https://github.com/derio-net/frank/issues/824#issuecomment-6106885345, then STOP for the operator's rulings before planning or implementing anything. This PR is spec-only, so write `Refs derio-net/frank#824`, not `Closes`: merging the spec must not close the issue. The PR stays a draft until the operator readies it.
+
+      ## Why these belong together
+      BRAINSTORM FIRST, do not implement. Brainstorm and write the spec that settles the five decisions in https://github.com/derio-net/frank/issues/824#issuecomment-6106885345 (SMART health gate on the 2008-09 drives, sdd's old xfs data, HDD pool placement: hdd tag + dedicated StorageClass vs the default pool, binding by stable disk ID, codify the Longhorn node disks or keep them manual). Stop for the operator's rulings on those before any implementation. The PR stays a draft until the operator readies it.
+
+      ## Delivery rules
+      - Work on branch `feat/batch-pc1-hdd-longhorn`.
+      - Open a draft PR as soon as the spec is committed. Its body contains these lines, one per member, so every member closes when it merges:
+        Closes derio-net/frank#824
+      - Do not name any member issue as a phase `tracking_issue` in the plan: the bridge would then own that issue's `fr:` labels.
+  - kind: decision
+    id: smart-gate-strict
+    title: SMART gate is strict
+    body: "Operator (round 1 q1): exclude a drive on overall FAIL, failed long self-test, or any non-zero raw 5/197/198; record 9/193/199 only. decider: operator. → R1"
+  - kind: decision
+    id: sdd-stop-and-ask
+    title: sdd with any content pauses for an operator ruling
+    body: "Operator (round 1 q2): list sdd1 read-only; any content → summary on #824, sdd alone paused; never copied or wiped unilaterally. decider: operator. → R2"
+  - kind: decision
+    id: pool-dedicated-plus-flip
+    title: Dedicated hdd tier and allow-empty-disk-selector-volume=false
+    body: "Operator (round 1 q3): tag HDDs `hdd`, own StorageClass, flip the global setting so empty-selector volumes stop landing on tagged disks (gpu-local too). decider: operator. → R5, R6"
+  - kind: decision
+    id: hdd-consumers-ci-scratch
+    title: New longhorn-hdd class for CI scratch; Gitea/Zot/act-runner stay
+    body: "Operator (round 1 q4): new 1-replica longhorn-hdd class for per-run CI workspaces; longhorn-cicd's long-lived consumers are not moved onto 2008 drives. decider: operator. → R7"
+  - kind: decision
+    id: binding-uservolumeconfig-wwid
+    title: Bind via Talos UserVolumeConfig with WWID CEL selector
+    body: "Operator (round 1 q5): UserVolumeConfig + `disk.wwid ==` match, mounts at /var/mnt/<name>; not legacy machine.disks. decider: operator. → R3"
+  - kind: decision
+    id: longhorn-disks-manual-op-patch-in-git
+    title: Longhorn node disks stay a manual op, exact patch held in git, gpu-1 backfilled
+    body: "Operator (round 1 q6): patch files under patches/phase03-longhorn/ applied by a # manual-operation; ArgoCD never owns nodes.longhorn.io. decider: operator. → R4"
+  - kind: decision
+    id: verification-live
+    title: Verification is live post-merge; offline guards in CI
+    body: "Operator (round 1 q7): every acceptance row verify: live; a guard test pins the declarative half pre-merge. decider: operator. → R9, ## Verification"
+  - kind: decision
+    id: ci-scope-all-workspaces
+    title: All CI workspaces move to longhorn-hdd, incl. non-pinned templates
+    body: "Operator (round 2 q1): move eventlistener-github (11 sites) AND kid-laptops-ci + generic triggertemplate, accepting that those two now depend on pc-1 being up. decider: operator. → R7, Risks"
+  - kind: discovery
+    id: empty-selector-leaks-to-tagged-disks
+    title: allow-empty-disk-selector-volume=true — tags do not isolate; gpu-local SSDs hold ~1.1 TiB of default-pool replicas
+    body: "Live 2026-10-11: gpu-1's gpu-local disks carry default-class and longhorn-cicd replicas while gpu-1's NVMe default disk has 0 Gi scheduled (Longhorn prefers most free space). An hdd tag alone would make the HDDs the default pool's favourite target."
+  - kind: discovery
+    id: longhorn-cicd-not-pinned
+    title: longhorn-cicd has no selector despite its "for pc-1" comment
+    body: "155 replicas on gpu-1, 8 on pc-1. Its consumers include Gitea repos, Zot blobs, act-runner data and ~150 per-run Tekton workspaces."
+  - kind: discovery
+    id: hdd-class-single-replica
+    title: An hdd-only class is single-replica by construction
+    body: "replica-soft-anti-affinity=false (hard node anti-affinity) and only pc-1 carries hdd disks, so longhorn-hdd volumes have exactly one replica and no redundancy."
+acceptance:
+  - id: stor-pc1-hdd-health-gated
+    capability: storage
+    acceptance: "Only pc-1 HDDs that pass a strict SMART check (overall health, long self-test, zero reallocated/pending/uncorrectable sectors) hold Longhorn data, and pc-1's old 500 GB drive is never wiped while it holds data the operator has not ruled on."
+    origin: ["frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1", "frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2"]
+    status: not-implemented
+    verify: live
+  - id: stor-pc1-hdd-stable-binding
+    capability: storage
+    acceptance: "pc-1's admitted HDDs are mounted by WWID and come back mounted and schedulable in Longhorn after a reboot, regardless of how the kernel names them."
+    origin: ["frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3", "frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4"]
+    status: not-implemented
+    verify: live
+  - id: stor-hdd-pool-isolated
+    capability: storage
+    acceptance: "Volumes on the general classes never get a new replica on an HDD (or other tagged) disk, while volumes on the longhorn-hdd class land only on pc-1's HDDs."
+    origin: ["frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5", "frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6"]
+    status: not-implemented
+    verify: live
+  - id: stor-ci-workspaces-on-hdd
+    capability: storage
+    acceptance: "CI pipeline runs provision their per-run workspaces on pc-1's HDDs, while Gitea repositories, registry blobs and runner state stay on SSD-backed storage."
+    origin: ["frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7"]
+    status: not-implemented
+    verify: live
+emitted:
+  spec: docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
+evidence: {}
