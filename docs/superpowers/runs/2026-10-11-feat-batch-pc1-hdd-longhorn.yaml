@@ -3,7 +3,7 @@ run: 2026-10-11-feat-batch-pc1-hdd-longhorn
 workflow: fr-goal@1
 branch: feat/batch-pc1-hdd-longhorn
 started: '2026-10-11T16:29:43+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -91,7 +91,11 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-11T20:46:36+00:00'
+    exit: 0
+    stdout: |
+      1 out-of-scope finding(s): p1-r4
   deliver:
     state: pending
 fr_version: 5.20.0
