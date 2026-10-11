@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-10-11T17:03:02+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-10-11T17:03:02+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: f8421e42-9f2f-4905-8b3c-88522bae182b
   plan:
     state: pending
   plan-review:
