@@ -137,10 +137,24 @@ def test_long_lived_consumers_stay_on_cicd():
     gitea = yaml.safe_load((REPO_ROOT / "apps/gitea/values.yaml").read_text())
     assert gitea["persistence"]["storageClass"] == "longhorn-cicd"
     zot = yaml.safe_load((REPO_ROOT / "apps/zot/values.yaml").read_text())
-    assert "storageClassName: longhorn-cicd" in (REPO_ROOT / "apps/zot/values.yaml").read_text()
-    assert zot is not None
+    assert zot["pvc"]["storageClassName"] == "longhorn-cicd"
     pvc = yaml.safe_load((REPO_ROOT / "apps/gitea-runner/manifests/pvc.yaml").read_text())
     assert pvc["spec"]["storageClassName"] == "longhorn-cicd"
+
+
+# Every doc spec R8 names. A line that mentions longhorn-cicd may not claim it is
+# tied to pc-1 — the class has no disk or node selector — except inside a dated
+# "Correction" note (block or inline) that says exactly that.
+R8_DOCS = (
+    "README.md",
+    "apps/longhorn/manifests/storageclass-longhorn-cicd.yaml",
+    "blog/content/docs/building/03-storage/index.md",
+    "blog/content/docs/building/27-cicd-platform/index.md",
+    "blog/content/docs/operating/02-storage-backups/index.md",
+    "blog/content/docs/operating/22-cicd-platform/index.md",
+)
+DATED_CORRECTION = re.compile(r"Correction[ ,(]+\d{4}-\d{2}-\d{2}", re.IGNORECASE)
+PC1_CLAIM = re.compile(r"\b(pinned to|pins (pvcs )?to|pinned on|for|on) pc-1\b", re.IGNORECASE)
 
 
 def test_docs_tell_the_truth():
@@ -148,14 +162,25 @@ def test_docs_tell_the_truth():
     for w in KNOWN_PC1_HDD_WWIDS:
         assert w in readme
     assert "phase3-longhorn" not in readme
-    for rel in (
-        "README.md",
-        "blog/content/docs/building/27-cicd-platform/index.md",
-        "blog/content/docs/operating/02-storage-backups/index.md",
-    ):
-        for line in (REPO_ROOT / rel).read_text().splitlines():
-            low = line.lower()
-            if "longhorn-cicd" in low and ("on pc-1" in low or "pins pvcs" in low):
-                assert "correction" in low or "historical" in low, f"{rel}: {line}"
+    for rel in R8_DOCS:
+        for n, line in enumerate((REPO_ROOT / rel).read_text().splitlines(), 1):
+            if "longhorn-cicd" not in line.lower() or not PC1_CLAIM.search(line):
+                continue
+            assert DATED_CORRECTION.search(line), f"{rel}:{n}: {line}"
     gotchas = (REPO_ROOT / "agents/rules/frank-gotchas.md").read_text()
     assert "allow-empty-disk-selector-volume" in gotchas
+    prose = (REPO_ROOT / "docs/runbooks/frank-gotchas/storage-secrets-ssa.md").read_text()
+    assert re.search(r"^## .*allow-empty-disk-selector-volume", prose, re.MULTILINE)
+
+
+def test_manual_operations_synced():
+    ops = yaml.safe_load((REPO_ROOT / "docs/runbooks/manual-operations.yaml").read_text())
+    ids = {op["id"] for op in ops["operations"]}
+    for want in (
+        "stor-pc1-hdd-smart-gate",
+        "stor-pc1-sdd-inspect",
+        "stor-pc1-hdd-volumes-apply",
+        "stor-pc1-hdd-longhorn-disks",
+        "stor-pc1-hdd-merge-sequence",
+    ):
+        assert want in ids, want
