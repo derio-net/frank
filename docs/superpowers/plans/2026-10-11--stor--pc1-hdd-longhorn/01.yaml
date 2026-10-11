@@ -1,0 +1,169 @@
+schema_version: 2
+phase:
+  number: 1
+  title: pc-1 HDD tier declared in git — Talos volumes, Longhorn disk patches, longhorn-hdd
+    class, setting flip, CI repoint, docs
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - stor-pc1-hdd-stable-binding
+  - stor-hdd-pool-isolated
+  - stor-ci-workspaces-on-hdd
+  tier: standard
+  files:
+  - patches/phase03-longhorn/**
+  - apps/longhorn/values.yaml
+  - apps/longhorn/manifests/storageclass-longhorn-hdd.yaml
+  - apps/longhorn/manifests/storageclass-longhorn-cicd.yaml
+  - apps/tekton/triggers/eventlistener-github.yaml
+  - apps/tekton/triggers/kid-laptops-ci.yaml
+  - apps/tekton/triggers/triggertemplate.yaml
+  - scripts/tests/test_pc1_hdd_longhorn.py
+  - README.md
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/frank-gotchas/storage-secrets-ssa.md
+  - blog/content/docs/building/03-storage/index.md
+  - blog/content/docs/building/27-cicd-platform/index.md
+  - blog/content/docs/operating/02-storage-backups/index.md
+  - blog/content/docs/operating/22-cicd-platform/index.md
+  - docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
+  - docs/acceptance/**
+  - docs/superpowers/plans/**
+  estimate_lines: 700
+tasks:
+- number: 1
+  title: Guard test for the declared HDD tier (red)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tests/test_pc1_hdd_longhorn.py (module docstring names the spec docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md and this plan; style follows scripts/tests/test_gitea_runner_app.py — REPO_ROOT, yaml.safe_load). Parse patches/phase03-longhorn/402-pc1-hdd-volumes.yaml: the Omni resource's spec.data is itself a multi-doc YAML string — load it with yaml.safe_load_all. Assertions (each its own test function):
+      1. 402 metadata: id 402-pc1-hdd-volumes, type ConfigPatches.omni.sidero.dev, labels omni.sidero.dev/cluster=frank and omni.sidero.dev/cluster-machine=03de0294-0480-05ab-3106-410700080009 (pc-1, patches/README.md:11).
+      2. Every doc in spec.data is kind UserVolumeConfig, filesystem.type xfs, provisioning.diskSelector.match is exactly `disk.wwid == "naa.<16 hex>"`, the wwid is in KNOWN_PC1_HDD_WWIDS = {naa.50014ee2ae0311c3, naa.50014ee203581a1f, naa.50014ee0556235e7}, and name == "hdd-" + the last 8 hex digits of that wwid. At least one doc. The string "/dev/sd" appears nowhere in the file.
+      3. patches/phase03-longhorn/longhorn-node-disks-pc-1.yaml: spec.disks keys == the set of 402 volume names; each entry path == "/var/mnt/<name>/", diskType filesystem, tags == ["hdd"], storageReserved 0, allowScheduling true, evictionRequested false; no key starts with "default-disk".
+      4. patches/phase03-longhorn/longhorn-node-disks-gpu-1.yaml: exactly gpu-sda-4000000000000 and gpu-sdb-4000000000000, tags ["gpu-local"], and each path (minus trailing slash) equals a machine.disks[].partitions[].mountpoint in 401-gpu1-extra-disks.yaml's spec.data.
+      5. apps/longhorn/manifests/storageclass-longhorn-hdd.yaml: StorageClass longhorn-hdd, provisioner driver.longhorn.io, parameters numberOfReplicas "1", diskSelector "hdd", dataLocality "disabled", reclaimPolicy Delete, allowVolumeExpansion true.
+      6. apps/longhorn/values.yaml: defaultSettings.allowEmptyDiskSelectorVolume is False (boolean).
+      7. Walk every YAML document under apps/tekton/ recursively; collect every `volumeClaimTemplate` mapping at any depth; assert there are at least 11 and every one has spec.storageClassName == "longhorn-hdd".
+      8. Long-lived consumers stay: apps/gitea/values.yaml persistence storageClass, apps/zot/values.yaml storageClassName and apps/gitea-runner/manifests/pvc.yaml storageClassName all == "longhorn-cicd".
+      9. Docs (R8): patches/phase03-longhorn/README.md contains each KNOWN wwid and no "phase3-longhorn"; README.md, blog/content/docs/building/27-cicd-platform/index.md and blog/content/docs/operating/02-storage-backups/index.md contain no line matching both "longhorn-cicd" and ("on pc-1" or "pins PVCs") case-insensitively, outside a line that also says "correction" or "historical"; agents/rules/frank-gotchas.md contains "allow-empty-disk-selector-volume".
+  - id: P1.T1.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q` from the workspace (call the venv's pytest directly, never `uv run`) and confirm every test FAILS on a missing file or wrong value, not on an import or collection error; keep the failure summary for the step record.
+- number: 2
+  title: Talos user volumes and Longhorn node-disk patches (green for tests 1-4)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Before writing YAML, confirm the Talos v1.12 UserVolumeConfig schema against the upstream reference (siderolabs/talos docs for v1.12, "UserVolumeConfig"): the CEL disk field name (`disk.wwid`), whether provisioning.minSize is required, `grow`, and that the mount path is /var/mnt/<name>. Record the doc URL and any correction as a discovery in the step record; if a field differs from the spec, follow upstream and amend the spec's Design §1 in the same commit (and the guard's test 2 to match).
+  - id: P1.T2.S2
+    text: |-
+      Create patches/phase03-longhorn/402-pc1-hdd-volumes.yaml mirroring 401's shape (comment block, then metadata namespace default, type ConfigPatches.omni.sidero.dev, id 402-pc1-hdd-volumes, labels omni.sidero.dev/cluster: frank and omni.sidero.dev/cluster-machine: 03de0294-0480-05ab-3106-410700080009). spec.data holds three `---`-separated UserVolumeConfig docs: hdd-ae0311c3 (naa.50014ee2ae0311c3, minSize 900GB), hdd-03581a1f (naa.50014ee203581a1f, minSize 900GB), hdd-556235e7 (naa.50014ee0556235e7, minSize 450GB), each grow: true, filesystem xfs. Header comment: names follow the WWID never the sdX letter; a drive excluded by the SMART gate (spec R1) or held by the sdd ruling (R2) is deleted from this file AND from longhorn-node-disks-pc-1.yaml in the same commit; sdd must be wiped (`talosctl wipe disk`) before Talos will provision it; manual-op ids stor-pc1-hdd-smart-gate, stor-pc1-sdd-inspect, stor-pc1-hdd-volumes-apply.
+  - id: P1.T2.S3
+    text: |-
+      Create patches/phase03-longhorn/longhorn-node-disks-pc-1.yaml (merge-patch body: `spec.disks` with the three hdd-<wwid8> entries, per spec Design §2) and longhorn-node-disks-gpu-1.yaml (gpu-sda-4000000000000 / gpu-sdb-4000000000000 exactly as README.md Step 6 has them: path /var/mnt/longhorn-sd{a,b}/, diskType filesystem, allowScheduling true, evictionRequested false, storageReserved 0, tags [gpu-local]). Each header comment: applied with `kubectl -n longhorn-system patch nodes.longhorn.io <node> --type merge --patch-file <file>` (manual-op stor-pc1-hdd-longhorn-disks); ArgoCD never owns the CR; the map is keyed by disk name, so the longhorn-manager-written default-disk entry is untouched.
+  - id: P1.T2.S4
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q -k "<the names of tests 1-4>"`; they pass.
+- number: 3
+  title: longhorn-hdd class and the global setting flip (green for tests 5-6)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create apps/longhorn/manifests/storageclass-longhorn-hdd.yaml exactly as spec Design §3, keeping its two trailing comments on numberOfReplicas and dataLocality, plus a header comment (single-replica, hdd disks on pc-1 only, re-creatable CI scratch only, spec path). Rewrite both header lines of storageclass-longhorn-cicd.yaml: single replica, NOT node-pinned (no disk or node selector, so replicas land wherever Longhorn has room), used by Gitea repos, Zot blobs and act-runner data; per-run CI workspaces moved to longhorn-hdd (2026-10-11). Do not change its parameters.
+  - id: P1.T3.S2
+    text: |-
+      In apps/longhorn/values.yaml under defaultSettings add `allowEmptyDiskSelectorVolume: false` with a comment: measured 2026-10-11 under the chart default (true), gpu-1's gpu-local SSDs held ~1.1 TiB of default-pool and longhorn-cicd replicas while gpu-1's NVMe default disk had 0 Gi scheduled — a disk tag attracts but never excludes; false keeps empty-selector volumes off every tagged disk (hdd, gpu-local); it governs new placement only, existing replicas stay (replica-auto-balance is disabled). First confirm the key exists in chart 1.11.2: `helm show values longhorn --repo https://charts.longhorn.io --version 1.11.2 | grep -n allowEmptyDiskSelectorVolume`.
+  - id: P1.T3.S3
+    text: |-
+      Run `helm template longhorn longhorn --repo https://charts.longhorn.io --version 1.11.2 -n longhorn-system -f apps/longhorn/values.yaml | grep -n "allow-empty-disk-selector-volume"` and confirm the rendered default setting carries false. Then run the guard: tests 5-6 pass.
+- number: 4
+  title: Repoint every per-run CI workspace (green for tests 7-8)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Replace `storageClassName: longhorn-cicd` with `longhorn-hdd` at the 9 volumeClaimTemplate sites in apps/tekton/triggers/eventlistener-github.yaml (lines 473,514,556,584,611,634,671,709,757 at spec time; locate by content), at kid-laptops-ci.yaml:86 and at triggertemplate.yaml:41. Rewrite the kid-laptops-ci.yaml:84-85 comment: the class is single-replica and confined to pc-1's hdd disks, so the volume lives on pc-1 even though the pod is not node-pinned; a pc-1 outage blocks this run's workspace (accepted by operator ruling, 2026-10-11 spec).
+  - id: P1.T4.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py scripts/tests/test_gitea_runner_app.py -q` plus the existing Tekton guards (`ls scripts/tests | grep -i -E "tekton|trigger|kid_laptops|webhook"`, run each); all pass. `grep -rn "longhorn-cicd" apps/tekton` prints nothing.
+- number: 5
+  title: Docs tell the truth (green for test 9)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Update patches/phase03-longhorn/README.md: "What This Does" gains the pc-1 HDD tier; replace the Disk Inventory pc-1 row with the measured drives (sda Crucial M4 64 GB SSD boot naa.500a075103235393; sdb and sdc WDC WD10EADS-00L 1 TB naa.50014ee2ae0311c3 / naa.50014ee203581a1f; sdd WDC WD5000AAKS 500 GB naa.50014ee0556235e7; role: hdd tier, SMART-gated), noting sdX letters drift and the WWID is the identity; add the three new files to the Files table; change every `phase3-longhorn` path to `phase03-longhorn`; Step 6 points at longhorn-node-disks-gpu-1.yaml; add a "Step 8: pc-1 HDD tier" section pointing at manual-op ids stor-pc1-hdd-smart-gate, stor-pc1-sdd-inspect, stor-pc1-hdd-volumes-apply, stor-pc1-hdd-longhorn-disks and stor-pc1-hdd-merge-sequence rather than duplicating their commands.
+  - id: P1.T5.S2
+    text: |-
+      Add the gotcha. One-liner in agents/rules/frank-gotchas.md under "Storage / Secrets / SSA": a Longhorn disk tag ATTRACTS but never EXCLUDES while allow-empty-disk-selector-volume is true (chart default) — empty-selector volumes schedule onto tagged disks and Longhorn prefers the disk with the most free space, so gpu-1's "dedicated" gpu-local SSDs held ~1.1 TiB of general replicas while its NVMe sat at 0 Gi (2026-10-11); now false in apps/longhorn/values.yaml; also, an hdd-only tier on one node is single-replica by construction (hard node anti-affinity). Full prose with the measurement commands (replicas grouped by spec.diskPath; `kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-volume`) in docs/runbooks/frank-gotchas/storage-secrets-ssa.md.
+  - id: P1.T5.S3
+    text: |-
+      Correct every doc that calls longhorn-cicd pc-1-pinned or the home of Tekton workspaces (spec R8): README.md:297 (and add a longhorn-hdd row beside it); building/27-cicd-platform (:28 diagram label, :62, the `## StorageClass: longhorn-cicd` section — add a dated correction note rather than rewriting history); building/03-storage:386 plus a dated "pc-1 HDD tier (2026-10)" section describing the tier, the setting flip and why; operating/02-storage-backups (:32 class list gains longhorn-hdd, :54-60 diagram) plus an operating subsection "Checking the HDD tier" (`kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o yaml`, replicas on /var/mnt/hdd-*, the SMART recheck command from manual-op stor-pc1-hdd-smart-gate); operating/22-cicd-platform (:225 example storageClassName, :285). Keep Hugo shortcodes intact.
+  - id: P1.T5.S4
+    text: |-
+      Run the whole guard (`.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q`, all 9 pass), then the offline suite CI runs (the pytest invocation in .github/workflows/repo-tripwires.yml, minus tests that build the blog with hugo) after the last code commit, with output redirected to a log outside the repo; no new failures versus origin/main. Name that log in the step record's evidence.tests.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

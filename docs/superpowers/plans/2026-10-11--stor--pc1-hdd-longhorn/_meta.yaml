@@ -1,0 +1,6 @@
+schema_version: 2
+plan: 2026-10-11--stor--pc1-hdd-longhorn
+spec: 2026-10-11--stor--pc1-hdd-longhorn-design.md
+target_repo: derio-net/frank
+fr_version: '>=4.20.0,<6.0.0'
+created: '2026-10-11'

@@ -286,4 +286,6 @@ strategy: live
 
 ## Implementation Plans
 
-None yet. Planning starts after the operator rules on this spec.
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-11--stor--pc1-hdd-longhorn | `derio-net/frank` | `2026-10-11--stor--pc1-hdd-longhorn` | — |
