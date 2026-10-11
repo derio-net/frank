@@ -1,0 +1,10 @@
+schema_version: 8
+run: 2026-10-11-feat-batch-pc1-hdd-longhorn
+step: deliver
+outcome: done
+acceptance: []
+emitted:
+  pr: https://github.com/derio-net/frank/pull/836
+evidence:
+  tests: ci
+  walk: none
