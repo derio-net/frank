@@ -124,6 +124,8 @@ def _walk(node, found):
 def test_every_tekton_workspace_uses_longhorn_hdd():
     found = []
     for f in sorted((REPO_ROOT / "apps/tekton").rglob("*.y*ml")):
+        if "vendor" in f.relative_to(REPO_ROOT).parts:
+            continue  # upstream CRD schemas, not workspaces
         for doc in yaml.safe_load_all(f.read_text()):
             _walk(doc, found)
     assert len(found) >= 11, len(found)
