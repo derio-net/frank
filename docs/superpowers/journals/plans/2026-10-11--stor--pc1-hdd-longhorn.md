@@ -51,3 +51,48 @@ Mechanical one-token repoint plus a comment rewrite; nothing to clean.
 ### no-refactor-p1-t5 · discovery · no-refactor-because P1.T5 (phase 1)
 
 Doc edits only; nothing to clean.
+
+<!-- fr:journal kind=review scope=plan id=p1-review-r1 created=2026-10-11T20:46:28+00:00 phase=1 -->
+### p1-review-r1 · review · Phase 1 code review: approve with minor fixes — 4 findings (3 in, 1 out) (phase 1)
+
+Reviewer checked the 402 ConfigPatch (WWID CEL selectors, hdd-<last8> names, pc-1 machine label), the node-disk patches (gpu-1 file equals README Step 6 live entries → no-op), longhorn-hdd parameters, the values flip, the 11 Tekton repoint sites (no other line changed), Gitea/Zot/act-runner unchanged, docs and Hugo shortcodes; ran the guard (9 passed). No ArgoCD sync risk. Findings: p1-r1, p1-r2, p1-r3 (in), p1-r4 (out).
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1 created=2026-10-11T20:46:28+00:00 phase=1 state=open review_scope=in -->
+### p1-r1 · finding [open] (reviewer: in scope) · test_docs_tell_the_truth covers 3 of 7 R8 docs, matches only "on pc-1"/"pins pvcs", exempts any "correction" line, never asserts storage-secrets-ssa.md prose (phase 1)
+
+scripts/tests/test_pc1_hdd_longhorn.py:146-161 at 1d9fa42c.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2 created=2026-10-11T20:46:28+00:00 phase=1 state=open review_scope=in -->
+### p1-r2 · finding [open] (reviewer: in scope) · Zot checked by whole-file substring plus a vacuous `assert zot is not None` (phase 1)
+
+scripts/tests/test_pc1_hdd_longhorn.py:137-144; apps/zot/values.yaml:80-84.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3 created=2026-10-11T20:46:28+00:00 phase=1 state=open review_scope=in -->
+### p1-r3 · finding [open] (reviewer: in scope) · phase03 README Step 8 and operating/02 point at manual-op ids not yet in manual-operations.yaml (phase 1)
+
+R8 says the manual ops are synced; the sync was deferred to the phase 2 close-out.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4 created=2026-10-11T20:46:28+00:00 phase=1 state=open review_scope=out -->
+### p1-r4 · finding [open] (reviewer: out of scope) · phase3-longhorn typo survives in patches/README.md:28 and patches/phase03-longhorn/longhorn-values.yaml:9 (phase 1)
+
+Pre-existing; R8 names only the phase03 README.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1-resolved created=2026-10-11T20:46:28+00:00 phase=1 state=fixed resolves=p1-r1 -->
+### p1-r1-resolved · finding [fixed] · resolves p1-r1: test_docs_tell_the_truth covers 3 of 7 R8 docs, matches only "on pc-1"/"pins pvcs", exempts any "correction" line, never asserts storage-secrets-ssa.md prose (phase 1)
+
+Guard now scans README.md, the longhorn-cicd SC, building/03-storage, building/27, operating/02 and operating/22; matches '(pinned to|pins (PVCs) to|pinned on|for|on) pc-1' on lines naming longhorn-cicd; exempts only a dated 'Correction <date>' note; asserts the storage-secrets-ssa.md '## …allow-empty-disk-selector-volume' heading. Negative controls (old SC header, old building/27 subheading, 'pins PVCs … on pc-1') are caught.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2-resolved created=2026-10-11T20:46:28+00:00 phase=1 state=fixed resolves=p1-r2 -->
+### p1-r2-resolved · finding [fixed] · resolves p1-r2: Zot checked by whole-file substring plus a vacuous `assert zot is not None` (phase 1)
+
+assert zot['pvc']['storageClassName'] == 'longhorn-cicd'.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3-resolved created=2026-10-11T20:46:28+00:00 phase=1 state=fixed resolves=p1-r3 -->
+### p1-r3-resolved · finding [fixed] · resolves p1-r3: phase03 README Step 8 and operating/02 point at manual-op ids not yet in manual-operations.yaml (phase 1)
+
+The five stor-pc1-* blocks from 02.yaml appended to docs/runbooks/manual-operations.yaml (status pending) and guarded by test_manual_operations_synced, which was red before the append. Full-file re-sort skipped to avoid churning 158 unrelated entries; phase 2 close-out still runs /sync-runbook for statuses.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved created=2026-10-11T20:46:28+00:00 phase=1 state=open resolves=p1-r4 out_of_scope=true -->
+### p1-r4-resolved · finding [out-of-scope] · resolves p1-r4: phase3-longhorn typo survives in patches/README.md:28 and patches/phase03-longhorn/longhorn-values.yaml:9 (phase 1)
+
+Both typos predate this change and are outside R8's named file; fixing them is the operator's call.
