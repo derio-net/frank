@@ -21,3 +21,8 @@ Operator chose to keep one draft PR on fix/batch-frank-infra with a separate com
 ### 673a390a5229 · root-cause · #821: Rule 1 counted reclaimable file-LRU page cache in memory.current
 
 memory.current includes active_file+inactive_file, which grow with pod uptime (1.40 GiB at 12 days) and are reclaimed before OOM. The 53% line was calibrated on a fresh pod (LRUs=0), so the trigger drifted tighter: 7.74 GiB incident peak + 12-day cache = 9.58 GiB > 8.48 GiB line.
+
+<!-- fr:journal kind=finding scope=debug id=962fb3db1696 created=2026-10-11T21:44:25+00:00 state=fixed -->
+### 962fb3db1696 · finding [fixed] · #821 fixed: Rule 1 numerator = memory.current - active_file - inactive_file
+
+Commit 79fa4015. Failing-first tests: test_the_exec_reads_both_file_lrus_from_memory_stat, test_rule_one_does_not_count_reclaimable_page_cache (incident peak on a 12-day pod: restarted before, busy/no restart after), test_rule_one_still_fires_when_the_unreclaimable_part_is_critical, test_the_restart_line_reports_the_figure_rule_one_compared. CRITICAL_PERCENT stays 53. Targeted run: test_ovms_pool_watchdog + test_ovms_retrieval_manifests, 73 passed.
