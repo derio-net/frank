@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-11
 **Layer:** stor (Layer 4, fix/extension — existing building/operating posts are updated, no new post)
-**Status:** Draft — spec only; planning waits for the operator's go
+**Status:** Approved by the operator 2026-10-11 ("go ahead"); plan `2026-10-11--stor--pc1-hdd-longhorn`
 **Issue:** derio-net/frank#824 (decisions owed: [comment 6106885345](https://github.com/derio-net/frank/issues/824#issuecomment-6106885345))
 
 ## Context
