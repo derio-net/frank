@@ -26,10 +26,11 @@ source .env   # sets KUBECONFIG
 
 ## Overview
 
-Frank runs Longhorn for distributed block storage. The default StorageClass replicates every volume three times across the control-plane nodes (`apps/longhorn/values.yaml:3`, `defaultReplicaCount: 3`). Two additional StorageClasses exist:
+Frank runs Longhorn for distributed block storage. The default StorageClass replicates every volume three times across the control-plane nodes (`apps/longhorn/values.yaml:3`, `defaultReplicaCount: 3`). Three additional StorageClasses exist:
 
 - **`longhorn-gpu-local`** — single-replica, strict-local (`dataLocality: strict-local`), pinned to gpu-1's dedicated SSDs via `diskSelector: gpu-local` (`apps/longhorn/manifests/gpu-local-sc.yaml`)
-- **`longhorn-cicd`** — single-replica, best-effort, for CI/CD workloads on pc-1 (`apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`)
+- **`longhorn-cicd`** — single-replica, best-effort, not node-pinned, for Gitea repos, Zot blobs and act-runner data (`apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`; correction 2026-10-11: it was never pinned to pc-1)
+- **`longhorn-hdd`** — single-replica, `diskSelector: hdd`, pc-1's HDDs only, for Tekton per-run CI workspaces (`apps/longhorn/manifests/storageclass-longhorn-hdd.yaml`)
 
 Raspberry Pi nodes have scheduling disabled — Longhorn does not place replicas on them.
 
@@ -51,13 +52,13 @@ graph LR
     G1["gpu-1<br/>local SSD"]
   end
   subgraph PC["PC Node"]
-    P1["pc-1<br/>longhorn-cicd"]
+    P1["pc-1<br/>HDD disks"]
   end
   M1 --> LH["Longhorn<br/>replica=3"]
   M2 --> LH
   M3 --> LH
   G1 --> LG["longhorn-gpu-local<br/>single-replica"]
-  P1 --> LC["longhorn-cicd<br/>single-replica"]
+  P1 --> LC["longhorn-hdd<br/>single-replica"]
   LH --> R2["Cloudflare R2<br/>s3://frank-longhorn-backups"]
   LG --> R2
   LC --> R2
@@ -368,6 +369,17 @@ kubectl patch volume.longhorn.io <volume-name> -n longhorn-system \
 ```
 
 This clears the node assignment and lets Longhorn re-attach the volume when the consuming pod is rescheduled. Do not force-delete the VolumeAttachment object — scale the workload to 0 and let the natural detach complete.
+
+### Checking the HDD tier
+
+```bash
+source .env
+kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o yaml     # hdd-* disks: Ready / Schedulable, tag hdd
+kubectl -n longhorn-system get replicas.longhorn.io -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeID,DISK:.spec.diskPath | grep /var/mnt/hdd-
+kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-volume   # must read false
+```
+
+Drive health is not monitored by Longhorn itself: re-run the SMART check from the `stor-pc1-hdd-smart-gate` manual operation (`smartctl -H -A` per drive from a privileged debug pod on pc-1). Reallocated (5), pending (197) or offline-uncorrectable (198) sectors rising above zero means the drive should be removed from `402-pc1-hdd-volumes.yaml` and `longhorn-node-disks-pc-1.yaml`.
 
 ## Missteps
 

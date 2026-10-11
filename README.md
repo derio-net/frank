@@ -294,7 +294,8 @@ argocd app list
 | tekton-triggers | tekton-pipelines | Tekton Triggers controller + interceptors (vendored release) |
 | tekton-dashboard | tekton-pipelines | Tekton Dashboard (192.168.55.217:9097, vendored release) |
 | tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
-| longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
+| longhorn-cicd | longhorn-system | Single-replica StorageClass (not node-pinned) for Gitea repos, Zot blobs and act-runner data |
+| longhorn-hdd | longhorn-system | Single-replica StorageClass for Tekton per-run CI workspaces, confined to pc-1's `hdd`-tagged disks |
 | goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
 | alert-agent | alert-agent | Autonomous `claude` agent on multi-agent-shell — daily digest + surge gate + Grafana webhook triage + inbound Telegram Q&A (single replica, Recreate — one getUpdates consumer per bot token; cloud brain, HTTP-only, no kube RBAC) |
 | awx | awx | AWX Operator + AWX CR (Ansible controller); OIDC SSO via Authentik; smoke-ping Job Template green vs non-Talos home-lab hosts |

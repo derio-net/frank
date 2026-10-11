@@ -517,3 +517,28 @@ $ kubectl -n <ns> get deploy,pvc,svc -o json | jq -r '.items[] |
 Untracked Secrets are expected and correct here (SOPS-applied bootstrap
 secrets and ESO-generated Secrets both lack the annotation by design). An
 untracked **workload or PVC** is the finding.
+
+## A Longhorn disk tag attracts but never excludes while `allow-empty-disk-selector-volume` is true
+
+`allow-empty-disk-selector-volume` defaults to `true` (chart default), so a volume with no
+`diskSelector` may schedule onto ANY disk, tagged or not. Longhorn then prefers the disk with
+the most free space. Measured 2026-10-11: gpu-1's two `gpu-local` SSDs (meant only for
+`longhorn-gpu-local` volumes) held ~1.1 TiB of default-pool and `longhorn-cicd` replicas
+(agent-home, n8n-01, zot, ~40 Tekton workspaces) while gpu-1's own NVMe default disk had 0 Gi
+scheduled. Tagging pc-1's HDDs `hdd` without flipping the setting would have let the default pool
+favour them for the same reason. `apps/longhorn/values.yaml` now sets
+`defaultSettings.allowEmptyDiskSelectorVolume: false`; it governs NEW placement only, existing
+replicas stay (`replica-auto-balance` is disabled).
+
+Also: `replica-soft-anti-affinity` is `false`, so replicas of one volume must sit on different
+nodes. A tier whose disks all live on one node (pc-1's `hdd`) is therefore single-replica by
+construction, whatever the drive count; only re-creatable data belongs there.
+
+Measure it:
+
+```bash
+kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-volume -o jsonpath='{.value}'
+# replicas grouped by disk path
+kubectl -n longhorn-system get replicas.longhorn.io -o json \
+  | jq -r '.items[] | "\(.spec.nodeID) \(.spec.diskPath)"' | sort | uniq -c
+```

@@ -38,7 +38,7 @@ spec:
               spec:
                 accessModes:
                   - ReadWriteOnce
-                storageClassName: longhorn-cicd
+                storageClassName: longhorn-hdd
                 resources:
                   requests:
                     storage: 1Gi

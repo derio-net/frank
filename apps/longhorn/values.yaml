@@ -1,6 +1,12 @@
 defaultSettings:
   defaultReplicaCount: 3
   storageMinimalAvailablePercentage: 15
+  # Measured 2026-10-11 under the chart default (true): gpu-1's gpu-local SSDs held
+  # ~1.1 TiB of default-pool and longhorn-cicd replicas while gpu-1's NVMe default
+  # disk had 0 Gi scheduled. A disk tag attracts but never excludes; false keeps
+  # empty-selector volumes off every tagged disk (hdd, gpu-local). It governs new
+  # placement only; existing replicas stay (replica-auto-balance is disabled).
+  allowEmptyDiskSelectorVolume: false
   # Longhorn's provisioning ceiling counts each replica's DECLARED size, not the
   # bytes actually written, so a node can be half-empty and still refuse to grow
   # a volume by a single GiB. Measured 2026-07-27, with this left at the chart

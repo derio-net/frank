@@ -1,0 +1,21 @@
+## Longhorn disks for gpu-1's gpu-local SSDs (merge-patch body for nodes.longhorn.io/gpu-1)
+## Apply: kubectl -n longhorn-system patch nodes.longhorn.io gpu-1 --type merge --patch-file patches/phase03-longhorn/longhorn-node-disks-gpu-1.yaml
+## Manual op: stor-pc1-hdd-longhorn-disks. Backfill of the live entries (a no-op today);
+## ArgoCD never owns the CR. Keyed by disk name, so the default-disk-* entry is untouched.
+## Paths must equal the mountpoints in 401-gpu1-extra-disks.yaml.
+spec:
+  disks:
+    gpu-sda-4000000000000:
+      path: /var/mnt/longhorn-sda/
+      diskType: filesystem
+      allowScheduling: true
+      evictionRequested: false
+      storageReserved: 0
+      tags: ["gpu-local"]
+    gpu-sdb-4000000000000:
+      path: /var/mnt/longhorn-sdb/
+      diskType: filesystem
+      allowScheduling: true
+      evictionRequested: false
+      storageReserved: 0
+      tags: ["gpu-local"]

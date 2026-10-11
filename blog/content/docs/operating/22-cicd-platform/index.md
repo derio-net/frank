@@ -222,7 +222,7 @@ spec:
       volumeClaimTemplate:
         spec:
           accessModes: [ReadWriteOnce]
-          storageClassName: longhorn-cicd
+          storageClassName: longhorn-hdd
           resources: { requests: { storage: 1Gi } }
     - name: ssh-creds
       secret:
@@ -282,7 +282,7 @@ Known causes:
 kubectl describe pipelinerun -n tekton-pipelines <name>
 ```
 
-Check {{< abbr "PVC" >}} provisioning (Longhorn health, pc-1 node status). The `longhorn-cicd` storage class must be available.
+Check {{< abbr "PVC" >}} provisioning (Longhorn health, pc-1 node status). Tekton workspaces use the `longhorn-hdd` storage class (single replica on pc-1's HDD disks); it must be available and its `hdd` disks Schedulable.
 
 ### PodSecurity Violation on Task Step
 

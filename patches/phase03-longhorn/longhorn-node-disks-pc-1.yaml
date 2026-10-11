@@ -1,0 +1,28 @@
+## Longhorn disks for pc-1's HDD tier (merge-patch body for nodes.longhorn.io/pc-1)
+## Apply: kubectl -n longhorn-system patch nodes.longhorn.io pc-1 --type merge --patch-file patches/phase03-longhorn/longhorn-node-disks-pc-1.yaml
+## Manual op: stor-pc1-hdd-longhorn-disks. ArgoCD never owns the nodes.longhorn.io CR.
+## The map is keyed by disk name, so the longhorn-manager-written default-disk-*
+## entry is left untouched. Paths must equal the mounts in 402-pc1-hdd-volumes.yaml.
+spec:
+  disks:
+    hdd-ae0311c3:
+      path: /var/mnt/hdd-ae0311c3/
+      diskType: filesystem
+      allowScheduling: true
+      evictionRequested: false
+      storageReserved: 0
+      tags: ["hdd"]
+    hdd-03581a1f:
+      path: /var/mnt/hdd-03581a1f/
+      diskType: filesystem
+      allowScheduling: true
+      evictionRequested: false
+      storageReserved: 0
+      tags: ["hdd"]
+    hdd-556235e7:
+      path: /var/mnt/hdd-556235e7/
+      diskType: filesystem
+      allowScheduling: true
+      evictionRequested: false
+      storageReserved: 0
+      tags: ["hdd"]

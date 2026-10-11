@@ -25,7 +25,7 @@ flowchart TD
     FR[derio-net/frank]
     AS[agentic-stoa repos]
   end
-  subgraph CICD[pc-1 — longhorn-cicd StorageClass]
+  subgraph CICD[pc-1 — CI/CD stack]
     subgraph Gitea[gitea — 192.168.55.209]
       GM[GitHub pull mirrors]
       WH[Webhook → Tekton]
@@ -59,7 +59,7 @@ flowchart TD
   SIGN -->|.sig artifact| REG
 ```
 
-Every component runs on pc-1 — the legacy desktop with 32GB RAM that previously sat idle in the Edge zone. A dedicated `longhorn-cicd` StorageClass pins {{< abbr "PVC" "PVCs" >}} to that node with single-replica storage. Not {{< abbr "HA" >}}, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
+Every component runs on pc-1 — the legacy desktop with 32GB RAM that previously sat idle in the Edge zone. Single-replica Longhorn storage backs the {{< abbr "PVC" "PVCs" >}}. (Correction, 2026-10-11: `longhorn-cicd` never pinned anything to pc-1; per-run workspaces now use `longhorn-hdd`, which is confined to pc-1's HDD disks.) Not {{< abbr "HA" >}}, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
 
 ## Prerequisites
 
@@ -71,7 +71,9 @@ Every component runs on pc-1 — the legacy desktop with 32GB RAM that previousl
 
 ## StorageClass: longhorn-cicd
 
-Single replica, pinned to pc-1:
+> **Correction (2026-10-11):** this class is single-replica but was never pinned to pc-1 — it has no disk or node selector. It now serves Gitea repos, Zot blobs and act-runner data; Tekton per-run workspaces moved to `longhorn-hdd` (single replica, `diskSelector: hdd`, pc-1's HDDs only). The manifest below is historical.
+
+Single replica:
 
 ```yaml
 apiVersion: storage.k8s.io/v1

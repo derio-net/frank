@@ -10,6 +10,8 @@
 3. Creates the default `longhorn` StorageClass (3 replicas, best-effort locality)
 4. Mounts gpu-1's 2x4TB Samsung SSDs and adds them as dedicated Longhorn disks
 5. Creates a `longhorn-gpu-local` StorageClass targeting those disks
+6. Adds pc-1's three data HDDs as an isolated, SMART-gated `hdd` tier (Talos user volumes by WWID,
+   `longhorn-hdd` single-replica class for CI scratch, `allow-empty-disk-selector-volume=false`) — Step 8
 
 ## Disk Inventory
 
@@ -19,7 +21,7 @@
 | mini-2 | nvme0n1 (1TB NVMe) | — | replica node (EPHEMERAL partition) |
 | mini-3 | nvme0n1 (1TB NVMe) | — | replica node (EPHEMERAL partition) |
 | gpu-1 | nvme0n1 (1TB NVMe) | sda (4TB SSD), sdb (4TB SSD) | replica + dedicated GPU storage |
-| pc-1 | sdc (64GB SSD) | sda (500GB HDD), sdb (640GB HDD), sdd (640GB HDD) | replica node |
+| pc-1 | sda (Crucial M4 64GB SSD, boot, `naa.500a075103235393`) | sdb (WDC WD10EADS-00L 1TB, `naa.50014ee2ae0311c3`), sdc (WDC WD10EADS-00L 1TB, `naa.50014ee203581a1f`), sdd (WDC WD5000AAKS 500GB, `naa.50014ee0556235e7`) | hdd tier, SMART-gated (sdX letters drift; the WWID is the identity) |
 | raspi-1 | mmcblk0 (32GB) | — | minimal (SD card) |
 | raspi-2 | mmcblk0 (32GB) | — | minimal (SD card) |
 
@@ -29,6 +31,9 @@
 | ---- | ---- | ------- |
 | `400-cluster-iscsi-tools.yaml` | omnictl | Adds iscsi-tools extension to all nodes |
 | `401-gpu1-extra-disks.yaml` | omnictl | Mounts sda/sdb on gpu-1 at /var/mnt/longhorn-{sda,sdb} |
+| `402-pc1-hdd-volumes.yaml` | omnictl | Talos UserVolumeConfigs for pc-1's HDDs, selected by WWID, mounted at /var/mnt/hdd-<wwid8> |
+| `longhorn-node-disks-pc-1.yaml` | kubectl | Merge-patch body adding the `hdd`-tagged disks to nodes.longhorn.io/pc-1 |
+| `longhorn-node-disks-gpu-1.yaml` | kubectl | Merge-patch body for gpu-1's `gpu-local` disks (backfill, no-op today) |
 | `longhorn-values.yaml` | helm | Longhorn Helm chart values |
 | `longhorn-gpu-local-sc.yaml` | kubectl | GPU-local StorageClass manifest |
 
@@ -40,7 +45,7 @@
 
 ```bash
 source .env_devops
-omnictl apply -f patches/phase3-longhorn/400-cluster-iscsi-tools.yaml
+omnictl apply -f patches/phase03-longhorn/400-cluster-iscsi-tools.yaml
 ```
 
 Wait for all nodes to come back Ready:
@@ -78,7 +83,7 @@ Then apply the disk mount config (triggers gpu-1 reboot):
 
 ```bash
 source .env_devops
-omnictl apply -f patches/phase3-longhorn/401-gpu1-extra-disks.yaml
+omnictl apply -f patches/phase03-longhorn/401-gpu1-extra-disks.yaml
 ```
 
 Wait for gpu-1 to come back and verify mounts:
@@ -117,7 +122,7 @@ helm repo update
 source .env
 helm install longhorn longhorn/longhorn --version 1.11.0 \
   --namespace longhorn-system \
-  -f patches/phase3-longhorn/longhorn-values.yaml
+  -f patches/phase03-longhorn/longhorn-values.yaml
 ```
 
 ### Step 4: Wait for Longhorn to be ready
@@ -162,6 +167,8 @@ kubectl delete pvc longhorn-test-pvc
 
 ### Step 6: Add gpu-1's extra disks to Longhorn
 
+The exact body is kept in git: `patches/phase03-longhorn/longhorn-node-disks-gpu-1.yaml` (apply with `kubectl -n longhorn-system patch nodes.longhorn.io gpu-1 --type merge --patch-file <file>`). The inline form below is the original.
+
 ```bash
 source .env
 kubectl -n longhorn-system patch nodes.longhorn.io gpu-1 --type merge -p '{
@@ -192,7 +199,7 @@ kubectl -n longhorn-system patch nodes.longhorn.io gpu-1 --type merge -p '{
 
 ```bash
 source .env
-kubectl apply -f patches/phase3-longhorn/longhorn-gpu-local-sc.yaml
+kubectl apply -f patches/phase03-longhorn/longhorn-gpu-local-sc.yaml
 
 # Test
 kubectl apply -f - <<'EOF'
@@ -216,6 +223,13 @@ kubectl get pvc gpu-local-test-pvc
 # Clean up
 kubectl delete pvc gpu-local-test-pvc
 ```
+
+### Step 8: pc-1 HDD tier
+
+Declared in git; the commands live in the manual operations (`docs/runbooks/manual-operations.yaml`),
+not here: `stor-pc1-hdd-smart-gate`, `stor-pc1-sdd-inspect`, `stor-pc1-hdd-volumes-apply`,
+`stor-pc1-hdd-longhorn-disks` and `stor-pc1-hdd-merge-sequence`. Spec:
+`docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md`.
 
 ## Verify
 

@@ -1,0 +1,54 @@
+## pc-1's three data HDDs as Talos user volumes, mounted at /var/mnt/hdd-<wwid8>
+## Spec: docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
+##
+## Names follow the WWID (last 8 hex digits), NEVER the sdX letter: letters drift
+## across reboots, and the HDDs report an empty SERIAL so the WWID is the only
+## stable identity Talos exposes. Talos mounts a user volume at /var/mnt/<name>.
+##
+## A drive excluded by the SMART gate (spec R1) or held by the sdd ruling (R2) is
+## deleted from this file AND from longhorn-node-disks-pc-1.yaml in the same commit.
+## sdd carries an old GPT/xfs partition: it must be wiped (`talosctl wipe disk`)
+## before Talos will provision it.
+##
+## Manual ops: stor-pc1-hdd-smart-gate, stor-pc1-sdd-inspect, stor-pc1-hdd-volumes-apply
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 402-pc1-hdd-volumes
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03de0294-0480-05ab-3106-410700080009
+spec:
+    data: |
+        apiVersion: v1alpha1
+        kind: UserVolumeConfig
+        name: hdd-ae0311c3
+        provisioning:
+            diskSelector:
+                match: disk.wwid == "naa.50014ee2ae0311c3"
+            minSize: 900GB
+            grow: true
+        filesystem:
+            type: xfs
+        ---
+        apiVersion: v1alpha1
+        kind: UserVolumeConfig
+        name: hdd-03581a1f
+        provisioning:
+            diskSelector:
+                match: disk.wwid == "naa.50014ee203581a1f"
+            minSize: 900GB
+            grow: true
+        filesystem:
+            type: xfs
+        ---
+        apiVersion: v1alpha1
+        kind: UserVolumeConfig
+        name: hdd-556235e7
+        provisioning:
+            diskSelector:
+                match: disk.wwid == "naa.50014ee0556235e7"
+            minSize: 450GB
+            grow: true
+        filesystem:
+            type: xfs
