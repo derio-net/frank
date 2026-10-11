@@ -13,12 +13,12 @@ def _read(rel: str) -> str:
         return fh.read()
 
 
-def test_crontab_has_daily_cred_expiry_check():
+def test_crontab_has_six_hourly_cred_expiry_check():
     cron = _read("manifests/files/.crontab")
     line = next((ln for ln in cron.splitlines()
                  if "cred-expiry-check" in ln and not ln.lstrip().startswith("#")), None)
     assert line is not None, "no cred-expiry-check cron line"
-    assert line.split()[:5] == ["0", "9", "*", "*", "*"]              # daily 09:00
+    assert line.split()[:5] == ["0", "3,9,15,21", "*", "*", "*"]      # every 6h
     assert line.endswith("/opt/alert-agent-bin/cred-expiry-check")
 
 

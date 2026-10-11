@@ -1,0 +1,100 @@
+schema_version: 2
+phase:
+  number: 1
+  title: '#799 — Telegram contact point pinned to parse_mode None, contradictions
+    removed'
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - obs-telegram-alerts-deliver-any-text
+  skeleton: true
+  tier: standard
+  files:
+  - apps/grafana-alerting/manifests/contact-points-cm.yaml
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/test_telegram_parse_mode_explicit.py
+  - scripts/tests/test_etcd_scrape.py
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/frank-gotchas/grafana.md
+  - blog/content/docs/operating/05-observability/index.md
+  - blog/content/docs/operating/15-health-monitoring/index.md
+  estimate_lines: 120
+tasks:
+- number: 1
+  title: Smoke — the CI test gate is live on this branch
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Confirm the walking skeleton's runtime: `.fr/ci.yaml` declares `gate_checks: [tripwires]`, and `env -u GITHUB_TOKEN gh pr checks 832` shows `tripwires` passing on the branch's current head (PR #832, workflow `.github/workflows/repo-tripwires.yml`, which runs `pytest scripts/tests/`). No full local suite is run (operator instruction); targeted tests only.
+- number: 2
+  title: Tripwire for an explicit parse_mode (red)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Write `scripts/tests/test_telegram_parse_mode_explicit.py`: yaml-load `apps/grafana-alerting/manifests/contact-points-cm.yaml`, parse `data["contact-points.yaml"]`, collect every receiver with `type: telegram` (assert at least one), and assert `settings.get("parse_mode") == "None"` for each, with a message citing grafana/alerting receivers/telegram/v1/config.go:84-86 (unset falls back to HTML) and the 2026-10-10 probe (unset → 400, None → ok).
+  - id: P1.T2.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_telegram_parse_mode_explicit.py -q` and confirm it FAILS on the current contact point (parse_mode absent).
+- number: 3
+  title: Pin parse_mode None (green)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      In `contact-points-cm.yaml`, add `parse_mode: None` to the `efi04e0201jb4f` receiver settings and replace the "parse_mode intentionally unset → plain text" comment with: an UNSET value is HTML (upstream config.go:84-86, proven live 2026-10-10: a bare `<` returned Telegram 400), `None` is plain text, and Markdown is still rejected because it strips underscores (#143). Re-run the test from P1.T2.S2 and confirm it PASSES.
+- number: 4
+  title: Remove every contradicting description
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Reword the NOTE comments above `layer-1-nic-link-flap` and `layer-2-etcd-health` in `alert-rules-cm.yaml`, plus the docstring and assertion message at `scripts/tests/test_etcd_scrape.py` (~:1038, ~:1062-1063). Each should say that the unset default was HTML (so the 2026-06-08 400 was real) and that the contact point is pinned to `parse_mode: None` (frank#799). Keep the etcd test's no-`<>&` assertion as a style guard. Run `.venv/bin/pytest scripts/tests/test_etcd_scrape.py -q` and confirm it passes.
+  - id: P1.T4.S2
+    text: |-
+      Rewrite the Grafana one-liner in `agents/rules/frank-gotchas.md` ("The Telegram contact point uses HTML parse_mode …") and its section in `docs/runbooks/frank-gotchas/grafana.md`. They should state that an unset parse_mode means HTML (not plain), that the contact point is pinned to None since frank#799, that the probe evidence holds, and that `test_telegram_parse_mode_explicit.py` guards it.
+  - id: P1.T4.S3
+    text: |-
+      Correct the parse-mode passages in `blog/content/docs/operating/05-observability/index.md` (~:397-399, ~:494) and `blog/content/docs/operating/15-health-monitoring/index.md` (~:142-144, ~:182) to the same facts, as normal markdown edits. Then grep the repo for `parse_mode` and `HTML parse` (excluding docs/superpowers/) and confirm no remaining text claims "unset means plain".
+- number: 5
+  title: Refactor and push
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Refactor pass: keep the new test's helpers minimal and consistent with `scripts/tests/test_cred_expiry_alert_rule.py` style. Commit, push, and confirm the `tripwires` check on PR #832 is green on the pushed head (tests: ci).
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: '2026-10-10T19:18:51+00:00'
+      note: null
+  completion:
+    at: '2026-10-10T19:18:51+00:00'
+    note: null
+    observed_prs: []

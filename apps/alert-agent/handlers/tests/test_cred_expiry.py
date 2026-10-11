@@ -160,10 +160,22 @@ def test_heartbeat_error_says_unknown():
 
 # --- run_cred_check wiring: always heartbeat, warn on threshold, never crash --
 
+@pytest.fixture(autouse=True)
+def _state(monkeypatch, tmp_path):
+    # The de-dup state file must never touch the real /home/agent cache.
+    p = tmp_path / "state" / "cred-expiry-last-warn"
+    monkeypatch.setattr(ce, "STATE_PATH", str(p))
+    return p
+
+
 @pytest.fixture
 def wired(monkeypatch, capsys):
     sent = []
-    monkeypatch.setattr(ce.bridge, "tg_send", lambda text, *a, **k: sent.append(text))
+
+    def _send(text, *a, **k):
+        sent.append(text)
+        return {"ok": True}
+    monkeypatch.setattr(ce.bridge, "tg_send", _send)
     return sent
 
 
@@ -269,3 +281,111 @@ def test_run_ok_sends_no_command(wired, monkeypatch, capsys):
     monkeypatch.setattr(ce, "_read_cred", lambda: _creds(20))
     ce.run_cred_check(now_ms=NOW_MS)
     assert wired == []
+
+
+# --- once-a-day warning de-dup (frank#746) -------------------------------------
+# The check runs 6-hourly (03/09/15/21 UTC) so the dead-man heartbeat window can be
+# 13h, but the WARNING must stay once per warning-day per tier. A warning-day runs
+# 09:00 to 09:00 UTC (key = date(now - 9h)), so the 03:00 run joins the previous day.
+
+def _at(day: int, hour: int, minute: int = 0) -> int:
+    from datetime import datetime, timezone
+    return int(datetime(2026, 7, day, hour, minute, tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def _creds_at(now_ms: int, days_out: float) -> str:
+    return json.dumps({"claudeAiOauth": {"expiresAt": 0, "refreshToken": "rt",
+                                         "refreshTokenExpiresAt": int(now_ms + days_out * DAY_MS)}})
+
+
+def test_warn_key_is_utc_date_minus_nine_hours_and_tier():
+    assert ce._warn_key("soon", _at(10, 9)) == "2026-07-10:soon"
+    assert ce._warn_key("soon", _at(10, 15)) == "2026-07-10:soon"
+    assert ce._warn_key("soon", _at(10, 21)) == "2026-07-10:soon"
+    assert ce._warn_key("soon", _at(11, 3)) == "2026-07-10:soon"     # 03:00 = previous warning-day
+    assert ce._warn_key("soon", _at(11, 8, 59)) == "2026-07-10:soon"  # one minute before the roll
+    assert ce._warn_key("soon", _at(11, 9)) == "2026-07-11:soon"
+    assert ce._warn_key("error", _at(11, 9)) == "2026-07-11:error"
+
+
+def test_same_warning_day_and_tier_sends_once(wired, monkeypatch, capsys):
+    # 2.9 days out at 09:00 stays in the "soon" tier (2.4 days) through the 21:00 run
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2.9))
+    for h in (9, 15, 21):
+        ce.run_cred_check(now_ms=_at(10, h))
+    assert len(wired) == 2                                   # one warning + command, not six
+    assert capsys.readouterr().out.count("cred-expiry-check") == 3   # heartbeat EVERY run
+
+
+def test_next_warning_day_warns_again(wired, monkeypatch):
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    ce.run_cred_check(now_ms=_at(11, 9))
+    assert len(wired) == 4
+
+
+def test_03_utc_run_belongs_to_previous_warning_day(wired, monkeypatch):
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2.9))
+    ce.run_cred_check(now_ms=_at(10, 21))
+    ce.run_cred_check(now_ms=_at(11, 3))                     # same warning-day → silent
+    assert len(wired) == 2
+
+
+def test_tier_escalation_same_day_warns(wired, monkeypatch):
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 5))      # notice
+    ce.run_cred_check(now_ms=_at(10, 9))
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 15), 2))     # soon
+    ce.run_cred_check(now_ms=_at(10, 15))
+    assert len(wired) == 4
+
+
+def test_failed_send_does_not_record_key_so_next_run_warns(monkeypatch, capsys):
+    calls = []
+    # bridge.tg_send returns {"ok": False} on HTTP errors instead of raising
+    monkeypatch.setattr(ce.bridge, "tg_send",
+                        lambda text, *a, **k: calls.append(text) or {"ok": False})
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    assert not __import__("os").path.exists(ce.STATE_PATH)
+    ce.run_cred_check(now_ms=_at(10, 15))
+    assert len(calls) == 4
+
+
+def test_second_send_failing_also_leaves_key_unwritten(monkeypatch):
+    results = iter([{"ok": True}, {"ok": False}, {"ok": True}, {"ok": True}])
+    monkeypatch.setattr(ce.bridge, "tg_send", lambda *a, **k: next(results))
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    assert not __import__("os").path.exists(ce.STATE_PATH)
+
+
+def test_non_dict_send_result_does_not_record_key(monkeypatch):
+    monkeypatch.setattr(ce.bridge, "tg_send", lambda *a, **k: None)
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    assert not __import__("os").path.exists(ce.STATE_PATH)
+
+
+def test_unreadable_state_warns(wired, monkeypatch, tmp_path):
+    d = tmp_path / "statedir"
+    d.mkdir()
+    monkeypatch.setattr(ce, "STATE_PATH", str(d))            # a directory → read error
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    assert len(wired) == 2
+
+
+def test_unwritable_state_warns_and_heartbeat_prints(wired, monkeypatch, tmp_path, capsys):
+    f = tmp_path / "afile"
+    f.write_text("x")
+    monkeypatch.setattr(ce, "STATE_PATH", str(f / "sub" / "state"))   # parent is a file
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 2))
+    ce.run_cred_check(now_ms=_at(10, 9))                     # must NOT raise
+    assert len(wired) == 2
+    assert "cred-expiry-check" in capsys.readouterr().out
+
+
+def test_ok_tier_never_touches_state(wired, monkeypatch):
+    monkeypatch.setattr(ce, "_read_cred", lambda: _creds_at(_at(10, 9), 20))
+    ce.run_cred_check(now_ms=_at(10, 9))
+    assert not __import__("os").path.exists(ce.STATE_PATH)

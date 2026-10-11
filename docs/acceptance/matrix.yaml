@@ -1240,3 +1240,36 @@ rows:
     rather than NoData-firing, which is what noDataState: OK exists to produce. Grafana came back
     3/3 Running with database ok and zero provisioning errors, and no rule uid in the document
     exceeds Grafana's 40-character limit (ours is 31).
+- id: obs-telegram-alerts-deliver-any-text
+  capability: alerting
+  acceptance: Grafana alerts routed to Telegram are delivered as plain text, so an
+    annotation containing <, > or & still reaches the operator instead of being silently
+    rejected.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R1
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
+- id: obs-cred-expiry-deadman-tolerates-one-miss
+  capability: alerting
+  acceptance: A single missed credential-expiry check does not page the operator,
+    while a dead check still pages within about 15 hours, and expiry warnings arrive
+    at most once per day per tier.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-pvc-capacity-pages
+  capability: alerting
+  acceptance: The operator is paged when any persistent volume passes 85% (warning)
+    or 95% (critical) of its bytes, or 90% of its inodes, naming the volume, before
+    it fills and writes fail.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md#R7
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live

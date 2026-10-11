@@ -78,9 +78,11 @@ Two corroborating signals from the v2 `/alerts` API:
 
 Established 2026-06-07 proving the cert-expiry canary's perma-mute (issue #251, `apps/grafana-alerting/manifests/notification-policy-cm.yaml`). The canary's two instances (warning 14d + critical 7d) fired, dispatcher count = 2, notification latency count = 0, single receiver — Telegram and health-bridge both silent, operator confirmed no Telegram message.
 
-## Telegram contact point uses HTML parse_mode — `<>&` in annotations → 400 Bad Request, silent non-delivery
+## Unset Telegram parse_mode means HTML — `<>&` in annotations → 400 Bad Request, silent non-delivery
 
-The `Telegram - Willikins` contact point sends messages with Telegram's **HTML `parse_mode`**. Grafana renders the alert's `summary`/`runbook` annotations into the message body **without HTML-escaping**, so any of these in an annotation value breaks Telegram's HTML parser:
+**Status (frank#799):** the `Telegram - Willikins` contact point is now pinned to `parse_mode: None` (plain text), so the failure below no longer occurs. The earlier belief that leaving `parse_mode` unset gives plain text was wrong: grafana/alerting `receivers/telegram/v1/config.go:84-86` falls back to **HTML** when it is unset, and `"None"` is what maps to plain. Proven live on 2026-10-10 with a receivers/test probe on Grafana 12.3.3 containing a bare `<`: unset returned Telegram 400, `None` returned ok. `scripts/tests/test_telegram_parse_mode_explicit.py` asserts every Telegram receiver sets it. Markdown remains rejected (it strips underscores). Keeping `<>&` out of annotations stays a style guard. The rest of this section describes the HTML-mode failure as it presented.
+
+Before the pin, the contact point sent messages with Telegram's **HTML `parse_mode`** (by default). Grafana renders the alert's `summary`/`runbook` annotations into the message body **without HTML-escaping**, so any of these in an annotation value breaks Telegram's HTML parser:
 
 - `<…>` that looks like a tag — e.g. a `<node-ip>` placeholder, `<pod>`, `<name>`
 - a bare `<` or `>` (including `>6`, `<1GiB` written literally)
@@ -101,7 +103,7 @@ kubectl logs -n monitoring deploy/victoria-metrics-grafana -c grafana \
 #         webhook response status 400 Bad Request"
 ```
 
-**Rule:** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values*. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
+**Rule (style, since frank#799):** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values* — under `parse_mode: None` they no longer break delivery, so the older rules that still carry them are harmless and deliberately left as-is, but bracket-free text survives any future parse-mode change. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
 
 **Why static checks miss it:** the YAML is valid, the rule provisions cleanly, routing/labels are correct — the rule looks perfect until it actually tries to *deliver*. Only an end-to-end firing (real or synthetic-metric-import) exercises the Telegram send path. Caught 2026-06-08 on the `layer-1-nic-link-flap` rule: it fired correctly on a real gpu-1 `enp3s0` flap but its annotations carried `talosctl -n <node-ip> dmesg` and `(>6 carrier changes/30m)`, so every page 400'd and the operator got nothing — discovered only by driving the post-merge Test Plan. This is the concrete proof of the repo rule "a layer is not Deployed until its workflow has been triggered + observed end-to-end."
 
@@ -1186,3 +1188,14 @@ the throwaway Pipeline object had been deleted while its counters lived on. The
 rule reads the controller's in-memory counters, not live Pipeline objects, so a
 deleted pipeline keeps alerting until it succeeds once or the controller pod
 restarts. Harmless, but worth recognising rather than chasing.
+
+### PVC capacity alerts read the kubelet, go NoData when unmounted, and repeat every 4h
+
+Nothing alerted on PVC fill until frank#722 (the hermes tool-home expansion in #715 was the prompt). Group `pvc-capacity` in the feature-health folder holds three rules: `pvc-capacity-warning` (above 85% for 30m), `pvc-capacity-critical` (above 95% for 5m) and `pvc-inodes-warning` (above 90% of inodes for 30m).
+
+- **Source.** `kubelet_volume_stats_*`, scraped from the kubelet. It is unaffected by the kube-state-metrics `maxScrapeSize` drop that blinds every `kube_*` rule.
+- **Expression.** `100 * max by (namespace, persistentvolumeclaim) (used) / (max by (namespace, persistentvolumeclaim) (capacity) > 0)`. The `max by` collapses the duplicate series that exists briefly while a volume moves between nodes. The `> 0` drops a zero denominator, which would give +Inf and fire forever.
+- **NoData.** A volume that is not mounted reports no series. The rule goes NoData and `noDataState: OK` keeps it quiet. Those volumes cannot fill, so this is expected, not a blind spot.
+- **Route.** `pvc_capacity="true"` matches a parent route with `repeat_interval: 4h` and `continue: false`; its children are Telegram (continue true) and the Health Bridge. Without it a full volume would re-page every 3m for days until someone expands or prunes it.
+- **Live baseline, 2026-10-10.** 36 byte series, top 78.2% (`secure-agent-pod/agent-home`); inode maximum 34.7%; no zero denominators.
+- **First move when it fires.** Check Longhorn provisioning headroom before expanding (see the Storage entry on silently refused expansion in `storage-secrets-ssa.md`), then look for untracked workloads and prunable data.

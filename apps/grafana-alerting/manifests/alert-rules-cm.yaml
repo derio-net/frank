@@ -957,6 +957,132 @@ data:
               summary: "L1 Hardware: node {{ $labels.instance }} has <1GiB memory available for 30m — reclaim-thrash wedge risk (see 2026-06-04 raspi-1 incident)"
               runbook: "talosctl -n <node-ip> memory; check Longhorn instance-manager working set: container_memory_working_set_bytes{pod=~\"instance-manager.*\"}; docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md"
 
+      # --- PVC capacity (frank-ops#4, frank#722, spec obs-frank-alert-gaps) ---
+      # Nothing alerted on PVC fill before; #715 (hermes tool-home) showed the
+      # pain. Source is the kubelet volume stats, so the scrape-size cap that
+      # blinded kube-state-metrics does not affect these series.
+      # - max by (namespace, persistentvolumeclaim) collapses the duplicate
+      #   series that exists briefly while a volume moves between nodes.
+      # - The denominator carries `> 0`: a zero capacity would give +Inf and
+      #   fire forever.
+      # - A volume that is not mounted reports NO series, so the rule goes
+      #   NoData and stays OK (noDataState: OK). Unmounted volumes cannot fill.
+      # - Only operator action clears a full volume, so the pvc_capacity route
+      #   in notification-policy-cm.yaml repeats every 4h instead of every 3m.
+      - orgId: 1
+        name: pvc-capacity
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: pvc-capacity-warning
+            title: PVC Capacity Above 85 Percent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '100 * max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes) / (max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes) > 0)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [85] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#4"
+              pvc_capacity: "true"
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $values.B.Value | printf \"%.0f\" }}% full for 30m"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
+          - uid: pvc-capacity-critical
+            title: PVC Capacity Above 95 Percent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '100 * max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes) / (max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes) > 0)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [95] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#4"
+              pvc_capacity: "true"
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $values.B.Value | printf \"%.0f\" }}% full"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
+          - uid: pvc-inodes-warning
+            title: PVC Inodes Above 90 Percent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '100 * max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_inodes_used) / (max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_inodes) > 0)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [90] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#4"
+              pvc_capacity: "true"
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has used {{ $values.B.Value | printf \"%.0f\" }}% of its inodes for 30m"
+              runbook: "Check Longhorn provisioning headroom before expanding (frank-gotchas Storage: a PVC expansion can be silently refused); look for untracked workloads and prunable data on the volume. docs/runbooks/frank-gotchas/storage-secrets-ssa.md (headroom check), docs/runbooks/frank-gotchas/grafana.md"
+
       # --- Layer 1 — NIC link flap (frank-ops#1) ---
       # Carrier-change RATE, not a down-state: a flapping NIC is up-on-average
       # and never sustains a `for: 5m` down window, so the NotReady / Cilium-Down
@@ -1005,10 +1131,11 @@ data:
               severity: warning
               github_issue: "frank-ops#1"
             annotations:
-              # NOTE: no < > & in annotations — Grafana's Telegram contact point
-              # sends HTML parse_mode, so '<node-ip>' / bare '>' render as invalid
-              # HTML tags and Telegram rejects the message with 400 Bad Request
-              # (silent non-delivery; logged as ngalert.notifier error). 2026-06-08.
+              # NOTE: no < > & in annotations. The contact point's parse_mode was
+              # UNSET on 2026-06-08, which Grafana treats as HTML, so '<node-ip>' /
+              # bare '>' were invalid tags and Telegram rejected the message with
+              # 400 (silent non-delivery; ngalert.notifier error). It is now pinned
+              # to parse_mode: None (frank#799); keep this as a style guard.
               summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (6+ carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
               runbook: "talosctl -n NODE_IP dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
 
@@ -1123,11 +1250,12 @@ data:
       # repointed at one of them goes green and measures the wrong process.
       # Guarded by scripts/tests/test_etcd_scrape.py.
       #
-      # NOTE: no < > & in annotations — Grafana's Telegram contact point sends
-      # HTML parse_mode, so a bare angle bracket makes Telegram reject the
-      # message with 400 and the alert fires but is never delivered (the
-      # 2026-06-08 layer-1-nic-link-flap incident). Hence NODE_IP, not a
-      # bracketed placeholder, and comparisons spelled out in words.
+      # NOTE: no < > & in annotations. The contact point's parse_mode was UNSET
+      # on 2026-06-08, which Grafana treats as HTML, so a bare angle bracket made
+      # Telegram reject the message with 400 and the alert fired but was never
+      # delivered (the layer-1-nic-link-flap incident). The contact point is now
+      # pinned to parse_mode: None (frank#799); NODE_IP and words-for-comparisons
+      # remain as a style guard.
       - orgId: 1
         name: layer-2-etcd-health
         folder: feature-health
@@ -2634,7 +2762,7 @@ data:
               runbook: "Check https://expired.badssl.com/ reachability, the blackbox-exporter http_2xx_insecure_tls module, and VMProbe expired-cert-canary. Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md"
 
       # Dead-man's switch for the alert-agent Claude-credential expiry check. A
-      # daily cron in the alert-agent `agent` container emits a
+      # 6-hourly cron in the alert-agent `agent` container emits a
       # "cred-expiry-check days_left=... tier=..." heartbeat to stdout ->
       # supercronic -> fluent-bit -> VictoriaLogs. The "expiring soon" warning is
       # sent by that script directly (tg_send); THIS rule is the checker-died
@@ -2647,6 +2775,10 @@ data:
       # telegram_direct pages Telegram DIRECTLY (bypassing the LLM agent — the
       # warner is down, so it can't be trusted to triage its own outage), via the
       # top-of-policy route (notification-policy-cm.yaml:57-60, folder-independent).
+      # Timing (frank#746): cron 03/09/15/21 UTC = 6h cadence; window 13h (46800s) = two
+      # cadences + 1h slack, so ONE missed run is tolerated; a dead check fires 15-16h after
+      # its last heartbeat (window drain 13h + eval interval 1h + for 2h at worst) instead
+      # of 30h+. The Telegram warning itself is de-duped to once per warning-day per tier.
       # Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
       - orgId: 1
         name: alert-agent-cred-expiry
@@ -2658,18 +2790,18 @@ data:
             condition: C
             data:
               - refId: A
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: affdoo4s9258gc
                 model:
                   refId: A
                   queryType: stats
                   expr: 'kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check" | stats count() as value'
               - refId: B
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: __expr__
                 model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
               - refId: C
-                relativeTimeRange: { from: 108000, to: 0 }
+                relativeTimeRange: { from: 46800, to: 0 }
                 datasourceUid: __expr__
                 model:
                   refId: C
@@ -2684,7 +2816,7 @@ data:
               severity: critical
               telegram_direct: "true"
             annotations:
-              summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 30h. The daily check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
+              summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 13h. The 6-hourly check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
               runbook: "Check the alert-agent pod + its supercronic cron: kubectl -n alert-agent get pods; kubectl -n alert-agent exec deploy/alert-agent -c agent -- /opt/alert-agent-bin/cred-expiry-check (should print a cred-expiry-check heartbeat). Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md"
 
       # Headscale API keys expire silently: Headplane stays Running and logs no

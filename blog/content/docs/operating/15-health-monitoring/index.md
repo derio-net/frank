@@ -139,9 +139,9 @@ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- /opt/scripts
 
 If an alert fires but no Telegram message arrives, check three failure patterns we've fixed:
 
-1. **Markdown stripping underscores** — `parse_mode: Markdown` interprets `_` as italic. `job=session_manager` renders as `sessionmanager` (commit `cc239cf9`). Fixed by removing `parse_mode`.
+1. **Markdown stripping underscores** — `parse_mode: Markdown` interprets `_` as italic. `job=session_manager` renders as `sessionmanager` (commit `cc239cf9`). Removing it left `parse_mode` unset, which Grafana treats as HTML (see 2); it is now pinned explicitly to `parse_mode: None` (frank#799).
 
-2. **HTML annotation rejection** — annotation values like `<node-ip>` are valid strings but Telegram's HTML parser rejects them as invalid HTML tags. The message dispatches but Telegram returns HTTP 400 silently (commit `c866a85e`). Fixed by stripping `<>&` from annotations.
+2. **HTML annotation rejection** — annotation values like `<node-ip>` are valid strings but Telegram's HTML parser rejects them as invalid HTML tags. The message dispatches but Telegram returns HTTP 400 silently (commit `c866a85e`). The root cause was that an unset `parse_mode` means HTML, not plain text; the contact point is now pinned to `parse_mode: None` (frank#799), and stripping `<>&` from annotations remains as a style guard.
 
 3. **Trailing newline in bot token** — the Telegram bot token from Infisical had a trailing newline, causing HTTP 404 on `sendMessage` — also silent (commit `f7d8f189`). Fixed by defensive credential stripping.
 
@@ -179,7 +179,7 @@ kubectl rollout restart deployment -n monitoring victoria-metrics-operator
 
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
-| Telegram contact point annotations are opaque strings — any format works | Telegram's HTML parser rejects `<node-ip>` as an invalid HTML tag. `parse_mode: Markdown` silently strips underscores in label values like `session_manager`. Both return HTTP 400/200 with no Grafana error. | Silent delivery failures on active alerts. An alert shows Firing in Grafana, the message appears sent, but no operator ever sees it. |
+| Telegram contact point annotations are opaque strings — any format works | With `parse_mode` unset (Grafana treats that as HTML) Telegram's parser rejects `<node-ip>` as an invalid HTML tag; the contact point is now pinned to `parse_mode: None`. `parse_mode: Markdown` silently strips underscores in label values like `session_manager`. Both return HTTP 400/200 with no Grafana error. | Silent delivery failures on active alerts. An alert shows Firing in Grafana, the message appears sent, but no operator ever sees it. |
 | A {{< abbr "NIC" >}} is either up or down — binary link-state monitoring is sufficient | Flapping NICs that go up-down-up within 5m are invisible to binary-down-state rules with `for: 5m`. gpu-1's enp3s0 flapped 76 times over ~8h — 0 alerts fired (commit `9ee2cde1`). | An 8-hour networking blind spot on the GPU node during active inference workloads. |
 | The Grafana alerting ConfigMap alone controls what fires — provisioning files are watched at boot | Grafana reads provisioning files at startup. After editing the ConfigMap, the new rules don't take effect until Grafana restarts. | Multiple incidents where a rule change was committed and synced but alerts continued from the old rules. |
 

@@ -1,0 +1,185 @@
+schema_version: 10
+run: 2026-10-10-feat-batch-frank-alert-gaps
+workflow: fr-goal@1
+branch: feat/batch-frank-alert-gaps
+started: '2026-10-10T18:20:36+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-10-10T18:52:30+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-10--obs--frank-alert-gaps-design.md
+  spec-review:
+    state: done
+    at: '2026-10-10T19:09:43+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-10-10T18:52:39+00:00'
+          agent: ab56d741d535df715
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          model: claude-opus-5-5
+          tier: hard
+          bound: opus
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:09:43+00:00'
+          outcome: done
+        evidence:
+          review: spec-review-r1
+          reviewer: ab56d741d535df715
+          findings: sr-1,sr-2,sr-3,sr-4,sr-5,sr-6,sr-7,sr-8,sr-9
+  plan:
+    state: done
+    at: '2026-10-10T19:12:34+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-10-10--obs--frank-alert-gaps
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-10-10T19:09:46+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:12:34+00:00'
+          outcome: done
+  plan-review:
+    state: done
+    at: '2026-10-10T19:12:37+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
+  implement:
+    state: done
+    at: '2026-10-10T19:40:05+00:00'
+    members:
+    - implement-phase
+    - review-phase
+    units:
+      phase/1/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:12:38+00:00'
+          agent: aea6dd0e62fe5e546
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:18:55+00:00'
+          outcome: done
+        evidence:
+          tests: ci:cbc7c12ac0a76ddfe4fd1f11ca9811cf225ff09b+9c861418a9f78faeacf0f8d62c0effa9df8f3ed5;tree=ded368429deec7f03f6db1365e72d09aab3ab089c1eb162c07147ed731003716
+          visual: none
+      phase/1/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:18:56+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:19:20+00:00'
+          outcome: abandoned
+        - dispatched: '2026-10-10T19:19:20+00:00'
+          agent: a02bdf5a3f55d1363
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:22:10+00:00'
+          outcome: done
+        evidence:
+          review: review-p1-r1
+          reviewer: a02bdf5a3f55d1363
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3
+      phase/2/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:22:12+00:00'
+          agent: a647af60ade1fb723
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:27:41+00:00'
+          outcome: done
+        evidence:
+          tests: ci:41825dca74f0ab0cda322d49f377ef68f5c7001b+9c861418a9f78faeacf0f8d62c0effa9df8f3ed5;tree=7a88111a94caf928ade84513705f888b6f9dd9413972e12be82bb6765cf70492
+          visual: none
+      phase/2/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:27:42+00:00'
+          agent: aca17d447c86d4f6b
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:30:05+00:00'
+          outcome: done
+        evidence:
+          review: review-p2-r1
+          reviewer: aca17d447c86d4f6b
+          visual: none
+          findings: p2-r1,p2-r2,p2-r3,p2-r4
+      phase/3/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:30:06+00:00'
+          agent: a58ed456abbcded44
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:36:35+00:00'
+          outcome: done
+        evidence:
+          tests: ci:eae35f723ceaae7a6741ebfe029da28465c9300a+9c861418a9f78faeacf0f8d62c0effa9df8f3ed5;tree=1b0102d196efc8d5de95ea6bbaaa57081dc823af7c1553f2874c35ff1e458d29
+          visual: none
+      phase/3/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-10T19:36:37+00:00'
+          agent: a01599dc043e84afc
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:40:05+00:00'
+          outcome: done
+        evidence:
+          review: review-p3-r1
+          reviewer: a01599dc043e84afc
+          visual: none
+          findings: p3-r1,p3-r2,p3-r3
+  journal-check:
+    state: done
+    at: '2026-10-10T19:40:09+00:00'
+    exit: 0
+    stdout: |
+      1 out-of-scope finding(s): p2-r4
+  deliver:
+    state: done
+    at: '2026-10-10T19:59:32+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/832
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-10-10T19:40:10+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 4d6fa419-32bc-4dda-9e07-d7a7cca63eaf
+          returned: '2026-10-10T19:59:30+00:00'
+          outcome: done
+        evidence:
+          tests: ci:09b3a6e96d05df665559a159adac2c6d63a162b8+unknown;tree=224cd5243932f1eed09befc738ddd225f973211e3ff5cdce49b760feed268f1e
+          walk: none
+          proportionality: 9c861418a9f78faeacf0f8d62c0effa9df8f3ed5:98ad68fcd899ae3e0c6aa4284e6032e256a114b1cedca1d0b5cdd02d21ab61f6
+          visual: none
+fr_version: 5.19.1
