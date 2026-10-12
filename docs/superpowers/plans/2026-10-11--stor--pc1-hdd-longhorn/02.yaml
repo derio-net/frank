@@ -163,9 +163,11 @@ state:
       ticked_at: '2026-10-12T14:33:57+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-10-12T14:34:10+00:00'
+      note: sdd (naa.50014ee0556235e7) failed the SMART gate (197=305, 198=68) and
+        was excluded, so R2's inspect/wipe applies to no admitted drive; partition
+        left untouched (frank#824)
     P2.T2.S1:
       state: x
       ticked_at: '2026-10-12T14:34:00+00:00'
