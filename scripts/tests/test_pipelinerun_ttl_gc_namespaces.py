@@ -9,7 +9,10 @@ pinned a Longhorn instance-manager PDB at `disruptionsAllowed=0`, which stalled
 `kubectl drain` during the #762 control-plane roll.
 
 So the set the GC sweeps is DERIVED here from git: the namespace of every
-PipelineRun a TriggerTemplate (or a raw manifest) creates. Adding a third CI
+PipelineRun a TriggerTemplate (or a raw manifest) under `apps/` creates.
+Blind spot: an Application whose source lives in ANOTHER repo (e.g.
+stoa-live-mirror-sync, which today creates TaskRuns, not PipelineRuns) is
+invisible here. Adding a third CI
 namespace without wiring the GC now fails a PR. Before this guard, it leaked
 silently.
 """
@@ -27,10 +30,17 @@ SCAN_ROOTS = [REPO / "apps"]
 
 
 def _docs(path: Path) -> list[dict]:
+    text = path.read_text()
     try:
-        return [d for d in yaml.safe_load_all(path.read_text()) if isinstance(d, dict)]
+        return [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]
     except yaml.YAMLError:
-        return []  # Helm templates etc. — not plain manifests
+        # Unparsable files (Helm templates etc.) are skipped, but never one
+        # that defines what this guard is counting; a skip there would hide
+        # a namespace and let the guard pass vacuously.
+        assert not re.search(r"^\s*kind:\s*(TriggerTemplate|PipelineRun)\b", text, re.MULTILINE), (
+            f"{path.relative_to(REPO)} defines a TriggerTemplate/PipelineRun but is not plain YAML"
+        )
+        return []
 
 
 def _pipelinerun_namespaces() -> set[str]:

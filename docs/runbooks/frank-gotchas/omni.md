@@ -232,9 +232,10 @@ through; the whole drain took under two minutes and the reboot 68s.
 On mini-3 and mini-2 it **never** lifted. Each held six *detached* volumes from
 the 1-replica `longhorn-cicd` StorageClass, the workspace PVCs of finished
 `kid-laptops-ci` PipelineRuns 43–48 days old, never collected because
-`pipelinerun-ttl-gc` only covered `tekton-pipelines` (#791; fixed 2026-10-12, it now sweeps
-every namespace in its `NAMESPACES` list, guarded by
-`scripts/tests/test_pipelinerun_ttl_gc_namespaces.py`). A 1-replica volume's replica is
+`pipelinerun-ttl-gc` only covered `tekton-pipelines` (#791; the fix makes it sweep every
+namespace in its `NAMESPACES` list, guarded by
+`scripts/tests/test_pipelinerun_ttl_gc_namespaces.py`; the leaked PVCs go at the first
+GC run after merge — assert they are gone, not that the app is Synced). A 1-replica volume's replica is
 always its last, so the guard pins the PDB for as long as the PVC exists.
 longhorn-manager says so outright:
 `removing mini-3 PDB is blocked: replica pvc-…-r-… has no pdb on another node`.

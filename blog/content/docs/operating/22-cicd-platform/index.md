@@ -197,7 +197,7 @@ kubectl logs -n tekton-pipelines job/<job-name> | grep 'pipelinerun-ttl-gc resul
 # pipelinerun-ttl-gc result namespace=kid-laptops-ci deleted=12 remaining=1 cutoff=...
 ```
 
-The CronJob sweeps the namespaces in its `NAMESPACES` list (`tekton-pipelines`, `kid-laptops-ci`), each with its own Role and RoleBinding. A namespace missing from that list is never swept. Its PipelineRuns and their workspace PVCs pile up, and on the 1-replica `longhorn-cicd` class each PVC blocks a node drain. A PR that adds a new PipelineRun namespace fails `scripts/tests/test_pipelinerun_ttl_gc_namespaces.py` until the namespace is added to the list.
+The CronJob sweeps the namespaces in its `NAMESPACES` list (`tekton-pipelines`, `kid-laptops-ci`), each with its own Role and RoleBinding. A namespace missing from that list is never swept. Its PipelineRuns and their workspace PVCs pile up, and because the workspace StorageClass is single-replica, each leaked PVC blocks a drain of the node that holds its only replica. A PR that adds a new PipelineRun namespace fails `scripts/tests/test_pipelinerun_ttl_gc_namespaces.py` until the namespace is added to the list.
 
 ### Manually Re-Trigger GitHub-primary Pull Sync
 

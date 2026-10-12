@@ -66,9 +66,9 @@ subjects:
   - kind: ServiceAccount
     name: pipelinerun-ttl-gc
     namespace: tekton-pipelines
+---
 # kid-laptops CI (apps/tekton/triggers/kid-laptops-ci.yaml) creates its
 # PipelineRuns here; the ServiceAccount stays in tekton-pipelines.
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -146,9 +146,10 @@ spec:
                   NAMESPACES="tekton-pipelines kid-laptops-ci"
                   CUTOFF=$(date -u -d "${AGE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
 
-                  # One namespace failing (e.g. RBAC not yet synced) must not
-                  # stop the others from being swept, so errors are counted
-                  # and the job fails at the END, after every summary line.
+                  # One namespace failing (e.g. RBAC not yet synced, a transient
+                  # API error on a delete) must not stop the others from being
+                  # swept, so every kubectl failure is counted and the job
+                  # fails at the END, after every summary line.
                   FAILED=0
                   for ns in ${NAMESPACES}; do
                     echo "Deleting PipelineRuns in ${ns} completed before ${CUTOFF}"
@@ -170,8 +171,11 @@ spec:
                       # ISO-8601 sorts lexically — string < works
                       if [ "$ct" \< "$CUTOFF" ]; then
                         echo "  deleting ${ns}/$name (completed $ct)"
-                        kubectl delete pipelinerun -n "${ns}" "$name" --ignore-not-found
-                        DELETED=$((DELETED + 1))
+                        if kubectl delete pipelinerun -n "${ns}" "$name" --ignore-not-found; then
+                          DELETED=$((DELETED + 1))
+                        else
+                          FAILED=$((FAILED + 1))
+                        fi
                       fi
                     done <<< "${LIST}"
 
@@ -179,7 +183,7 @@ spec:
                     # shell and the count survives (the old pipeline put the loop
                     # in a subshell, which is why it could only apologise for not
                     # knowing what it had done).
-                    REMAINING=$(kubectl get pipelinerun -n "${ns}" --no-headers 2>/dev/null | wc -l)
+                    REMAINING=$(kubectl get pipelinerun -n "${ns}" --no-headers 2>/dev/null | wc -l) || REMAINING=unknown
                     # Machine-greppable summary, one line per namespace — a
                     # log-based alert can watch this line, since a silent GC
                     # failure is exactly how this broke.
