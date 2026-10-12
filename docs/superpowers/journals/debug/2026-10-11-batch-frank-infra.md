@@ -51,3 +51,8 @@ Commit 047c2ff5. scripts/stale_field_managers.py plus test_stale_field_managers.
 ### c8ff3b4865ed · finding [open] · Latent: 41 bootstrap helm Apply managers on argocd/cilium/longhorn objects, filed as #843
 
 Same mechanism as #827, not a second root cause: latent, nothing is failing. Out of scope for this PR (live changes to core infrastructure); filed as frank#843.
+
+<!-- fr:journal kind=review scope=debug id=675d7e44d363 created=2026-10-12T06:09:12+00:00 -->
+### 675d7e44d363 · review · Milestone review: inline (reviewer subagent could not get a worktree)
+
+Two code-reviewer dispatches with isolation: worktree both failed in fr-worktree-create.sh (index.lock 'File exists' on a fresh agent-* worktree, then checkout could not create files), so the review ran inline. Findings: (1) FIXED — the #827 detector only saw Apply managers; a client-side kubectl apply (Update by kubectl-client-side-apply) co-owning list items blocks deletions the same way. Widened to overlapping Update managers; tests failed first; fleet result unchanged (0 such entries live, method validated on paperclip = 44 overlapping items). (2) FIXED earlier — background security review: cgroup figures evaluated in bash arithmetic (is_uint gate). (3) OUT OF SCOPE, nit — pool-watchdog idle_for=$(( now - last )) evaluates a Deployment annotation; whoever can write it can already change the Deployment's image. (4) Checked, no change: exec line order matches sed 1-5 / tail +6; JSON patch tests precede each remove, highest index first, so earlier removes never shift later paths; CRITICAL_PERCENT 53 matches the 0.43 GiB offset measured with file LRUs at 0. (5) Corrected — the latent helm count is 41, not 42 (the scan's 42 include paperclip).
