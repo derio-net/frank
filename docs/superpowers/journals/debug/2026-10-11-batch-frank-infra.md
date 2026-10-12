@@ -36,3 +36,8 @@ Raised by the background commit security review of 79fa4015. Bash $(( )) evaluat
 ### 65803854394e · finding [open] · #774 moved out of this batch to the pending Headscale policy revision (ice#3)
 
 #774 adds autoApprovers entries, and a pending policy revision (ice#3) changes the same autoApprovers block in the opposite direction. Operator decided: no Headscale change in this PR; #774 is decided together with ice#3. Removed from the PR's Closes list.
+
+<!-- fr:journal kind=root-cause scope=debug id=ea3d9a09b9e4 created=2026-10-12T06:05:50+00:00 -->
+### ea3d9a09b9e4 · root-cause · #827: a 2026-05-17 kubectl Apply manager co-owns the dropped containers
+
+Live (read-only, 2026-10-11): paperclip app OutOfSync, operationState Failed at 4fd62d8 with 'containers[1].image / initContainers[0].image: Required value'. managedFields[0] = kubectl Apply 2026-05-17T13:04:15Z, owning the paperclip-shell and hermes-init list items but not their image fields. SSA keeps an item while any manager owns it, so ArgoCD's apply released only the image fields.
