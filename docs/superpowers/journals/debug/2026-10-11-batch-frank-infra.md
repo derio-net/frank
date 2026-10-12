@@ -26,3 +26,8 @@ memory.current includes active_file+inactive_file, which grow with pod uptime (1
 ### 962fb3db1696 · finding [fixed] · #821 fixed: Rule 1 numerator = memory.current - active_file - inactive_file
 
 Commit 79fa4015. Failing-first tests: test_the_exec_reads_both_file_lrus_from_memory_stat, test_rule_one_does_not_count_reclaimable_page_cache (incident peak on a 12-day pod: restarted before, busy/no restart after), test_rule_one_still_fires_when_the_unreclaimable_part_is_critical, test_the_restart_line_reports_the_figure_rule_one_compared. CRITICAL_PERCENT stays 53. Targeted run: test_ovms_pool_watchdog + test_ovms_retrieval_manifests, 73 passed.
+
+<!-- fr:journal kind=finding scope=debug id=e62bf9ab92c9 created=2026-10-12T06:01:46+00:00 state=fixed -->
+### e62bf9ab92c9 · finding [fixed] · Watchdog evaluated container-supplied cgroup figures in bash arithmetic
+
+Raised by the background commit security review of 79fa4015. Bash $(( )) evaluates variable contents, and the shmem/current/max/file-LRU figures come from a shell inside the ovms container. Pre-existing for limit/current; widened by the new numerator. Fixed by an is_uint gate that reports unreadable-cgroup. Failing-first: test_a_non_numeric_cgroup_field_is_never_evaluated (5 params, all failed before the fix). Targeted run: 78 passed.
