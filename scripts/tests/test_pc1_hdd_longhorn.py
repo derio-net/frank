@@ -1,7 +1,7 @@
 """Guard: pc-1's HDD tier is declared consistently in git.
 
-Spec: docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
-Plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+Spec: docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md
+Plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
 
 Pins the declarative half: Talos UserVolumeConfigs select drives by WWID, the
 Longhorn node-disk patches match their mounts, the longhorn-hdd class exists,

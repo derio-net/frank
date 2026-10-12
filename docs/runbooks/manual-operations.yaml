@@ -2584,7 +2584,7 @@ operations:
 - id: stor-pc1-hdd-smart-gate
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE 402-pc1-hdd-volumes.yaml is applied; re-run before admitting any replacement drive. The long test takes each drive's own polling time (smartctl -c; roughly 3-4 h for a 1 TB WD Green) and all three can run in parallel.
   why_manual: SMART reads the physical drives through a privileged pod on pc-1; Talos ships no smartctl, and the verdict is a human admission decision, not cluster state.
   commands:
@@ -2601,7 +2601,7 @@ operations:
 - id: stor-pc1-sdd-inspect
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE 402-pc1-hdd-volumes.yaml is applied, and only if stor-pc1-hdd-smart-gate admitted sdd (naa.50014ee0556235e7).
   why_manual: Mounting an unknown filesystem and judging whether its contents matter is an operator decision, and the wipe is irreversible.
   commands:
@@ -2619,7 +2619,7 @@ operations:
 - id: stor-pc1-hdd-volumes-apply
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE merge, once stor-pc1-hdd-smart-gate and stor-pc1-sdd-inspect have settled the admitted drive set in 402-pc1-hdd-volumes.yaml. Re-apply after any change to that file.
   why_manual: Omni lives outside the cluster and the apply needs the Omni service-account credential; ArgoCD cannot drive it.
   commands:
@@ -2633,7 +2633,7 @@ operations:
 - id: stor-pc1-hdd-longhorn-disks
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: Two passes. Pass 1 (allowScheduling false) BEFORE merge, after stor-pc1-hdd-volumes-apply. Pass 2 (the file as written, allowScheduling true) only AFTER the merge AND once the live setting allow-empty-disk-selector-volume reads false. Re-apply pass 2 if pc-1's Longhorn node is ever re-created. gpu-1's file is applied in pass 1 and is a no-op today.
   why_manual: nodes.longhorn.io CRs are created and co-owned by longhorn-manager, not the chart; ArgoCD owning them would race the manager (operator ruling 2026-10-11). The exact entries live in git as patch files.
   commands:
@@ -2650,7 +2650,7 @@ operations:
 - id: stor-pc1-hdd-merge-sequence
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: 'Baseline just before merge; the rest immediately after the PR merges, in a quiet CI window. Until pass 2 of stor-pc1-hdd-longhorn-disks, CI workspaces cannot get a replica: with volumeBindingMode Immediate the PVC most likely BINDS while the Longhorn volume shows Scheduled=False and TaskRun pods hang attaching — confirm the real symptom here and re-run any run that times out.'
   why_manual: The cutover interleaves three ArgoCD syncs, a live-setting assertion and a manual Longhorn CR patch; that order is what keeps HDDs out of the default pool.
   commands:

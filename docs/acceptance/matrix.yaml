@@ -1280,8 +1280,8 @@ rows:
     and pc-1's old 500 GB drive is never wiped while it holds data the operator has
     not ruled on.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
   levels: {}
   status: skipped
   notes: 'VERIFIED LIVE 2026-10-11/12 — the strict SMART gate ran on all three drives
@@ -1299,8 +1299,8 @@ rows:
   acceptance: pc-1's admitted HDDs are mounted by WWID and come back mounted and schedulable
     in Longhorn after a reboot, regardless of how the kernel names them.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
   levels: {}
   status: skipped
   notes: 'VERIFIED LIVE 2026-10-12 — 402-pc1-hdd-volumes.yaml (a WWID-selected Talos
@@ -1319,8 +1319,8 @@ rows:
     other tagged) disk, while volumes on the longhorn-hdd class land only on pc-1's
     HDDs.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
   levels: {}
   status: skipped
   notes: 'VERIFIED LIVE 2026-10-12 16:30Z — live setting allow-empty-disk-selector-volume
@@ -1337,7 +1337,7 @@ rows:
   acceptance: CI pipeline runs provision their per-run workspaces on pc-1's HDDs,
     while Gitea repositories, registry blobs and runner state stay on SSD-backed storage.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
   levels: {}
   status: skipped
   notes: 'VERIFIED LIVE 2026-10-12 16:30Z — all 25 longhorn-hdd PVCs on the cluster
