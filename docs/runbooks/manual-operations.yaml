@@ -2597,7 +2597,7 @@ operations:
   verify:
   - 'Posted to frank#824 per drive: overall health, long-test result, raw 5/197/198 (gates) and 9/193/199 (recorded). EXCLUDE on overall FAIL, a failed long test, or any non-zero raw 5/197/198.'
   - 'An excluded drive: its UserVolumeConfig doc deleted from patches/phase03-longhorn/402-pc1-hdd-volumes.yaml AND its entry from longhorn-node-disks-pc-1.yaml in one commit on this PR; `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q` still passes.'
-  status: pending
+  status: done
 - id: stor-pc1-sdd-inspect
   layer: stor
   app: longhorn
@@ -2615,7 +2615,7 @@ operations:
   verify:
   - 'Empty: the wipe is recorded on frank#824 and `talosctl -n 192.168.55.71 get discoveredvolumes` shows that disk with no partitions.'
   - 'Any content: a summary (top-level paths and sizes, no file contents) is posted to frank#824, hdd-556235e7 is removed from both patch files in one commit on this PR, and sdd STOPS for the operator''s ruling. sdb/sdc proceed. Nothing is copied or wiped without that ruling.'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-volumes-apply
   layer: stor
   app: longhorn
@@ -2629,7 +2629,7 @@ operations:
   - talosctl -n 192.168.55.71 get mountstatus | grep /var/mnt/hdd-
   verify:
   - 'Every admitted hdd-<wwid8> volume is phase ready and mounted xfs at /var/mnt/hdd-<wwid8>. Empty output after a few minutes can mean Omni wedged on a cold-boot clock jump (frank-gotchas, Omni): docker restart omni on the Omni host.'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-longhorn-disks
   layer: stor
   app: longhorn
@@ -2646,7 +2646,7 @@ operations:
   verify:
   - 'kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq ''.status.diskStatus | with_entries(select(.key|startswith("hdd-"))) | map_values(.conditions | map({type,status}))''   # Ready True; Schedulable False after pass 1, True after pass 2'
   - 'kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq ''.spec.disks | map_values(.tags)''   # hdd-* carry ["hdd"]; the default-disk entry is unchanged'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-merge-sequence
   layer: stor
   app: longhorn
@@ -2673,4 +2673,4 @@ operations:
   - default-test's replicas are on NO /var/mnt/hdd-* and NO /var/mnt/longhorn-sd* (gpu-local) path.
   - The next real Tekton PipelineRun's workspace PVC (tekton-pipelines) has its replica on /var/mnt/hdd-*.
   - The robustness diff shows no volume newly degraded or faulted by the flip.
-  status: pending
+  status: done
