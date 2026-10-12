@@ -484,9 +484,15 @@ kubectl get deploy,sts,ds,cronjob,svc,cm -A -o json --show-managed-fields \
   | scripts/stale_field_managers.py
 ```
 
-It lists every non-ArgoCD `Apply` manager on an object carrying ArgoCD's
-tracking annotation. `Update` managers, such as `kubectl-rollout` and the
-controller-manager's status writes, are normal and are not listed.
+It lists, on every object carrying ArgoCD's tracking annotation, each
+non-ArgoCD `Apply` manager, plus each `Update` manager that co-owns a keyed
+list item (a container, an env entry, a port) with ArgoCD. The second case
+covers a plain client-side `kubectl apply`, which kubectl records as an
+**Update** by `kubectl-client-side-apply`. SSA keeps a field while any manager
+owns it, whatever the operation, so that case blocks a deletion just the same.
+`Update` managers that share no list item with ArgoCD, such as
+`kubectl-rollout`'s restartedAt and status writers, are normal and are not
+listed. The 2026-10-11 scan found none of the second kind.
 
 **Fix.** Remove only the stale entry. It is metadata, so there is no spec
 change and no pod roll:

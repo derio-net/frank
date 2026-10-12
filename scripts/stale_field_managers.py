@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find ArgoCD-tracked objects still co-owned by a hand server-side apply.
+"""Find ArgoCD-tracked objects still co-owned by a hand apply.
 
 Server-side apply removes a field only once no manager owns it. An object that
 was once `kubectl apply --server-side`d by hand and later adopted by ArgoCD
@@ -44,16 +44,51 @@ def _objects(payload: dict) -> list[dict]:
     return [payload]
 
 
+def _keyed_items(fields: dict | None, path: tuple = ()) -> set[tuple]:
+    """Paths to every keyed list item (`k:{...}`) a FieldsV1 tree owns."""
+    out: set[tuple] = set()
+    for key, child in (fields or {}).items():
+        here = path + (key,)
+        if key.startswith("k:"):
+            out.add(here)
+        if isinstance(child, dict):
+            out |= _keyed_items(child, here)
+    return out
+
+
 def stale_entries(obj: dict) -> list[tuple[int, dict]]:
-    """(index, entry) of every non-ArgoCD Apply manager on a tracked object."""
+    """(index, entry) of every hand manager that can block ArgoCD on a tracked
+    object:
+
+    - any non-ArgoCD `Apply` manager (a hand `kubectl apply --server-side`, a
+      bootstrap `helm` install), and
+    - any `Update` manager outside a subresource that co-owns a keyed list item
+      with ArgoCD, e.g. a plain client-side `kubectl apply`, which kubectl
+      records as an Update by `kubectl-client-side-apply`.
+
+    SSA keeps a field while any manager owns it, whatever the operation. Update
+    managers that share no list item with ArgoCD (`kubectl-rollout`'s
+    restartedAt, an HPA's replicas, status writers) are normal and are not
+    reported.
+    """
     meta = obj.get("metadata", {})
     if TRACKING_ANNOTATION not in (meta.get("annotations") or {}):
         return []
-    return [
-        (i, f)
-        for i, f in enumerate(meta.get("managedFields") or [])
-        if f.get("operation") == "Apply" and f.get("manager") != ARGOCD_MANAGER
-    ]
+    fields = meta.get("managedFields") or []
+    argocd_items: set[tuple] = set()
+    for f in fields:
+        if f.get("manager") == ARGOCD_MANAGER:
+            argocd_items |= _keyed_items(f.get("fieldsV1"))
+    stale = []
+    for i, f in enumerate(fields):
+        if f.get("manager") == ARGOCD_MANAGER:
+            continue
+        if f.get("operation") == "Apply":
+            stale.append((i, f))
+        elif (f.get("operation") == "Update" and not f.get("subresource")
+              and _keyed_items(f.get("fieldsV1")) & argocd_items):
+            stale.append((i, f))
+    return stale
 
 
 def _ref(obj: dict) -> str:

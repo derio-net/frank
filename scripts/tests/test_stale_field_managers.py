@@ -104,3 +104,39 @@ def test_patch_mode_needs_exactly_one_object():
     proc = _run({"apiVersion": "v1", "kind": "List", "items": [_fixture(), _fixture()]}, "--patch")
     assert proc.returncode == 2
     assert "exactly one" in proc.stderr
+
+
+def _as_client_side_apply(obj: dict) -> dict:
+    """The fixture's hand entry, re-shaped as a plain (client-side)
+    `kubectl apply`, which kubectl records as an UPDATE by
+    `kubectl-client-side-apply`, not as an Apply."""
+    for f in obj["metadata"]["managedFields"]:
+        if f["manager"] == "kubectl":
+            f["manager"], f["operation"] = "kubectl-client-side-apply", "Update"
+    return obj
+
+
+def test_flags_a_client_side_apply_that_co_owns_argocd_list_items():
+    """SSA keeps a field while ANY manager owns it, Update or Apply. A plain
+    `kubectl apply` is the commoner hand apply, and the one that co-owns the
+    dropped containers blocks the deletion exactly as the server-side one
+    did."""
+    proc = _run(_as_client_side_apply(_fixture()))
+    assert proc.returncode == 1, proc.stdout
+    assert "manager=kubectl-client-side-apply operation=Update" in proc.stdout
+
+
+def test_does_not_flag_an_update_that_shares_no_list_item_with_argocd():
+    """The live fleet carries dozens of `kubectl-rollout` / `kubectl-patch` /
+    controller Update entries (2026-10-11 scan) and none co-owns a keyed list
+    item with ArgoCD. They must stay quiet, or the scan is noise."""
+    obj = _fixture()
+    obj["metadata"]["managedFields"] = [
+        f for f in obj["metadata"]["managedFields"] if f["manager"] != "kubectl"
+    ] + [{
+        "manager": "kubectl-patch", "operation": "Update", "apiVersion": "apps/v1",
+        "time": "2026-09-01T00:00:00Z", "fieldsType": "FieldsV1",
+        "fieldsV1": {"f:spec": {"f:replicas": {}}},
+    }]
+    proc = _run(obj)
+    assert proc.returncode == 0, proc.stdout
