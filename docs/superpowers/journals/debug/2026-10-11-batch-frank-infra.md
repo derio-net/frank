@@ -31,3 +31,8 @@ Commit 79fa4015. Failing-first tests: test_the_exec_reads_both_file_lrus_from_me
 ### e62bf9ab92c9 · finding [fixed] · Watchdog evaluated container-supplied cgroup figures in bash arithmetic
 
 Raised by the background commit security review of 79fa4015. Bash $(( )) evaluates variable contents, and the shmem/current/max/file-LRU figures come from a shell inside the ovms container. Pre-existing for limit/current; widened by the new numerator. Fixed by an is_uint gate that reports unreadable-cgroup. Failing-first: test_a_non_numeric_cgroup_field_is_never_evaluated (5 params, all failed before the fix). Targeted run: 78 passed.
+
+<!-- fr:journal kind=finding scope=debug id=65803854394e created=2026-10-12T06:01:50+00:00 state=open -->
+### 65803854394e · finding [open] · #774 moved out of this batch to the pending Headscale policy revision (ice#3)
+
+#774 adds autoApprovers entries, and a pending policy revision (ice#3) changes the same autoApprovers block in the opposite direction. Operator decided: no Headscale change in this PR; #774 is decided together with ice#3. Removed from the PR's Closes list.
