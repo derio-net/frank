@@ -448,8 +448,8 @@ existed to report. Two independent losses:
   (`apps/tekton/manifests/eventlistener-pdb.yaml`).
 - `mirror-reconcile` CronJob (`apps/tekton/manifests/mirror-reconcile.yaml`),
   every 15 min. It lists Gitea heads over SSH as stoa-bot, plans against the
-  GitHub API (main for the main-sync repos, open PRs for the mirror-only PR
-  repos), and pushes drift older than 10 min with
+  GitHub API (main for the main-sync repos; each open PR's head for every PR
+  trigger that writes `sync-pr-<N>`), and pushes drift older than 10 min with
   `--force-with-lease=<ref>:<observed>`. The empty form means "must not exist",
   so it never overwrites a head a webhook sync pushed meanwhile. It uses
   emptyDir only and has no node pin: it is the repair path for exactly the
@@ -463,6 +463,21 @@ existed to report. Two independent losses:
   reconcile success in 1h).
 
 ### Known residual risk
+
+- **pc-1 is still a single point of failure for the sync pipelines
+  themselves.** The listeners now survive a pc-1 drain, but every
+  TriggerTemplate still pins its PipelineRuns to pc-1, and `longhorn-hdd` exists
+  only there. During a drain, webhooks are accepted, but their syncs sit Pending
+  and time out. `mirror-reconcile` is then the only path, at ~25 min latency.
+- **A repair re-fires Gitea Actions, not Tekton CI.** hum/content-factory/
+  stoa-blog test pipelines and cnc-ci's `test` task run only from the PR
+  webhook, so redeliver it for those. kid-laptops (`derio-homelab-pull-sync`)
+  is not reconciled at all.
+- **PR grace is measured from the head commit's time**, not the PR's
+  `updated_at`, which review chatter would reset forever. An old commit
+  pushed late is therefore repaired at once. That is harmless: if the webhook
+  sync has already pushed the same sha, the reconciler's push is a no-op
+  (git reports it up to date before checking the lease).
 
 `github-pull-sync` itself still pushes with plain `--force`. A run stuck
 Pending that binds late can push an OLDER sha over a newer head (out-of-order

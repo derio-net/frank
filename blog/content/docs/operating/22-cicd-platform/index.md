@@ -195,7 +195,7 @@ kubectl create job -n tekton-pipelines --from=cronjob/pipelinerun-ttl-gc \
 
 ### Manually Re-Trigger GitHub-primary Pull Sync
 
-Run the reconciler first. Every 15 minutes it compares GitHub `main` (and open-PR heads on the mirror-only repos) against Gitea and pushes whatever has drifted for more than 10 minutes. Starting it by hand does the same thing now:
+Run the reconciler first. Every 15 minutes it compares GitHub `main` (and every open PR's head, against its `sync-pr-<N>` branch) against Gitea and pushes whatever has drifted for more than 10 minutes. Starting it by hand does the same thing now:
 
 ```bash
 kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile mirror-reconcile-manual-$(date +%s)
@@ -279,7 +279,7 @@ kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline=github-pull-s
   --sort-by=.metadata.creationTimestamp | tail
 ```
 
-Either way, `mirror-reconcile` repairs it within ~25 minutes (the 15-minute schedule plus the 10-minute grace). To repair it now, run it by hand (see above). Since 2026-10-12 both EventListeners run two replicas on different hosts behind a PodDisruptionBudget, so draining one node no longer 502s webhooks.
+Either way, `mirror-reconcile` repairs it within ~25 minutes (the 15-minute schedule plus the 10-minute grace), and the repaired push fires Gitea Actions, so the `gitea-actions/*` statuses arrive. It does **not** re-run a Tekton CI body: for hum, content-factory and stoa-blog, and for cnc-ci's `test` task, redeliver the PR webhook as well. kid-laptops (`derio-homelab-pull-sync`) is not reconciled at all, so redeliver there too. To repair now, run the reconciler by hand (see above). Since 2026-10-12 both EventListeners run two replicas on different hosts behind a PodDisruptionBudget, so draining one node no longer 502s webhooks.
 
 ### Webhook Not Triggering a PipelineRun
 

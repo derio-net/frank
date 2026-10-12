@@ -2696,7 +2696,7 @@ data:
               github_issue: "frank-ops#25"
             annotations:
               summary: "L25 mirror sync failing: {{ $labels.pipeline }} — most runs in the last 2h failed or timed out; commits are not reaching Gitea, so Gitea Actions is not running on them"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail ; a TIMEOUT whose step never started is a pod that never ran — check kubectl -n tekton-pipelines get pvc | grep -v Bound (see layer-25-ci-pvc-pending). The mirror-reconcile CronJob repairs the dropped refs once the cause is fixed."
+              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail ; a TIMEOUT whose step never started is a pod that never ran — check kubectl -n tekton-pipelines get pvc | grep -v Bound (see layer-25-ci-pvc-pending). mirror-reconcile repairs agentic-stoa refs even while this fires (it needs no PVC); if pipeline=derio-homelab-pull-sync, nothing reconciles kid-laptops — redeliver its webhook once the cause is fixed."
 
           # The mechanism behind the 2026-10-11 outage, watched directly: a
           # Tekton workspace PVC that cannot bind. Provisioning is seconds, so
@@ -2746,10 +2746,10 @@ data:
               runbook: "kubectl -n tekton-pipelines get pvc | grep Pending ; kubectl -n tekton-pipelines describe pvc <name> | tail -5 — 'specified disk tag ... does not exist' means the StorageClass's diskSelector matches no schedulable Longhorn disk (kubectl -n longhorn-system get nodes.longhorn.io -o yaml | grep -A3 tags)."
 
           # The repair path's own dead-man. mirror-reconcile runs every 15m and
-          # fails its Job when a ref can't be read or pushed, so an hour
-          # without a success means drift is no longer being repaired. A
-          # CronJob that has never succeeded has no series: NoData -> OK, so
-          # this is quiet until the first success after deploy.
+          # fails its Job when a ref can't be read or pushed. 30m since the last
+          # success (two missed runs) held `for: 30m` pages after about an hour
+          # without a success. A CronJob that has never succeeded has no series:
+          # NoData -> OK, so this is quiet until the first success after deploy.
           - uid: layer-25-mirror-reconcile-stale
             title: Layer 25 Mirror Reconcile Stale
             condition: C
@@ -2760,7 +2760,7 @@ data:
                 model:
                   refId: A
                   expr: |
-                    time() - kube_cronjob_status_last_successful_time{namespace="tekton-pipelines", cronjob="mirror-reconcile"} > bool 3600
+                    time() - kube_cronjob_status_last_successful_time{namespace="tekton-pipelines", cronjob="mirror-reconcile"} > bool 1800
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -2784,7 +2784,7 @@ data:
               severity: warning
               github_issue: "frank-ops#25"
             annotations:
-              summary: "L25 mirror-reconcile has not succeeded in over an hour — dropped mirror refs are no longer being repaired"
+              summary: "L25 mirror-reconcile has not succeeded for about an hour — dropped mirror refs are no longer being repaired"
               runbook: "kubectl -n tekton-pipelines get jobs --sort-by=.status.startTime | grep mirror-reconcile | tail -3 ; kubectl -n tekton-pipelines logs job/<latest> --all-containers | grep mirror-reconcile"
 
       # =====================================================================

@@ -281,7 +281,7 @@ gh api "repos/$ORG/$REPO/commits/$SHA/statuses" \
 | Runner healthy but Offline in Gitea admin | stale one-shot registration on the PVC | scale to 0, delete `/data/.runner`, scale up |
 | Workflow exists on mirror, push arrives, **no run, no error** | Actions unit off on that repo | `PATCH …/repos/{owner}/{repo}` `{"has_actions": true}` |
 | Run fails only at the artifact step | official upload-artifact's GHES rejection | split per side (Step 3) |
-| One PR or push gets no `gitea-actions/*` status; later commits are fine | the commit never reached Gitea: its webhook 502'd, or its sync run timed out on a workspace {{< abbr "PVC" >}} that could not bind | `mirror-reconcile` re-pushes it within ~25 min. To repair now: `kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile <name>` |
+| One PR or push gets no `gitea-actions/*` status; later commits are fine | the commit never reached Gitea: its webhook 502'd, or its sync run timed out on a workspace {{< abbr "PVC" >}} that could not bind | `mirror-reconcile` re-pushes it within ~25 min and Gitea Actions re-runs. Tekton CI bodies (hum, cnc-ci's tests) need the webhook redelivered. To repair now: `kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile <name>` |
 | Git changes to EventListener triggers never go live; syncs say Succeeded | see the misstep below | `kubectl get <obj> -o json --show-managed-fields` — if the applier's timestamp is stuck in the past, an ignoreDifferences rule is eating your applies |
 
 ## Explanation: what the migration flushed out

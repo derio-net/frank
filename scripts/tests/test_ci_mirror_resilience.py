@@ -78,19 +78,19 @@ def _main_sync_repos() -> list[str]:
     return re.findall(r"'(agentic-stoa/[\w.-]+)'", _cel(trig)["filter"])
 
 
-def _mirror_only_pr_repos() -> list[str]:
-    """Repos whose PR trigger ONLY mirrors to sync-pr-N (CI runs in Gitea Actions).
+def _pr_sync_repos() -> list[str]:
+    """Repos with a PR trigger that writes sync-pr-<N> to the Gitea mirror.
 
-    The Phase-4-era repos (hum, content-factory, stoa-blog) run bespoke Tekton
-    CI from the PR webhook; mirroring their sync-pr branch would not restore
-    that CI, so the reconciler deliberately does not claim to cover them.
+    Every such trigger mirrors the PR head first (github-pull-sync, cnc-ci's
+    `mirror` task, the hum/content-factory/stoa-blog `pull-and-push` task), so
+    sync-pr-<N> == PR head is the mirror's intended state for all of them. The
+    reconciler restores that ref. It re-fires Gitea Actions but cannot re-run a
+    Tekton CI body, which the docs say explicitly.
     """
     repos = []
     for trig in _github_listener()["spec"]["triggers"]:
-        if trig.get("template", {}).get("ref") != "agentic-stoa-main-sync-template":
-            continue
         cel = _cel(trig)
-        if "pull_request" not in str(trig) or "sync-pr-" not in str(cel.get("overlays")):
+        if "sync-pr-" not in str(cel.get("overlays")):
             continue
         repos += re.findall(r"'(agentic-stoa/[\w.-]+)'", cel["filter"])
     return sorted(set(repos))
@@ -173,9 +173,14 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
             f"{c['name']}: MAIN_REPOS drifted from the agentic-stoa-main-sync CEL filter"
             " — a repo added there would never be repaired"
         )
-        assert env["PR_REPOS"].split() == _mirror_only_pr_repos(), c["name"]
+        assert env["PR_REPOS"].split() == _pr_sync_repos(), c["name"]
     assert declaring == 2, "both the heads and plan stages must carry the repo lists"
-    assert _mirror_only_pr_repos() == ["agentic-stoa/hermes-brain", "agentic-stoa/second-brain"]
+    # The derivation must not silently collapse: these eight write sync-pr-N today.
+    assert _pr_sync_repos() == sorted(
+        f"agentic-stoa/{r}"
+        for r in ("cnc-fr", "cnc-frd", "cnc-fru", "content-factory", "hermes-brain",
+                  "hum", "second-brain", "stoa-blog")
+    )
 
 
 def test_reconciler_cannot_regress_a_newer_gitea_head() -> None:
@@ -190,7 +195,9 @@ def test_reconciler_never_overlaps_itself_and_reports_a_result() -> None:
     cj = _cronjob()["spec"]
     assert cj["concurrencyPolicy"] == "Forbid"
     assert cj["jobTemplate"]["spec"]["activeDeadlineSeconds"] <= 900
-    assert "mirror-reconcile result drift=" in _script_cm()["data"]["push.sh"]
+    push = next(c for c in cj["jobTemplate"]["spec"]["template"]["spec"]["containers"] if c["name"] == "push")
+    assert {"name": "DRY_RUN", "value": "0"} in push["env"], "ship live, with the switch visible"
+    assert "mirror-reconcile result dry_run=" in _script_cm()["data"]["push.sh"]
 
 
 def test_reconciler_does_not_depend_on_the_storage_that_broke() -> None:
@@ -222,6 +229,7 @@ def test_plan_repairs_a_main_head_the_mirror_missed() -> None:
         pr_repos=[],
         github_head=lambda r: ("6673521", OLD),
         github_open_prs=lambda r: [],
+        commit_time=lambda r, s: pytest.fail("main heads carry their own time"),
         gitea_head=lambda r, branch: "e296c27",
         now=NOW,
         grace=timedelta(minutes=10),
@@ -238,7 +246,8 @@ def test_plan_creates_a_missing_sync_pr_branch() -> None:
         main_repos=[],
         pr_repos=["agentic-stoa/second-brain"],
         github_head=lambda r: None,
-        github_open_prs=lambda r: [(124, "ab45e07", OLD)],
+        github_open_prs=lambda r: [(124, "ab45e07")],
+        commit_time=lambda r, s: OLD,
         gitea_head=lambda r, branch: None,
         now=NOW,
         grace=timedelta(minutes=10),
@@ -253,14 +262,110 @@ def test_plan_leaves_in_sync_and_in_flight_refs_alone() -> None:
         main_repos=["agentic-stoa/a", "agentic-stoa/b"],
         pr_repos=["agentic-stoa/a"],
         github_head=lambda r: ("same", OLD) if r.endswith("/a") else ("new", FRESH),
-        github_open_prs=lambda r: [(7, "prsha", FRESH)],
-        gitea_head=lambda r, branch: "same" if branch == "main" else "older",
+        github_open_prs=lambda r: [(7, "prsha"), (8, "insync")],
+        commit_time=lambda r, s: FRESH if s == "prsha" else pytest.fail("in-sync PR needs no lookup"),
+        gitea_head=lambda r, branch: {"main": "same", "sync-pr-8": "insync"}.get(branch, "older"),
         now=NOW,
         grace=timedelta(minutes=10),
     )
     # a/main matches; b/main and a's PR are younger than the grace period,
     # so the webhook sync still owns them.
     assert plan == []
+
+
+def test_pr_grace_is_the_head_commit_time_not_pr_activity() -> None:
+    # A PR with constant review chatter must still be repaired: its updated_at
+    # would never age past the grace period, its head commit does.
+    plan = _plan_module().plan(
+        main_repos=[],
+        pr_repos=["agentic-stoa/second-brain"],
+        github_head=lambda r: None,
+        github_open_prs=lambda r: [(124, "ab45e07")],
+        commit_time=lambda r, s: OLD,
+        gitea_head=lambda r, branch: None,
+        now=NOW,
+        grace=timedelta(minutes=10),
+    )
+    assert len(plan) == 1
+
+
+def test_plan_skips_a_pr_whose_commit_time_is_unreadable() -> None:
+    plan = _plan_module().plan(
+        main_repos=[],
+        pr_repos=["agentic-stoa/x"],
+        github_head=lambda r: None,
+        github_open_prs=lambda r: [(1, "abc")],
+        commit_time=lambda r, s: None,
+        gitea_head=lambda r, branch: None,
+        now=NOW,
+        grace=timedelta(minutes=10),
+    )
+    assert plan == []
+
+
+def test_plan_output_is_grouped_by_repo() -> None:
+    mod = _plan_module()
+    out = mod.format_plan([
+        mod.Drift("agentic-stoa/b", "refs/heads/main", "refs/heads/main", "1", None),
+        mod.Drift("agentic-stoa/a", "refs/heads/main", "refs/heads/main", "2", None),
+        mod.Drift("agentic-stoa/b", "refs/pull/1/head", "refs/heads/sync-pr-1", "3", None),
+    ])
+    assert [line.split()[0] for line in out.splitlines()] == [
+        "agentic-stoa/a", "agentic-stoa/b", "agentic-stoa/b"
+    ]
+
+
+def test_main_wires_github_and_gitea_into_the_plan(tmp_path, monkeypatch) -> None:
+    """Run plan.py's main() with a stubbed GitHub API and a real heads file.
+
+    Pins the I/O the pure planner tests cannot see: the GitHub JSON paths,
+    the heads-file parsing, the __listed__ filter, and errors.txt.
+    """
+    mod = _plan_module()
+    (tmp_path / "gitea-heads.txt").write_text(
+        "agentic-stoa/a __listed__ -\n"
+        "agentic-stoa/a refs/heads/main oldmain\n"
+        "agentic-stoa/a refs/heads/sync-pr-5 prsha\n"
+    )  # agentic-stoa/b has no marker: its ls-remote failed
+    old = "2026-10-11T21:59:10Z"
+    responses = {
+        "/repos/agentic-stoa/a/branches/main": {"commit": {"sha": "newmain", "commit": {"committer": {"date": old}}}},
+        "/repos/agentic-stoa/a/pulls?state=open&per_page=100": [
+            {"number": 5, "head": {"sha": "prsha"}},
+            {"number": 6, "head": {"sha": "pr6sha"}},
+        ],
+        "/repos/agentic-stoa/a/commits/pr6sha": {"commit": {"committer": {"date": old}}},
+    }
+    monkeypatch.setattr(mod, "_github", lambda path, token: responses[path])
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    monkeypatch.setenv("PLAN_DIR", str(tmp_path))
+    monkeypatch.setenv("MAIN_REPOS", "agentic-stoa/a agentic-stoa/b")
+    monkeypatch.setenv("PR_REPOS", "agentic-stoa/a")
+    mod.main()
+    assert (tmp_path / "plan.txt").read_text().splitlines() == [
+        "agentic-stoa/a refs/heads/main refs/heads/main newmain oldmain",
+        "agentic-stoa/a refs/pull/6/head refs/heads/sync-pr-6 pr6sha -",
+    ]
+    assert (tmp_path / "errors.txt").read_text() == "agentic-stoa/b: Gitea heads unreadable\n"
+
+
+def test_main_records_a_github_failure_and_carries_on(tmp_path, monkeypatch) -> None:
+    mod = _plan_module()
+    (tmp_path / "gitea-heads.txt").write_text("agentic-stoa/a __listed__ -\nagentic-stoa/b __listed__ -\n")
+
+    def fake(path, token):
+        if "/a/" in path:
+            raise OSError("HTTP 502")
+        return {"commit": {"sha": "s", "commit": {"committer": {"date": "2026-10-11T00:00:00Z"}}}}
+
+    monkeypatch.setattr(mod, "_github", fake)
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    monkeypatch.setenv("PLAN_DIR", str(tmp_path))
+    monkeypatch.setenv("MAIN_REPOS", "agentic-stoa/a agentic-stoa/b")
+    monkeypatch.setenv("PR_REPOS", "")
+    mod.main()
+    assert (tmp_path / "plan.txt").read_text() == "agentic-stoa/b refs/heads/main refs/heads/main s -\n"
+    assert "agentic-stoa/a: GitHub main unreadable" in (tmp_path / "errors.txt").read_text()
 
 
 def test_plan_output_round_trips_through_the_push_script_format() -> None:
@@ -300,6 +405,7 @@ def test_the_repair_path_has_its_own_dead_man() -> None:
     assert 'cronjob="mirror-reconcile"' in expr and 'namespace="tekton-pipelines"' in expr
     assert "kube_cronjob_status_last_successful_time" in expr
     assert rule["noDataState"] == "OK"  # never succeeded yet -> quiet, not paging
+    assert "> bool 1800" in expr and rule["for"] == "30m"  # ~1h total, as documented
 
 
 @pytest.mark.parametrize("uid", [SYNC_FAILING_UID, PVC_PENDING_UID, RECONCILE_STALE_UID])

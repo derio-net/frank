@@ -12,9 +12,13 @@
 #
 # Every 15 minutes this job compares what the mirror SHOULD hold (GitHub main
 # for every repo in the agentic-stoa-main-sync trigger, plus sync-pr-<N> for each
-# open PR on the mirror-only PR triggers) against what Gitea holds. It pushes
-# any ref that has drifted for longer than GRACE_MINUTES. Younger drift still
-# belongs to the webhook path.
+# open PR on every PR trigger that writes one) against what Gitea holds. It
+# pushes any ref that has drifted for longer than GRACE_MINUTES. Younger drift
+# still belongs to the webhook path. A repaired ref fires Gitea Actions again.
+# It does NOT re-run a Tekton CI body (the hum/content-factory/stoa-blog test
+# pipelines, cnc-ci's test task); those need the PR webhook redelivered.
+#
+# Set DRY_RUN=1 on the push container to log the plan without pushing.
 #
 # Deliberately independent of the path it repairs: emptyDir only, no PVC, no
 # Tekton, and no node pinning. The push uses --force-with-lease against the
@@ -42,6 +46,8 @@ data:
     GITEA_SSH="${GITEA_SSH:-ssh://git@192.168.55.209:2222}"
     GITHUB_GIT="${GITHUB_GIT:-https://github.com}"
     git config --global --add safe.directory '*'
+    # A credential problem must fail the run, never hang it on a prompt.
+    export GIT_TERMINAL_PROMPT=0
 
   heads.sh: |
     #!/bin/sh
@@ -97,12 +103,19 @@ data:
         have: str | None
 
 
-    def plan(*, main_repos, pr_repos, github_head, github_open_prs, gitea_head, now, grace):
+    def plan(*, main_repos, pr_repos, github_head, github_open_prs, commit_time, gitea_head, now, grace):
         """Pure planning step; every I/O is an injected callable.
 
         github_head(repo) -> (sha, committed_at) | None
-        github_open_prs(repo) -> [(number, head_sha, updated_at), ...]
+        github_open_prs(repo) -> [(number, head_sha), ...]
+        commit_time(repo, sha) -> committed_at | None  (only asked on drift)
         gitea_head(repo, branch) -> sha | None (None = branch absent)
+
+        Grace is measured from the head COMMIT's time, never from a PR's
+        updated_at, which any comment or label resets and would starve the
+        repair of a busy PR forever. An old commit pushed late is therefore
+        repaired immediately. That is harmless: if the webhook sync lands the
+        same sha first, the push is a no-op.
         """
         drifts = []
         for repo in main_repos:
@@ -114,10 +127,13 @@ data:
             if sha != have and now - at >= grace:
                 drifts.append(Drift(repo, "refs/heads/main", "refs/heads/main", sha, have))
         for repo in pr_repos:
-            for number, sha, at in github_open_prs(repo):
+            for number, sha in github_open_prs(repo):
                 branch = f"sync-pr-{number}"
                 have = gitea_head(repo, branch)
-                if sha != have and now - at >= grace:
+                if sha == have:
+                    continue
+                at = commit_time(repo, sha)
+                if at is not None and now - at >= grace:
                     drifts.append(
                         Drift(repo, f"refs/pull/{number}/head", f"refs/heads/{branch}", sha, have)
                     )
@@ -125,8 +141,10 @@ data:
 
 
     def format_plan(drifts):
+        # Grouped by repo, so push.sh can free each repo's clone before the next.
         return "".join(
-            f"{d.repo} {d.src_ref} {d.dst_ref} {d.want} {d.have or '-'}\n" for d in drifts
+            f"{d.repo} {d.src_ref} {d.dst_ref} {d.want} {d.have or '-'}\n"
+            for d in sorted(drifts, key=lambda d: d.repo)
         )
 
 
@@ -149,13 +167,14 @@ data:
 
     def main():
         token = os.environ["GITHUB_TOKEN"]
+        plan_dir = os.environ.get("PLAN_DIR", "/plan")
         main_repos = os.environ["MAIN_REPOS"].split()
         pr_repos = os.environ["PR_REPOS"].split()
         grace = timedelta(minutes=int(os.environ.get("GRACE_MINUTES", "10")))
         errors = []
 
         heads, listed = {}, set()
-        with open("/plan/gitea-heads.txt") as fh:
+        with open(f"{plan_dir}/gitea-heads.txt") as fh:
             for line in fh:
                 repo, ref, sha = line.split()
                 if ref == "__listed__":
@@ -176,23 +195,32 @@ data:
         def github_open_prs(repo):
             try:
                 prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token)
-                return [(p["number"], p["head"]["sha"], _ts(p["updated_at"])) for p in prs]
+                return [(p["number"], p["head"]["sha"]) for p in prs]
             except Exception as exc:
                 errors.append(f"{repo}: GitHub PRs unreadable: {exc}")
                 return []
+
+        def commit_time(repo, sha):
+            try:
+                commit = _github(f"/repos/{repo}/commits/{sha}", token)
+                return _ts(commit["commit"]["committer"]["date"])
+            except Exception as exc:
+                errors.append(f"{repo}: GitHub commit {sha[:12]} unreadable: {exc}")
+                return None
 
         drifts = plan(
             main_repos=[r for r in main_repos if r in listed],
             pr_repos=[r for r in pr_repos if r in listed],
             github_head=github_head,
             github_open_prs=github_open_prs,
+            commit_time=commit_time,
             gitea_head=lambda repo, branch: heads.get((repo, branch)),
             now=datetime.now(timezone.utc),
             grace=grace,
         )
-        with open("/plan/plan.txt", "w") as fh:
+        with open(f"{plan_dir}/plan.txt", "w") as fh:
             fh.write(format_plan(drifts))
-        with open("/plan/errors.txt", "w") as fh:
+        with open(f"{plan_dir}/errors.txt", "w") as fh:
             fh.write("".join(f"{e}\n" for e in errors))
         for e in errors:
             print(f"mirror-reconcile plan-error {e}", file=sys.stderr)
@@ -213,10 +241,21 @@ data:
     auth="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
     drift=0 repaired=0 skipped=0 failed=0
     plan_errors=$(( $(wc -l < /plan/errors.txt) ))
+    prev=""
     while read -r repo src dst want have; do
       [ -n "$repo" ] || continue
       drift=$((drift + 1))
+      if [ "${DRY_RUN:-0}" = "1" ]; then
+        echo "mirror-reconcile would-repair $repo $dst $have -> $want"
+        continue
+      fi
       bare="/work/$(printf '%s' "$repo" | tr / _).git"
+      # The plan is grouped by repo: free the previous repo's full-history
+      # clone first, so a many-repo repair never fills the emptyDir.
+      if [ "$bare" != "$prev" ]; then
+        [ -z "$prev" ] || rm -rf "$prev"
+        prev="$bare"
+      fi
       [ -d "$bare" ] || git init -q --bare "$bare"
       if ! git -C "$bare" -c http.extraHeader="$auth" fetch -q \
           "$GITHUB_GIT/$repo.git" "+$src:refs/reconcile/src"; then
@@ -243,7 +282,8 @@ data:
         failed=$((failed + 1))
       fi
     done < /plan/plan.txt
-    echo "mirror-reconcile result drift=$drift repaired=$repaired skipped=$skipped failed=$failed plan_errors=$plan_errors"
+    [ -z "$prev" ] || rm -rf "$prev"
+    echo "mirror-reconcile result dry_run=${DRY_RUN:-0} drift=$drift repaired=$repaired skipped=$skipped failed=$failed plan_errors=$plan_errors"
     [ "$failed" -eq 0 ] && [ "$plan_errors" -eq 0 ]
 ---
 apiVersion: batch/v1
@@ -260,7 +300,9 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 600
+      # One full-history fetch per drifted repo; 15 min covers a repair of all
+      # of them after a long outage, and matches the schedule.
+      activeDeadlineSeconds: 900
       ttlSecondsAfterFinished: 86400
       template:
         spec:
@@ -293,9 +335,12 @@ spec:
                     agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
                     agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
                     agentic-stoa/flexible-health agentic-stoa/site
-                # == the mirror-only PR triggers, whose CI is Gitea Actions (guarded)
+                # == every PR trigger that writes sync-pr-<N> (guarded)
                 - name: PR_REPOS
-                  value: agentic-stoa/hermes-brain agentic-stoa/second-brain
+                  value: >-
+                    agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
+                    agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
+                    agentic-stoa/second-brain agentic-stoa/stoa-blog
               securityContext: &no-priv
                 allowPrivilegeEscalation: false
                 capabilities: {drop: ["ALL"]}
@@ -319,7 +364,10 @@ spec:
                     agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
                     agentic-stoa/flexible-health agentic-stoa/site
                 - name: PR_REPOS
-                  value: agentic-stoa/hermes-brain agentic-stoa/second-brain
+                  value: >-
+                    agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
+                    agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
+                    agentic-stoa/second-brain agentic-stoa/stoa-blog
                 - {name: GRACE_MINUTES, value: "10"}
                 - name: GITHUB_TOKEN
                   valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
@@ -334,6 +382,7 @@ spec:
               command: ["/bin/sh", "/scripts/push.sh"]
               env:
                 - {name: HOME, value: /tmp/home}
+                - {name: DRY_RUN, value: "0"}
                 - name: GITHUB_TOKEN
                   valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
               securityContext: *no-priv

@@ -6,9 +6,16 @@ would hide in: the --force-with-lease expectation (including the empty
 "must not exist yet" form), and the moved-since-planning skip. Both remotes
 are file:// bare repos standing in for GitHub and Gitea. The scripts'
 absolute mount paths are rewritten into a temp dir.
+
+Each test runs twice: once with the host's sh and git, and once inside the
+production image (alpine/git:2.47.2, busybox ash) when Docker answers, so
+a busybox-only incompatibility cannot ship green. CI has no Docker, so CI
+runs the host variant only. What neither variant covers is the ssh and
+https transports (file:// stands in for both).
 """
 from __future__ import annotations
 
+import functools
 import os
 import pathlib
 import shutil
@@ -20,8 +27,32 @@ import yaml
 REPO = pathlib.Path(__file__).resolve().parents[2]
 RECONCILE = REPO / "apps" / "tekton" / "manifests" / "mirror-reconcile.yaml"
 NAME = "agentic-stoa/r"
+IMAGE = "alpine/git:2.47.2"
+SCRIPT_ENV = ("HOME", "GITHUB_TOKEN", "GITEA_SSH", "GITHUB_GIT", "MAIN_REPOS",
+              "PR_REPOS", "GIT_CONFIG_NOSYSTEM", "DRY_RUN")
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+
+
+@functools.cache
+def _docker_ok() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        if subprocess.run(["docker", "info"], capture_output=True, timeout=15).returncode:
+            return False
+        return subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True,
+                              timeout=15).returncode == 0 or subprocess.run(
+            ["docker", "pull", "-q", IMAGE], capture_output=True, timeout=300).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+@pytest.fixture(params=["host", "alpine"])
+def runner(request) -> str:
+    if request.param == "alpine" and not _docker_ok():
+        pytest.skip("docker unavailable: the busybox variant runs where docker does")
+    return request.param
 
 
 def _git(*args: str, cwd: pathlib.Path | None = None) -> str:
@@ -33,7 +64,8 @@ def _git(*args: str, cwd: pathlib.Path | None = None) -> str:
 
 
 @pytest.fixture()
-def world(tmp_path: pathlib.Path) -> dict:
+def world(tmp_path: pathlib.Path, runner: str) -> dict:
+    tmp_path = tmp_path.resolve()  # docker bind mounts need the real path (/private/var on macOS)
     scripts = next(d for d in yaml.safe_load_all(RECONCILE.read_text())
                    if d and d["kind"] == "ConfigMap")["data"]
     dirs = {k: tmp_path / k for k in ("scripts", "plan", "work", "ssh-creds", "home")}
@@ -71,12 +103,22 @@ def world(tmp_path: pathlib.Path) -> dict:
     env = {**os.environ, "HOME": str(dirs["home"]), "GITHUB_TOKEN": "x",
            "GITEA_SSH": f"file://{tmp_path / 'gitea'}", "GITHUB_GIT": f"file://{tmp_path / 'github'}",
            "MAIN_REPOS": NAME, "PR_REPOS": NAME, "GIT_CONFIG_NOSYSTEM": "1"}
-    return {"dirs": dirs, "env": env, "c": commits, "gitea": gitea, "src": src}
+    return {"dirs": dirs, "env": env, "c": commits, "gitea": gitea, "src": src,
+            "runner": runner, "root": tmp_path}
 
 
-def _run(world: dict, script: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["sh", str(world["dirs"]["scripts"] / script)],
-                          env=world["env"], capture_output=True, text=True)
+def _run(world: dict, script: str, **extra: str) -> subprocess.CompletedProcess:
+    env = {**world["env"], **extra}
+    path = str(world["dirs"]["scripts"] / script)
+    if world["runner"] == "host":
+        return subprocess.run(["sh", path], env=env, capture_output=True, text=True)
+    root = str(world["root"])
+    cmd = ["docker", "run", "--rm", "-v", f"{root}:{root}", "--user", f"{os.getuid()}:{os.getgid()}",
+           "--entrypoint", "sh"]
+    for k in SCRIPT_ENV:
+        if k in env:
+            cmd += ["-e", f"{k}={env[k]}"]
+    return subprocess.run(cmd + [IMAGE, path], capture_output=True, text=True, timeout=120)
 
 
 def _plan(world: dict, *lines: str, errors: str = "") -> None:
@@ -105,7 +147,27 @@ def test_push_repairs_main_and_creates_the_missing_sync_pr_branch(world: dict) -
     assert res.returncode == 0, res.stdout + res.stderr
     assert _head(world, "refs/heads/main") == c["c2"]
     assert _head(world, "refs/heads/sync-pr-1") == c["p1"]
-    assert "result drift=2 repaired=2 skipped=0 failed=0 plan_errors=0" in res.stdout
+    assert "drift=2 repaired=2 skipped=0 failed=0 plan_errors=0" in res.stdout
+    assert list(world["dirs"]["work"].iterdir()) == [], "each repo's clone must be freed"
+
+
+def test_dry_run_reports_the_plan_and_pushes_nothing(world: dict) -> None:
+    c = world["c"]
+    _plan(world, f"{NAME} refs/heads/main refs/heads/main {c['c2']} {c['c1']}")
+    res = _run(world, "push.sh", DRY_RUN="1")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert _head(world, "refs/heads/main") == c["c1"]
+    assert f"would-repair {NAME} refs/heads/main {c['c1']} -> {c['c2']}" in res.stdout
+    assert "dry_run=1 drift=1 repaired=0" in res.stdout
+
+
+def test_heads_leaves_an_unreadable_repo_unmarked(world: dict) -> None:
+    res = _run(world, "heads.sh", MAIN_REPOS=f"{NAME} agentic-stoa/missing", PR_REPOS="")
+    assert res.returncode == 0, res.stderr
+    text = (world["dirs"]["plan"] / "gitea-heads.txt").read_text()
+    assert f"{NAME} __listed__ -" in text
+    assert "agentic-stoa/missing" not in text, "a failed listing must not read as 'no branches'"
+    assert "heads-error agentic-stoa/missing" in res.stderr
 
 
 def test_lease_refuses_to_overwrite_a_head_that_moved_after_planning(world: dict) -> None:
