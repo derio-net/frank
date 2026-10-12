@@ -14,3 +14,8 @@ act-runner was Running and fetched tasks for other repos throughout. stoa-status
 ### 54cebf2ac425 · ruled-out · Gitea repo corruption is unrelated
 
 13 empty object files exist, but only in derio-homelab/kid-laptops, all dated 2026-08-01 10:42Z. They predate this outage and break kid-laptops fetches only. Filed separately.
+
+<!-- fr:journal kind=root-cause scope=debug id=cc3ca5e2c1eb created=2026-10-12T15:37:51+00:00 -->
+### cc3ca5e2c1eb · root-cause · Mirror sync stalled on a missing hdd disk tag; listeners pinned to a draining node; no alert or repair path
+
+(1) #836 merged 2026-10-11 21:19:47Z, ahead of its pre-merge manual ops. It moved Tekton workspaces to longhorn-hdd while no Longhorn disk carried the hdd tag, so every sync PVC stayed Pending until the 1h timeout (first at 21:22Z, last at 04:21Z). (2) el-github-listener and el-gitea-listener are single replicas pinned to pc-1, so the drain at 06:49-06:51Z 502'd three pushes, which GitHub never retries. (3) layer-25-pipeline-failing requires zero successes in 24h and so stayed silent (backtested at 23:30Z: empty), and the mirror has no reconcile path.
