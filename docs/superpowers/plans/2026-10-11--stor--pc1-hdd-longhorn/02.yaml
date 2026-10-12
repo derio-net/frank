@@ -191,6 +191,7 @@ state:
         live evidence 2026-10-12; capacity-audit corroboration not re-run (corroboration
         only — volumestatus + Longhorn disk + replica sweep asserted directly)
   completion:
-    at: null
-    note: null
+    at: '2026-10-12T14:34:27+00:00'
+    note: Operator-run 2026-10-11/12; evidence on frank#824; re-asserted live at closeout
+      2026-10-12 16:30Z
     observed_prs: []
