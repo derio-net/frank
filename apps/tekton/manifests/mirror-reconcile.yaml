@@ -1,0 +1,356 @@
+# GitHub -> Gitea mirror reconciler for agentic-stoa.
+#
+# The mirror is webhook-driven: GitHub push/pull_request -> github-listener ->
+# github-pull-sync PipelineRun -> force-push into the Gitea replica, whose push
+# fires Gitea Actions, whose statuses the stoa-status-bridge forwards back to
+# GitHub. Every link is fire-and-forget. A webhook that 502s is never retried,
+# and a PipelineRun that times out is never re-run. So until this job existed,
+# a dropped event was a commit Gitea never saw and CI never ran on, with no
+# trace on the PR. 2026-10-11/12 dropped both kinds: 11 sync runs timed out on a
+# workspace PVC that could not bind (#836), then 3 webhooks 502'd while pc-1
+# drained.
+#
+# Every 15 minutes this job compares what the mirror SHOULD hold (GitHub main
+# for every repo in the agentic-stoa-main-sync trigger, plus sync-pr-<N> for each
+# open PR on the mirror-only PR triggers) against what Gitea holds. It pushes
+# any ref that has drifted for longer than GRACE_MINUTES. Younger drift still
+# belongs to the webhook path.
+#
+# Deliberately independent of the path it repairs: emptyDir only, no PVC, no
+# Tekton, and no node pinning. The push uses --force-with-lease against the
+# head it observed, so a plan made from a stale read can never overwrite a
+# newer head a webhook sync pushed in the meantime.
+#
+# Repo lists are guarded against the EventListener by
+# scripts/tests/test_ci_mirror_resilience.py. Add a repo to the trigger and
+# the test tells you to add it here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mirror-reconcile-scripts
+  namespace: tekton-pipelines
+data:
+  common.sh: |
+    # Sourced by heads.sh and push.sh: stoa-bot SSH identity for Gitea.
+    # Same trust model as github-pull-sync (in-cluster / mesh-trusted LB).
+    mkdir -p "$HOME/.ssh"
+    cp /ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+    chmod 600 "$HOME/.ssh/id_rsa"
+    export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    # Overridable only so the behaviour test can point both sides at local
+    # bare repos; the CronJob never sets them.
+    GITEA_SSH="${GITEA_SSH:-ssh://git@192.168.55.209:2222}"
+    GITHUB_GIT="${GITHUB_GIT:-https://github.com}"
+    git config --global --add safe.directory '*'
+
+  heads.sh: |
+    #!/bin/sh
+    # Stage 1: record every Gitea branch head for each mirrored repo.
+    # A repo whose listing fails gets no __listed__ marker, and the planner
+    # then skips it. Treating "could not read" as "branch missing" would
+    # plan a create that the lease correctly refuses, and that would read
+    # as a push failure instead of a read failure.
+    set -u
+    . /scripts/common.sh
+    out=/plan/gitea-heads.txt
+    : > "$out"
+    for repo in $(printf '%s\n' $MAIN_REPOS $PR_REPOS | sort -u); do
+      if refs=$(git ls-remote "$GITEA_SSH/$repo.git" 'refs/heads/*'); then
+        echo "$repo __listed__ -" >> "$out"
+        printf '%s\n' "$refs" | while read -r sha ref; do
+          [ -n "$sha" ] && echo "$repo $ref $sha" >> "$out"
+        done
+      else
+        echo "mirror-reconcile heads-error $repo" >&2
+      fi
+    done
+
+  plan.py: |
+    """Stage 2: decide which mirror refs have drifted (frank, 2026-10-12 outage).
+
+    Reads the Gitea heads that heads.sh captured, asks GitHub which heads the
+    mirror should hold, and writes one line per ref whose drift is older than
+    the grace period:
+
+        <repo> <github src ref> <gitea dst ref> <want sha> <have sha or ->
+
+    Exits 0 even on per-repo errors. Those go to errors.txt, so one broken
+    repo never blocks repairs to the others, and push.sh fails the Job on them
+    once the repairs are done.
+    """
+    from __future__ import annotations
+
+    import json
+    import os
+    import sys
+    import urllib.request
+    from dataclasses import dataclass
+    from datetime import datetime, timedelta, timezone
+
+
+    @dataclass(frozen=True)
+    class Drift:
+        repo: str
+        src_ref: str
+        dst_ref: str
+        want: str
+        have: str | None
+
+
+    def plan(*, main_repos, pr_repos, github_head, github_open_prs, gitea_head, now, grace):
+        """Pure planning step; every I/O is an injected callable.
+
+        github_head(repo) -> (sha, committed_at) | None
+        github_open_prs(repo) -> [(number, head_sha, updated_at), ...]
+        gitea_head(repo, branch) -> sha | None (None = branch absent)
+        """
+        drifts = []
+        for repo in main_repos:
+            head = github_head(repo)
+            if head is None:
+                continue
+            sha, at = head
+            have = gitea_head(repo, "main")
+            if sha != have and now - at >= grace:
+                drifts.append(Drift(repo, "refs/heads/main", "refs/heads/main", sha, have))
+        for repo in pr_repos:
+            for number, sha, at in github_open_prs(repo):
+                branch = f"sync-pr-{number}"
+                have = gitea_head(repo, branch)
+                if sha != have and now - at >= grace:
+                    drifts.append(
+                        Drift(repo, f"refs/pull/{number}/head", f"refs/heads/{branch}", sha, have)
+                    )
+        return drifts
+
+
+    def format_plan(drifts):
+        return "".join(
+            f"{d.repo} {d.src_ref} {d.dst_ref} {d.want} {d.have or '-'}\n" for d in drifts
+        )
+
+
+    def _ts(value):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+    def _github(path, token):
+        req = urllib.request.Request(
+            f"https://api.github.com{path}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "frank-mirror-reconcile",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.load(resp)
+
+
+    def main():
+        token = os.environ["GITHUB_TOKEN"]
+        main_repos = os.environ["MAIN_REPOS"].split()
+        pr_repos = os.environ["PR_REPOS"].split()
+        grace = timedelta(minutes=int(os.environ.get("GRACE_MINUTES", "10")))
+        errors = []
+
+        heads, listed = {}, set()
+        with open("/plan/gitea-heads.txt") as fh:
+            for line in fh:
+                repo, ref, sha = line.split()
+                if ref == "__listed__":
+                    listed.add(repo)
+                else:
+                    heads[(repo, ref.removeprefix("refs/heads/"))] = sha
+        for repo in sorted(set(main_repos + pr_repos) - listed):
+            errors.append(f"{repo}: Gitea heads unreadable")
+
+        def github_head(repo):
+            try:
+                branch = _github(f"/repos/{repo}/branches/main", token)
+                return branch["commit"]["sha"], _ts(branch["commit"]["commit"]["committer"]["date"])
+            except Exception as exc:  # one repo's failure must not stop the rest
+                errors.append(f"{repo}: GitHub main unreadable: {exc}")
+                return None
+
+        def github_open_prs(repo):
+            try:
+                prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token)
+                return [(p["number"], p["head"]["sha"], _ts(p["updated_at"])) for p in prs]
+            except Exception as exc:
+                errors.append(f"{repo}: GitHub PRs unreadable: {exc}")
+                return []
+
+        drifts = plan(
+            main_repos=[r for r in main_repos if r in listed],
+            pr_repos=[r for r in pr_repos if r in listed],
+            github_head=github_head,
+            github_open_prs=github_open_prs,
+            gitea_head=lambda repo, branch: heads.get((repo, branch)),
+            now=datetime.now(timezone.utc),
+            grace=grace,
+        )
+        with open("/plan/plan.txt", "w") as fh:
+            fh.write(format_plan(drifts))
+        with open("/plan/errors.txt", "w") as fh:
+            fh.write("".join(f"{e}\n" for e in errors))
+        for e in errors:
+            print(f"mirror-reconcile plan-error {e}", file=sys.stderr)
+        print(f"mirror-reconcile plan drift={len(drifts)} errors={len(errors)}")
+
+
+    if __name__ == "__main__":
+        main()
+
+  push.sh: |
+    #!/bin/sh
+    # Stage 3: push each planned ref, then print one result line (grep
+    # `mirror-reconcile result` in VictoriaLogs). The Job fails if anything
+    # could not be read or pushed. `repaired` > 0 means the webhook path lost
+    # an event, which is worth a look even when the Job succeeds.
+    set -u
+    . /scripts/common.sh
+    auth="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+    drift=0 repaired=0 skipped=0 failed=0
+    plan_errors=$(( $(wc -l < /plan/errors.txt) ))
+    while read -r repo src dst want have; do
+      [ -n "$repo" ] || continue
+      drift=$((drift + 1))
+      bare="/work/$(printf '%s' "$repo" | tr / _).git"
+      [ -d "$bare" ] || git init -q --bare "$bare"
+      if ! git -C "$bare" -c http.extraHeader="$auth" fetch -q \
+          "$GITHUB_GIT/$repo.git" "+$src:refs/reconcile/src"; then
+        echo "mirror-reconcile fetch-failed $repo $src"
+        failed=$((failed + 1))
+        continue
+      fi
+      got=$(git -C "$bare" rev-parse refs/reconcile/src)
+      if [ "$got" != "$want" ]; then
+        # GitHub moved since planning: the webhook path owns the new head.
+        echo "mirror-reconcile moved $repo $src planned=$want now=$got"
+        skipped=$((skipped + 1))
+        continue
+      fi
+      expect=""
+      [ "$have" = "-" ] || expect="$have"
+      # Empty expectation = "the ref must not exist yet".
+      if git -C "$bare" push -q --force-with-lease="$dst:$expect" \
+          "$GITEA_SSH/$repo.git" "$want:$dst"; then
+        echo "mirror-reconcile repaired $repo $dst $have -> $want"
+        repaired=$((repaired + 1))
+      else
+        echo "mirror-reconcile push-failed $repo $dst (lease $have)"
+        failed=$((failed + 1))
+      fi
+    done < /plan/plan.txt
+    echo "mirror-reconcile result drift=$drift repaired=$repaired skipped=$skipped failed=$failed plan_errors=$plan_errors"
+    [ "$failed" -eq 0 ] && [ "$plan_errors" -eq 0 ]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mirror-reconcile
+  namespace: tekton-pipelines
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          # amd64 keeps it off the low-memory Pis. There is no node pin on
+          # purpose: this job is the repair path for a broken node.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - {key: kubernetes.io/arch, operator: In, values: [amd64]}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          initContainers:
+            - name: heads
+              image: alpine/git:2.47.2
+              command: ["/bin/sh", "/scripts/heads.sh"]
+              env:
+                - {name: HOME, value: /tmp/home}
+                # == the agentic-stoa-main-sync CEL filter (guarded)
+                - name: MAIN_REPOS
+                  value: >-
+                    agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog
+                    agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
+                    agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
+                    agentic-stoa/flexible-health agentic-stoa/site
+                # == the mirror-only PR triggers, whose CI is Gitea Actions (guarded)
+                - name: PR_REPOS
+                  value: agentic-stoa/hermes-brain agentic-stoa/second-brain
+              securityContext: &no-priv
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}
+              resources: &small
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts}
+                - {name: ssh-creds, mountPath: /ssh-creds}
+                - {name: plan, mountPath: /plan}
+                - {name: tmp, mountPath: /tmp}
+            - name: plan
+              image: python:3.13-slim
+              command: ["python3", "/scripts/plan.py"]
+              env:
+                - {name: HOME, value: /tmp/home}
+                - name: MAIN_REPOS
+                  value: >-
+                    agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog
+                    agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
+                    agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
+                    agentic-stoa/flexible-health agentic-stoa/site
+                - name: PR_REPOS
+                  value: agentic-stoa/hermes-brain agentic-stoa/second-brain
+                - {name: GRACE_MINUTES, value: "10"}
+                - name: GITHUB_TOKEN
+                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+              securityContext: *no-priv
+              resources: *small
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts}
+                - {name: plan, mountPath: /plan}
+          containers:
+            - name: push
+              image: alpine/git:2.47.2
+              command: ["/bin/sh", "/scripts/push.sh"]
+              env:
+                - {name: HOME, value: /tmp/home}
+                - name: GITHUB_TOKEN
+                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+              securityContext: *no-priv
+              resources:
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {memory: 1Gi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts}
+                - {name: ssh-creds, mountPath: /ssh-creds}
+                - {name: plan, mountPath: /plan}
+                - {name: tmp, mountPath: /tmp}
+                - {name: work, mountPath: /work}
+          volumes:
+            - name: scripts
+              configMap: {name: mirror-reconcile-scripts}
+            - name: ssh-creds
+              secret: {secretName: stoa-bot-ssh-key, defaultMode: 0440}
+            - {name: plan, emptyDir: {}}
+            - {name: tmp, emptyDir: {}}
+            - {name: work, emptyDir: {sizeLimit: 4Gi}}

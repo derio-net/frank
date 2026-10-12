@@ -414,3 +414,66 @@ reported as an unrelated Ansible connection failure.
 `$(tt.params.short-sha)-$(uid)`: a collision now needs two concurrent runs on
 the *same commit* that also collide on `$(uid)`, and a stray VMI is greppable
 back to a commit.
+
+## The mirror is fire-and-forget at both ends (2026-10-12)
+
+### What happened
+
+agentic-stoa/second-brain PR #124 (head `ab45e07`) and five commits on its
+`main` got no `gitea-actions/*` statuses, while the runner was healthy and later
+commits were green. Gitea had never received those commits, so no Actions run
+existed to report. Two independent losses:
+
+| Window (UTC) | Lost by | Mechanism |
+|---|---|---|
+| 2026-10-11 21:22 -> 2026-10-12 04:21 | 11 `github-pull-sync` runs, `PipelineRunTimeout` | #836 merged at 21:19:47Z, ahead of its pre-merge manual ops, and moved every Tekton workspace to `longhorn-hdd`. No Longhorn disk carried the `hdd` tag yet, so each PVC failed (`specified disk tag hdd does not exist`), the pod never started, and the run timed out after 1h with **no step log at all** |
+| 2026-10-12 06:49 -> 06:51 | 3 GitHub webhook deliveries, HTTP 502 | `el-github-listener` and `el-gitea-listener` were single replicas pinned to pc-1 (since May, "to keep the cicd surface concentrated"), and pc-1 was draining. GitHub never retries a failed delivery |
+
+### Why nobody noticed
+
+- `layer-25-pipeline-failing` fires only for a pipeline with **zero successes
+  in 24h**. `github-pull-sync` had succeeded that afternoon, so the rule was
+  structurally blind. A backtest at 23:30Z returns nothing.
+- The tempting replacement, "≥2 failures unless a success in the last hour",
+  is wrong too. It fired for 165 minutes on 2026-10-11 08:30Z from ONE
+  failure, because that `failed` series appeared fresh and the next hour had no
+  runs at all.
+- Nothing re-checks GitHub against Gitea, so a lost event leaves no trace
+  anywhere except the missing status.
+
+### Fix
+
+- EventListeners: `replicas: 2`, a hostname `topologySpreadConstraint`, amd64
+  only, a PDB `minAvailable: 1` each
+  (`apps/tekton/manifests/eventlistener-pdb.yaml`).
+- `mirror-reconcile` CronJob (`apps/tekton/manifests/mirror-reconcile.yaml`),
+  every 15 min. It lists Gitea heads over SSH as stoa-bot, plans against the
+  GitHub API (main for the main-sync repos, open PRs for the mirror-only PR
+  repos), and pushes drift older than 10 min with
+  `--force-with-lease=<ref>:<observed>`. The empty form means "must not exist",
+  so it never overwrites a head a webhook sync pushed meanwhile. It uses
+  emptyDir only and has no node pin: it is the repair path for exactly the
+  storage/node failures above. Result line: `mirror-reconcile result drift=…
+  repaired=… failed=…`. `repaired > 0` means the webhook path dropped something.
+- Alerts (feature-health, layer-25-pipeline-outcomes):
+  `layer-25-mirror-sync-failing` (≥3 failures AND ≥50% of `*-pull-sync` runs in
+  2h, `for: 30m`: 0 points in 28 days, fires 22:25Z-07:05Z across the outage);
+  `layer-25-ci-pvc-pending` (any tekton-pipelines PVC Pending 10m: 19 at the
+  outage, 0 in the 14 days before); `layer-25-mirror-reconcile-stale` (no
+  reconcile success in 1h).
+
+### Known residual risk
+
+`github-pull-sync` itself still pushes with plain `--force`. A run stuck
+Pending that binds late can push an OLDER sha over a newer head (out-of-order
+webhook runs could always do this). The next reconcile repairs it, but CI
+will have run once on the old sha.
+
+### Recovery recipe
+
+```bash
+kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile mirror-reconcile-manual-$(date +%s)
+# or, for one PR: redeliver its pull_request webhook. Read the delivery id as a
+# STRING; it exceeds float64 and jq rounds it to an id that does not exist.
+```
+

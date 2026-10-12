@@ -2630,6 +2630,163 @@ data:
               summary: "L25 pipeline idle: github-pull-sync has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 72h — expected ~10.4/day"
               runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the per-repo GitHub webhooks, which is forge state with no IaC in this repo."
 
+          # --- Layer 25 — mirror outage (2026-10-12). layer-25-pipeline-failing
+          # above asks "zero successes in 24h", so it is blind by construction
+          # to an outage that starts after a successful afternoon. On
+          # 2026-10-11/12 eleven github-pull-sync runs timed out from 22:22Z to
+          # 04:21Z, and a backtest of that rule at 23:30Z returns nothing. This
+          # rule asks the right-sized question instead: in the last 2h, did at
+          # least 3 mirror syncs fail AND at least half of all of them? A
+          # Tekton timeout counts as status="failed" (verified live).
+          # Backtested: 0 points across 2026-09-13..10-11 (28 days), fires
+          # 22:25Z..07:05Z across the outage. The simpler "≥2 failures
+          # unless a success in 1h" is NOT equivalent: it fired for 165 min on
+          # 2026-10-11 08:30Z from ONE failure, because that series appeared
+          # fresh and the following hour had no runs at all. Hence a ratio,
+          # no `unless`, and `>= 3` inside the query (as the rule above does).
+          - uid: layer-25-mirror-sync-failing
+            title: Layer 25 Mirror Sync Failing
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    (
+                      sum by (pipeline) (
+                        increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                          namespace="tekton-pipelines", pipeline=~".+-pull-sync", status="failed"}[2h])
+                      ) >= 3
+                    )
+                    and
+                    (
+                      sum by (pipeline) (
+                        increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                          namespace="tekton-pipelines", pipeline=~".+-pull-sync", status="failed"}[2h])
+                      )
+                      /
+                      sum by (pipeline) (
+                        increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
+                          namespace="tekton-pipelines", pipeline=~".+-pull-sync"}[2h])
+                      ) >= 0.5
+                    )
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 7200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 mirror sync failing: {{ $labels.pipeline }} — most runs in the last 2h failed or timed out; commits are not reaching Gitea, so Gitea Actions is not running on them"
+              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail ; a TIMEOUT whose step never started is a pod that never ran — check kubectl -n tekton-pipelines get pvc | grep -v Bound (see layer-25-ci-pvc-pending). The mirror-reconcile CronJob repairs the dropped refs once the cause is fixed."
+
+          # The mechanism behind the 2026-10-11 outage, watched directly: a
+          # Tekton workspace PVC that cannot bind. Provisioning is seconds, so
+          # 10 minutes Pending is a broken StorageClass/disk (#836: the class
+          # asked for a Longhorn disk tag no disk carried), not a slow one. It
+          # covers every pipeline, not only the mirror (cnc-ci hung too). 19
+          # PVCs were Pending at 2026-10-11 23:30Z; 0 points in the 14 days
+          # before. `count(...) > 0`, not a per-PVC series: workspace PVCs are
+          # per-run and short-lived, so per-PVC alerts would churn.
+          - uid: layer-25-ci-pvc-pending
+            title: Layer 25 CI Workspace PVC Pending
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    count(
+                      kube_persistentvolumeclaim_status_phase{namespace="tekton-pipelines", phase="Pending"} == 1
+                    )
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 CI: {{ $values.B.Value | printf \"%.0f\" }} Tekton workspace PVC(s) Pending for 10m — every PipelineRun that needs one is stuck until its timeout"
+              runbook: "kubectl -n tekton-pipelines get pvc | grep Pending ; kubectl -n tekton-pipelines describe pvc <name> | tail -5 — 'specified disk tag ... does not exist' means the StorageClass's diskSelector matches no schedulable Longhorn disk (kubectl -n longhorn-system get nodes.longhorn.io -o yaml | grep -A3 tags)."
+
+          # The repair path's own dead-man. mirror-reconcile runs every 15m and
+          # fails its Job when a ref can't be read or pushed, so an hour
+          # without a success means drift is no longer being repaired. A
+          # CronJob that has never succeeded has no series: NoData -> OK, so
+          # this is quiet until the first success after deploy.
+          - uid: layer-25-mirror-reconcile-stale
+            title: Layer 25 Mirror Reconcile Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    time() - kube_cronjob_status_last_successful_time{namespace="tekton-pipelines", cronjob="mirror-reconcile"} > bool 3600
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 mirror-reconcile has not succeeded in over an hour — dropped mirror refs are no longer being repaired"
+              runbook: "kubectl -n tekton-pipelines get jobs --sort-by=.status.startTime | grep mirror-reconcile | tail -3 ; kubectl -n tekton-pipelines logs job/<latest> --all-containers | grep mirror-reconcile"
+
       # =====================================================================
       # GLOBAL TLS CERT-EXPIRY
       # Triggered by 2026-05-11 Omni outage — see
