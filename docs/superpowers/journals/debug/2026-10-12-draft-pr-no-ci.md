@@ -14,3 +14,8 @@ Open drafts #839 and #840 (2026-10-11) both carry a tripwires check run from pul
 ### 8f8b7fa01f10 · root-cause · #797 was CONFLICTING with main from creation, so GitHub created no merge ref and no pull_request run; with no required checks, absence rendered as clean
 
 main gained #787 (21:15Z) and #762 (21:28Z) before #797 opened at 22:15Z. `git merge-tree --write-tree f7ecc790 dcb31fe6` -> CONFLICT in agents/rules/frank-gotchas.md, docs/acceptance/matrix.yaml, docs/runbooks/frank-gotchas/grafana.md. GitHub only fires pull_request workflows against refs/pull/N/merge, which does not exist while conflicting. The 08:44Z merge 38b49d6e resolved them; runs followed. The ready flip 9s later was coincidence. Contributing: main has no required status checks, so a missing check is never shown as Expected.
+
+<!-- fr:journal kind=finding scope=debug id=02a8bb93768a created=2026-10-12T00:01:11+00:00 state=fixed -->
+### 02a8bb93768a · finding [fixed] · pr_ci_verdict.py never reads absence as a pass; CONFLICTING is its own verdict; record corrected in gotchas + tripwires header
+
+Failing-test-first: scripts/tests/test_pr_ci_verdict.py (14 cases, red at 0c then green). Live: #797 now PASSED, #839 PASSED, #842 PENDING (draft, tripwires running — third live proof drafts get CI). Not changed: no types: ready_for_review (wrong cause); required-check ruleset left to operator.
