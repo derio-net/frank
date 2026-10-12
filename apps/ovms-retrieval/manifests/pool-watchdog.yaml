@@ -263,6 +263,21 @@ spec:
                   inactive_file=$(echo "$state" | sed -n 5p)
                   metrics=$(echo "$state" | tail -n +6)
 
+                  # Every figure above came out of a shell INSIDE the ovms
+                  # container, and bash arithmetic evaluates a variable's
+                  # contents as an expression (`a[$(cmd)]` runs cmd), here in a
+                  # Job that holds RBAC on the Deployment. Accept plain
+                  # unsigned integers only (memory.max may also read "max");
+                  # anything else is an unreadable cgroup, and nothing below
+                  # evaluates it.
+                  is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+                  if ! is_uint "$shmem" || ! is_uint "$current" \
+                     || ! is_uint "$active_file" || ! is_uint "$inactive_file" \
+                     || { [ "$limit" != max ] && ! is_uint "$limit"; }; then
+                    echo "pool-watchdog result: action=none reason=unreadable-cgroup"
+                    exit 0
+                  fi
+
                   # Rule 1's numerator: memory.current minus the two file LRUs,
                   # i.e. anon + the unevictable shmem pool + kernel. shmem is
                   # accounted inside `file` but sits on the UNEVICTABLE list,
@@ -272,7 +287,7 @@ spec:
                   # 2026-10-05) and which the kernel reclaims rather than
                   # OOM-killing, so counting it moved the trigger tighter
                   # every day the pod lived (frank#821).
-                  unreclaimable=$(( current - ${active_file:-0} - ${inactive_file:-0} ))
+                  unreclaimable=$(( current - active_file - inactive_file ))
 
                   # `curl` shares the exec with the two cgroup reads above, so
                   # it can fail WITHOUT the exec itself failing — the shmem

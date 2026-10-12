@@ -522,6 +522,24 @@ def test_the_restart_line_reports_the_figure_rule_one_compared(run_script):
     assert re.search(r"action=restart reason=critical-pool .*unreclaimable=\d+", proc.stdout), proc.stdout
 
 
+@pytest.mark.parametrize("field", ["FAKE_SHMEM", "FAKE_CURRENT", "FAKE_LIMIT",
+                                   "FAKE_ACTIVE_FILE", "FAKE_INACTIVE_FILE"])
+def test_a_non_numeric_cgroup_field_is_never_evaluated(run_script, tmp_path, field):
+    """Every cgroup figure arrives from a shell running INSIDE the ovms
+    container, and bash arithmetic evaluates a variable's contents as an
+    expression: `a[$(cmd)]` would run `cmd` in this Job, which holds RBAC on
+    the Deployment. Anything that is not a plain unsigned integer is treated
+    as an unreadable cgroup, and nothing is evaluated or restarted."""
+    marker = tmp_path / "evaluated"
+    overrides = dict(FAKE_SHMEM=int(4.18 * GIB), FAKE_CURRENT=int(4.5 * GIB),
+                     FAKE_LIMIT=LIMIT, FAKE_LAST_BUSY=1)
+    overrides[field] = f"a[$(touch {marker})]"
+    proc, calls = run_script(**overrides)
+    assert not marker.exists(), "a cgroup field was evaluated as code"
+    assert "unreadable-cgroup" in proc.stdout, proc.stdout + proc.stderr
+    assert "rollout restart" not in calls
+
+
 def test_the_elevated_pool_is_still_measured_on_shmem(run_script):
     """Rule 2 asks a different question than Rule 1: is the GPU POOL above its
     post-boot baseline. `memory.current` running above `ELEVATED_BYTES` while
