@@ -1,6 +1,6 @@
 # pc-1 HDDs into Longhorn — implementation plan
 
-**Status:** In Progress
+**Status:** Deployed
 **Spec:** `docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md` (operator approved 2026-10-11)
 **Issue:** derio-net/frank#824 (referenced, not a tracking issue)
 

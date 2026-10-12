@@ -96,3 +96,8 @@ The five stor-pc1-* blocks from 02.yaml appended to docs/runbooks/manual-operati
 ### p1-r4-resolved · finding [out-of-scope] · resolves p1-r4: phase3-longhorn typo survives in patches/README.md:28 and patches/phase03-longhorn/longhorn-values.yaml:9 (phase 1)
 
 Both typos predate this change and are outside R8's named file; fixing them is the operator's call.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved-2 created=2026-10-12T14:33:31+00:00 state=open resolves=p1-r4 tracked_by=https://github.com/derio-net/frank/issues/847 -->
+### p1-r4-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/847] · resolves p1-r4: phase3-longhorn typo survives in patches/README.md:28 and patches/phase03-longhorn/longhorn-values.yaml:9
+
+Filed at archive as https://github.com/derio-net/frank/issues/847.
