@@ -21,6 +21,14 @@ name: Repo Tripwires
 # docs/, scripts/ and .github/ — a filter narrow enough to be meaningful would
 # be wrong more often than it saved minutes, and on a PR page "no run" is
 # indistinguishable from "passed".
+#
+# The same silence has a second source no trigger edit can fix. A PR that
+# CONFLICTS with main gets NO pull_request run at all, because GitHub builds
+# these runs from refs/pull/N/merge and that ref cannot exist while the PR
+# conflicts. frank#800 blamed draft state for exactly this (PR #797); drafts
+# run here normally. main has no required checks, so nothing marks the gap.
+# `python3 scripts/pr_ci_verdict.py <pr>` reports CONFLICTING/NO_CHECKS
+# instead of letting an empty list pass for green.
 on:
   pull_request:
   push:
