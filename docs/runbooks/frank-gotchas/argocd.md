@@ -503,7 +503,7 @@ API server refuses the patch instead of deleting ArgoCD's own entry. Then
 trigger a sync with explicit `syncOptions` and assert on the artifact, not on
 `Synced`. Paperclip's instance is manual-op `orch-paperclip-drop-stale-field-manager`.
 
-**Latent elsewhere.** The first fleet scan (2026-10-11) found 42 more objects
+**Latent elsewhere.** The first fleet scan (2026-10-11) found 41 more objects
 with the same shape: `helm` Apply entries from the 2026-03-02 bootstrap, on
 the ArgoCD, Cilium and Longhorn Deployments, DaemonSets, Services and
 ConfigMaps, from before ArgoCD adopted them. They are harmless until git
