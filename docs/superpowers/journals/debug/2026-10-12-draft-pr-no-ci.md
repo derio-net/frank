@@ -19,3 +19,8 @@ main gained #787 (21:15Z) and #762 (21:28Z) before #797 opened at 22:15Z. `git m
 ### 02a8bb93768a · finding [fixed] · pr_ci_verdict.py never reads absence as a pass; CONFLICTING is its own verdict; record corrected in gotchas + tripwires header
 
 Failing-test-first: scripts/tests/test_pr_ci_verdict.py (14 cases, red at 0c then green). Live: #797 now PASSED, #839 PASSED, #842 PENDING (draft, tripwires running — third live proof drafts get CI). Not changed: no types: ready_for_review (wrong cause); required-check ruleset left to operator.
+
+<!-- fr:journal kind=review scope=debug id=d8902947275a created=2026-10-12T00:01:34+00:00 -->
+### d8902947275a · review · Self-review: no findings
+
+Checked: UNKNOWN-with-checks falls through to check evaluation (intended); non-OK conclusions (CANCELLED/TIMED_OUT/STALE/ACTION_REQUIRED) fail conservatively; CONFLICTING precedes stale green runs. Targeted tests over touched files: 393 passed locally; full suite left to CI.
