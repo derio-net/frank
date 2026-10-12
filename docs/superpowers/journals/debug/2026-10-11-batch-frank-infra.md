@@ -41,3 +41,8 @@ Raised by the background commit security review of 79fa4015. Bash $(( )) evaluat
 ### ea3d9a09b9e4 · root-cause · #827: a 2026-05-17 kubectl Apply manager co-owns the dropped containers
 
 Live (read-only, 2026-10-11): paperclip app OutOfSync, operationState Failed at 4fd62d8 with 'containers[1].image / initContainers[0].image: Required value'. managedFields[0] = kubectl Apply 2026-05-17T13:04:15Z, owning the paperclip-shell and hermes-init list items but not their image fields. SSA keeps an item while any manager owns it, so ArgoCD's apply released only the image fields.
+
+<!-- fr:journal kind=finding scope=debug id=2b7e186d5b30 created=2026-10-12T06:05:54+00:00 state=fixed -->
+### 2b7e186d5b30 · finding [fixed] · #827: detector, guarded patch, manual-op and gotcha
+
+Commit 047c2ff5. scripts/stale_field_managers.py plus test_stale_field_managers.py (7 tests, all failed first) against a live metadata-only fixture. Manual-op orch-paperclip-drop-stale-field-manager comes before the wipe, in the plan prose and the runbook, asserted equal. Live patch NOT run: operator step.
