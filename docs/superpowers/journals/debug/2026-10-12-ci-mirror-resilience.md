@@ -19,3 +19,8 @@ act-runner was Running and fetched tasks for other repos throughout. stoa-status
 ### cc3ca5e2c1eb · root-cause · Mirror sync stalled on a missing hdd disk tag; listeners pinned to a draining node; no alert or repair path
 
 (1) #836 merged 2026-10-11 21:19:47Z, ahead of its pre-merge manual ops. It moved Tekton workspaces to longhorn-hdd while no Longhorn disk carried the hdd tag, so every sync PVC stayed Pending until the 1h timeout (first at 21:22Z, last at 04:21Z). (2) el-github-listener and el-gitea-listener are single replicas pinned to pc-1, so the drain at 06:49-06:51Z 502'd three pushes, which GitHub never retries. (3) layer-25-pipeline-failing requires zero successes in 24h and so stayed silent (backtested at 23:30Z: empty), and the mirror has no reconcile path.
+
+<!-- fr:journal kind=finding scope=debug id=715cefb7dcba created=2026-10-12T16:11:16+00:00 state=fixed -->
+### 715cefb7dcba · finding [fixed] · Fix: listeners survive a drain, mirror-reconcile repairs drift, three alerts see the outage
+
+Listeners: 2 replicas, hostname spread, amd64, PDBs (live nodeSelector owned only by argocd-controller Apply, so removal propagates). mirror-reconcile CronJob: */15, --force-with-lease, emptyDir only, all 11 main-sync repos and all 8 sync-pr repos. Alerts layer-25-mirror-sync-failing (backtest: 0 FP over 28d, fires 22:25Z-07:05Z), -ci-pvc-pending, -mirror-reconcile-stale. Failing-first tests: test_ci_mirror_resilience.py (16 red before the fix), test_mirror_reconcile_behaviour.py (host + alpine/git busybox). First live run predicted read-only: hermes-brain main, cnc-fr sync-pr-128 and sync-pr-130, all still-dropped refs from this outage.
