@@ -1,0 +1,867 @@
+{
+ "apiVersion": "apps/v1",
+ "kind": "Deployment",
+ "metadata": {
+  "name": "paperclip",
+  "namespace": "paperclip-system",
+  "annotations": {
+   "argocd.argoproj.io/tracking-id": "paperclip:apps/Deployment:paperclip-system/paperclip"
+  },
+  "managedFields": [
+   {
+    "apiVersion": "apps/v1",
+    "fieldsType": "FieldsV1",
+    "fieldsV1": {
+     "f:metadata": {
+      "f:labels": {
+       "f:app.kubernetes.io/component": {},
+       "f:app.kubernetes.io/name": {}
+      }
+     },
+     "f:spec": {
+      "f:selector": {},
+      "f:strategy": {
+       "f:type": {}
+      },
+      "f:template": {
+       "f:metadata": {
+        "f:labels": {
+         "f:app.kubernetes.io/component": {},
+         "f:app.kubernetes.io/name": {}
+        }
+       },
+       "f:spec": {
+        "f:containers": {
+         "k:{\"name\":\"paperclip\"}": {
+          ".": {},
+          "f:env": {
+           "k:{\"name\":\"DATABASE_URL\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"HERMES_HOME\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"OLLAMA_API_KEY\"}": {
+            ".": {},
+            "f:name": {},
+            "f:valueFrom": {
+             "f:secretKeyRef": {}
+            }
+           },
+           "k:{\"name\":\"OLLAMA_BASE_URL\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"PATH\"}": {
+            ".": {},
+            "f:name": {}
+           },
+           "k:{\"name\":\"PG_PASSWORD\"}": {
+            ".": {},
+            "f:name": {},
+            "f:valueFrom": {
+             "f:secretKeyRef": {}
+            }
+           }
+          },
+          "f:envFrom": {},
+          "f:livenessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:name": {},
+          "f:ports": {
+           "k:{\"containerPort\":3100,\"protocol\":\"TCP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           }
+          },
+          "f:readinessProbe": {
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:resources": {
+           "f:limits": {
+            "f:cpu": {},
+            "f:memory": {}
+           },
+           "f:requests": {
+            "f:cpu": {},
+            "f:memory": {}
+           }
+          },
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip/hermes-template/config.yaml\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         },
+         "k:{\"name\":\"paperclip-shell\"}": {
+          ".": {},
+          "f:env": {
+           "k:{\"name\":\"MOSH_SERVER_NETWORK_TMOUT\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"PAPERCLIP_SHELL_USER\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           }
+          },
+          "f:envFrom": {},
+          "f:imagePullPolicy": {},
+          "f:livenessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:name": {},
+          "f:ports": {
+           "k:{\"containerPort\":2222,\"protocol\":\"TCP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60000,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60001,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60002,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60003,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60004,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60005,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60006,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60007,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60008,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60009,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60010,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60011,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60012,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60013,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60014,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60015,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           }
+          },
+          "f:readinessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:resources": {
+           "f:limits": {
+            "f:cpu": {},
+            "f:memory": {}
+           },
+           "f:requests": {
+            "f:cpu": {},
+            "f:memory": {}
+           }
+          },
+          "f:securityContext": {
+           "f:allowPrivilegeEscalation": {},
+           "f:capabilities": {
+            "f:drop": {}
+           },
+           "f:runAsGroup": {},
+           "f:runAsNonRoot": {},
+           "f:runAsUser": {}
+          },
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip-shell\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {}
+           },
+           "k:{\"mountPath\":\"/etc/profile.d/60-paperclip-shell-tips.sh\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/etc/ssh-keys\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {}
+           },
+           "k:{\"mountPath\":\"/home/agent\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         }
+        },
+        "f:initContainers": {
+         "k:{\"name\":\"hermes-init\"}": {
+          ".": {},
+          "f:name": {},
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip/hermes-template/config.yaml\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         }
+        },
+        "f:nodeSelector": {},
+        "f:securityContext": {
+         "f:fsGroup": {}
+        },
+        "f:terminationGracePeriodSeconds": {},
+        "f:tolerations": {},
+        "f:volumes": {
+         "k:{\"name\":\"data\"}": {
+          ".": {},
+          "f:name": {},
+          "f:persistentVolumeClaim": {
+           "f:claimName": {}
+          }
+         },
+         "k:{\"name\":\"hermes-config\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-home\"}": {
+          ".": {},
+          "f:name": {},
+          "f:persistentVolumeClaim": {
+           "f:claimName": {}
+          }
+         },
+         "k:{\"name\":\"shell-inventory\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-motd-tips\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:defaultMode": {},
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-ssh-keys\"}": {
+          ".": {},
+          "f:name": {},
+          "f:secret": {
+           "f:defaultMode": {},
+           "f:optional": {},
+           "f:secretName": {}
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "manager": "kubectl",
+    "operation": "Apply",
+    "time": "2026-05-17T13:04:15Z"
+   },
+   {
+    "apiVersion": "apps/v1",
+    "fieldsType": "FieldsV1",
+    "fieldsV1": {
+     "f:metadata": {
+      "f:annotations": {
+       "f:argocd.argoproj.io/tracking-id": {}
+      },
+      "f:labels": {
+       "f:app.kubernetes.io/component": {},
+       "f:app.kubernetes.io/name": {}
+      }
+     },
+     "f:spec": {
+      "f:replicas": {},
+      "f:selector": {},
+      "f:strategy": {
+       "f:type": {}
+      },
+      "f:template": {
+       "f:metadata": {
+        "f:labels": {
+         "f:app.kubernetes.io/component": {},
+         "f:app.kubernetes.io/name": {}
+        }
+       },
+       "f:spec": {
+        "f:containers": {
+         "k:{\"name\":\"paperclip\"}": {
+          ".": {},
+          "f:env": {
+           "k:{\"name\":\"DATABASE_URL\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"HERMES_HOME\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"OLLAMA_API_KEY\"}": {
+            ".": {},
+            "f:name": {},
+            "f:valueFrom": {
+             "f:secretKeyRef": {}
+            }
+           },
+           "k:{\"name\":\"OLLAMA_BASE_URL\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"PATH\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"PG_PASSWORD\"}": {
+            ".": {},
+            "f:name": {},
+            "f:valueFrom": {
+             "f:secretKeyRef": {}
+            }
+           },
+           "k:{\"name\":\"XDG_CONFIG_HOME\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           }
+          },
+          "f:envFrom": {},
+          "f:image": {},
+          "f:livenessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:name": {},
+          "f:ports": {
+           "k:{\"containerPort\":3100,\"protocol\":\"TCP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           }
+          },
+          "f:readinessProbe": {
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:resources": {
+           "f:limits": {
+            "f:cpu": {},
+            "f:memory": {}
+           },
+           "f:requests": {
+            "f:cpu": {},
+            "f:memory": {}
+           }
+          },
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip/hermes-template/config.yaml\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/etc/paperclip/opencode-base/opencode/opencode.json\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         },
+         "k:{\"name\":\"paperclip-shell\"}": {
+          ".": {},
+          "f:env": {
+           "k:{\"name\":\"MOSH_SERVER_NETWORK_TMOUT\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           },
+           "k:{\"name\":\"PAPERCLIP_SHELL_USER\"}": {
+            ".": {},
+            "f:name": {},
+            "f:value": {}
+           }
+          },
+          "f:envFrom": {},
+          "f:image": {},
+          "f:imagePullPolicy": {},
+          "f:livenessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:name": {},
+          "f:ports": {
+           "k:{\"containerPort\":2222,\"protocol\":\"TCP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60000,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60001,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60002,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60003,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60004,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60005,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60006,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60007,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60008,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60009,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60010,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60011,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60012,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60013,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60014,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           },
+           "k:{\"containerPort\":60015,\"protocol\":\"UDP\"}": {
+            ".": {},
+            "f:containerPort": {},
+            "f:name": {},
+            "f:protocol": {}
+           }
+          },
+          "f:readinessProbe": {
+           "f:initialDelaySeconds": {},
+           "f:periodSeconds": {},
+           "f:tcpSocket": {
+            "f:port": {}
+           }
+          },
+          "f:resources": {
+           "f:limits": {
+            "f:cpu": {},
+            "f:memory": {}
+           },
+           "f:requests": {
+            "f:cpu": {},
+            "f:memory": {}
+           }
+          },
+          "f:securityContext": {
+           "f:allowPrivilegeEscalation": {},
+           "f:capabilities": {
+            "f:drop": {}
+           },
+           "f:runAsGroup": {},
+           "f:runAsNonRoot": {},
+           "f:runAsUser": {}
+          },
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip-shell\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {}
+           },
+           "k:{\"mountPath\":\"/etc/profile.d/60-paperclip-shell-tips.sh\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/etc/ssh-keys\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {}
+           },
+           "k:{\"mountPath\":\"/home/agent\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         }
+        },
+        "f:initContainers": {
+         "k:{\"name\":\"hermes-init\"}": {
+          ".": {},
+          "f:command": {},
+          "f:image": {},
+          "f:name": {},
+          "f:resources": {
+           "f:limits": {
+            "f:memory": {}
+           },
+           "f:requests": {
+            "f:cpu": {},
+            "f:memory": {}
+           }
+          },
+          "f:volumeMounts": {
+           "k:{\"mountPath\":\"/etc/paperclip/hermes-template/config.yaml\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {},
+            "f:readOnly": {},
+            "f:subPath": {}
+           },
+           "k:{\"mountPath\":\"/paperclip\"}": {
+            ".": {},
+            "f:mountPath": {},
+            "f:name": {}
+           }
+          }
+         }
+        },
+        "f:nodeSelector": {},
+        "f:securityContext": {
+         "f:fsGroup": {}
+        },
+        "f:terminationGracePeriodSeconds": {},
+        "f:tolerations": {},
+        "f:volumes": {
+         "k:{\"name\":\"data\"}": {
+          ".": {},
+          "f:name": {},
+          "f:persistentVolumeClaim": {
+           "f:claimName": {}
+          }
+         },
+         "k:{\"name\":\"hermes-config\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"opencode-config\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-home\"}": {
+          ".": {},
+          "f:name": {},
+          "f:persistentVolumeClaim": {
+           "f:claimName": {}
+          }
+         },
+         "k:{\"name\":\"shell-inventory\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-motd-tips\"}": {
+          ".": {},
+          "f:configMap": {
+           "f:defaultMode": {},
+           "f:name": {}
+          },
+          "f:name": {}
+         },
+         "k:{\"name\":\"shell-ssh-keys\"}": {
+          ".": {},
+          "f:name": {},
+          "f:secret": {
+           "f:defaultMode": {},
+           "f:optional": {},
+           "f:secretName": {}
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "manager": "argocd-controller",
+    "operation": "Apply",
+    "time": "2026-09-12T20:16:31Z"
+   },
+   {
+    "apiVersion": "apps/v1",
+    "fieldsType": "FieldsV1",
+    "fieldsV1": {
+     "f:spec": {
+      "f:template": {
+       "f:metadata": {
+        "f:annotations": {
+         ".": {},
+         "f:kubectl.kubernetes.io/restartedAt": {}
+        }
+       }
+      }
+     }
+    },
+    "manager": "kubectl-rollout",
+    "operation": "Update",
+    "time": "2026-08-01T17:43:41Z"
+   },
+   {
+    "apiVersion": "apps/v1",
+    "fieldsType": "FieldsV1",
+    "fieldsV1": {
+     "f:metadata": {
+      "f:annotations": {
+       "f:deployment.kubernetes.io/revision": {}
+      }
+     },
+     "f:status": {
+      "f:availableReplicas": {},
+      "f:conditions": {
+       ".": {},
+       "k:{\"type\":\"Available\"}": {
+        ".": {},
+        "f:lastTransitionTime": {},
+        "f:lastUpdateTime": {},
+        "f:message": {},
+        "f:reason": {},
+        "f:status": {},
+        "f:type": {}
+       },
+       "k:{\"type\":\"Progressing\"}": {
+        ".": {},
+        "f:lastTransitionTime": {},
+        "f:lastUpdateTime": {},
+        "f:message": {},
+        "f:reason": {},
+        "f:status": {},
+        "f:type": {}
+       }
+      },
+      "f:observedGeneration": {},
+      "f:readyReplicas": {},
+      "f:replicas": {},
+      "f:terminatingReplicas": {},
+      "f:updatedReplicas": {}
+     }
+    },
+    "manager": "kube-controller-manager",
+    "operation": "Update",
+    "subresource": "status",
+    "time": "2026-09-22T21:36:12Z"
+   }
+  ]
+ }
+}

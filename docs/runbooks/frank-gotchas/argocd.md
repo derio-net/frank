@@ -450,3 +450,62 @@ phrased "the app is Synced **and** the live object contains the new symbol"
 fails immediately. Every post-merge Test Plan row that asserts a cluster
 behaviour should name the artifact it will read, and the first row should be the
 one that proves the merge is live at all.
+
+## A hand server-side apply blocks later deletions of list items (2026-10-11, frank#827)
+
+**Symptom.** A merged PR that removes a container (or init container) never
+reaches the cluster. The Application reads `Synced/Healthy`, but
+`status.operationState` is `Failed`:
+
+```
+Deployment.apps "paperclip" is invalid: [spec.template.spec.containers[1].image:
+Required value, spec.template.spec.initContainers[0].image: Required value]
+(retried 5 times)
+```
+
+**Cause.** Server-side apply removes a field only once no manager owns it. The
+paperclip Deployment had been `kubectl apply --server-side`d by hand on
+2026-05-17, so `metadata.managedFields` held two Apply managers: `kubectl` and
+`argocd-controller`. Both owned the `paperclip-shell` and `hermes-init` list
+items (their `k:{"name":...}` keys), but only ArgoCD owned their `image`
+fields. When #823 dropped both from git, ArgoCD's apply released its own
+fields. The items themselves stayed, still owned by `kubectl` and now without
+an image, and the API server rejected the object. Nothing reconciles this:
+`selfHeal` retries the same apply, and the app keeps reporting the last
+revision that did apply.
+
+The entry is invisible by default, because `kubectl get -o yaml` has hidden
+managedFields since 1.21. Use `--show-managed-fields`.
+
+**Find.** Read-only, any kind:
+
+```bash
+kubectl get deploy,sts,ds,cronjob,svc,cm -A -o json --show-managed-fields \
+  | scripts/stale_field_managers.py
+```
+
+It lists every non-ArgoCD `Apply` manager on an object carrying ArgoCD's
+tracking annotation. `Update` managers, such as `kubectl-rollout` and the
+controller-manager's status writes, are normal and are not listed.
+
+**Fix.** Remove only the stale entry. It is metadata, so there is no spec
+change and no pod roll:
+
+```bash
+kubectl -n NS get deploy NAME -o json --show-managed-fields \
+  | scripts/stale_field_managers.py --patch > /tmp/patch.json
+kubectl -n NS patch deploy NAME --type=json --patch-file /tmp/patch.json
+```
+
+`--patch` guards each `remove` with `test` ops on the entry's `manager` and
+`time`, highest index first. If the list changed between read and write, the
+API server refuses the patch instead of deleting ArgoCD's own entry. Then
+trigger a sync with explicit `syncOptions` and assert on the artifact, not on
+`Synced`. Paperclip's instance is manual-op `orch-paperclip-drop-stale-field-manager`.
+
+**Latent elsewhere.** The first fleet scan (2026-10-11) found 42 more objects
+with the same shape: `helm` Apply entries from the 2026-03-02 bootstrap, on
+the ArgoCD, Cilium and Longhorn Deployments, DaemonSets, Services and
+ConfigMaps, from before ArgoCD adopted them. They are harmless until git
+removes a list item that `helm` co-owns. That sync then fails the same way, on
+core infrastructure. Clear them deliberately, one app at a time, not in bulk.
