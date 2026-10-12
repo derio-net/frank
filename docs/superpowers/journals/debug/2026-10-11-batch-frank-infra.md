@@ -46,3 +46,8 @@ Live (read-only, 2026-10-11): paperclip app OutOfSync, operationState Failed at 
 ### 2b7e186d5b30 · finding [fixed] · #827: detector, guarded patch, manual-op and gotcha
 
 Commit 047c2ff5. scripts/stale_field_managers.py plus test_stale_field_managers.py (7 tests, all failed first) against a live metadata-only fixture. Manual-op orch-paperclip-drop-stale-field-manager comes before the wipe, in the plan prose and the runbook, asserted equal. Live patch NOT run: operator step.
+
+<!-- fr:journal kind=finding scope=debug id=c8ff3b4865ed created=2026-10-12T06:06:30+00:00 state=open -->
+### c8ff3b4865ed · finding [open] · Latent: 41 bootstrap helm Apply managers on argocd/cilium/longhorn objects, filed as #843
+
+Same mechanism as #827, not a second root cause: latent, nothing is failing. Out of scope for this PR (live changes to core infrastructure); filed as frank#843.
