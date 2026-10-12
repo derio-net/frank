@@ -492,3 +492,35 @@ kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile mirror-re
 # STRING; it exceeds float64 and jq rounds it to an id that does not exist.
 ```
 
+## A conflicting PR gets NO `pull_request` run — and it looks like a pass (2026-10-12, frank#800)
+
+GitHub runs `pull_request` workflows against the synthetic merge commit at
+`refs/pull/N/merge`. While a PR conflicts with its base, that ref cannot be
+built, so **every `pull_request` event is dropped**: no run, no queued run, no
+`skipped` status, nothing in `actions/runs?branch=…`. The PR page and
+`gh pr checks` both show an empty list with no red X.
+
+PR #797 sat like that for eleven hours and was diagnosed as "draft PRs get no
+CI" (#800). It was not draft state. The open drafts #839, #840 and #842 all
+carried a `tripwires` run from `pull_request`. #797 had been CONFLICTING since
+creation: #787 and #762 landed on main at 21:15–21:28Z, the PR opened at 22:15Z,
+and `git merge-tree --write-tree f7ecc790 dcb31fe6` reports conflicts in three
+files. The first runs appeared at 08:53:50Z, nine minutes after the
+conflict-resolving merge commit `38b49d6e`. The `ready_for_review` nine seconds
+later was a coincidence, and that coincidence is what made draft state look
+like the cause.
+
+Main carries **no required status checks**. Ruleset `protect main` has only
+`deletion` and `non_fast_forward`, and there is no branch protection. So
+GitHub never shows a missing check as "Expected", and nothing marks the
+absence.
+
+**Rule.** "No checks" is not a verdict. Ask
+`python3 scripts/pr_ci_verdict.py <pr>`, which exits 0 only on PASSED and
+separates `CONFLICTING` / `NO_CHECKS` / `UNKNOWN` / `PENDING` / `FAILED`. If a
+PR shows no runs, check `gh pr view <pr> --json mergeable` before you look at
+workflows, Actions settings or billing. Do not add `types: [ready_for_review]`
+to fix this. Draft state was never the cause, and that trigger does nothing for
+a conflicting PR. Making `tripwires` a required check on the ruleset would
+show the gap as "Expected". That is an operator decision, because it also
+blocks merges whenever CI is unavailable.
