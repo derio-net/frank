@@ -207,3 +207,47 @@ def test_plan_errors_fail_the_job_after_repairs_run(world: dict) -> None:
     assert res.returncode != 0
     assert _head(world, "refs/heads/main") == c["c2"], "one broken repo must not block the others"
     assert "plan_errors=1" in res.stdout
+
+
+def test_push_fetches_each_org_with_that_orgs_own_token(world: dict) -> None:
+    """derio-homelab/kid-laptops is a different GitHub App installation from
+    agentic-stoa: its token is the only one that can read it. Fetching it with
+    the agentic-stoa token is a 404 on every drift, so the repo would be listed
+    as covered and never actually repaired.
+
+    A `git` shim on PATH records the credential each fetch carried, then runs the
+    real git, so this checks what the shipped script sends, not what a config says.
+    """
+    if world["runner"] != "host":
+        pytest.skip("the git shim is host-side; the alpine variant covers busybox sh, not auth")
+    import base64
+
+    c, root = world["c"], world["root"]
+    for side in ("github", "gitea"):
+        twin = root / side / "derio-homelab" / "k.git"
+        twin.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(root / side / "agentic-stoa" / "r.git", twin)
+    shim = root / "shim"
+    shim.mkdir()
+    log = root / "fetch-auth.log"
+    (shim / "git").write_text(
+        f"#!/bin/sh\ncase \"$*\" in *http.extraHeader=*) printf '%s\\n' \"$*\" >> {log};; esac\n"
+        f"exec {shutil.which('git')} \"$@\"\n"
+    )
+    (shim / "git").chmod(0o755)
+    _plan(world,
+          f"{NAME} refs/heads/main refs/heads/main {c['c2']} {c['c1']}",
+          f"derio-homelab/k refs/heads/main refs/heads/main {c['c2']} {c['c1']}")
+
+    res = _run(world, "push.sh", PATH=f"{shim}:{os.environ['PATH']}",
+               GITHUB_TOKEN="stoa-tok", GITHUB_TOKEN_DERIO_HOMELAB="homelab-tok")
+    assert res.returncode == 0, res.stdout + res.stderr
+
+    def header(token: str) -> str:
+        return "Authorization: Basic " + base64.b64encode(f"x-access-token:{token}".encode()).decode()
+
+    fetches = log.read_text().splitlines()
+    stoa = next(l for l in fetches if "/agentic-stoa/r.git" in l)
+    homelab = next(l for l in fetches if "/derio-homelab/k.git" in l)
+    assert header("stoa-tok") in stoa and header("homelab-tok") not in stoa
+    assert header("homelab-tok") in homelab and header("stoa-tok") not in homelab
