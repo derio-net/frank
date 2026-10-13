@@ -191,7 +191,13 @@ kubectl get pipelinerun -n tekton-pipelines \
 # Or trigger the CronJob
 kubectl create job -n tekton-pipelines --from=cronjob/pipelinerun-ttl-gc \
   pipelinerun-ttl-gc-manual-$(date +%s)
+
+# Its log ends with one summary line per swept namespace
+kubectl logs -n tekton-pipelines job/<job-name> | grep 'pipelinerun-ttl-gc result'
+# pipelinerun-ttl-gc result namespace=kid-laptops-ci deleted=12 remaining=1 cutoff=...
 ```
+
+The CronJob sweeps the namespaces in its `NAMESPACES` list (`tekton-pipelines`, `kid-laptops-ci`), each with its own Role and RoleBinding. A namespace missing from that list is never swept. Its PipelineRuns and their workspace PVCs pile up, and because the workspace StorageClass is single-replica, each leaked PVC blocks a drain of the node that holds its only replica. A PR that adds a new PipelineRun namespace fails `scripts/tests/test_pipelinerun_ttl_gc_namespaces.py` until the namespace is added to the list.
 
 ### Manually Re-Trigger GitHub-primary Pull Sync
 
@@ -312,7 +318,7 @@ kubectl -n tekton-pipelines describe pvc <name> | tail -3
 kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o jsonpath='{range .spec.disks.*}{.tags}{" "}{end}'
 ```
 
-"Disk tag does not exist" means no schedulable Longhorn disk carries the class's tag. That is what happened on 2026-10-11, when #836 moved the workspaces to `longhorn-hdd` before any `hdd` disk was admitted. `layer-25-ci-pvc-pending` now alerts after 10 minutes. Once the disk is back, `mirror-reconcile` re-pushes the commits those timed-out syncs dropped.
+"Disk tag does not exist" means no schedulable Longhorn disk carries the class's tag. That is what happened on 2026-10-11, when #836 moved the workspaces to `longhorn-hdd` before any `hdd` disk was admitted. `layer-25-ci-workspace-pvc-pending` alerts once a PVC has been Pending for 15 minutes, and `layer-25-pipelinerun-timeout` alerts when the run itself times out. Once the disk is back, `mirror-reconcile` re-pushes the commits those timed-out syncs dropped.
 
 ### PodSecurity Violation on Task Step
 

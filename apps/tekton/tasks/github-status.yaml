@@ -38,6 +38,14 @@ spec:
     - name: github-api-url
       type: string
       default: "https://api.github.com"
+    - name: best-effort
+      type: string
+      default: "false"
+      description: >-
+        "true" = a failed post is logged (WARN) but does not fail the step.
+        Used by the run-start `pending` post: a GitHub flake there must not
+        turn an otherwise green run red. The finally success/failure posts
+        leave it "false" -- they are the mandatory record.
   steps:
     - name: report
       image: curlimages/curl:8.7.1
@@ -61,6 +69,8 @@ spec:
           value: $(params.target-url)
         - name: GITHUB_API_URL
           value: $(params.github-api-url)
+        - name: BEST_EFFORT
+          value: $(params.best-effort)
       securityContext:
         allowPrivilegeEscalation: false
         runAsNonRoot: true
@@ -90,7 +100,7 @@ spec:
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
+            -d "$PAYLOAD") || true
           echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
           cat /tmp/resp
           echo
@@ -114,4 +124,14 @@ spec:
             echo "WARN: the request is unactionable, so not failing the step."
             exit 0
           fi
-          [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            exit 0
+          fi
+          # A curl transport failure prints 000; `|| true` above only lets it
+          # reach THIS decision -- it stays fatal unless the caller opted into
+          # best-effort.
+          if [ "${BEST_EFFORT:-false}" = "true" ]; then
+            echo "WARN: best-effort post of '${STATE}' failed (HTTP ${HTTP_CODE}); not failing the step."
+            exit 0
+          fi
+          exit 1

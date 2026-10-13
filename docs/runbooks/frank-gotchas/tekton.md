@@ -455,12 +455,17 @@ existed to report. Two independent losses:
   emptyDir only and has no node pin: it is the repair path for exactly the
   storage/node failures above. Result line: `mirror-reconcile result drift=…
   repaired=… failed=…`. `repaired > 0` means the webhook path dropped something.
-- Alerts (feature-health, layer-25-pipeline-outcomes):
-  `layer-25-mirror-sync-failing` (≥3 failures AND ≥50% of `*-pull-sync` runs in
-  2h, `for: 30m`: 0 points in 28 days, fires 22:25Z-07:05Z across the outage);
-  `layer-25-ci-pvc-pending` (any tekton-pipelines PVC Pending 10m: 19 at the
-  outage, 0 in the 14 days before); `layer-25-mirror-reconcile-stale` (no
-  reconcile success in 1h).
+- Alerts (feature-health, layer-25-pipeline-outcomes). #855 shipped the
+  outage-shaped pair in parallel: `layer-25-ci-workspace-pvc-pending` (a PVC
+  Pending for more than 15m) and `layer-25-pipelinerun-timeout` (a run that
+  failed after more than 30m). This change adds only what those two cannot see:
+  `layer-25-mirror-sync-failing` (≥3 *fast* failures, inside the `le="1800"`
+  bucket and so the exact complement of the timeout rule, AND ≥50% of
+  `*-pull-sync` runs in 2h, `for: 30m`). It stayed quiet through the 10-11
+  outage, which was all timeouts, and fired from 2026-10-13 17:55Z on a
+  real fault nothing else paged: Gitea rejecting every kid-laptops push
+  (frank#849). Plus `layer-25-mirror-reconcile-stale` (no reconcile success in
+  about an hour).
 
 ### Known residual risk
 

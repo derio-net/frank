@@ -39,7 +39,8 @@ ALERT_RULES_CM = REPO / "apps" / "grafana-alerting" / "manifests" / "alert-rules
 
 LISTENERS = {"github-listener": EL_GITHUB, "gitea-listener": EL_GITEA}
 SYNC_FAILING_UID = "layer-25-mirror-sync-failing"
-PVC_PENDING_UID = "layer-25-ci-pvc-pending"
+PVC_PENDING_UID = "layer-25-ci-workspace-pvc-pending"  # shipped by #855
+TIMEOUT_UID = "layer-25-pipelinerun-timeout"  # shipped by #855
 RECONCILE_STALE_UID = "layer-25-mirror-reconcile-stale"
 
 
@@ -378,25 +379,32 @@ def test_plan_output_round_trips_through_the_push_script_format() -> None:
 # 3. the next outage pages
 
 
-def test_sync_failing_rule_sees_a_partial_day_outage() -> None:
+def test_sync_failing_rule_covers_only_fast_failures() -> None:
+    """The complement of #855's timeout rule, so a failure class pages once.
+
+    layer-25-pipelinerun-timeout counts failures OUTSIDE le="1800" (> 30m);
+    this rule counts failures INSIDE it. Both reading the same bucket edge is
+    what makes them a partition rather than an overlap.
+    """
     rule = _rules()[SYNC_FAILING_UID]
     expr = _expr(rule)
     assert 'pipeline=~".+-pull-sync"' in expr
-    assert 'status="failed"' in expr
-    # A ratio, not "zero successes in 24h" — the latter is what stayed silent
-    # through seven hours of timeouts after a successful afternoon.
+    assert expr.count('status="failed", le="1800"') == 2, "both failure terms read the fast bucket"
     assert ">= 3" in expr and ">= 0.5" in expr and "[2h]" in expr
     assert "unless" not in expr
     assert rule["for"] == "30m"
     assert rule["labels"]["severity"] == "warning"
+    timeout = _expr(_rules()[TIMEOUT_UID])
+    assert 'le="1800"' in timeout, "the partition edge moved: re-check both rules together"
 
 
-def test_pending_ci_pvc_rule_watches_the_mechanism_itself() -> None:
-    rule = _rules()[PVC_PENDING_UID]
-    expr = _expr(rule)
-    assert 'namespace="tekton-pipelines"' in expr and 'phase="Pending"' in expr
-    assert "kube_persistentvolumeclaim_status_phase" in expr
-    assert rule["for"] == "10m"
+def test_the_outage_mechanism_is_watched_once_not_twice() -> None:
+    # #855 shipped the Pending-PVC rule; this branch's own copy was dropped on
+    # merge. Exactly one rule may watch tekton-pipelines PVC phase.
+    watchers = [uid for uid, r in _rules().items()
+                if "kube_persistentvolumeclaim_status_phase" in _expr(r)
+                and 'namespace="tekton-pipelines"' in _expr(r)]
+    assert watchers == [PVC_PENDING_UID]
 
 
 def test_the_repair_path_has_its_own_dead_man() -> None:
@@ -408,6 +416,6 @@ def test_the_repair_path_has_its_own_dead_man() -> None:
     assert "> bool 1800" in expr and rule["for"] == "30m"  # ~1h total, as documented
 
 
-@pytest.mark.parametrize("uid", [SYNC_FAILING_UID, PVC_PENDING_UID, RECONCILE_STALE_UID])
+@pytest.mark.parametrize("uid", [SYNC_FAILING_UID, RECONCILE_STALE_UID])
 def test_new_rules_fit_grafanas_uid_limit(uid: str) -> None:
     assert len(uid) <= 40

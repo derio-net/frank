@@ -106,8 +106,10 @@ flip one org variable, no workflow edits. This is acceptance row
   in 24h) could not see a partial-day outage. Fixed by: both EventListeners
   unpinned to 2 replicas spread across hosts plus PDBs; a `mirror-reconcile`
   CronJob (`apps/tekton/manifests/mirror-reconcile.yaml`) that pushes GitHub to
-  Gitea drift every 15 min with `--force-with-lease`; and three alerts,
-  `layer-25-mirror-sync-failing`, `layer-25-ci-pvc-pending` and
-  `layer-25-mirror-reconcile-stale`. Guards:
+  Gitea drift every 15 min with `--force-with-lease`; and two alerts,
+  `layer-25-mirror-sync-failing` (fast failures) and
+  `layer-25-mirror-reconcile-stale`. These sit alongside #855's
+  `layer-25-ci-workspace-pvc-pending` and `layer-25-pipelinerun-timeout`,
+  which cover the outage's own shape. Guards:
   `scripts/tests/test_ci_mirror_resilience.py` and
   `scripts/tests/test_mirror_reconcile_behaviour.py`.

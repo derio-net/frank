@@ -499,6 +499,63 @@ def test_the_idle_rules_fire_below_a_floor_not_above_a_ceiling():
         )
 
 
+# Longest idle gap (hours) actually observed per watched pipeline, and WHEN it
+# was measured. These are measurements, not design targets: the rule comment
+# once asserted "max observed idle gap 0.5h" for stoa-status-bridge (measured
+# 2026-09-13) and that premise drifted — by 2026-10-13 four gaps of >=6h in 3.4
+# days (max 8.3h; 30d VictoriaMetrics series, four weekends included, showed no
+# stretch >=5h before 10-07) — so a [6h] window paged on every quiet night.
+# When a window is re-derived, update the number AND the date here.
+MEASURED_MAX_IDLE_GAP_HOURS = {
+    IDLE_UID_STOA_STATUS_BRIDGE: 8.3,  # 2026-10-13, 767 retained runs + 30d series
+    IDLE_UID_GITHUB_PULL_SYNC: 15.7,  # 2026-09-13
+}
+# A window only just above the worst gap is one quiet night from a false page.
+MIN_IDLE_WINDOW_HEADROOM = 2.5
+
+
+def _promql_window_hours(expr: str) -> float:
+    match = re.search(r"\[(\d+)([hd])\]", expr)
+    assert match, f"no [<n>h|d] range selector in: {expr!r}"
+    return int(match.group(1)) * (24 if match.group(2) == "d" else 1)
+
+
+def test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom():
+    """An idle dead-man's window must be longer than the pipeline's NORMAL silence.
+
+    `layer-25-idle-stoa-status-bridge` fired on 2026-10-13 after an 8.3h gap
+    with the listener healthy and the first event after the gap creating a run
+    immediately. Root cause was a [6h] window calibrated when the longest gap
+    was 0.5h; nothing pinned the window against the observed gaps, so when
+    traffic became bursty the rule turned into a nightly false page.
+
+    Also asserts the PromQL range and the `relativeTimeRange` of every query
+    agree — the evaluation window must cover the `increase()` range or
+    Grafana evaluates a truncated one.
+    """
+    rules = _idle_rules()
+    assert set(MEASURED_MAX_IDLE_GAP_HOURS) == set(rules), (
+        "every idle rule needs a measured max-idle-gap entry (and vice versa): "
+        f"{sorted(MEASURED_MAX_IDLE_GAP_HOURS)} vs {sorted(rules)}"
+    )
+    for uid, rule in rules.items():
+        window_h = _promql_window_hours(_query_expr(rule))
+        gap_h = MEASURED_MAX_IDLE_GAP_HOURS[uid]
+        assert window_h >= MIN_IDLE_WINDOW_HEADROOM * gap_h, (
+            f"{uid} looks back {window_h:g}h but its pipeline has been silent "
+            f"for {gap_h:g}h during normal operation; the window needs "
+            f">= {MIN_IDLE_WINDOW_HEADROOM}x headroom "
+            f"({MIN_IDLE_WINDOW_HEADROOM * gap_h:g}h), or it pages on routine quiet."
+        )
+        for datum in rule["data"]:
+            from_seconds = datum["relativeTimeRange"]["from"]
+            assert from_seconds == int(window_h * 3600), (
+                f"{uid} refId {datum['refId']} relativeTimeRange.from="
+                f"{from_seconds} does not match the {window_h:g}h PromQL window "
+                f"({int(window_h * 3600)}s)"
+            )
+
+
 def test_every_watched_pipeline_exists_in_the_repo():
     """The `cilium-.*` / `longhorn-manager-.*` lesson, re-applied here.
 
@@ -609,6 +666,9 @@ def _pipeline_outcome_rule_uids() -> list[str]:
         FAILURE_RATIO_UID,
         IDLE_UID_STOA_STATUS_BRIDGE,
         IDLE_UID_GITHUB_PULL_SYNC,
+        # 2026-10-11 silent-CI incident: queries the duration histogram's
+        # `_bucket`, which must also survive the scrape's drop regex.
+        "layer-25-pipelinerun-timeout",
     ]
 
 
