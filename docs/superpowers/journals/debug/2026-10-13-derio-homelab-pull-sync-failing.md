@@ -14,3 +14,8 @@ Measured in the gitea pod: exactly 13 empty files under objects/, all mtime 2026
 ### 59c3aad27dba · ruled-out · frank#849 proposed fix (delete empties, then re-push) does NOT work
 
 Tested on a scratch copy of the bare repo (5.1MB, copied out read-only). Delete-only: fsck then reports refs/heads/main invalid sha1 pointer, and re-pushing GitHub main is still rejected (unpacker error): the client believes the remote already has those objects so never re-sends them. Reproduced the original error offline first (same 'unresolved deltas').
+
+<!-- fr:journal kind=hypothesis scope=debug id=85d8e197cccc created=2026-10-13T19:28:46+00:00 -->
+### 85d8e197cccc · hypothesis · Re-supplying the 13 objects from GitHub repairs the repo
+
+Delete the empties, then pack exactly those objects from a GitHub clone and unpack-objects them into the bare repo. Tested on scratch: fsck output 0 lines, push of 3e3798e fast-forwards main b6da197..3e3798e.
