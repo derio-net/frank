@@ -164,3 +164,8 @@ Step 5 names all three Applications and their operationState revision check, des
 ### sr-8-resolved · finding [out-of-scope] · resolves sr-8: Default-group recurring backups apply to every longhorn-hdd CI scratch volume
 
 Default-group recurring jobs already cover every longhorn-cicd workspace; this change only moves where they read from. Recorded as a Risk with a follow-up to opt longhorn-hdd out of the default group.
+
+<!-- fr:journal kind=finding scope=spec id=sr-8-resolved-2 created=2026-10-12T14:33:31+00:00 state=open resolves=sr-8 tracked_by=https://github.com/derio-net/frank/issues/846 -->
+### sr-8-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/846] · resolves sr-8: Default-group recurring backups apply to every longhorn-hdd CI scratch volume
+
+Filed at archive as https://github.com/derio-net/frank/issues/846.

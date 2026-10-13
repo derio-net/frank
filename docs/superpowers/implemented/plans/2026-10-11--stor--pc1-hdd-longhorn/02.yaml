@@ -38,7 +38,7 @@ tasks:
       verify:
         - "Posted to frank#824 per drive: overall health, long-test result, raw 5/197/198 (gates) and 9/193/199 (recorded). EXCLUDE on overall FAIL, a failed long test, or any non-zero raw 5/197/198."
         - "An excluded drive: its UserVolumeConfig doc deleted from patches/phase03-longhorn/402-pc1-hdd-volumes.yaml AND its entry from longhorn-node-disks-pc-1.yaml in one commit on this PR; `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q` still passes."
-      status: pending
+      status: done
       ```
   - id: P2.T1.S2
     text: |
@@ -63,7 +63,7 @@ tasks:
       verify:
         - "Empty: the wipe is recorded on frank#824 and `talosctl -n 192.168.55.71 get discoveredvolumes` shows that disk with no partitions."
         - "Any content: a summary (top-level paths and sizes, no file contents) is posted to frank#824, hdd-556235e7 is removed from both patch files in one commit on this PR, and sdd STOPS for the operator's ruling. sdb/sdc proceed. Nothing is copied or wiped without that ruling."
-      status: pending
+      status: done
       ```
 - number: 2
   title: '[PRE-MERGE] Talos volumes and unschedulable Longhorn disks'
@@ -87,7 +87,7 @@ tasks:
         - "talosctl -n 192.168.55.71 get mountstatus | grep /var/mnt/hdd-"
       verify:
         - "Every admitted hdd-<wwid8> volume is phase ready and mounted xfs at /var/mnt/hdd-<wwid8>. Empty output after a few minutes can mean Omni wedged on a cold-boot clock jump (frank-gotchas, Omni): docker restart omni on the Omni host."
-      status: pending
+      status: done
       ```
   - id: P2.T2.S2
     text: |
@@ -111,7 +111,7 @@ tasks:
       verify:
         - "kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq '.status.diskStatus | with_entries(select(.key|startswith(\"hdd-\"))) | map_values(.conditions | map({type,status}))'   # Ready True; Schedulable False after pass 1, True after pass 2"
         - "kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq '.spec.disks | map_values(.tags)'   # hdd-* carry [\"hdd\"]; the default-disk entry is unchanged"
-      status: pending
+      status: done
       ```
 - number: 3
   title: Merge, assert the flip, allow scheduling, prove placement, reboot
@@ -148,7 +148,7 @@ tasks:
         - "default-test's replicas are on NO /var/mnt/hdd-* and NO /var/mnt/longhorn-sd* (gpu-local) path."
         - "The next real Tekton PipelineRun's workspace PVC (tekton-pipelines) has its replica on /var/mnt/hdd-*."
         - "The robustness diff shows no volume newly degraded or faulted by the flip."
-      status: pending
+      status: done
       ```
   - id: P2.T3.S2
     text: |
@@ -159,34 +159,39 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-12T14:33:57+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-10-12T14:34:10+00:00'
+      note: sdd (naa.50014ee0556235e7) failed the SMART gate (197=305, 198=68) and
+        was excluded, so R2's inspect/wipe applies to no admitted drive; partition
+        left untouched (frank#824)
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-12T14:34:00+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-12T14:34:03+00:00'
       note: null
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-12T14:34:05+00:00'
       note: null
     P2.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-10-12T14:34:08+00:00'
       note: null
     P2.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-12T14:34:13+00:00'
+      note: manual-ops flipped done in plan + runbook; 4 acceptance rows flipped with
+        live evidence 2026-10-12; capacity-audit corroboration not re-run (corroboration
+        only — volumestatus + Longhorn disk + replica sweep asserted directly)
   completion:
-    at: null
-    note: null
+    at: '2026-10-12T14:34:27+00:00'
+    note: Operator-run 2026-10-11/12; evidence on frank#824; re-asserted live at closeout
+      2026-10-12 16:30Z
     observed_prs: []
