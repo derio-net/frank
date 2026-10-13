@@ -14,3 +14,8 @@ Ruled out. el-gitea-listener 1/1 Running 33h, no restarts; logs show events at 1
 ### 257620618d82 · hypothesis · Rule window calibrated on a premise that no longer holds
 
 Rule comment justifies [6h]/for:1h with 'max observed idle gap 0.5h -> 12x headroom' (measured 2026-09-13). Hypothesis: traffic is now bursty and idle gaps routinely exceed 6h, so the rule fires on quiet periods.
+
+<!-- fr:journal kind=root-cause scope=debug id=53a8c87b6957 created=2026-10-13T15:25:41+00:00 -->
+### 53a8c87b6957 · root-cause · Idle window [6h] is shorter than normal idle gaps (max 8.3h)
+
+Confirmed. Exact gaps from 767 retained runs (10-10..10-13): 8.3h, 7.3h, 7.1h, 7.0h, 5.5h... four gaps >=6h in 3.4d. 30d hourly VictoriaMetrics series (09-14..10-13, includes four weekends): zero idle stretches >=5h until 10-07, five >=6h since, longest 7 empty hourly buckets (~8h). So the 0.5h premise was true when measured and has drifted; the rule fires on routine quiet periods, not an outage. No test pinned the window against measured gaps, so the drift was invisible.
