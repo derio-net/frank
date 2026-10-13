@@ -1,4 +1,12 @@
-# GitHub -> Gitea mirror reconciler for agentic-stoa.
+# GitHub -> Gitea mirror reconciler for agentic-stoa AND derio-homelab/kid-laptops.
+#
+# Two orgs, two GitHub App installations: each repo is read with ITS OWN org's
+# token (GITHUB_TOKEN for agentic-stoa, GITHUB_TOKEN_DERIO_HOMELAB for
+# derio-homelab); one App's token gets a 404 on the other's private repos. Gitea
+# is pushed with the one stoa-bot SSH identity, which can write both orgs.
+# kid-laptops was NOT covered when this job first shipped (#851 read only the
+# agentic-stoa trigger), so a dropped kid-laptops webhook was a lost commit.
+# kid-laptops has a push trigger only, so it is in MAIN_REPOS and not PR_REPOS.
 #
 # The mirror is webhook-driven: GitHub push/pull_request -> github-listener ->
 # github-pull-sync PipelineRun -> force-push into the Gitea replica, whose push
@@ -11,7 +19,7 @@
 # drained.
 #
 # Every 15 minutes this job compares what the mirror SHOULD hold (GitHub main
-# for every repo in the agentic-stoa-main-sync trigger, plus sync-pr-<N> for each
+# for every repo in the *-main-sync triggers, plus sync-pr-<N> for each
 # open PR on every PR trigger that writes one) against what Gitea holds. It
 # pushes any ref that has drifted for longer than GRACE_MINUTES. Younger drift
 # still belongs to the webhook path. A repaired ref fires Gitea Actions again.
@@ -152,6 +160,17 @@ data:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+    def token_for(repo, environ):
+        """The GitHub App token for the repo's org: GITHUB_TOKEN_<ORG> (org upper-cased,
+        '-' -> '_'), else GITHUB_TOKEN. agentic-stoa has no suffixed variable, so it
+        takes the fallback. An org with no token of its own gets the fallback too and
+        therefore a 404, recorded in errors.txt, which fails the Job loudly without
+        taking the other org's repairs down with a KeyError.
+        """
+        var = "GITHUB_TOKEN_" + repo.split("/")[0].upper().replace("-", "_")
+        return environ.get(var) or environ["GITHUB_TOKEN"]
+
+
     def _github(path, token):
         req = urllib.request.Request(
             f"https://api.github.com{path}",
@@ -166,7 +185,7 @@ data:
 
 
     def main():
-        token = os.environ["GITHUB_TOKEN"]
+        os.environ["GITHUB_TOKEN"]  # the fallback token must exist: fail before any API call
         plan_dir = os.environ.get("PLAN_DIR", "/plan")
         main_repos = os.environ["MAIN_REPOS"].split()
         pr_repos = os.environ["PR_REPOS"].split()
@@ -186,7 +205,7 @@ data:
 
         def github_head(repo):
             try:
-                branch = _github(f"/repos/{repo}/branches/main", token)
+                branch = _github(f"/repos/{repo}/branches/main", token_for(repo, os.environ))
                 return branch["commit"]["sha"], _ts(branch["commit"]["commit"]["committer"]["date"])
             except Exception as exc:  # one repo's failure must not stop the rest
                 errors.append(f"{repo}: GitHub main unreadable: {exc}")
@@ -194,7 +213,7 @@ data:
 
         def github_open_prs(repo):
             try:
-                prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token)
+                prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token_for(repo, os.environ))
                 return [(p["number"], p["head"]["sha"]) for p in prs]
             except Exception as exc:
                 errors.append(f"{repo}: GitHub PRs unreadable: {exc}")
@@ -202,7 +221,7 @@ data:
 
         def commit_time(repo, sha):
             try:
-                commit = _github(f"/repos/{repo}/commits/{sha}", token)
+                commit = _github(f"/repos/{repo}/commits/{sha}", token_for(repo, os.environ))
                 return _ts(commit["commit"]["committer"]["date"])
             except Exception as exc:
                 errors.append(f"{repo}: GitHub commit {sha[:12]} unreadable: {exc}")
@@ -238,7 +257,14 @@ data:
     # an event, which is worth a look even when the Job succeeds.
     set -u
     . /scripts/common.sh
-    auth="Authorization: Basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+    # Same rule as plan.py's token_for: GITHUB_TOKEN_<ORG> (upper-cased, '-' -> '_'),
+    # else GITHUB_TOKEN. Each org is its own GitHub App installation.
+    auth_for() {
+      var="GITHUB_TOKEN_$(printf '%s' "${1%%/*}" | tr 'a-z-' 'A-Z_')"
+      eval "tok=\${$var:-}"
+      [ -n "$tok" ] || tok="$GITHUB_TOKEN"
+      printf 'Authorization: Basic %s' "$(printf 'x-access-token:%s' "$tok" | base64 | tr -d '\n')"
+    }
     drift=0 repaired=0 skipped=0 failed=0
     plan_errors=$(( $(wc -l < /plan/errors.txt) ))
     prev=""
@@ -257,6 +283,7 @@ data:
         prev="$bare"
       fi
       [ -d "$bare" ] || git init -q --bare "$bare"
+      auth="$(auth_for "$repo")"
       if ! git -C "$bare" -c http.extraHeader="$auth" fetch -q \
           "$GITHUB_GIT/$repo.git" "+$src:refs/reconcile/src"; then
         echo "mirror-reconcile fetch-failed $repo $src"
@@ -328,13 +355,15 @@ spec:
               command: ["/bin/sh", "/scripts/heads.sh"]
               env:
                 - {name: HOME, value: /tmp/home}
-                # == the agentic-stoa-main-sync CEL filter (guarded)
+                # == the *-main-sync CEL filters: agentic-stoa-main-sync, then
+                # derio-homelab-kid-laptops-main-sync (guarded)
                 - name: MAIN_REPOS
                   value: >-
                     agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog
                     agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
                     agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
                     agentic-stoa/flexible-health agentic-stoa/site
+                    derio-homelab/kid-laptops
                 # == every PR trigger that writes sync-pr-<N> (guarded)
                 - name: PR_REPOS
                   value: >-
@@ -363,6 +392,7 @@ spec:
                     agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
                     agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
                     agentic-stoa/flexible-health agentic-stoa/site
+                    derio-homelab/kid-laptops
                 - name: PR_REPOS
                   value: >-
                     agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
@@ -371,6 +401,11 @@ spec:
                 - {name: GRACE_MINUTES, value: "10"}
                 - name: GITHUB_TOKEN
                   valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                # optional: a missing derio-homelab Secret must only blind
+                # kid-laptops (404 -> plan error -> Job fails loudly), never stop
+                # the agentic-stoa repairs with CreateContainerConfigError.
+                - name: GITHUB_TOKEN_DERIO_HOMELAB
+                  valueFrom: {secretKeyRef: {name: derio-homelab-github-mirror, key: token, optional: true}}
               securityContext: *no-priv
               resources: *small
               volumeMounts:
@@ -385,6 +420,8 @@ spec:
                 - {name: DRY_RUN, value: "0"}
                 - name: GITHUB_TOKEN
                   valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                - name: GITHUB_TOKEN_DERIO_HOMELAB
+                  valueFrom: {secretKeyRef: {name: derio-homelab-github-mirror, key: token, optional: true}}
               securityContext: *no-priv
               resources:
                 requests: {cpu: 50m, memory: 128Mi}

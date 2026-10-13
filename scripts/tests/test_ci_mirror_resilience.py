@@ -73,10 +73,28 @@ def _github_listener() -> dict:
     return _one(EL_GITHUB, "EventListener", "github-listener")
 
 
+MIRRORED_ORGS = ("agentic-stoa", "derio-homelab")
+
+
 def _main_sync_repos() -> list[str]:
-    """The repo list the push-to-main mirror trigger actually serves."""
-    trig = next(t for t in _github_listener()["spec"]["triggers"] if t["name"] == "agentic-stoa-main-sync")
-    return re.findall(r"'(agentic-stoa/[\w.-]+)'", _cel(trig)["filter"])
+    """The repos every push-to-main mirror trigger actually serves, in listener order.
+
+    Not just `agentic-stoa-main-sync`: derio-homelab/kid-laptops has its own
+    `derio-homelab-kid-laptops-main-sync` trigger (a different GitHub App and
+    webhook secret). The reconciler was written against the first trigger only,
+    so for its first day a dropped kid-laptops webhook was a lost commit with
+    no repair path — and the guard passed, because it only looked there too.
+    """
+    repos: list[str] = []
+    for trig in _github_listener()["spec"]["triggers"]:
+        if trig["name"].endswith("-main-sync"):
+            repos += re.findall(rf"'((?:{'|'.join(MIRRORED_ORGS)})/[\w.-]+)'", _cel(trig)["filter"])
+    return repos
+
+
+def _token_var(org: str) -> str:
+    """Env var carrying an org's GitHub App token: agentic-stoa keeps the original name."""
+    return "GITHUB_TOKEN" if org == "agentic-stoa" else f"GITHUB_TOKEN_{org.upper().replace('-', '_')}"
 
 
 def _pr_sync_repos() -> list[str]:
@@ -171,17 +189,49 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
             continue
         declaring += 1
         assert env["MAIN_REPOS"].split() == _main_sync_repos(), (
-            f"{c['name']}: MAIN_REPOS drifted from the agentic-stoa-main-sync CEL filter"
+            f"{c['name']}: MAIN_REPOS drifted from the *-main-sync CEL filters"
             " — a repo added there would never be repaired"
         )
         assert env["PR_REPOS"].split() == _pr_sync_repos(), c["name"]
     assert declaring == 2, "both the heads and plan stages must carry the repo lists"
+    assert "derio-homelab/kid-laptops" in _main_sync_repos(), (
+        "the derivation must see the second org's trigger, not only agentic-stoa's"
+    )
     # The derivation must not silently collapse: these eight write sync-pr-N today.
     assert _pr_sync_repos() == sorted(
         f"agentic-stoa/{r}"
         for r in ("cnc-fr", "cnc-frd", "cnc-fru", "content-factory", "hermes-brain",
                   "hum", "second-brain", "stoa-blog")
     )
+
+
+def test_every_mirrored_org_has_its_own_github_token_wired_to_the_right_secret() -> None:
+    """Each org is a separate GitHub App installation: one App's token cannot read
+    another org's private repo (GitHub answers 404). So a repo from a second org
+    in MAIN_REPOS with only the first org's token wired is a reconciler that
+    looks covered and fails every run — loudly, but only after the first drift.
+    """
+    secrets = {"agentic-stoa": "stoa-github-mirror", "derio-homelab": "derio-homelab-github-mirror"}
+    pod = _cronjob()["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    stages = {c["name"]: c for c in pod["initContainers"] + pod["containers"]}
+    orgs = {repo.split("/")[0] for repo in _main_sync_repos()}
+    assert orgs == set(secrets), f"mirrored orgs {sorted(orgs)} changed; wire a token for each"
+    for stage in ("plan", "push"):  # the two stages that talk to GitHub
+        env = {e["name"]: e for e in stages[stage]["env"]}
+        for org, secret in secrets.items():
+            ref = env[_token_var(org)]["valueFrom"]["secretKeyRef"]
+            assert (ref["name"], ref["key"]) == (secret, "token"), (stage, org, ref)
+
+
+def test_plan_reads_each_repo_with_its_own_orgs_token() -> None:
+    token_for = _plan_module().token_for
+    env = {"GITHUB_TOKEN": "stoa", "GITHUB_TOKEN_DERIO_HOMELAB": "homelab"}
+    assert token_for("agentic-stoa/hum", env) == "stoa"
+    assert token_for("derio-homelab/kid-laptops", env) == "homelab"
+    # An org with no token of its own falls back to the original one: the
+    # request then fails loudly (404) into errors.txt and fails the Job, which
+    # is better than a KeyError that takes the other org's repairs down too.
+    assert token_for("someone-else/x", env) == "stoa"
 
 
 def test_reconciler_cannot_regress_a_newer_gitea_head() -> None:
