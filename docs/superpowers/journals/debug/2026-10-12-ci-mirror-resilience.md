@@ -29,3 +29,8 @@ Listeners: 2 replicas, hostname spread, amd64, PDBs (live nodeSelector owned onl
 ### 9ffdddfc2cb1 · review · Independent review: 0 critical, 3 important, 8 minor; all in-scope fixed, 1 deferred
 
 Important: (1) live nodeSelector might be owned by a non-SSA manager. Refuted: only argocd-controller Apply owns it; post-merge 2-node check added to the test plan. (2) cnc/hum/content-factory/stoa-blog PR mirrors were uncovered. Fixed: guard now derives every sync-pr trigger, and the docs say Tekton CI bodies are not re-run. (3) behaviour test not on busybox; plan.py main() untested. Fixed: alpine/git:2.47.2 variant plus main() and unreadable-repo tests. Minor fixed: PR grace on commit time, per-repo clone cleanup and 900s deadline, alert runbook wording, stale alert ~1h, pc-1 sync-pipeline SPOF documented, GIT_TERMINAL_PROMPT=0, DRY_RUN switch. Deferred: (9) alert on successful repairs (follow-up issue). Not changed: python:3.13-slim tag, which matches the repo convention.
+
+<!-- fr:journal kind=finding scope=debug id=e7beea1d06b7 created=2026-10-13T18:55:13+00:00 state=fixed -->
+### e7beea1d06b7 · finding [fixed] · Merge with #855: alerts folded into main's rather than duplicated
+
+#855 shipped layer-25-ci-workspace-pvc-pending and layer-25-pipelinerun-timeout for the same outage. Dropped this branch's layer-25-ci-pvc-pending. Narrowed layer-25-mirror-sync-failing to fast failures, inside the le=1800 bucket and so the complement of the timeout rule. Backtest: quiet on the 10-11 timeouts, fires from 2026-10-13 17:55Z on derio-homelab-pull-sync, where Gitea rejects every kid-laptops push since 16:50Z (#849, escalation noted there).
