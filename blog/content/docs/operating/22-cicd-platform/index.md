@@ -201,7 +201,18 @@ The CronJob sweeps the namespaces in its `NAMESPACES` list (`tekton-pipelines`, 
 
 ### Manually Re-Trigger GitHub-primary Pull Sync
 
-Every `value:` below is an example. Substitute your own repo pair and commit before applying — `agentic-stoa/hum` is one of several repos this pipeline serves and is almost certainly not the one you are fixing.
+Run the reconciler first. Every 15 minutes it compares GitHub `main` (and every open PR's head, against its `sync-pr-<N>` branch) against Gitea and pushes whatever has drifted for more than 10 minutes. Starting it by hand does the same thing now:
+
+```bash
+kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile mirror-reconcile-manual-$(date +%s)
+kubectl -n tekton-pipelines logs -f job/<that-name> --all-containers | grep mirror-reconcile
+# mirror-reconcile repaired agentic-stoa/second-brain refs/heads/sync-pr-124 - -> ab45e07…
+# mirror-reconcile result drift=1 repaired=1 skipped=0 failed=0 plan_errors=0
+```
+
+To re-run the webhook path itself for one PR, redeliver its `pull_request` delivery from the repo's webhook settings, or with `gh api -X POST repos/<org>/<repo>/hooks/<hook>/deliveries/<id>/attempts`. Read delivery ids as strings: they exceed a float64, and `jq` silently rounds them to an id that does not exist.
+
+A hand-built PipelineRun is the last resort. Its params and workspaces must match `apps/tekton/pipelines/github-pull-sync.yaml` exactly. Every `value:` below is an example:
 
 ```bash
 kubectl create -n tekton-pipelines -f - <<'EOF'
@@ -213,27 +224,22 @@ spec:
   pipelineRef:
     name: github-pull-sync
   params:
-    - name: github-repo
-      value: <org>/<repo>          # e.g. agentic-stoa/hum
-    - name: gitea-repo
-      value: <org>/<repo>          # e.g. agentic-stoa/hum
-    - name: ref-from
-      value: refs/heads/main
-    - name: ref-to
-      value: refs/heads/main
-    - name: sha
-      value: <commit-sha>
+    - {name: github-repo, value: <org>/<repo>}       # e.g. agentic-stoa/hum
+    - {name: gitea-repo,  value: <org>/<repo>}
+    - {name: sha,         value: <commit-sha>}
+    - {name: ref-to,      value: refs/heads/main}    # or refs/heads/sync-pr-<N>
+  taskRunTemplate:
+    podTemplate:
+      securityContext: {fsGroup: 65534}
   workspaces:
-    - name: shared-workspace
+    - name: source
       volumeClaimTemplate:
         spec:
           accessModes: [ReadWriteOnce]
           storageClassName: longhorn-hdd
-          resources: { requests: { storage: 1Gi } }
+          resources: {requests: {storage: 2Gi}}
     - name: ssh-creds
-      secret:
-        secretName: stoa-bot-ssh-key
-        defaultMode: 0400
+      secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 EOF
 ```
 
@@ -266,6 +272,21 @@ ALLOWED_HOST_LIST=*.svc.cluster.local
 
 Two traps stacked here. First, the value is scoped to in-cluster webhook delivery; mirror *pulls* are outbound and unaffected by it, so this is the setting to check when a webhook will not reach an EventListener, not when a mirror will not sync. Second, a values-only change to this file syncs the Secret without rolling the pod, so git and the live Secret can agree while the running Gitea serves the config it booted with. After any config change here, `kubectl -n gitea rollout restart deploy/gitea` and re-read the value from inside the pod.
 
+### A Commit Never Reached Gitea (no `gitea-actions/*` statuses)
+
+The runner looks healthy, later commits get statuses, but one PR or push has none. Gitea never received that commit, so no Actions run exists. The mirror chain is fire-and-forget at two points. A webhook that fails delivery (a 502 while the listeners were down) is never retried by GitHub. A `github-pull-sync` run that times out is never re-run. Find which one it was:
+
+```bash
+# Did the delivery fail?   (redeliver = the fix for this one)
+gh api 'repos/<org>/<repo>/hooks/<hook>/deliveries?per_page=50' \
+  --jq '.[] | "\(.delivered_at) \(.event) \(.action) \(.status_code)"'
+# Did a sync run, and how did it end?
+kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline=github-pull-sync \
+  --sort-by=.metadata.creationTimestamp | tail
+```
+
+Either way, `mirror-reconcile` repairs it within ~25 minutes (the 15-minute schedule plus the 10-minute grace), and the repaired push fires Gitea Actions, so the `gitea-actions/*` statuses arrive. It does **not** re-run a Tekton CI body: for hum, content-factory and stoa-blog, and for cnc-ci's `test` task, redeliver the PR webhook as well. kid-laptops (`derio-homelab-pull-sync`) is not reconciled at all, so redeliver there too. To repair now, run the reconciler by hand (see above). Since 2026-10-12 both EventListeners run two replicas on different hosts behind a PodDisruptionBudget, so draining one node no longer 502s webhooks.
+
 ### Webhook Not Triggering a PipelineRun
 
 ```bash
@@ -288,7 +309,16 @@ Known causes:
 kubectl describe pipelinerun -n tekton-pipelines <name>
 ```
 
-Check {{< abbr "PVC" >}} provisioning (Longhorn health, pc-1 node status). Tekton workspaces use the `longhorn-hdd` storage class (single replica on pc-1's HDD disks); it must be available and its `hdd` disks Schedulable.
+Check {{< abbr "PVC" >}} provisioning first. Tekton workspaces use the `longhorn-hdd` storage class (single replica on pc-1's HDD disks), and a PVC that cannot bind holds its PipelineRun in Pending for the full 1h timeout. The step never starts, so the run ends `PipelineRunTimeout` with no log at all:
+
+```bash
+kubectl -n tekton-pipelines get pvc | grep -v Bound
+kubectl -n tekton-pipelines describe pvc <name> | tail -3
+# … failed to provision volume with StorageClass "longhorn-hdd": … specified disk tag hdd does not exist
+kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o jsonpath='{range .spec.disks.*}{.tags}{" "}{end}'
+```
+
+"Disk tag does not exist" means no schedulable Longhorn disk carries the class's tag. That is what happened on 2026-10-11, when #836 moved the workspaces to `longhorn-hdd` before any `hdd` disk was admitted. `layer-25-ci-workspace-pvc-pending` alerts once a PVC has been Pending for 15 minutes, and `layer-25-pipelinerun-timeout` alerts when the run itself times out. Once the disk is back, `mirror-reconcile` re-pushes the commits those timed-out syncs dropped.
 
 ### PodSecurity Violation on Task Step
 

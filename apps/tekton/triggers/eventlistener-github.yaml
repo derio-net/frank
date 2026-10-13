@@ -404,16 +404,35 @@ spec:
         - {ref: staging-gate-binding, kind: TriggerBinding}
       template:
         ref: staging-gate-template
+  # Two replicas on different hosts, never pinned. These pods are stateless and
+  # are the ONLY ingress for their webhooks: a single replica pinned to pc-1
+  # 502'd three GitHub pushes while pc-1 drained on 2026-10-12, and GitHub
+  # never retries a failed delivery. Paired with a PodDisruptionBudget in
+  # apps/tekton/manifests/eventlistener-pdb.yaml so a drain keeps one serving.
+  # amd64 keeps them off the low-memory Pis. Guard:
+  # scripts/tests/test_ci_mirror_resilience.py.
   resources:
     kubernetesResource:
+      replicas: 2
       spec:
         template:
           metadata:
             creationTimestamp: null
           spec:
             containers: null
-            nodeSelector:
-              kubernetes.io/hostname: pc-1
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - {key: kubernetes.io/arch, operator: In, values: [amd64]}
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+                labelSelector:
+                  matchLabels:
+                    eventlistener: github-listener
 ---
 apiVersion: v1
 kind: Service

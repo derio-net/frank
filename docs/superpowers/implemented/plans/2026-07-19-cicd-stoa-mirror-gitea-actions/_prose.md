@@ -96,3 +96,20 @@ flip one org variable, no workflow edits. This is acceptance row
   comment. Reviewer note for cutover (repo-side, out of scope here): auto-tag's
   `git push origin <tag>` on a Gitea runner pushes to the mirror, not GitHub —
   needs a checkout-token override when CI_AUTHORITY flips.
+- 2026-10-12 deviation (post-deployment fix, `fix/ci-mirror-resilience`): the
+  mirror chain this plan built was fire-and-forget at both ends, and an outage
+  proved it. From 2026-10-11 21:22Z to 2026-10-12 04:21Z every `github-pull-sync`
+  run timed out on a workspace PVC that could not bind (#836 moved the
+  workspaces to `longhorn-hdd` before any `hdd` disk existed). At 06:49-06:51Z
+  three webhooks 502'd while pc-1, home of both single-replica EventListeners,
+  drained. Neither path retries, and `layer-25-pipeline-failing` (zero successes
+  in 24h) could not see a partial-day outage. Fixed by: both EventListeners
+  unpinned to 2 replicas spread across hosts plus PDBs; a `mirror-reconcile`
+  CronJob (`apps/tekton/manifests/mirror-reconcile.yaml`) that pushes GitHub to
+  Gitea drift every 15 min with `--force-with-lease`; and two alerts,
+  `layer-25-mirror-sync-failing` (fast failures) and
+  `layer-25-mirror-reconcile-stale`. These sit alongside #855's
+  `layer-25-ci-workspace-pvc-pending` and `layer-25-pipelinerun-timeout`,
+  which cover the outage's own shape. Guards:
+  `scripts/tests/test_ci_mirror_resilience.py` and
+  `scripts/tests/test_mirror_reconcile_behaviour.py`.
