@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-07-23--agents--agent-images-upstream-version-sweep
 
 <!-- fr:journal kind=decision scope=spec id=d1-selection created=2026-07-23T18:18:30 -->

@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-10-12-ci-mirror-resilience
 
 <!-- fr:journal kind=repro scope=debug id=a53b793ef57d created=2026-10-12T15:37:43+00:00 -->

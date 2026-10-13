@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: pr787-mermaid-width-gate
 
 <!-- fr:journal kind=repro scope=debug id=d54327742c8d created=2026-09-06T22:40:33 -->

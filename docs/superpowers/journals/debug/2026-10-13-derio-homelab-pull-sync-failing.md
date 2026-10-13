@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-10-13-derio-homelab-pull-sync-failing
 
 <!-- fr:journal kind=repro scope=debug id=5b7de4b38b4c created=2026-10-13T19:28:29+00:00 -->
