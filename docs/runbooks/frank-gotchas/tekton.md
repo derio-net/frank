@@ -529,3 +529,13 @@ to fix this. Draft state was never the cause, and that trigger does nothing for
 a conflicting PR. Making `tripwires` a required check on the ruleset would
 show the gap as "Expected". That is an operator decision, because it also
 blocks merges whenever CI is unavailable.
+
+### A Gitea mirror with zero-byte loose objects rejects every push — and "delete the empties and re-push" does not repair it
+
+`derio-homelab-pull-sync` failed on every run from 2026-10-13 16:50Z (`Layer 25 Pipeline Failing`, 8 failures and no successes in 24h). The step log reads `remote: error: object file …/derio-homelab/kid-laptops.git/objects/xx/… is empty`, `pack has N unresolved deltas`, `! [remote rejected] main (unpacker error)`. Gitea's bare copy held **13 zero-byte loose objects, all mtime 2026-08-01 10:42Z** (one write burst; the unclean-stop signature), in this one repo only. They sat silent for ten weeks because nothing fetched or pushed objects that depended on them; the first new push did. Tracked in frank#849.
+
+- **Why the obvious repair fails.** Gitea's `main` pointed at `b6da197b…`, itself one of the 13. Deleting the empties leaves `refs/heads/main` pointing at a missing commit (`fsck`: `invalid sha1 pointer`), and a re-push is still rejected: the client assumes the remote already has those objects and never re-sends them. Measured on a copy of the real 5.1 MB repo.
+- **What works.** Delete the empties, then pack exactly those objects from a current GitHub clone and `unpack-objects` them into the bare repo. `scripts/gitea-repair-empty-objects.sh --repo <owner/name> --source <clone> [--apply]` does that: dry-run by default, refuses before changing anything if the source cannot supply an object, verifies each object and a clean `git fsck` afterwards, and is a no-op on a clean repo. On the real data the push then fast-forwards `main` and `fsck` prints nothing.
+- **Detect it before a push does.** `find /data/git/gitea-repositories -path '*/objects/*' -type f -empty` inside the gitea pod (BusyBox `find`: use `-size 0`, and `ls --full-time` rather than `--time-style`). Cluster-wide, only this repo was affected on 2026-10-13.
+- **Cause (unverified).** An unclean stop of Gitea or pc-1 during a write; Gitea's volume is a 1-replica Longhorn volume on pc-1. The 2026-08-01 timeline has not been checked.
+- **Scope.** `mirror-reconcile` (#851) does not cover `derio-homelab`, so a mirror repair there is an operator step. Tests: `scripts/tests/test_gitea_repair_empty_objects.py` pins both halves: the naive fix fails, the script's fix works.
