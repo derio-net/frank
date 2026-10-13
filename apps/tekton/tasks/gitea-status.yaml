@@ -25,6 +25,13 @@ spec:
     - name: gitea-url
       type: string
       default: "http://gitea-http.gitea.svc.cluster.local:3000"
+    - name: best-effort
+      type: string
+      default: "false"
+      description: >-
+        "true" = a failed post is logged (WARN) but does not fail the step.
+        Used by the run-start `pending` post, which runs as a DAG task where
+        a failure would otherwise flip $(tasks.status) to Failed.
   steps:
     - name: report
       image: curlimages/curl:8.7.1
@@ -46,6 +53,8 @@ spec:
           value: $(params.context)
         - name: GITEA_URL
           value: $(params.gitea-url)
+        - name: BEST_EFFORT
+          value: $(params.best-effort)
       securityContext:
         allowPrivilegeEscalation: false
         runAsNonRoot: true
@@ -73,6 +82,15 @@ spec:
           HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$STATUS_URL" \
             -H "Authorization: token $GITEA_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
+            -d "$PAYLOAD") || true
           echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
-          [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            exit 0
+          fi
+          # A curl transport failure prints 000; `|| true` above only lets it
+          # reach THIS decision -- it stays fatal unless best-effort.
+          if [ "${BEST_EFFORT:-false}" = "true" ]; then
+            echo "WARN: best-effort post of '${STATE}' failed (HTTP ${HTTP_CODE}); not failing the step."
+            exit 0
+          fi
+          exit 1

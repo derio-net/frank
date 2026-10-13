@@ -28,6 +28,27 @@ spec:
       optional: true
       description: "Docker config.json for registry auth (bound to zot-push-creds Secret)"
   tasks:
+    # pending FIRST (2026-10-11 silent-CI incident). A DAG root task: no
+    # runAfter, no workspace -- so it schedules even when the workspace PVC
+    # cannot provision, and a run that never finishes leaves a visible
+    # `pending` instead of no status. best-effort so a Gitea flake cannot
+    # flip $(tasks.status) to Failed. context omitted to match the finally
+    # report-* tasks (both take the Task default, tekton-ci).
+    - name: report-pending
+      taskRef:
+        kind: Task
+        name: gitea-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: "pending"
+        - name: description
+          value: "CI running"
+        - name: best-effort
+          value: "true"
     - name: clone
       taskRef:
         kind: Task

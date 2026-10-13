@@ -23,6 +23,36 @@ spec:
     - name: source
     - name: ssh-creds
   tasks:
+    # pending FIRST (2026-10-11 silent-CI incident). A DAG root task: no
+    # runAfter, no workspace -- so it schedules even when the workspace PVC
+    # cannot provision, and a run that is created but never finishes leaves
+    # a visible `pending` instead of NO status (which a PR reads as green).
+    # best-effort: a GitHub flake here must not flip $(tasks.status) to
+    # Failed. finally waits for every DAG task, so its success/failure post
+    # always lands after (and supersedes) this one on the same context.
+    - name: github-status-pending
+      taskRef: {kind: Task, name: github-status}
+      params:
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "pending"}
+        - {name: description,    value: "CI running"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: target-url,     value: "$(params.dashboard-base-url)/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)"}
+        - {name: best-effort,    value: "true"}
+    # Gitea mirror of the pending status (best-effort, like the finally
+    # gitea posts). runAfter the mirror push: Gitea rejects a status for a
+    # commit it does not hold yet. GitHub above is the one that matters.
+    - name: gitea-status-pending
+      runAfter: [mirror]
+      taskRef: {kind: Task, name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "pending"}
+        - {name: description,    value: "CI running"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: best-effort,    value: "true"}
     - name: mirror
       workspaces:
         - {name: source, workspace: source}
