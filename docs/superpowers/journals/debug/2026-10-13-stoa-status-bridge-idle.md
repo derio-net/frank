@@ -24,3 +24,8 @@ Confirmed. Exact gaps from 767 retained runs (10-10..10-13): 8.3h, 7.3h, 7.1h, 7
 ### 29ae938abb50 · finding [fixed] · Idle window 6h -> 24h, pinned by a measured-gap test
 
 alert-rules-cm.yaml: layer-25-idle-stoa-status-bridge [6h]->[24h] (query, relativeTimeRange A/B/C, summary, calibration comment); for:1h unchanged. Failing-first test test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom (red: 6h < 2.5x8.3h; green after). 235 passed across alert-rule and gotcha guards. 30d backtest: longest idle stretch ~8h, so the new rule would not have fired once. Gotcha added (grafana.md + frank-gotchas.md). Trade-off: dead-webhook detection latency ~25h.
+
+<!-- fr:journal kind=review scope=debug id=557fd8892c6d created=2026-10-13T15:29:33+00:00 -->
+### 557fd8892c6d · review · Self-review of the 4-file diff (no independent reviewer)
+
+Read the full diff myself; no subagent reviewer was dispatched (change is one rule window + one test + docs). Findings raised: none blocking. Checked: relativeTimeRange A/B/C all moved with the PromQL range (test asserts it); for:1h and noDataState untouched; github-pull-sync passes the new test unchanged at 4.6x; a controller restart during a quiet stretch still self-clears like before. Residual risk, stated in the PR: the 8.3h max rests on 3.4d of runs plus a 30d hourly series, and detection latency for a truly dead webhook is now ~25h. The operator reports concurrent local Gitea/Tekton disturbances; they were not separable from the gap data and did not change the conclusion.
