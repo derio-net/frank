@@ -19,3 +19,8 @@ Rule comment justifies [6h]/for:1h with 'max observed idle gap 0.5h -> 12x headr
 ### 53a8c87b6957 · root-cause · Idle window [6h] is shorter than normal idle gaps (max 8.3h)
 
 Confirmed. Exact gaps from 767 retained runs (10-10..10-13): 8.3h, 7.3h, 7.1h, 7.0h, 5.5h... four gaps >=6h in 3.4d. 30d hourly VictoriaMetrics series (09-14..10-13, includes four weekends): zero idle stretches >=5h until 10-07, five >=6h since, longest 7 empty hourly buckets (~8h). So the 0.5h premise was true when measured and has drifted; the rule fires on routine quiet periods, not an outage. No test pinned the window against measured gaps, so the drift was invisible.
+
+<!-- fr:journal kind=finding scope=debug id=29ae938abb50 created=2026-10-13T15:29:12+00:00 state=fixed -->
+### 29ae938abb50 · finding [fixed] · Idle window 6h -> 24h, pinned by a measured-gap test
+
+alert-rules-cm.yaml: layer-25-idle-stoa-status-bridge [6h]->[24h] (query, relativeTimeRange A/B/C, summary, calibration comment); for:1h unchanged. Failing-first test test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom (red: 6h < 2.5x8.3h; green after). 235 passed across alert-rule and gotcha guards. 30d backtest: longest idle stretch ~8h, so the new rule would not have fired once. Gotcha added (grafana.md + frank-gotchas.md). Trade-off: dead-webhook detection latency ~25h.
