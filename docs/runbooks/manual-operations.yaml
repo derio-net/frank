@@ -2612,29 +2612,29 @@ operations:
 - id: stor-pc1-hdd-smart-gate
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE 402-pc1-hdd-volumes.yaml is applied; re-run before admitting any replacement drive. The long test takes each drive's own polling time (smartctl -c; roughly 3-4 h for a 1 TB WD Green) and all three can run in parallel.
   why_manual: SMART reads the physical drives through a privileged pod on pc-1; Talos ships no smartctl, and the verdict is a human admission decision, not cluster state.
   commands:
   - source .env
-  - kubectl debug node/pc-1 -it --profile=sysadmin --image=<image shipping smartctl, pinned by @sha256 digest> -- sh
+  - kubectl apply -f - <<< '{"apiVersion":"v1","kind":"Pod","metadata":{"name":"smart-pc1","namespace":"longhorn-system"},"spec":{"nodeName":"pc-1","restartPolicy":"Never","containers":[{"name":"smart","image":"quay.io/prometheuscommunity/smartctl-exporter@sha256:4b2b5c9912c95899ad4720b3ada368e7b0d46f4c2fd6dc7d174922c325ef9855","command":["/bin/sh","-c","sleep 86400"],"securityContext":{"privileged":true,"runAsUser":0}}]}}' && kubectl -n longhorn-system wait --for=condition=Ready pod/smart-pc1 && kubectl -n longhorn-system exec -it smart-pc1 -- sh   # NOT kubectl debug node/...: it lands in namespace default, whose PodSecurity baseline refuses a privileged pod; longhorn-system is labelled privileged. smartctl-exporter v0.15.0 ships /usr/sbin/smartctl + busybox sh
   - '# inside — confirm each drive by WWN first (sdX letters drift): for d in sdb sdc sdd; do smartctl -i /dev/$d | grep -E ''Model|WWN''; done   # LU WWN Device Id: expect 5 0014ee 2ae0311c3 / 5 0014ee 203581a1f / 5 0014ee 0556235e7'
   - '# inside: for d in sdb sdc sdd; do smartctl -H -A /dev/$d; smartctl -t long /dev/$d; done ; smartctl -c /dev/sdb | grep -A1 ''Extended self-test'''
   - '# after the polling time: for d in sdb sdc sdd; do smartctl -l selftest /dev/$d; done'
-  - '# exit, then delete the node-debugger-pc-1-* pod you created: kubectl get pods -n default | grep node-debugger-pc-1'
+  - '# exit, then (after the long test has completed): kubectl -n longhorn-system delete pod smart-pc1'
   verify:
   - 'Posted to frank#824 per drive: overall health, long-test result, raw 5/197/198 (gates) and 9/193/199 (recorded). EXCLUDE on overall FAIL, a failed long test, or any non-zero raw 5/197/198.'
   - 'An excluded drive: its UserVolumeConfig doc deleted from patches/phase03-longhorn/402-pc1-hdd-volumes.yaml AND its entry from longhorn-node-disks-pc-1.yaml in one commit on this PR; `.venv/bin/pytest scripts/tests/test_pc1_hdd_longhorn.py -q` still passes.'
-  status: pending
+  status: done
 - id: stor-pc1-sdd-inspect
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE 402-pc1-hdd-volumes.yaml is applied, and only if stor-pc1-hdd-smart-gate admitted sdd (naa.50014ee0556235e7).
   why_manual: Mounting an unknown filesystem and judging whether its contents matter is an operator decision, and the wipe is irreversible.
   commands:
   - source .env
-  - kubectl debug node/pc-1 -it --profile=sysadmin --image=<image with xfsprogs + util-linux, pinned by @sha256 digest> -- sh
+  - '# same privileged pod pattern as stor-pc1-hdd-smart-gate (namespace longhorn-system; kubectl debug lands in default and is refused by PodSecurity baseline), with an image carrying xfsprogs + util-linux pinned by @sha256 digest'
   - '# inside — find the disk by WWN, never by letter: ls -l /dev/disk/by-id/ | grep 50014ee0556235e7'
   - '# inside: mkdir -p /mnt/sdd && mount -o ro,norecovery /dev/<that disk>1 /mnt/sdd && find /mnt/sdd -mindepth 1 -maxdepth 2 | head -50 ; du -sh /mnt/sdd/* ; umount /mnt/sdd'
   - '# ONLY if it is empty (nothing beyond the filesystem root) — exit the pod, then:'
@@ -2643,11 +2643,11 @@ operations:
   verify:
   - 'Empty: the wipe is recorded on frank#824 and `talosctl -n 192.168.55.71 get discoveredvolumes` shows that disk with no partitions.'
   - 'Any content: a summary (top-level paths and sizes, no file contents) is posted to frank#824, hdd-556235e7 is removed from both patch files in one commit on this PR, and sdd STOPS for the operator''s ruling. sdb/sdc proceed. Nothing is copied or wiped without that ruling.'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-volumes-apply
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: BEFORE merge, once stor-pc1-hdd-smart-gate and stor-pc1-sdd-inspect have settled the admitted drive set in 402-pc1-hdd-volumes.yaml. Re-apply after any change to that file.
   why_manual: Omni lives outside the cluster and the apply needs the Omni service-account credential; ArgoCD cannot drive it.
   commands:
@@ -2657,11 +2657,11 @@ operations:
   - talosctl -n 192.168.55.71 get mountstatus | grep /var/mnt/hdd-
   verify:
   - 'Every admitted hdd-<wwid8> volume is phase ready and mounted xfs at /var/mnt/hdd-<wwid8>. Empty output after a few minutes can mean Omni wedged on a cold-boot clock jump (frank-gotchas, Omni): docker restart omni on the Omni host.'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-longhorn-disks
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: Two passes. Pass 1 (allowScheduling false) BEFORE merge, after stor-pc1-hdd-volumes-apply. Pass 2 (the file as written, allowScheduling true) only AFTER the merge AND once the live setting allow-empty-disk-selector-volume reads false. Re-apply pass 2 if pc-1's Longhorn node is ever re-created. gpu-1's file is applied in pass 1 and is a no-op today.
   why_manual: nodes.longhorn.io CRs are created and co-owned by longhorn-manager, not the chart; ArgoCD owning them would race the manager (operator ruling 2026-10-11). The exact entries live in git as patch files.
   commands:
@@ -2674,11 +2674,11 @@ operations:
   verify:
   - 'kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq ''.status.diskStatus | with_entries(select(.key|startswith("hdd-"))) | map_values(.conditions | map({type,status}))''   # Ready True; Schedulable False after pass 1, True after pass 2'
   - 'kubectl -n longhorn-system get nodes.longhorn.io pc-1 -o json | jq ''.spec.disks | map_values(.tags)''   # hdd-* carry ["hdd"]; the default-disk entry is unchanged'
-  status: pending
+  status: done
 - id: stor-pc1-hdd-merge-sequence
   layer: stor
   app: longhorn
-  plan: docs/superpowers/plans/2026-10-11--stor--pc1-hdd-longhorn
+  plan: docs/superpowers/implemented/plans/2026-10-11--stor--pc1-hdd-longhorn
   when: 'Baseline just before merge; the rest immediately after the PR merges, in a quiet CI window. Until pass 2 of stor-pc1-hdd-longhorn-disks, CI workspaces cannot get a replica: with volumeBindingMode Immediate the PVC most likely BINDS while the Longhorn volume shows Scheduled=False and TaskRun pods hang attaching — confirm the real symptom here and re-run any run that times out.'
   why_manual: The cutover interleaves three ArgoCD syncs, a live-setting assertion and a manual Longhorn CR patch; that order is what keeps HDDs out of the default pool.
   commands:
@@ -2701,4 +2701,4 @@ operations:
   - default-test's replicas are on NO /var/mnt/hdd-* and NO /var/mnt/longhorn-sd* (gpu-local) path.
   - The next real Tekton PipelineRun's workspace PVC (tekton-pipelines) has its replica on /var/mnt/hdd-*.
   - The robustness diff shows no volume newly degraded or faulted by the flip.
-  status: pending
+  status: done

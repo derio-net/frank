@@ -1280,22 +1280,38 @@ rows:
     and pc-1's old 500 GB drive is never wiped while it holds data the operator has
     not ruled on.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: skipped
+  notes: 'VERIFIED LIVE 2026-10-11/12 — the strict SMART gate ran on all three drives
+    and is posted per drive on frank#824. Only sdb (naa.50014ee2ae0311c3) passed:
+    overall PASSED, extended self-test completed without error, raw 5/197/198 all 0.
+    sdc and sdd were EXCLUDED despite an overall PASSED verdict because of non-zero
+    reallocated/pending/uncorrectable counts, so the overall flag alone would have
+    admitted two bad drives (#838 narrowed the patch files to sdb). sdd was excluded
+    before any wipe, so the R2 never-wipe-unruled-data branch was never reached.
+    Live 2026-10-12: pc-1 shows exactly one hdd-* Longhorn disk (hdd-ae0311c3).
+    Not automatable in CI: SMART reads need a privileged pod on the physical node.'
   verify: live
 - id: stor-pc1-hdd-stable-binding
   capability: storage
   acceptance: pc-1's admitted HDDs are mounted by WWID and come back mounted and schedulable
     in Longhorn after a reboot, regardless of how the kernel names them.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: skipped
+  notes: 'VERIFIED LIVE 2026-10-12 — 402-pc1-hdd-volumes.yaml (a WWID-selected Talos
+    UserVolumeConfig) applied via Omni at 05:53Z; pc-1 was then drained and rebooted
+    and came back with u-hdd-ae0311c3 ready on /dev/sdb1 (1.0 TB, xfs at
+    /var/mnt/hdd-ae0311c3) and the Longhorn disk Ready/Schedulable with tag hdd
+    (posted on frank#824). Re-asserted at closeout 16:30Z: volumestatus ready, disk
+    Ready=True Schedulable=True, 999 GB max. The drain that preceded the reboot hung
+    on Longhorn last-replica protection; that is tracked separately in PR #844, not
+    here. The WWID selector is CI-guarded in scripts/tests/test_pc1_hdd_longhorn.py;
+    the reboot survival itself needs the physical node.'
   verify: live
 - id: stor-hdd-pool-isolated
   capability: storage
@@ -1303,19 +1319,33 @@ rows:
     other tagged) disk, while volumes on the longhorn-hdd class land only on pc-1's
     HDDs.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: skipped
+  notes: 'VERIFIED LIVE 2026-10-12 16:30Z — live setting allow-empty-disk-selector-volume
+    reads false. A full sweep of every Longhorn replica on the cluster found ZERO
+    replicas of a volume without the hdd selector on an /var/mnt/hdd-* or gpu-local
+    disk, and all 25 longhorn-hdd replicas on /var/mnt/hdd-ae0311c3/ (pc-1) and
+    nowhere else. The 1 GiB hdd-test / default-test PVC pair in
+    stor-pc1-hdd-merge-sequence proved the same at cutover. The setting value and
+    the StorageClass diskSelector are CI-guarded; replica placement is a scheduler
+    outcome and only observable live.'
   verify: live
 - id: stor-ci-workspaces-on-hdd
   capability: storage
   acceptance: CI pipeline runs provision their per-run workspaces on pc-1's HDDs,
     while Gitea repositories, registry blobs and runner state stay on SSD-backed storage.
   origin:
-  - frank:docs/superpowers/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
+  - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: skipped
+  notes: 'VERIFIED LIVE 2026-10-12 16:30Z — all 25 longhorn-hdd PVCs on the cluster
+    are real Tekton workspaces in tekton-pipelines (newest created 12:39Z), each with
+    its single replica on /var/mnt/hdd-ae0311c3/. The SSD half holds too:
+    gitea-shared-storage and act-runner-data are on pc-1 /var/lib/longhorn/ (the SSD
+    default disk) and zot-pvc on gpu-1 /var/mnt/longhorn-sdb/, all three on
+    longhorn-cicd. PR #839, which would have reverted the workspaces to longhorn-cicd,
+    was closed unmerged. The triggers'' storageClassName is CI-guarded; where the
+    replicas land is only observable live.'
   verify: live
