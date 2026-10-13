@@ -2532,8 +2532,13 @@ data:
           #
           # Windows and `for` are measured from retained PipelineRuns
           # (2026-09-13), not chosen round numbers:
-          #   stoa-status-bridge: 148.1 runs/day, max observed idle gap
-          #     0.5h -> [6h] window, for: 1h (12x headroom).
+          #   stoa-status-bridge: ~143 runs/day AVERAGE but bursty (human-
+          #     and CI-driven), max observed idle gap 8.3h (re-measured
+          #     2026-10-13 over 30d, four weekends included; the original
+          #     0.5h figure held in September and drifted — the [6h] window
+          #     then paged on every quiet night) -> [24h] window, for: 1h
+          #     (2.9x headroom). Pinned by
+          #     test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom.
           #   github-pull-sync: 10.4 runs/day, max observed idle gap 15.7h
           #     -> [72h] window, for: 2h (4.6x headroom).
           #
@@ -2555,24 +2560,24 @@ data:
             condition: C
             data:
               - refId: A
-                relativeTimeRange: { from: 21600, to: 0 }
+                relativeTimeRange: { from: 86400, to: 0 }
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
                   expr: |
                     sum(
                       increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
-                        namespace="tekton-pipelines", pipeline="stoa-status-bridge"}[6h])
+                        namespace="tekton-pipelines", pipeline="stoa-status-bridge"}[24h])
                     ) or vector(0)
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
               - refId: B
-                relativeTimeRange: { from: 21600, to: 0 }
+                relativeTimeRange: { from: 86400, to: 0 }
                 datasourceUid: __expr__
                 model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
               - refId: C
-                relativeTimeRange: { from: 21600, to: 0 }
+                relativeTimeRange: { from: 86400, to: 0 }
                 datasourceUid: __expr__
                 model:
                   refId: C
@@ -2587,7 +2592,7 @@ data:
               severity: warning
               github_issue: "frank-ops#25"
             annotations:
-              summary: "L25 pipeline idle: stoa-status-bridge has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 6h — expected ~148/day"
+              summary: "L25 pipeline idle: stoa-status-bridge has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 24h — expected ~148/day"
               runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-gitea-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the Gitea org-level webhook, which is forge state with no IaC in this repo."
 
           - uid: layer-25-idle-github-pull-sync
