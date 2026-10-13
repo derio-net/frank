@@ -19,3 +19,8 @@ Tested on a scratch copy of the bare repo (5.1MB, copied out read-only). Delete-
 ### 85d8e197cccc · hypothesis · Re-supplying the 13 objects from GitHub repairs the repo
 
 Delete the empties, then pack exactly those objects from a GitHub clone and unpack-objects them into the bare repo. Tested on scratch: fsck output 0 lines, push of 3e3798e fast-forwards main b6da197..3e3798e.
+
+<!-- fr:journal kind=finding scope=debug id=b5ae1fbfa633 created=2026-10-13T19:32:27+00:00 state=fixed -->
+### b5ae1fbfa633 · finding [fixed] · scripts/gitea-repair-empty-objects.sh re-supplies the objects; tested on fixture and on real-data copy
+
+New script (dry-run default; refuses unsafe plans before changing anything; verifies cat-file + fsck; idempotent) and scripts/tests/test_gitea_repair_empty_objects.py (7 tests: fixture reproduces the incident, delete-and-repush FAILS, dry-run no-op, apply repairs + unblocks push, idempotent, refuses unsupplyable, --allow-missing). Red first (5 failed, script absent), green after. Real-data check on a scratch copy of the 5.1MB production repo: 13/13 restored, fsck 0 lines, push of 3e3798e fast-forwards main b6da197..3e3798e. Gotcha added (tekton.md + frank-gotchas.md). PRODUCTION REPAIR NOT RUN: it mutates Gitea storage, left for the operator.
