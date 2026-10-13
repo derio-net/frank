@@ -20,6 +20,28 @@ spec:
     - name: shared-workspace
     - name: ssh-creds
   tasks:
+    # pending FIRST — see cnc-ci.yaml for the full rationale (2026-10-11
+    # silent-CI incident): DAG root, no workspace, best-effort.
+    - name: github-status-pending
+      taskRef: {kind: Task, name: github-status}
+      params:
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "pending"}
+        - {name: description,    value: "CI running"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: best-effort,    value: "true"}
+    # Gitea mirror (best-effort), after the push so Gitea holds the commit.
+    - name: gitea-status-pending
+      runAfter: [pull-and-push]
+      taskRef: {kind: Task, name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "pending"}
+        - {name: description,    value: "CI running"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: best-effort,    value: "true"}
     - name: pull-and-push
       workspaces:
         - {name: source, workspace: shared-workspace}

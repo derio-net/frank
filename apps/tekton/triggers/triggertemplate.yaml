@@ -19,6 +19,12 @@ spec:
       spec:
         pipelineRef:
           name: gitea-ci
+        # finally gets its own window -- see the timeouts note in
+        # eventlistener-github.yaml (2026-10-11 silent-CI incident).
+        timeouts:
+          pipeline: 1h
+          tasks: 50m
+          finally: 10m
         params:
           - name: repo-url
             value: $(tt.params.repo-url)

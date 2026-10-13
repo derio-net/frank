@@ -433,6 +433,16 @@ spec:
 # TriggerTemplates for the per-repo CI Pipelines (Phase 4).
 # Each scaffolds a PipelineRun with shared-workspace (PVC) + ssh-creds
 # (Secret bound to stoa-bot-ssh-key for the pull-and-push step).
+#
+# timeouts (2026-10-11 silent-CI incident): every CI template sets
+# `tasks` strictly below `pipeline` so `finally` keeps its own window.
+# With only the default `pipeline: 1h`, Tekton v1.6 SKIPS finally when it
+# elapses ("PipelineRun timeout has been reached") -- the failure status is
+# never posted and the PR shows no tekton/ci check at all. Now a run whose
+# workspace PVC never provisions is cancelled at 50m and finally posts
+# `failure` within the remaining 10m. (No successful CI run has exceeded
+# 30m -- VictoriaMetrics duration histogram, 2026-10-13.) Pinned by
+# scripts/tests/test_ci_status_always_reported.py.
 # ────────────────────────────────────────────────────────────────────────
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
@@ -454,6 +464,7 @@ spec:
       spec:
         pipelineRef:
           name: hum-ci
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
@@ -497,6 +508,7 @@ spec:
         namespace: tekton-pipelines
       spec:
         pipelineRef: {name: content-factory-ci}
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
@@ -537,6 +549,7 @@ spec:
         namespace: tekton-pipelines
       spec:
         pipelineRef: {name: cnc-ci}
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo, value: $(tt.params.gitea-repo)}
@@ -571,6 +584,7 @@ spec:
       metadata: {generateName: cnc-frd-ci-, namespace: tekton-pipelines}
       spec:
         pipelineRef: {name: cnc-ci}
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo, value: $(tt.params.gitea-repo)}
@@ -598,6 +612,7 @@ spec:
       metadata: {generateName: cnc-fru-ci-, namespace: tekton-pipelines}
       spec:
         pipelineRef: {name: cnc-ci}
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo, value: $(tt.params.gitea-repo)}
@@ -692,6 +707,7 @@ spec:
         namespace: tekton-pipelines
       spec:
         pipelineRef: {name: stoa-blog-ci}
+        timeouts: {pipeline: 1h, tasks: 50m, finally: 10m}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo,  value: $(tt.params.gitea-repo)}

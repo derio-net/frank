@@ -609,6 +609,9 @@ def _pipeline_outcome_rule_uids() -> list[str]:
         FAILURE_RATIO_UID,
         IDLE_UID_STOA_STATUS_BRIDGE,
         IDLE_UID_GITHUB_PULL_SYNC,
+        # 2026-10-11 silent-CI incident: queries the duration histogram's
+        # `_bucket`, which must also survive the scrape's drop regex.
+        "layer-25-pipelinerun-timeout",
     ]
 
 
