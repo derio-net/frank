@@ -22,6 +22,18 @@
 # keeping past 72h should be captured from the run (logs, artifacts), not left
 # to live in etcd as a side effect of nobody deleting it.
 #
+# Every namespace PipelineRuns land in, not just tekton-pipelines (frank#791).
+# The sweep set used to be a literal `-n tekton-pipelines`. When kid-laptops CI
+# started creating its runs in `kid-laptops-ci` (2026-07-26), they were never
+# swept: 70+ days of runs and their `longhorn-cicd` workspace PVCs, whose
+# ownerReference cascade only fires when the PipelineRun is deleted. Each
+# 1-replica volume pinned a Longhorn instance-manager PDB, which stalled node
+# drains (#762). The list is explicit rather than cluster-wide on purpose (an
+# accidental sweep of someone else's runs is worse than an unswept namespace).
+# scripts/tests/test_pipelinerun_ttl_gc_namespaces.py derives the set from the
+# TriggerTemplates in git and fails if one is missing here, along with its
+# Role/RoleBinding below.
+#
 # Bash + kubectl only — no jq, no python. Lexical ISO-8601 comparison works
 # because the format sorts naturally.
 ---
@@ -46,6 +58,32 @@ kind: RoleBinding
 metadata:
   name: pipelinerun-ttl-gc
   namespace: tekton-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipelinerun-ttl-gc
+subjects:
+  - kind: ServiceAccount
+    name: pipelinerun-ttl-gc
+    namespace: tekton-pipelines
+---
+# kid-laptops CI (apps/tekton/triggers/kid-laptops-ci.yaml) creates its
+# PipelineRuns here; the ServiceAccount stays in tekton-pipelines.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: kid-laptops-ci
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: kid-laptops-ci
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -104,30 +142,51 @@ spec:
               args:
                 - |
                   AGE_DAYS=3
+                  # Keep in sync with the Role/RoleBinding pairs above.
+                  NAMESPACES="tekton-pipelines kid-laptops-ci"
                   CUTOFF=$(date -u -d "${AGE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
-                  echo "Deleting PipelineRuns in tekton-pipelines completed before ${CUTOFF}"
 
-                  # --chunk-size paginates the LIST so the API response is never
-                  # one enormous payload. It bounds peak transfer, not the final
-                  # aggregate kubectl builds for templating — the memory limit
-                  # above is what covers that.
-                  DELETED=0
-                  while IFS=$'\t' read -r name ct; do
-                    [ -z "$name" ] && continue
-                    # ISO-8601 sorts lexically — string < works
-                    if [ "$ct" \< "$CUTOFF" ]; then
-                      echo "  deleting $name (completed $ct)"
-                      kubectl delete pipelinerun -n tekton-pipelines "$name" --ignore-not-found
-                      DELETED=$((DELETED + 1))
+                  # One namespace failing (e.g. RBAC not yet synced, a transient
+                  # API error on a delete) must not stop the others from being
+                  # swept, so every kubectl failure is counted and the job
+                  # fails at the END, after every summary line.
+                  FAILED=0
+                  for ns in ${NAMESPACES}; do
+                    echo "Deleting PipelineRuns in ${ns} completed before ${CUTOFF}"
+
+                    # --chunk-size paginates the LIST so the API response is never
+                    # one enormous payload. It bounds peak transfer, not the final
+                    # aggregate kubectl builds for templating — the memory limit
+                    # above is what covers that.
+                    if ! LIST=$(kubectl get pipelinerun -n "${ns}" --chunk-size=100 \
+                        -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}'); then
+                      echo "pipelinerun-ttl-gc result namespace=${ns} error=list-failed cutoff=${CUTOFF}"
+                      FAILED=$((FAILED + 1))
+                      continue
                     fi
-                  done < <(kubectl get pipelinerun -n tekton-pipelines --chunk-size=100 \
-                    -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}')
 
-                  # Process substitution instead of a pipe, so the loop runs in
-                  # THIS shell and the count survives (the old pipeline put the
-                  # loop in a subshell, which is why it could only apologise for
-                  # not knowing what it had done).
-                  REMAINING=$(kubectl get pipelinerun -n tekton-pipelines --no-headers 2>/dev/null | wc -l)
-                  # Machine-greppable summary — a log-based alert can watch this
-                  # line, since a silent GC failure is exactly how this broke.
-                  echo "pipelinerun-ttl-gc result deleted=${DELETED} remaining=${REMAINING} cutoff=${CUTOFF}"
+                    DELETED=0
+                    while IFS=$'\t' read -r name ct; do
+                      [ -z "$name" ] && continue
+                      # ISO-8601 sorts lexically — string < works
+                      if [ "$ct" \< "$CUTOFF" ]; then
+                        echo "  deleting ${ns}/$name (completed $ct)"
+                        if kubectl delete pipelinerun -n "${ns}" "$name" --ignore-not-found; then
+                          DELETED=$((DELETED + 1))
+                        else
+                          FAILED=$((FAILED + 1))
+                        fi
+                      fi
+                    done <<< "${LIST}"
+
+                    # A here-string instead of a pipe, so the loop runs in THIS
+                    # shell and the count survives (the old pipeline put the loop
+                    # in a subshell, which is why it could only apologise for not
+                    # knowing what it had done).
+                    REMAINING=$(kubectl get pipelinerun -n "${ns}" --no-headers 2>/dev/null | wc -l) || REMAINING=unknown
+                    # Machine-greppable summary, one line per namespace — a
+                    # log-based alert can watch this line, since a silent GC
+                    # failure is exactly how this broke.
+                    echo "pipelinerun-ttl-gc result namespace=${ns} deleted=${DELETED} remaining=${REMAINING} cutoff=${CUTOFF}"
+                  done
+                  [ "${FAILED}" -eq 0 ]
