@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-06-15-staging-vcluster-gate
 
 <!-- fr:journal kind=discovery scope=plan id=nrb-p7t1 created=2026-09-14T22:34:25 -->

@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: hermes-ssh-byok-env-dead
 
 <!-- fr:journal kind=repro scope=debug id=28342281fdea created=2026-07-24T22:28:03 -->

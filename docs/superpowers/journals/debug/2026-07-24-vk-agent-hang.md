@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-07-24-vk-agent-hang
 
 <!-- fr:journal kind=repro scope=debug id=8bcb25b575a6 created=2026-07-24T20:22:23 -->

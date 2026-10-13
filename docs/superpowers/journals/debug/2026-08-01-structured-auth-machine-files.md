@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-08-01-structured-auth-machine-files
 
 <!-- fr:journal kind=repro scope=debug id=dual-issuer-quorum-loss created=2026-08-01T07:57:32 phase=2 -->

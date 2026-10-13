@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-08-01-authentik-outpost-canonical-host
 
 <!-- fr:journal kind=repro scope=debug id=cluster-forward-auth-redirects-legacy-host created=2026-08-01T16:25:44 phase=4 -->

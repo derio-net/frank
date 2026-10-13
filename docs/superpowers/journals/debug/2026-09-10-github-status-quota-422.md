@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-09-10-github-status-quota-422
 
 <!-- fr:journal kind=repro scope=debug id=86cd0d16f820 created=2026-09-10T08:08:21 -->

@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=2 -->
 # Journal: 2026-09-19--infer--ovms-pool-watchdog-activity-signal
 
 <!-- fr:journal kind=discovery scope=plan id=p1-success-series-confirmed created=2026-09-20T00:24:21 phase=1 -->
