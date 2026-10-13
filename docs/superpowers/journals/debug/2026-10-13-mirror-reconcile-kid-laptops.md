@@ -5,3 +5,8 @@
 ### 5e04492bd47d · root-cause · mirror-reconcile never covered derio-homelab/kid-laptops
 
 Built in #851 against the agentic-stoa-main-sync trigger only; kid-laptops has its own trigger (derio-homelab-kid-laptops-main-sync, different GitHub App + webhook secret). The guard test derived its expected list from that one trigger, so it passed while a sibling was uncovered. Also: the job used one GITHUB_TOKEN (agentic-stoa App), which 404s on derio-homelab private repos, so adding the repo to the list alone would have failed every run.
+
+<!-- fr:journal kind=finding scope=debug id=d2c6e32d22fd created=2026-10-13T21:50:27+00:00 state=fixed -->
+### d2c6e32d22fd · finding [fixed] · Add derio-homelab/kid-laptops with a per-org GitHub token
+
+MAIN_REPOS (both stages) gains the repo (not PR_REPOS: push trigger only). plan.py token_for + push.sh auth_for pick GITHUB_TOKEN_<ORG> else GITHUB_TOKEN; GITHUB_TOKEN_DERIO_HOMELAB wired from derio-homelab-github-mirror/token, optional:true so a missing Secret cannot stop the agentic-stoa repairs. Guard now unions every *-main-sync trigger. Red first (4 failed), green after: 43 passed. auth_for verified under the production alpine/git busybox ash. Secret verified live (key token, ESO SecretSynced). SSH to Gitea uses stoa-bot, already proven to write kid-laptops.
