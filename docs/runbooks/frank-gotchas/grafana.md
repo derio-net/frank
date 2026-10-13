@@ -1199,3 +1199,13 @@ Nothing alerted on PVC fill until frank#722 (the hermes tool-home expansion in #
 - **Route.** `pvc_capacity="true"` matches a parent route with `repeat_interval: 4h` and `continue: false`; its children are Telegram (continue true) and the Health Bridge. Without it a full volume would re-page every 3m for days until someone expands or prunes it.
 - **Live baseline, 2026-10-10.** 36 byte series, top 78.2% (`secure-agent-pod/agent-home`); inode maximum 34.7%; no zero denominators.
 - **First move when it fires.** Check Longhorn provisioning headroom before expanding (see the Storage entry on silently refused expansion in `storage-secrets-ssa.md`), then look for untracked workloads and prunable data.
+
+### An idle dead-man's window is a MEASUREMENT with a shelf life — `stoa-status-bridge` paged on routine quiet
+
+`layer-25-idle-stoa-status-bridge` fired on 2026-10-13 ("0 runs in 6h") with everything healthy: `el-gitea-listener` 1/1 for 33h with no restarts, and the first event after the gap created a PipelineRun immediately. The cause was the window, not the pipeline. The rule's comment justified `[6h]` with "max observed idle gap 0.5h → 12x headroom", measured 2026-09-13. Traffic is human- and CI-driven and bursty (~143 runs/day on average), and the longest idle gap is now 8.3h; four gaps of 6h or more fell inside 3.4 days of retained runs.
+
+- **Dating the drift.** The 30-day hourly series from VictoriaMetrics shows no idle stretch of 5h or more until 2026-10-07, then five of 6h or more. Four weekends fall in that window, so it is not weekend quiet. The 0.5h premise was true when it was written.
+- **Why nothing caught it.** The calibration lived in a comment. No test compared the window with an observed gap, so the rule stayed green in review and CI while its premise rotted.
+- **Fix.** Window 6h → 24h (2.9x headroom on 8.3h); `for: 1h` unchanged. `test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom` now pins each idle rule's window to a dated measured-gap table at ≥2.5x, and checks `relativeTimeRange.from` matches the PromQL range. Re-measuring means updating the number and the date in that table.
+- **Measure gaps, not rates.** An average (148/day) hides a bursty source. Exact gaps come from `creationTimestamp` of the retained runs; for a longer base, `increase(...[1h])` over 30d from `vmsingle` and count consecutive empty buckets. The retained PipelineRuns reach back only ~3.4 days.
+- **Trade-off.** Detection latency for a genuinely dead webhook is now ~25h (24h window + `for: 1h`). Failure-ratio alerting and the declared-delivery-path test in `apps/tekton/webhooks.yaml` cover the faster cases.
