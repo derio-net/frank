@@ -2492,6 +2492,34 @@ operations:
     kubectl -n tekton-pipelines get taskruns --sort-by=.metadata.creationTimestamp | grep live-mirror-sync | tail -3
     # → no TaskRun newer than the pause.
   status: pending
+- id: orch-paperclip-drop-stale-field-manager
+  layer: orch
+  app: paperclip
+  plan: 2026-10-04--orch--paperclip-fresh-start
+  when: >-
+    After the fresh-start PR merges, BEFORE the wipe. Added 2026-10-11 (frank#827) — the merge did not reach the cluster because every sync to it failed with `spec.template.spec.containers[1].image: Required value`, `initContainers[0].image: Required value`.
+  why_manual: >-
+    A hand `kubectl apply --server-side` on 2026-05-17 left a second Apply manager (`kubectl`) in the Deployment's managedFields that still co-owns the `paperclip-shell` and `hermes-init` list items. Server-side apply keeps a field while any manager owns it, so ArgoCD's apply strips only the fields it owned alone and leaves imageless containers behind. managedFields is live object metadata that no manifest declares; removing the entry is a one-off metadata patch (no spec change, no pod roll).
+  commands: |
+    cd "$FRANK_REPO" && source .env
+    NS=paperclip-system
+    # Read-only: shows the stale entry (expect manager=kubectl time=2026-05-17T13:04:15Z).
+    kubectl -n $NS get deploy paperclip -o json --show-managed-fields | scripts/stale_field_managers.py || true
+    # Guarded patch: test ops on manager AND time, so it is refused if the list moved.
+    kubectl -n $NS get deploy paperclip -o json --show-managed-fields \
+      | scripts/stale_field_managers.py --patch > /tmp/paperclip-mf-patch.json || true
+    cat /tmp/paperclip-mf-patch.json
+    kubectl -n $NS patch deploy paperclip --type=json --patch-file /tmp/paperclip-mf-patch.json
+    # Re-sync to the merge (a manual sync does not inherit syncOptions).
+    kubectl -n argocd patch application paperclip --type=merge \
+      -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+  verify: |
+    kubectl -n $NS get deploy paperclip -o json --show-managed-fields | scripts/stale_field_managers.py   # → exit 0, no output
+    kubectl -n argocd get application paperclip -o jsonpath='{.status.operationState.phase} {.status.operationState.operation.sync.revision}{"\n"}'
+    # → Succeeded at the current main SHA (not just Synced — see the stale-revision gotcha)
+    kubectl -n $NS get deploy paperclip -o jsonpath='{.spec.template.spec.containers[*].name} | {.spec.template.spec.initContainers[*].name}{"\n"}'
+    # → "paperclip | " — one container, no init containers
+  status: pending
 - id: orch-paperclip-fresh-start-wipe
   layer: orch
   app: paperclip
