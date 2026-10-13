@@ -19,3 +19,8 @@ github-status and gitea-status declare no workspaces, and the finally entries bi
 ### 4cf649e0536b · hypothesis · timeouts {pipeline: 1h, tasks: 50m, finally: 10m} makes finally run and report failure
 
 Tekton v1.6 semantics (also relied on by staging-gate-template, which already sets tasks < pipeline): when timeouts.tasks elapses, DAG tasks are cancelled and finally runs in its own window. A timed-out task makes $(tasks.status)=Failed (the incident runs already evaluated it to 'Failed'), so the existing *-status-failure finally tasks (when notin [Succeeded, Completed]) fire. 50m is safe: live VM shows zero successful runs over 30m for any pipeline (count - bucket{le=1800} = 0).
+
+<!-- fr:journal kind=hypothesis scope=debug id=371d19ed668a created=2026-10-13T17:15:00+00:00 -->
+### 371d19ed668a · hypothesis · Alert signals that exist live: kube-state-metrics PVC phase and the Tekton duration histogram
+
+No VMAlert is deployed (kubectl get vmalert -A: none); frank alerting is Grafana unified alerting over VictoriaMetrics (apps/grafana-alerting alert-rules-cm.yaml). Tekton metrics carry only status=success|failed, no reason label, so a timeout is identified by duration: failed runs with duration > 1800s (count - bucket{le=1800}). Backtest: 30d shows 15 (cnc-ci) + 19 (github-pull-sync), all inside the incident, 0 elsewhere. PVC rule: count(phase=Pending == 1 and on(namespace,persistentvolumeclaim) (time() - kube_persistentvolumeclaim_created) > 900) in tekton-pipelines. Backtest: 19 at 2026-10-11T23:06Z, 20 at 2026-10-12T03:33Z, empty now.
