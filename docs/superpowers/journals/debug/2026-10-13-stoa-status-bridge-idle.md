@@ -9,3 +9,8 @@ Alert layer-25-idle-stoa-status-bridge (warning, frank-ops#25) fired 2026-10-13.
 ### dc8e251a3814 · ruled-out · Webhook delivery / listener broken
 
 Ruled out. el-gitea-listener 1/1 Running 33h, no restarts; logs show events at 15:22:31Z creating PipelineRuns the moment CI activity resumed; runs succeed (46s). Delivery path works. Operator notes concurrent local Gitea/Tekton disturbances; the gap pattern predates them (see root-cause).
+
+<!-- fr:journal kind=hypothesis scope=debug id=257620618d82 created=2026-10-13T15:25:37+00:00 -->
+### 257620618d82 · hypothesis · Rule window calibrated on a premise that no longer holds
+
+Rule comment justifies [6h]/for:1h with 'max observed idle gap 0.5h -> 12x headroom' (measured 2026-09-13). Hypothesis: traffic is now bursty and idle gaps routinely exceed 6h, so the rule fires on quiet periods.
