@@ -3,7 +3,7 @@ run: 2026-10-14-feat-ci-actionable-alerts
 workflow: fr-goal-light@1
 branch: feat/ci-actionable-alerts
 started: '2026-10-14T15:55:28+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -88,7 +88,10 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-14T18:42:27+00:00'
+    exit: 0
+    stdout: ''
   deliver:
     state: pending
 driver: standalone
