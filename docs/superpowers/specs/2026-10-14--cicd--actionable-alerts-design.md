@@ -104,6 +104,13 @@ The dev isolation profile has no cluster/forge credentials; unauthenticated
 Gitea access returned 404. The cluster-admin profile is operator-selected only.
 Do not claim private-forge live-read success without authenticated evidence.
 
+Pre-merge evidence: the operator selected a separate cluster-admin isolation
+workspace for read-only probes. Existing Secrets authenticated successfully to
+both forges, verifying repo, branch, commit, status, PR and per-org token
+contracts. Gitea's response uses `status`, unlike GitHub's `state`; the adapter
+normalizes it with a regression test based on the observed schema. Candidate
+deployment and Grafana provisioning remain post-merge obligations.
+
 ## Test Plan
 
 Post-merge — operator-driven within this run's DevOps close-out:
