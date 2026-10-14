@@ -1361,11 +1361,19 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
-  status: walk-owed
-  notes: Implemented and offline-verified idle rule removal, explicit deleteRules
-    and retained fault rules. Deployment and stored Grafana rule deletion remain in
-    this run's DevOps-gated post-merge Test Plan.
+  status: walked
+  notes: '2026-10-14 post-merge PR869: Grafana rollout complete; authenticated provisioning
+    API proves both idle UIDs absent and all nine current Layer25 rules present. Evidence:
+    docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:34Z'
+    evidence: 'Grafana authenticated API after restart: no retired idle UIDs; all
+      six retained fault and three delivery UIDs present.'
 - id: ci-real-work-delivery
   capability: Actionable CI notifications
   acceptance: Overdue expected mirror refs or forwarded Gitea statuses produce a delivery
