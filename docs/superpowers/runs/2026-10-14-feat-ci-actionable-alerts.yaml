@@ -12,7 +12,14 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md
   plan:
-    state: pending
+    state: running
+    at: '2026-10-14T17:29:46+00:00'
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-10-14T17:29:46+00:00'
+          harness: opencode
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
   spec-plan-review:
     state: pending
   plan-review:
