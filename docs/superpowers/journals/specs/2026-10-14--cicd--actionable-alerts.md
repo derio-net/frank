@@ -80,3 +80,8 @@ what: Confirm healthy quiet refs/statuses yield zero overdue counts. Use the off
 why: 79 offline checker/outcome tests pass, and quiet repos have zero counts, but 22 healthy delivered statuses warn due to relative Gitea vs absolute GitHub target URLs. frank#870 must be fixed, deployed and re-walked before clearing DevOps gate or archiving. Read-only URL-resolution probe yielded zero counts for all 12 repos; no live forge writes.
 how: fr journal resolve --scope spec --slug 2026-10-14--cicd--actionable-alerts --id test-plan-step-4 --state fixed --note "<evidence>"
 owed_key: spec:2026-10-14--cicd--actionable-alerts#step4
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-4-resolved created=2026-10-14T20:25:08+00:00 state=fixed resolves=test-plan-step-4 -->
+### test-plan-step-4-resolved · finding [fixed] · resolves test-plan-step-4: Test Plan step 4 owed
+
+2026-10-14 live recovery verified after PR872 d3574040 exact-revision sync. Live script SHA256 5c8d65f39cbfd6a7a723c81fba7df98bd7a183091c88d77c5491c6ac34a1b8fa matches fix. Scheduled 20:20 Job succeeded; all 24 overdue and 12 read-error gauges zero, fresh timestamp, empty credential-free logs. Grafana delivery-overdue recovered; all three delivery rules inactive/healthy at 20:23:30Z. All nine CI rules retained, idle UIDs absent. 94 offline missing/read-error/recovery and URL regression tests passed. Passing ci-real-work-delivery walk recorded. See investigation recovery section.
