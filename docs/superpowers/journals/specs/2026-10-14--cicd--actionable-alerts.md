@@ -65,3 +65,10 @@ Evidence: 2026-10-14: PR869 merge 5ac6e0b verified. tekton-extras initially stal
 Step: Load the Grafana provisioning changes using the documented restart/reload procedure. Assert both idle UIDs are absent through Grafana's API and all existing CI fault rules plus the three new delivery rules exist.
 
 Evidence: 2026-10-14: operator-authorized Grafana deployment restart completed. Authenticated provisioning API: both idle UIDs absent; all nine expected Layer25 rules present (six fault rules and three delivery rules); 60 total stored rules. See docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-10-14T19:42:03+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: Observe a scheduled checker run using existing Secret mounts, verify no credential-bearing logs, and query the scraped timestamp/count/error gauges. Inspect any positive findings against the source/destination APIs.
+
+Evidence: Scheduled 19:25 and 19:30 Jobs succeeded with existing Secret mounts. No mounted token values in latest logs. Grafana datasource proxy returned 37 scraped gauges, timestamp age 249s, all read errors and mirror overdue counts zero. All 22 positive status findings independently checked against authenticated forge APIs: matching state/description, equivalent relative/absolute URLs; false positives tracked by frank#870. See investigation.
