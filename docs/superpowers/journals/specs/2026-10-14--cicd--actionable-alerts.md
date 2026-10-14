@@ -58,3 +58,10 @@ run_kind: live
 Step: Ensure tekton-extras and grafana-alerting actually applied the merge revision; assert the live CronJob/script content, not merely ArgoCD Synced status.
 
 Evidence: 2026-10-14: PR869 merge 5ac6e0b verified. tekton-extras initially stale and CronJob absent; explicit HEAD sync succeeded. Live CronJob schedule */5, mounted existing Secrets, non-root and deadline match merged manifest. Live script SHA256 6ab62a1e240cd4a1056cb431c339482dbc6b17c441fea19f12a07fc2df7626fc and Grafana CM SHA256 64fa6515ac843b7ccd36909545381380897045e1ab2c7c62556aaf21565d3d3b equal merged artifacts.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-10-14T19:42:00+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: Load the Grafana provisioning changes using the documented restart/reload procedure. Assert both idle UIDs are absent through Grafana's API and all existing CI fault rules plus the three new delivery rules exist.
+
+Evidence: 2026-10-14: operator-authorized Grafana deployment restart completed. Authenticated provisioning API: both idle UIDs absent; all nine expected Layer25 rules present (six fault rules and three delivery rules); 60 total stored rules. See docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.
