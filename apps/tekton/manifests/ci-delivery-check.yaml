@@ -117,6 +117,7 @@ data:
         def __init__(self, token_files, request=None):
             self.token_files = token_files
             self.request = request or self.http
+            self.gitea_web_url = os.environ.get('GITEA_WEB_URL', '')
             self.deadline = time.monotonic() + 210
             self.cache = {}
 
@@ -216,7 +217,16 @@ data:
                     'pending', 'success', 'error', 'failure', 'skipped', 'warning'
                 ):
                     raise ValueError('malformed Gitea status')
-                normalized.append({**item, 'state': state})
+                # Gitea's API returns relative Actions links, while its status
+                # webhook delivers absolute links based on server.ROOT_URL.
+                # Use that web root, not the in-cluster API service address.
+                target = item.get('target_url')
+                if isinstance(target, str) and target and not urllib.parse.urlsplit(target).scheme:
+                    root = urllib.parse.urlsplit(self.gitea_web_url)
+                    if root.scheme not in ('http', 'https') or not root.netloc:
+                        raise ValueError('missing or invalid Gitea web root')
+                    target = urllib.parse.urljoin(self.gitea_web_url, target)
+                normalized.append({**item, 'state': state, 'target_url': target})
             return normalized
 
     def render(snapshot, now):
@@ -292,6 +302,9 @@ spec:
               command: [python3, /scripts/check.py]
               env:
                 - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+                # Match Gitea server.ROOT_URL; webhook status links use this root.
+                - name: GITEA_WEB_URL
+                  value: "http://192.168.55.209:3000/"
                 - name: MAIN_REPOS
                   value: >-
                     agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog

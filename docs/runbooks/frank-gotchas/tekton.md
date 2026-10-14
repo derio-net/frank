@@ -480,6 +480,14 @@ descriptions match verbatim or a legitimate 140-character capped representation
 (the current github-status task sends them verbatim). Target URL must also match.
 Only agentic-stoa statuses are forwarded; kid-laptops refs use its org token.
 
+Gitea's status API can return a relative Actions target while its webhook
+forwards the absolute link. The checker resolves relative targets using the
+CronJob's `GITEA_WEB_URL`, which must match Gitea `server.ROOT_URL` in
+`apps/gitea/values.yaml`. Using the in-cluster API service address produces
+false overdue warnings even when delivery succeeds (frank#870). Empty links
+stay empty; different destinations still warn. A missing or unusable web root
+is a read error when relative links need resolution.
+
 Read-only diagnostics with selected cluster-admin access:
 
 ```bash

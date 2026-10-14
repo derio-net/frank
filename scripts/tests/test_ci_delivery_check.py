@@ -319,6 +319,79 @@ def test_live_shaped_nonempty_gitea_history_does_not_blind_checker(checker):
     assert result['counts'][REPO] == {'mirror':0,'status':0}
 
 
+def test_live_relative_gitea_target_matches_delivered_absolute_url(checker, monkeypatch):
+    """#870: observed API URL pair; other fields are synthetic fixture data."""
+    repo = 'agentic-stoa/cnc-fr'
+    monkeypatch.setenv('GITEA_WEB_URL', 'http://192.168.55.209:3000/')
+    source = gitea_api_status()
+    source['target_url'] = '/agentic-stoa/cnc-fr/actions/runs/3939/jobs/0'
+    destination = status(context='gitea-actions/build')
+    destination['target_url'] = 'http://192.168.55.209:3000/agentic-stoa/cnc-fr/actions/runs/3939/jobs/0'
+
+    def request(forge, repo, path):
+        if path == f'/repos/{repo}': return {'full_name':repo}
+        if '/branches/' in path:
+            return {'commit':{'id':API_SHA, 'sha':API_SHA,
+                              'commit':{'committer':{'date':NOW.isoformat()}}}}
+        if '/git/commits/' in path: return {'sha':API_SHA}
+        if path.endswith('page=1'):
+            return [source] if forge == 'gitea' else [destination]
+        return []
+
+    api = checker.API({}, request=request)
+    result = checker.check(api, [repo], [], NOW)
+    assert result['errors'][repo] == 0
+    assert result['counts'][repo] == {'mirror':0, 'status':0}
+    assert source['target_url'] == '/agentic-stoa/cnc-fr/actions/runs/3939/jobs/0'
+
+    destination['target_url'] = 'http://192.168.55.209:3000/agentic-stoa/cnc-fr/actions/runs/3940/jobs/0'
+    assert checker.check(api, [repo], [], NOW)['counts'][repo]['status'] == 1
+
+
+@pytest.mark.parametrize('source_url,destination_url,count', [
+    ('actions/run/1?job=2#log', 'https://forge.example.invalid/gitea/actions/run/1?job=2#log', 0),
+    ('/actions/run/1', 'https://forge.example.invalid/actions/run/1', 0),
+    ('/actions/run/1', 'https://wrong.example.invalid/actions/run/1', 1),
+    ('/actions/run/1', 'http://forge.example.invalid/actions/run/1', 1),
+    ('/actions/run/1?job=2', 'https://forge.example.invalid/actions/run/1?job=3', 1),
+    ('/actions/run/1#log', 'https://forge.example.invalid/actions/run/1#other', 1),
+    ('https://external.example.invalid/run/1', 'https://external.example.invalid/run/1', 0),
+    ('', '', 0),
+    (None, None, 0),
+    ('', 'https://forge.example.invalid/gitea/', 1),
+])
+def test_gitea_target_resolution_preserves_delivery_identity(checker, monkeypatch,
+                                                             source_url, destination_url, count):
+    monkeypatch.setenv('GITEA_WEB_URL', 'https://forge.example.invalid/gitea/')
+    raw = gitea_api_status(); raw['target_url'] = source_url
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    f = Forge(); f.prs = []
+    f.source = api.statuses('gitea', REPO, API_SHA)
+    f.dest = [status(context='gitea-actions/build')]; f.dest[0]['target_url'] = destination_url
+    assert check(checker, f)['counts'][REPO]['status'] == count
+    assert raw['target_url'] == source_url
+
+
+@pytest.mark.parametrize('root', ['', '/relative/', 'ftp://forge.example.invalid/'])
+def test_relative_gitea_target_requires_usable_web_root(checker, monkeypatch, root):
+    monkeypatch.setenv('GITEA_WEB_URL', root)
+    raw = gitea_api_status(); raw['target_url'] = '/actions/run/1'
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    with pytest.raises(ValueError): api.statuses('gitea', REPO, API_SHA)
+
+
+def test_deployed_web_root_matches_gitea_generated_status_links(checker, monkeypatch):
+    pod = list(yaml.safe_load_all(MANIFEST.read_text()))[1]['spec']['jobTemplate']['spec']['template']['spec']
+    env = {v['name']:v.get('value') for v in pod['containers'][0]['env']}
+    monkeypatch.setenv('GITEA_WEB_URL', env.get('GITEA_WEB_URL', ''))
+    gitea = yaml.safe_load((ROOT/'apps/gitea/values.yaml').read_text())
+    expected = gitea['gitea']['config']['server']['ROOT_URL'] + 'actions/run/1'
+    raw = gitea_api_status(); raw['target_url'] = 'actions/run/1'
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    normalized, = api.statuses('gitea', REPO, API_SHA)
+    assert normalized['target_url'] == expected
+
+
 @pytest.mark.parametrize('sha', ['truncated', 'a'*39, 'a'*41, 'g'*40, 'a'*64, '', None])
 def test_invalid_sha_never_certifies_matching_mirror_healthy(checker, sha):
     def request(forge, repo, path):
