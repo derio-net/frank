@@ -60,6 +60,19 @@ def status(context='build', state='success', age=20, id=1, **kw):
                 id=id, description='done', target_url='https://ci/run', **kw)
 
 
+def gitea_api_status(**kwargs):
+    """Schema-shaped test input from the authorized live-read handoff.
+
+    Not a raw capture: values are test examples; creator/API URLs are redacted.
+    Gitea's observed list uses `status`, not GitHub/webhook `state`.
+    """
+    item = status(**kwargs)
+    item['status'] = item.pop('state')
+    item.update(creator={'login':'redacted'}, url='https://redacted.invalid/status',
+                updated_at=item['created_at'])
+    return item
+
+
 def check(c, f, repo=REPO):
     return c.check(f, [repo], [repo] if repo == REPO else [], NOW)
 
@@ -255,13 +268,55 @@ def test_api_adapters_gitea_branch_id_and_status_path(checker):
         calls.append((forge,path))
         if path == f'/repos/{repo}': return {'full_name':repo}
         if '/branches/' in path: return {'commit':{'id':API_SHA}}
-        return [status()] if path.endswith('page=1') else []
+        return [gitea_api_status()] if path.endswith('page=1') else []
     api = checker.API({},request=request)
     assert api.branch(REPO,'main') == API_SHA
     assert checker.latest(api.statuses('gitea',REPO,API_SHA))['build']['state'] == 'success'
     assert any(f'/commits/{API_SHA}/statuses?' in path for forge,path in calls)
     api.repo(REPO)
     assert calls.count(('gitea',f'/repos/{REPO}')) == 1
+
+
+@pytest.mark.parametrize('state', ['pending','success','error','failure','skipped','warning'])
+def test_gitea_status_adapter_normalizes_observed_api_schema(checker, state):
+    raw = gitea_api_status(state=state)
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    normalized, = api.statuses('gitea',REPO,API_SHA)
+    assert normalized['state'] == state
+    assert checker.latest([normalized])['build']['state'] == state
+    assert 'state' not in raw  # do not mutate cached API responses
+
+
+@pytest.mark.parametrize('invalid', [None, '', 'unknown', 1, {}, ['success']])
+def test_gitea_status_adapter_rejects_invalid_status(checker, invalid):
+    raw = gitea_api_status(); raw['status'] = invalid
+    # A stray state field must not silently override malformed Gitea data.
+    raw['state'] = 'success'
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    with pytest.raises(ValueError): api.statuses('gitea',REPO,API_SHA)
+
+
+def test_gitea_status_adapter_requires_status_and_github_remains_unchanged(checker):
+    raw = status()
+    api = checker.API({}, request=lambda forge,repo,path: [raw] if path.endswith('page=1') else [])
+    with pytest.raises(ValueError): api.statuses('gitea',REPO,API_SHA)
+    assert api.statuses('github',REPO,API_SHA) == [raw]
+    assert checker.latest(api.statuses('github',REPO,API_SHA))['build']['state'] == 'success'
+
+
+def test_live_shaped_nonempty_gitea_history_does_not_blind_checker(checker):
+    def request(forge,repo,path):
+        if path == f'/repos/{repo}': return {'full_name':repo}
+        if '/branches/' in path:
+            return {'commit':{'id':API_SHA, 'sha':API_SHA,
+                              'commit':{'committer':{'date':NOW.isoformat()}}}}
+        if '/git/commits/' in path: return {'sha':API_SHA}
+        if path.endswith('page=1'):
+            return [gitea_api_status()] if forge == 'gitea' else [status(context='gitea-actions/build')]
+        return []
+    result = checker.check(checker.API({},request=request),[REPO],[],NOW)
+    assert result['errors'][REPO] == 0
+    assert result['counts'][REPO] == {'mirror':0,'status':0}
 
 
 @pytest.mark.parametrize('sha', ['truncated', 'a'*39, 'a'*41, 'g'*40, 'a'*64, '', None])

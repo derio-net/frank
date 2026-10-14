@@ -203,7 +203,21 @@ data:
                 raise
 
         def statuses(self, forge, repo, sha):
-            return self.pages(forge, repo, f'/repos/{repo}/commits/{sha}/statuses')
+            data = self.pages(forge, repo, f'/repos/{repo}/commits/{sha}/statuses')
+            if forge != 'gitea':
+                return data
+            # Authorized live read: Gitea commit-status lists expose `status`,
+            # unlike GitHub lists and Gitea webhook events (`state`). Normalize
+            # only at this boundary, without mutating the cached raw response.
+            normalized = []
+            for item in data:
+                state = item.get('status')
+                if not isinstance(state, str) or state not in (
+                    'pending', 'success', 'error', 'failure', 'skipped', 'warning'
+                ):
+                    raise ValueError('malformed Gitea status')
+                normalized.append({**item, 'state': state})
+            return normalized
 
     def render(snapshot, now):
         lines = ['# TYPE ci_delivery_overdue gauge', '# TYPE ci_delivery_read_error gauge',
