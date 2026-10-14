@@ -1390,7 +1390,13 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R4
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R6
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walk-owed
+  notes: Implemented and offline-tested failed reads, malformed responses, pagination
+    exhaustion, publishing failures and absent/stale snapshots. Deployed checker metrics,
+    scraping and Grafana evaluation remain in this run's DevOps-gated close-out.
   verify: live
