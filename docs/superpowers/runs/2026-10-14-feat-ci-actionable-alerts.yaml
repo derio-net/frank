@@ -93,6 +93,13 @@ steps:
     exit: 0
     stdout: ''
   deliver:
-    state: pending
+    state: running
+    at: '2026-10-14T18:42:28+00:00'
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-10-14T18:42:28+00:00'
+          harness: opencode
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
 driver: standalone
 fr_version: 5.27.0rc3
