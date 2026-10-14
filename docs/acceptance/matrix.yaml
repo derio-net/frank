@@ -1357,7 +1357,7 @@ rows:
   acceptance: Quiet repositories do not generate Layer 25 pipeline idle notifications
     while existing CI fault notifications remain available.
   origin:
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R1
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
@@ -1379,9 +1379,9 @@ rows:
   acceptance: Overdue expected mirror refs or forwarded Gitea statuses produce a delivery
     warning and matching outcomes clear it without synthetic CI work.
   origin:
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R2
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R3
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R5
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R5
   levels:
     api:
     - frank:scripts/tests/test_ci_delivery_check.py
@@ -1417,8 +1417,8 @@ rows:
   acceptance: Unreadable forge data or missing/stale delivery checker results produce
     a checker health warning instead of reporting healthy delivery.
   origin:
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R4
-  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R6
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
