@@ -3,7 +3,7 @@ run: 2026-10-14-feat-ci-actionable-alerts
 workflow: fr-goal-light@1
 branch: feat/ci-actionable-alerts
 started: '2026-10-14T15:55:28+00:00'
-cursor: plan
+cursor: spec-plan-review
 steps:
   brainstorm:
     state: done
@@ -12,14 +12,20 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md
   plan:
-    state: running
-    at: '2026-10-14T17:29:46+00:00'
+    state: done
+    at: '2026-10-14T17:31:30+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-10-14--cicd--actionable-alerts
     units:
       step/plan:
         attempts:
         - dispatched: '2026-10-14T17:29:46+00:00'
           harness: opencode
           session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T17:31:30+00:00'
+          outcome: done
+        evidence:
+          single-phase: phase 1
   spec-plan-review:
     state: pending
   plan-review:
