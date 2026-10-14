@@ -27,7 +27,17 @@ steps:
         evidence:
           single-phase: phase 1
   spec-plan-review:
-    state: pending
+    state: running
+    at: '2026-10-14T17:31:32+00:00'
+    units:
+      step/spec-plan-review:
+        attempts:
+        - dispatched: '2026-10-14T17:31:32+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: opencode
+          tier: hard
+          bound: openai/gpt-6.1-sol
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
   plan-review:
     state: pending
   implement:
