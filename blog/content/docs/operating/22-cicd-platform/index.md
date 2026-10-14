@@ -199,6 +199,36 @@ kubectl logs -n tekton-pipelines job/<job-name> | grep 'pipelinerun-ttl-gc resul
 
 The CronJob sweeps the namespaces in its `NAMESPACES` list (`tekton-pipelines`, `kid-laptops-ci`), each with its own Role and RoleBinding. A namespace missing from that list is never swept. Its PipelineRuns and their workspace PVCs pile up, and because the workspace StorageClass is single-replica, each leaked PVC blocks a drain of the node that holds its only replica. A PR that adds a new PipelineRun namespace fails `scripts/tests/test_pipelinerun_ttl_gc_namespaces.py` until the namespace is added to the list.
 
+### Read-only real-work delivery checks
+
+Quiet repositories do not need synthetic CI to prove health. `ci-delivery-check`
+reads every five minutes: main/open-PR refs must mirror within 30m of the source
+commit time, eligible Gitea statuses must match GitHub on that exact mirrored
+SHA within 10m. No eligible status is healthy when path filters skip CI.
+Grafana holds overdue counts, read errors, and absent/older-than-15m timestamp
+findings for 10m. Existing CI fault rules remain; both idle rules are deleted
+through provisioning tombstones when Grafana loads the merged configuration.
+
+```bash
+kubectl -n tekton-pipelines get cronjob ci-delivery-check
+kubectl -n tekton-pipelines get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n tekton-pipelines logs job/<latest-ci-delivery-check-job>
+gh api repos/<org>/<repo>/branches/main --jq .commit.sha
+gh api --paginate 'repos/<org>/<repo>/pulls?state=open&per_page=100' --jq '.[] | [.number,.head.sha]'
+gh api --paginate repos/<org>/<repo>/commits/<sha>/statuses
+```
+
+Compare authenticated Gitea branch `commit.id`, then newest per-context statuses
+from `/api/v1/repos/<org>/<repo>/commits/<sha>/statuses` (all pages). The bridge
+excludes any context starting `tekton` and maps skipped/warning to success.
+Descriptions must match exactly or their legitimate 140-character capped
+representation; confirm target URLs too. Do not print
+credentials. Private Gitea reads need operator-selected cluster-admin access,
+not the dev profile. See the Tekton gotchas runbook for error/recovery details.
+Healthy metrics are zero `ci_delivery_overdue` and `ci_delivery_read_error`
+gauges with a fresh `ci_delivery_last_check_timestamp_seconds`, under
+`job="ci-delivery-check"`. Full snapshot replacement clears closed PRs.
+
 ### Manually Re-Trigger GitHub-primary Pull Sync
 
 Run the reconciler first. Every 15 minutes it compares GitHub `main` (and every open PR's head, against its `sync-pr-<N>` branch) against Gitea and pushes whatever has drifted for more than 10 minutes. Starting it by hand does the same thing now:
@@ -285,7 +315,7 @@ kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline=github-pull-s
   --sort-by=.metadata.creationTimestamp | tail
 ```
 
-Either way, `mirror-reconcile` repairs it within ~25 minutes (the 15-minute schedule plus the 10-minute grace), and the repaired push fires Gitea Actions, so the `gitea-actions/*` statuses arrive. It does **not** re-run a Tekton CI body: for hum, content-factory and stoa-blog, and for cnc-ci's `test` task, redeliver the PR webhook as well. kid-laptops (`derio-homelab-pull-sync`) is not reconciled at all, so redeliver there too. To repair now, run the reconciler by hand (see above). Since 2026-10-12 both EventListeners run two replicas on different hosts behind a PodDisruptionBudget, so draining one node no longer 502s webhooks.
+Either way, `mirror-reconcile` repairs it within ~25 minutes (the 15-minute schedule plus the 10-minute grace), and the repaired push fires Gitea Actions, so the `gitea-actions/*` statuses arrive. It does **not** re-run a Tekton CI body: for hum, content-factory and stoa-blog, and for cnc-ci's `test` task, redeliver the PR webhook as well. kid-laptops main is also reconciled, using its own org token; it has no mirrored PR/status-bridge coverage. To repair now, run the reconciler by hand (see above). Since 2026-10-12 both EventListeners run two replicas on different hosts behind a PodDisruptionBudget, so draining one node no longer 502s webhooks.
 
 ### Webhook Not Triggering a PipelineRun
 

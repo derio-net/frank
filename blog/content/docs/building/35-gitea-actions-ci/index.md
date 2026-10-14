@@ -363,6 +363,19 @@ with `--force-with-lease` so a stale plan can never overwrite a newer head. A
 webhook-driven replica needs a reconcile loop behind it, because the events
 are not durable and the state is.
 
+**Detection without manufacturing work (2026-10-14).** A separate five-minute
+`ci-delivery-check` CronJob only reads the forges. Main and open-PR mirror refs
+have 30 minutes from the source commit time to match; eligible Gitea statuses
+have ten minutes to match GitHub on the exact mirrored SHA. It applies the
+bridge's `tekton` prefix exclusion and skipped/warning normalization, accepting
+exact descriptions or legitimate 140-character caps. Path-filtered CI may emit no
+statuses. kid-laptops refs are covered with that org's token; its statuses are
+not bridged. Complete Pushgateway PUT snapshots remove closed-PR findings.
+Grafana warns on overdue work, read errors, and absent/stale snapshots, each
+held ten minutes. Both old inactivity rules have deletion tombstones; quiet
+CI is healthy, not proof of a lost webhook. Production provisioning and
+authenticated private-forge checks remain deployment verification steps.
+
 **On parallel running.** GitHub Actions stays enabled through August; the
 free tier resets on the 1st and the parallel week costs a few hundred of the
 2,000 minutes. Mutating jobs are single-sided behind `CI_AUTHORITY` the whole

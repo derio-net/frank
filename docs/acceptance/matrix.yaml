@@ -1352,3 +1352,51 @@ rows:
     was closed unmerged. The triggers'' storageClassName is CI-guarded; where the
     replicas land is only observable live.'
   verify: live
+- id: ci-quiet-no-idle-alert
+  capability: Actionable CI notifications
+  acceptance: Quiet repositories do not generate Layer 25 pipeline idle notifications
+    while existing CI fault notifications remain available.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R1
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: walk-owed
+  notes: Implemented and offline-verified idle rule removal, explicit deleteRules
+    and retained fault rules. Deployment and stored Grafana rule deletion remain in
+    this run's DevOps-gated post-merge Test Plan.
+  verify: live
+- id: ci-real-work-delivery
+  capability: Actionable CI notifications
+  acceptance: Overdue expected mirror refs or forwarded Gitea statuses produce a delivery
+    warning and matching outcomes clear it without synthetic CI work.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R2
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R3
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R5
+  levels:
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walk-owed
+  notes: Implemented and behaviourally verified quiet/delayed/missing/recovered mirror
+    and status delivery, including actual Gitea response schema. Authenticated read-only
+    forge contract probes passed. Scheduled deployment and warning evaluation remain
+    in this run's DevOps close-out.
+  verify: live
+- id: ci-delivery-checker-visible
+  capability: Actionable CI notifications
+  acceptance: Unreadable forge data or missing/stale delivery checker results produce
+    a checker health warning instead of reporting healthy delivery.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R4
+  - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R6
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walk-owed
+  notes: Implemented and offline-tested failed reads, malformed responses, pagination
+    exhaustion, publishing failures and absent/stale snapshots. Deployed checker metrics,
+    scraping and Grafana evaluation remain in this run's DevOps-gated close-out.
+  verify: live
