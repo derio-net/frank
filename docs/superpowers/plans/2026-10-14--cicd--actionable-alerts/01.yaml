@@ -1,0 +1,146 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Replace inactivity notifications with real-work delivery checks
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - ci-quiet-no-idle-alert
+  - ci-real-work-delivery
+  - ci-delivery-checker-visible
+  tier: standard
+  files:
+  - apps/tekton/manifests/ci-delivery-check.yaml
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/*
+  - docs/runbooks/frank-gotchas/*
+  - agents/rules/frank-gotchas.md
+  - blog/content/docs/building/*/*
+  - blog/content/docs/operating/*/*
+  estimate_lines: 1100
+tasks:
+- number: 1
+  title: Real-work checker handles quiet, missed, delayed and recovered delivery
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. Add scripts/tests/test_ci_delivery_check.py extracting the inline Python
+      script from apps/tekton/manifests/ci-delivery-check.yaml. Exercise an injected
+      forge client or local HTTP fixture with explicit source/destination responses.
+      Cover matching/absent/drifted main and sync-pr-N refs, 30m mirror grace,
+      kid-laptops org token selection, absent path-filtered statuses, latest context
+      selection independent of ordering, tekton-prefix exclusion, skipped/warning
+      normalization, exact source SHA, 10m status grace, stale target/description,
+      missing forwarded status and recovery. Command: uv run pytest -q
+      scripts/tests/test_ci_delivery_check.py. Record the failing tests before code.
+  - id: P1.T1.S2
+    text: |
+      GREEN. Implement the read-only stdlib Python checker and five-minute non-root
+      CronJob in apps/tekton/manifests/ci-delivery-check.yaml per the spec. Read
+      mounted existing token files at invocation; use bounded request timeouts and
+      deadlines, emptyDir, and no service account access. Populate repo lists matching
+      mirror-reconcile and guard coverage against its contract and the triggers.
+      Verify Gitea repository access before accepting branch 404 as missing, and
+      suppress status checks until the commit is mirrored. The tests above pass.
+  - id: P1.T1.S3
+    text: |
+      REFACTOR. Keep API access, latest-status selection, comparison, and metrics
+      rendering separate so failed reads cannot be interpreted as empty results.
+      Review API shapes against available read-only GitHub evidence and documented
+      Gitea endpoints; record missing authenticated Gitea access as a blocker to live
+      probes rather than silently passing it. Re-run the behavioural test file.
+- number: 2
+  title: Failed reads and stale snapshots are visible
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED. Extend the checker tests with multi-page PR/status results, malformed
+      responses, auth/404 failures, bounded pagination exhaustion, unreadable token
+      files, failed Pushgateway PUT, empty quiet snapshot, partial failure, and
+      subsequent recovery replacing prior findings. Assert no credential text in
+      diagnostics and only bounded repo/kind metric labels. Expect failure before
+      wiring these error and publishing paths.
+  - id: P1.T2.S2
+    text: |
+      GREEN. PUT a complete snapshot to the ci-delivery-check Pushgateway grouping
+      key. Emit zero count gauges when healthy, explicit error indicators on partial
+      reads, and completed-check timestamp. Fail the Job on errors or push failure.
+      Paginate both forges; reject partial/malformed/exhausted responses. Replacement
+      removes findings from closed PRs and previous runs. Tests pass.
+  - id: P1.T2.S3
+    text: |
+      REFACTOR. Deduplicate API calls per repo/SHA, cache responses within one run,
+      and keep diagnostics bounded. Review worst-case request counts against the
+      Job deadline and API rate limits. Re-run all checker tests.
+- number: 3
+  title: Grafana warns on missed work and checker health rather than idle CI
+  steps:
+  - id: P1.T3.S1
+    text: |
+      RED. Replace the idle-window expectations in test_pipelinerun_outcome_alerting.py
+      with absence plus deleteRules tombstones. Add assertions and meaningful
+      predicate/scenario tests for overdue counts, explicit read errors, and absent
+      or stale timestamp watchdog, including all-zero healthy snapshots and recovery.
+      Preserve assertions for existing outcome/platform/PVC/timeout/reconciler rules.
+      All rule UIDs must satisfy the repository-wide 40-character guard.
+  - id: P1.T3.S2
+    text: |
+      GREEN. Remove the two idle definitions and add orgId 1 deleteRules tombstones.
+      Add three Layer 25 A-B-C rules for overdue work, read errors and stale/missing
+      snapshot; use the spec's grace/for windows, bounded repo/kind labels, warning
+      severity and frank-ops#25 linkage. NoData is OK for healthy filtered queries;
+      absent() makes missing telemetry an explicit watchdog finding. Run affected
+      alert and checker tests and then uv run pytest -q scripts/tests/.
+  - id: P1.T3.S3
+    text: |
+      REFACTOR. Update relevant existing building/operating CI posts and compact/full
+      Grafana/Tekton gotchas, explaining real-work expectations and exact diagnostic
+      commands. Remove obsolete claims that increasing idle windows proves health.
+      Validate agent config and plans with scripts/validate-agent-config.sh and
+      scripts/validate-plans.sh. Commit code, then run the full uv run pytest -q
+      scripts/tests/ suite into a host-visible ignored log after that code commit.
+      The record must name that log; do not claim authenticated Gitea live probes
+      succeeded without access. No new issue for delivery detection is owed.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
