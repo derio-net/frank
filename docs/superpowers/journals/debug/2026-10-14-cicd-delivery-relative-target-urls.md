@@ -25,3 +25,11 @@ API.statuses now resolves nonempty relative Gitea targets against CronJob GITEA_
 ### c1009f631781 · finding [fixed] · Full verification passed for the URL normalization patch
 
 uv run pytest -q scripts/tests/: 1272 passed, 9 skipped, 1 xfailed in 312.22s. The initial 120-second run timed out; completed rerun used a 600-second budget. hugo --source blog --minify completed successfully (155 pages, 576 processed images); first cold build exceeded 120 seconds, rerun passed. scripts/validate-agent-config.sh passed; scripts/validate-plans.sh passed minimal fallback checks with canonical super-fr validator unavailable. Documentation now explains ROOT_URL vs in-cluster API addressing and genuinely different links. Original ci-real-work-delivery row remains failing and step4 owed pending corrected scheduled snapshots and Grafana recovery after merge.
+
+<!-- fr:journal kind=owed scope=debug id=post-merge-url-recovery created=2026-10-14T20:10:14+00:00 -->
+### post-merge-url-recovery · owed · Verify scheduled healthy delivery and clear the original live gate after merge
+
+what: After PR872 merges, verify live ci-delivery-check script and GITEA_WEB_URL match the fix; observe scheduled snapshots with fresh timestamp, zero read errors and healthy delivery counts; assert Grafana overdue instances recover. Record the ci-real-work-delivery passing walk, resolve original actionable-alerts Test Plan step4, clear its DevOps gate and archive only after that evidence. Close frank#870 on live evidence.
+why: The fix is offline-proven but production still runs the merged original checker. The original failing acceptance row and owed step4 must not be cleared before deployment.
+how: From the base clone run fr pickup --branch fix/cicd-delivery-relative-target-urls after merge. Use the operator-selected cluster-admin workspace for live checks and a fresh closeout isolation workspace for records; resolve original Test Plan step4 and this debug owed entry with actual recovery evidence.
+owed_key: row:ci-real-work-delivery
