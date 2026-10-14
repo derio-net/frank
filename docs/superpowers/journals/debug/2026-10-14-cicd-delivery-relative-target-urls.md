@@ -15,3 +15,8 @@ RED: uv run pytest -q scripts/tests/test_ci_delivery_check.py -k live_relative_g
 ### ee8d2c6ce370 · root-cause · Gitea API adapter leaves relative links incomparable with webhook delivery
 
 Confirmed by original authenticated probes and failing adapter-level regression: Gitea status API returns a relative Actions link while the successfully forwarded GitHub status contains the absolute Gitea ROOT_URL-based link. Literal tuple comparison produces overdue findings. Root resolution belongs in API.statuses beside the existing status/state adaptation, not in alert predicates or bridge writes. Additional RED cases: 7 failed, 8 passed, 67 deselected for configured root/subpath, absent/unusable root, equivalent live URLs; negative destination identity and empty/absolute URL cases already pass.
+
+<!-- fr:journal kind=finding scope=debug id=bd5918903516 created=2026-10-14T19:59:01+00:00 state=fixed -->
+### bd5918903516 · finding [fixed] · Resolve Gitea status targets using the declared web root
+
+API.statuses now resolves nonempty relative Gitea targets against CronJob GITEA_WEB_URL, matching apps/gitea/values.yaml server.ROOT_URL. Absolute and absent/empty URLs retain their semantics; raw cached responses are not mutated, and state/description/URL mismatches still warn. Missing/unusable web root raises a checker read error for relative targets. GREEN: 94 checker and outcome-alert tests passed, including the observed #870 regression, alternative configured root/subpath, changed host/scheme/run/query/fragment, empty/absolute targets and root parity. Production deployment and original step4 stay owed until merge and live re-walk.
