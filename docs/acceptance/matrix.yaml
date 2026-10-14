@@ -1385,12 +1385,22 @@ rows:
   levels:
     api:
     - frank:scripts/tests/test_ci_delivery_check.py
-  status: walk-owed
-  notes: Implemented and behaviourally verified quiet/delayed/missing/recovered mirror
-    and status delivery, including actual Gitea response schema. Authenticated read-only
-    forge contract probes passed. Scheduled deployment and warning evaluation remain
-    in this run's DevOps close-out.
+  status: failing
+  notes: '2026-10-14 live closeout failed healthy-status resolution: 22 false-positive
+    overdue counts across six repos. Authenticated APIs prove delivered states/descriptions
+    and equivalent relative Gitea/absolute GitHub URLs; isolated URL-resolution comparison
+    yields zero counts. frank#870; keep DevOps gate open. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  issues:
+  - derio-net/frank#870
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: fail
+    at: '2026-10-14T19:42:46Z'
+    evidence: 'FAIL: healthy delivered statuses stay overdue because target URL comparison
+      does not resolve relative Gitea URLs.'
 - id: ci-delivery-checker-visible
   capability: Actionable CI notifications
   acceptance: Unreadable forge data or missing/stale delivery checker results produce
