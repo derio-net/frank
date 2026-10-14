@@ -1,0 +1,58 @@
+schema_version: 2
+run: 2026-10-14-feat-ci-actionable-alerts
+captures:
+- host: h-c2bb1f60
+  harness: opencode
+  mode: devcontainer
+  captured_at: '2026-10-14T17:29:38+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+    role: main
+    models:
+      gpt-6.1-sol:
+        input: 103490
+        cache_write: 0
+        cache_read: 2118016
+        output: 9466
+        usd: null
+        usd_source: none
+    activity:
+      other:
+        usd: null
+        turns: 35
+      paperwork:
+        usd: null
+        turns: 8
+    steps:
+      (outside run):
+        usd: null
+        turns: 8
+        input: 28056
+        cache_write: 0
+        cache_read: 159616
+        output: 871
+      brainstorm:
+        usd: null
+        turns: 33
+        input: 75434
+        cache_write: 0
+        cache_read: 1958400
+        output: 8595
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 8
+          input: 28056
+          cache_write: 0
+          cache_read: 159616
+          output: 871
+        brainstorm:
+          usd: null
+          turns: 33
+          input: 75434
+          cache_write: 0
+          cache_read: 1958400
+          output: 8595

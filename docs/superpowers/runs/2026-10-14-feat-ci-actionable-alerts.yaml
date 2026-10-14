@@ -1,16 +1,19 @@
 schema_version: 10
 run: 2026-10-14-feat-ci-actionable-alerts
-workflow: fr-goal@1
+workflow: fr-goal-light@1
 branch: feat/ci-actionable-alerts
 started: '2026-10-14T15:55:28+00:00'
-cursor: brainstorm
+cursor: plan
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-14T15:56:35+00:00'
-  spec-review:
-    state: pending
+    state: done
+    at: '2026-10-14T17:29:37+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md
   plan:
+    state: pending
+  spec-plan-review:
     state: pending
   plan-review:
     state: pending
