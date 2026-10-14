@@ -1358,9 +1358,13 @@ rows:
     while existing CI fault notifications remain available.
   origin:
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R1
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: walk-owed
+  notes: Implemented and offline-verified idle rule removal, explicit deleteRules
+    and retained fault rules. Deployment and stored Grafana rule deletion remain in
+    this run's DevOps-gated post-merge Test Plan.
   verify: live
 - id: ci-real-work-delivery
   capability: Actionable CI notifications
