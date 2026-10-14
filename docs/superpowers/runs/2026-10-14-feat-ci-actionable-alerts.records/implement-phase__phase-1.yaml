@@ -3,7 +3,7 @@ run: 2026-10-14-feat-ci-actionable-alerts
 step: implement-phase
 item: phase/1
 outcome: done
-ticks: [P1.T1.S1, P1.T1.S2, P1.T1.S3, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T3.S1, P1.T3.S2]
+ticks: [P1.T1.S1, P1.T1.S2, P1.T1.S3, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T3.S1, P1.T3.S2, P1.T3.S3]
 refactor: {}
 journal:
   - kind: discovery
@@ -53,5 +53,18 @@ journal:
       validator used its minimal fallback because super-fr validator was unavailable
       in the dev container. Live private-forge and post-merge provisioning/scrape
       evidence remains owed within this run's DevOps close-out, not a new issue.
+  - kind: discovery
+    id: delivery-final-evidence
+    phase: 1
+    title: Full clean-tree suite covers the committed implementation
+    body: |
+      Final affected suites 116 passed. Final full uv run pytest -q scripts/tests/
+      after code commit 71ba9057 and clean git status: 1227 passed, 9 skipped,
+      1 xfailed in 114.98s, exit=0. Host-visible ignored raw log includes the exit
+      sentinel; only this record changed after the suite. No background processes,
+      forge writes, synthetic CI, pushes or PRs. All nine steps performed; cursor
+      remains unresolved for the orchestrator. Authenticated Gitea live probes
+      require operator-selected cluster-admin access and remain unclaimed.
 resolves: []
-evidence: {}
+evidence:
+  tests: /Users/derio/.cache/fr/worktrees/frank/feat__ci-actionable-alerts/.fr-scratch/ci-delivery-suite.log
