@@ -93,13 +93,22 @@ steps:
     exit: 0
     stdout: ''
   deliver:
-    state: running
-    at: '2026-10-14T18:42:28+00:00'
+    state: done
+    at: '2026-10-14T18:50:21+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/869
     units:
       step/deliver:
         attempts:
         - dispatched: '2026-10-14T18:42:28+00:00'
           harness: opencode
           session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T18:50:10+00:00'
+          outcome: done
+        evidence:
+          tests: .fr-scratch/deliver-suite.log@bb3337cb1b12
+          walk: none
+          proportionality: 1ee419e5f113be37d350ecbdbea24f86ead694ad:595ffc2877c4d534859c119a748902896dc6ff521b8d0a05477757360f985e23
+          visual: none
 driver: standalone
 fr_version: 5.27.0rc3
