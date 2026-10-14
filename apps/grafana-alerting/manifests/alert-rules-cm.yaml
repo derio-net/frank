@@ -6,6 +6,10 @@ metadata:
 data:
   alert-rules.yaml: |
     apiVersion: 1
+    # Removing definitions does not remove stored file-provisioned rules.
+    deleteRules:
+      - {orgId: 1, uid: layer-25-idle-stoa-status-bridge}
+      - {orgId: 1, uid: layer-25-idle-github-pull-sync}
     groups:
       # =====================================================================
       # FEATURE-LEVEL ALERTS (bugs in specific willikins crons / endpoints)
@@ -2510,130 +2514,115 @@ data:
               summary: "L25 pipeline failing: {{ $labels.pipeline }} has {{ $values.B.Value | printf \"%.0f\" }} failure(s) in 24h with zero successes"
               runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; tkn pipeline logs {{ $labels.pipeline }} -n tekton-pipelines --last"
 
-          # --- Layer 25 — idle dead-man, one rule per watched pipeline
-          # (frank-ops#25). ONE rule per pipeline, deliberately, not a
-          # single rule with `pipeline=~"a|b"`: `vector(0)` carries NO
-          # labels, and `or` returns its right-hand side only where the
-          # left has NO matching series at all. With a regex selector, if
-          # one watched pipeline still has a series and the other does not,
-          # the left side is non-empty and the dead pipeline contributes
-          # nothing — a dead-man that only fires when BOTH die at once. The
-          # bare `sum(` (no `by (pipeline)`) is what lets an absent
-          # pipeline's aggregation genuinely collapse to an empty vector,
-          # which is the only condition under which `or vector(0)` engages
-          # — `sum by (pipeline)` would look identical but never fall back.
-          # No `status=` filter: the question is "did this pipeline run at
-          # all", not whether it succeeded (that's `layer-25-pipeline-failing`
-          # above). `lt 1`, not `gt 0` — this is a floor question (fewer
-          # than one run in the window), and this folder's `gt 0` is the
-          # convention for unavailability COUNTERS, not for a run-count
-          # dead-man (frank-gotchas.md warns explicitly against
-          # generalising it: 27 `gt` vs 12 `lt` folder-wide).
-          #
-          # Windows and `for` are measured from retained PipelineRuns
-          # (2026-09-13), not chosen round numbers:
-          #   stoa-status-bridge: ~143 runs/day AVERAGE but bursty (human-
-          #     and CI-driven), max observed idle gap 8.3h (re-measured
-          #     2026-10-13 over 30d, four weekends included; the original
-          #     0.5h figure held in September and drifted — the [6h] window
-          #     then paged on every quiet night) -> [24h] window, for: 1h
-          #     (2.9x headroom). Pinned by
-          #     test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom.
-          #   github-pull-sync: 10.4 runs/day, max observed idle gap 15.7h
-          #     -> [72h] window, for: 2h (4.6x headroom).
-          #
-          # Both `for` windows absorb a controller restart (these counters
-          # are process-lifetime and reset to an absent series on restart,
-          # which `or vector(0)` reads as 0) AND, more certainly, deploy
-          # time itself: before a pipeline's FIRST run is ever scraped
-          # there is no series at all, so the same `or vector(0) -> lt 1`
-          # path fires after `for`. At 148/day the first run lands within
-          # ~10 minutes, so stoa-status-bridge's for:1h is comfortable
-          # either way. At 10.4/day the mean gap is ~2.3h against
-          # github-pull-sync's for:2h, so expect a false positive on
-          # roughly HALF of all deploys and after roughly one in ten
-          # controller restarts — both self-clear the moment the first
-          # post-event run lands. That is a deliberate, bounded trade: one
-          # warning-severity Telegram message versus weeks of silence.
-          - uid: layer-25-idle-stoa-status-bridge
-            title: Layer 25 Pipeline Idle stoa-status-bridge
+          # Compare real work: 30m mirror grace, 10m forwarded-status grace
+          # in the checker; an additional 10m here absorbs one delayed sample.
+          - uid: layer-25-delivery-overdue
+            title: Layer 25 CI Delivery Overdue
             condition: C
             data:
               - refId: A
-                relativeTimeRange: { from: 86400, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: |
-                    sum(
-                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
-                        namespace="tekton-pipelines", pipeline="stoa-status-bridge"}[24h])
-                    ) or vector(0)
+                  expr: 'sum by (repo, kind) (ci_delivery_overdue{job="ci-delivery-check"}) > 0'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
               - refId: B
-                relativeTimeRange: { from: 86400, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: __expr__
                 model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
               - refId: C
-                relativeTimeRange: { from: 86400, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: __expr__
                 model:
                   refId: C
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 1h
+            for: 10m
             labels:
               severity: warning
               github_issue: "frank-ops#25"
             annotations:
-              summary: "L25 pipeline idle: stoa-status-bridge has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 24h — expected ~148/day"
-              runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-gitea-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the Gitea org-level webhook, which is forge state with no IaC in this repo."
+              summary: "L25 overdue {{ $labels.kind }} delivery for {{ $labels.repo }}"
+              runbook: "kubectl -n tekton-pipelines get jobs --sort-by=.metadata.creationTimestamp; kubectl -n tekton-pipelines logs job/<latest-ci-delivery-check-job>; compare GitHub main/open-PR SHA with Gitea main/sync-pr-N, then statuses on that exact SHA. See docs/runbooks/frank-gotchas/tekton.md."
 
-          - uid: layer-25-idle-github-pull-sync
-            title: Layer 25 Pipeline Idle github-pull-sync
+          - uid: layer-25-delivery-read-error
+            title: Layer 25 CI Delivery Read Error
             condition: C
             data:
               - refId: A
-                relativeTimeRange: { from: 259200, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: |
-                    sum(
-                      increase(tekton_pipelines_controller_pipelinerun_duration_seconds_count{
-                        namespace="tekton-pipelines", pipeline="github-pull-sync"}[72h])
-                    ) or vector(0)
+                  expr: 'max by (repo) (ci_delivery_read_error{job="ci-delivery-check"}) > 0'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
               - refId: B
-                relativeTimeRange: { from: 259200, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: __expr__
                 model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
               - refId: C
-                relativeTimeRange: { from: 259200, to: 0 }
+                relativeTimeRange: { from: 900, to: 0 }
                 datasourceUid: __expr__
                 model:
                   refId: C
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
-            for: 2h
+            for: 10m
             labels:
               severity: warning
               github_issue: "frank-ops#25"
             annotations:
-              summary: "L25 pipeline idle: github-pull-sync has had {{ $values.B.Value | printf \"%.0f\" }} run(s) in 72h — expected ~10.4/day"
-              runbook: "This alert means NO runs arrived, so the PipelineRun list is expected to be empty and proves nothing. Ask whether events are reaching the listener at all: kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=50 . A silent listener means the webhook never delivered, not that the trigger is broken — check the declared delivery path in apps/tekton/webhooks.yaml against the per-repo GitHub webhooks, which is forge state with no IaC in this repo."
+              summary: "L25 delivery checker cannot read {{ $labels.repo }}"
+              runbook: "Inspect ci-delivery-check Job logs; verify mounted token Secret keys and authenticated forge access without printing tokens. Failed reads are not empty status/PR lists. See docs/runbooks/frank-gotchas/tekton.md."
+
+          - uid: layer-25-delivery-stale
+            title: Layer 25 CI Delivery Snapshot Missing or Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '(time() - max(ci_delivery_last_check_timestamp_seconds{job="ci-delivery-check"}) > 900) or absent(ci_delivery_last_check_timestamp_seconds{job="ci-delivery-check"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 delivery checker snapshot absent or older than 15 minutes"
+              runbook: "kubectl -n tekton-pipelines get cronjob ci-delivery-check; kubectl -n tekton-pipelines get jobs --sort-by=.metadata.creationTimestamp; inspect its latest Job logs, Pushgateway and scrape. absent() covers never-started Jobs and lost gateway data."
 
           # --- Layer 25 — CI silence guards (2026-10-11 silent-CI incident,
           # frank-ops#25). Every CI workspace PVC (longhorn-hdd) failed to

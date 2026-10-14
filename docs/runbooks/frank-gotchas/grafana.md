@@ -1003,6 +1003,10 @@ tekton_pipelines_controller_taskruns_pod_latency_milliseconds}]`, leaving
 851 bounded series — not tidiness, the precondition for adding this scrape
 at all without walking straight back into the July incident.
 
+**Historical idle-rule traps (rules retired 2026-10-14).** The outcome ratio
+still uses `unless`; the idle examples below explain the retired design, not
+the current notification policy. Quiet human-driven CI is not a fault.
+
 **Three PromQL traps, all present in the naive first draft of these rules:**
 
 1. **`unless`, not `and ... success == 0`.** A pipeline that has never
@@ -1048,55 +1052,24 @@ at all without walking straight back into the July incident.
    is present-but-stalled or genuinely absent (via the `or vector(0)` fallback
    above).
 
-**Windows are sized from measured cadence, and one shared window is
-observably wrong.** Retained PipelineRuns measured 2026-09-13:
+**Current policy: compare work, not cadence.** `ci-delivery-check` reads GitHub
+main/open-PR heads and Gitea main/`sync-pr-N` refs every five minutes. Mirror
+drift gets 30m from the source commit's committer date. Eligible Gitea statuses
+on mirrored heads get 10m to match GitHub `gitea-actions/<context>` state,
+description and target URL. No eligible statuses is healthy (path filters).
+The three new Layer 25 rules hold for 10m: positive overdue counts, explicit
+read errors, and missing or older-than-15m completed-check timestamp. The last
+uses `absent()` so never-started Jobs and lost Pushgateway data are visible.
+Existing outcome/platform/PVC/timeout/reconciler rules remain.
 
-| pipeline | runs/day | max observed gap | window | `for` | headroom |
-|---|---:|---:|---:|---:|---:|
-| `stoa-status-bridge` | 148.1 | 0.5h | `[6h]` | `1h` | 12× |
-| `github-pull-sync` | 10.4 | 15.7h | `[72h]` | `2h` | 4.6× |
-
-A single shared 24h window — the obvious first instinct — gives
-`stoa-status-bridge` 48× headroom and `github-pull-sync` about 1.5×, measured
-against a 79-hour sample that happened to contain no quiet weekend. It would
-have paged on the first Sunday nobody pushed to `github-pull-sync`. These are
-push-driven pipelines; idle tolerance is a property of each pipeline's own
-traffic, not a number that can be shared across two pipelines an order of
-magnitude apart in cadence.
-
-**The `github-pull-sync` dead-man carries a documented, accepted false-positive
-window.** These counters are process-lifetime and reset on a controller
-restart, so the series is briefly absent post-restart and `or vector(0)` reads
-0 until the next run lands. At 148 runs/day `stoa-status-bridge`'s first
-post-restart run lands within ~10 minutes, so its `for: 1h` fully absorbs a
-restart. `github-pull-sync` at 10.4/day has a ~2.3h mean gap, so its `for: 2h`
-**narrows but does not eliminate** the window: a controller restart that lands
-during a quiet stretch can produce one `severity: warning` Telegram message
-that self-clears on the next sync — roughly once a month at the observed
-restart rate, and only sometimes. This is a deliberate, bounded trade,
-documented rather than hidden so a future reader who meets exactly one such
-alert recognises the known shape instead of re-deriving the cause from
-scratch. The alternative was another 39 days of silence.
-
-**An idle-pipeline alert's most likely real cause is a missing webhook, not a
-broken pipeline — check `apps/tekton/webhooks.yaml` first.** This repo already
-has the incident that names the failure mode: the 2026-07-26 site→www
-promotion had an EventListener trigger that was "live, correct and
-unreachable", because the per-repo Gitea webhook that would have delivered to
-it was never created — it produced **zero PipelineRuns**, which reads exactly
-like a broken pipeline rather than a missing delivery path, and cost a
-debugging round for that reason. A ratio rule is structurally blind to this
-(no runs means no failures to ratio against); only a dead-man catches it, and
-when one of these two idle rules fires the runbook does **not** point at
-`kubectl get pipelinerun` for the watched pipeline — that list is guaranteed
-empty by construction (the alert's whole meaning is that no runs arrived, and
-the 7-day PipelineRun TTL GC removes older ones regardless), so an operator
-who checks it learns only what the alert already said. The runbook instead
-points at the EventListener's own log (`el-gitea-listener` /
-`el-github-listener` — did an event arrive at all?) and at
-`apps/tekton/webhooks.yaml` plus the forge's webhook configuration, because a
-declared trigger and a delivered webhook are two different things and only
-one of them is IaC.
+The two `layer-25-idle-*` UIDs have orgId 1 `deleteRules` tombstones; deleting
+YAML definitions alone does not delete stored rules. Grafana loads provisioning
+on startup. After the merged ConfigMap is applied, use the documented Grafana
+restart/reload procedure and read `/api/v1/provisioning/alert-rules`: verify
+both idle UIDs are absent, all retained fault rules remain, and the three
+`layer-25-delivery-*` rules exist. ArgoCD Synced alone is not that proof.
+See `tekton.md` for exact checker and forge diagnostic commands. No forge
+writes or synthetic CI events are required for this monitoring path.
 
 
 ### A rule uid over 40 characters takes Grafana down entirely
@@ -1179,9 +1152,9 @@ correctly and then **can never stop firing**, because its own success condition
 is byte-for-byte indistinguishable from its datasource dying. Any rule whose
 query filters rather than thresholds has this property.
 
-The two idle rules are immune by construction: `or vector(0)` guarantees they
-always return a value, so their instances read plain `Normal` and their
-`noDataState` is genuinely unreachable.
+The delivery overdue/read-error filters also resolve through NoData. Their
+`noDataState: OK` is intentional; the separate timestamp watchdog converts
+missing telemetry into an explicit finding with `absent()`.
 
 **Also observed:** the alert named a pipeline that no longer existed, because
 the throwaway Pipeline object had been deleted while its counters lived on. The
@@ -1200,12 +1173,12 @@ Nothing alerted on PVC fill until frank#722 (the hermes tool-home expansion in #
 - **Live baseline, 2026-10-10.** 36 byte series, top 78.2% (`secure-agent-pod/agent-home`); inode maximum 34.7%; no zero denominators.
 - **First move when it fires.** Check Longhorn provisioning headroom before expanding (see the Storage entry on silently refused expansion in `storage-secrets-ssa.md`), then look for untracked workloads and prunable data.
 
-### An idle dead-man's window is a MEASUREMENT with a shelf life — `stoa-status-bridge` paged on routine quiet
+### Increasing idle windows did not establish CI health — real-work checks replace them
 
 `layer-25-idle-stoa-status-bridge` fired on 2026-10-13 ("0 runs in 6h") with everything healthy: `el-gitea-listener` 1/1 for 33h with no restarts, and the first event after the gap created a PipelineRun immediately. The cause was the window, not the pipeline. The rule's comment justified `[6h]` with "max observed idle gap 0.5h → 12x headroom", measured 2026-09-13. Traffic is human- and CI-driven and bursty (~143 runs/day on average), and the longest idle gap is now 8.3h; four gaps of 6h or more fell inside 3.4 days of retained runs.
 
 - **Dating the drift.** The 30-day hourly series from VictoriaMetrics shows no idle stretch of 5h or more until 2026-10-07, then five of 6h or more. Four weekends fall in that window, so it is not weekend quiet. The 0.5h premise was true when it was written.
 - **Why nothing caught it.** The calibration lived in a comment. No test compared the window with an observed gap, so the rule stayed green in review and CI while its premise rotted.
-- **Fix.** Window 6h → 24h (2.9x headroom on 8.3h); `for: 1h` unchanged. `test_the_idle_window_exceeds_the_measured_idle_gap_with_headroom` now pins each idle rule's window to a dated measured-gap table at ≥2.5x, and checks `relativeTimeRange.from` matches the PromQL range. Re-measuring means updating the number and the date in that table.
+- **Replacement.** The temporary 6h → 24h increase still assumed required human activity. Both idle rules are now retired with deletion tombstones. `test_pipelinerun_outcome_alerting.py` pins real-work predicates and absent telemetry, not dated traffic floors.
 - **Measure gaps, not rates.** An average (148/day) hides a bursty source. Exact gaps come from `creationTimestamp` of the retained runs; for a longer base, `increase(...[1h])` over 30d from `vmsingle` and count consecutive empty buckets. The retained PipelineRuns reach back only ~3.4 days.
-- **Trade-off.** Detection latency for a genuinely dead webhook is now ~25h (24h window + `for: 1h`). Failure-ratio alerting and the declared-delivery-path test in `apps/tekton/webhooks.yaml` cover the faster cases.
+- **Detection.** A missed mirror ref warns after its 30m grace, the next five-minute check, and Grafana's 10m hold; a missed forwarded status uses a 10m grace plus the same check/hold. Ordinary quiet stays healthy indefinitely.

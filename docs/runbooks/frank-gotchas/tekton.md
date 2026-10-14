@@ -467,6 +467,47 @@ existed to report. Two independent losses:
   (frank#849). Plus `layer-25-mirror-reconcile-stale` (no reconcile success in
   about an hour).
 
+### Real-work delivery monitoring (2026-10-14)
+
+`ci-delivery-check` runs every five minutes without service-account access,
+PVCs, forge writes, or synthetic CI. Token files come from the existing mirror
+and Gitea Secrets. It checks main and open `sync-pr-N` refs (30m from source
+commit time), then statuses on exact mirrored SHAs (10m from newest status
+creation time). Empty eligible Gitea statuses is healthy. Latest per-context
+selection sorts timestamps/IDs; any context starting `tekton` is excluded.
+`skipped`/`warning` map to success with `Gitea: <state>` descriptions; other
+descriptions match verbatim or a legitimate 140-character capped representation
+(the current github-status task sends them verbatim). Target URL must also match.
+Only agentic-stoa statuses are forwarded; kid-laptops refs use its org token.
+
+Read-only diagnostics with selected cluster-admin access:
+
+```bash
+kubectl -n tekton-pipelines get cronjob ci-delivery-check
+kubectl -n tekton-pipelines get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n tekton-pipelines logs job/<latest-ci-delivery-check-job>
+gh api repos/<org>/<repo>/branches/main --jq .commit.sha
+gh api --paginate 'repos/<org>/<repo>/pulls?state=open&per_page=100' --jq '.[] | [.number,.head.sha]'
+gh api --paginate repos/<org>/<repo>/commits/<sha>/statuses
+```
+
+Read authenticated Gitea `/api/v1/repos/<org>/<repo>` first, then
+`/branches/main` or `/branches/sync-pr-N` (`commit.id`) and
+`/commits/<sha>/statuses?limit=100&page=N` until an empty page. Never print
+tokens or Authorization headers. A repository/auth 404 is a read error, not a
+missing branch. Dev isolation has no credentials for these private reads.
+
+Query `ci_delivery_overdue{job="ci-delivery-check"}` and
+`ci_delivery_read_error{job="ci-delivery-check"}` in VictoriaMetrics: healthy
+repos have zeros. `ci_delivery_last_check_timestamp_seconds` must be fresh.
+Full PUT replacement drops closed-PR findings; a partial check carries explicit
+errors and fails the Job. Push failure also fails and leaves the timestamp
+watchdog to detect staleness. All three delivery alerts hold for 10m; the
+watchdog uses `absent()` or age >15m, covering never-started Jobs/data loss.
+No idle window can establish health; the old idle rules are retired. Verify
+the actual live script and Grafana provisioning after merge, not only ArgoCD
+Synced. Existing outcome/platform/PVC/timeout/reconciler alerts stay intact.
+
 ### Known residual risk
 
 - **pc-1 is still a single point of failure for the sync pipelines

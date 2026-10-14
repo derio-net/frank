@@ -1,0 +1,57 @@
+schema_version: 10
+run: 2026-10-14-feat-ci-actionable-alerts
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T1.S2, P1.T1.S3, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T3.S1, P1.T3.S2]
+refactor: {}
+journal:
+  - kind: discovery
+    id: delivery-t1-tdd
+    phase: 1
+    title: Real-work comparison red-green and API boundaries
+    body: |
+      Task 1 red: 1 failure/14 errors because checker did not exist; green: 15 passed.
+      Separate API, latest-status selection, forwarding comparison and per-repo checks.
+      GitHub read-only gh probe confirmed branch commit.sha and committer.date; current
+      public-repo status list was empty, not evidence about private Gitea status shapes.
+      Private Gitea authenticated probes remain inaccessible in dev profile and must
+      be performed by operator-selected cluster-admin close-out; no live success claimed.
+      github-status passes the mapped description verbatim (no local truncation).
+      Checker accepts that exact mapping or a legitimate 140-character capped
+      representation, including skipped/warning mapping; state and URL must match.
+      The forwarding task remains unchanged; no new shell byte/Unicode truncation.
+  - kind: discovery
+    id: delivery-t2-tdd
+    phase: 1
+    title: Complete snapshots and failed reads are explicit
+    body: |
+      Task 2 red: 7 failed/24 passed; green: 31 passed. Pagination continues until
+      an empty page even when a server caps page size, bounded to 20 pages per list.
+      All successful API reads are memoized per repo/path within one invocation;
+      status comparisons deduplicate exact mirrored SHA heads, never infer missing
+      statuses on unmirrored heads. Read budget 210s, per-call 10s, publish 10s,
+      Job hard limit 270s. Budget exhaustion marks unread repos in a partial PUT
+      snapshot and fails the Job. Worst-case page exhaustion intentionally fails
+      rather than certifying large/rate-limited repos healthy. Normal quiet cost
+      is repo/main/branch + PR lists and 1 empty Gitea status page per mirrored SHA.
+      Per-repo diagnostics contain no exception bodies or arbitrary forge text;
+      metrics have only configured repo and mirror/status labels.
+  - kind: discovery
+    id: delivery-t3-tdd
+    phase: 1
+    title: Idle deletion and delivery alert predicates
+    body: |
+      Task 3 red: 3 failed/9 passed on retained idle definitions and missing delivery
+      rules. Green affected suites: 110 passed; initial full suite: 1221 passed,
+      9 skipped, 1 xfailed. New A-B-C rules retain NoData OK, warning/frank-ops#25,
+      and ten-minute holds; absent() explicitly catches missing timestamp.
+      Outcome/platform/PVC/timeout/reconciler rules unchanged. Retired obsolete
+      idle-window tests and documentation; retained controller scrape and failure
+      ratio guards. Added descriptions and operational diagnostics to CI posts and
+      compact/full Grafana/Tekton gotchas. Agent-config validator passed; plans
+      validator used its minimal fallback because super-fr validator was unavailable
+      in the dev container. Live private-forge and post-merge provisioning/scrape
+      evidence remains owed within this run's DevOps close-out, not a new issue.
+resolves: []
+evidence: {}
