@@ -1374,9 +1374,14 @@ rows:
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R2
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R3
   - frank:docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md#R5
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walk-owed
+  notes: Implemented and behaviourally verified quiet/delayed/missing/recovered mirror
+    and status delivery, including actual Gitea response schema. Authenticated read-only
+    forge contract probes passed. Scheduled deployment and warning evaluation remain
+    in this run's DevOps close-out.
   verify: live
 - id: ci-delivery-checker-visible
   capability: Actionable CI notifications
