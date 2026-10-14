@@ -33,3 +33,8 @@ what: After PR872 merges, verify live ci-delivery-check script and GITEA_WEB_URL
 why: The fix is offline-proven but production still runs the merged original checker. The original failing acceptance row and owed step4 must not be cleared before deployment.
 how: From the base clone run fr pickup --branch fix/cicd-delivery-relative-target-urls after merge. Use the operator-selected cluster-admin workspace for live checks and a fresh closeout isolation workspace for records; resolve original Test Plan step4 and this debug owed entry with actual recovery evidence.
 owed_key: row:ci-real-work-delivery
+
+<!-- fr:journal kind=review scope=debug id=dfa2a95c8a85 created=2026-10-14T20:10:35+00:00 -->
+### dfa2a95c8a85 · review · Inline code review completed with no outstanding findings
+
+Reviewed the complete diff against #870, the original actionable-alerts requirements and repository reviewer criteria. No outstanding findings. Checked adapter-only normalization, matching declared public root, empty/absolute target semantics, rejection of genuinely different URL identities, cached response immutability, configured-root errors, credential-safe diagnostics and unchanged read-only execution. Regression demonstrably failed first; affected suites and full suite pass. Review was inline, not a separate subagent review. PR872 is draft; operator review/ready transition and post-merge live verification remain required. New debug owed key row:ci-real-work-delivery links the correction to the original failing acceptance and owed step4.
