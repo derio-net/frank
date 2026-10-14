@@ -1403,8 +1403,17 @@ rows:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
     api:
     - frank:scripts/tests/test_ci_delivery_check.py
-  status: walk-owed
-  notes: Implemented and offline-tested failed reads, malformed responses, pagination
-    exhaustion, publishing failures and absent/stale snapshots. Deployed checker metrics,
-    scraping and Grafana evaluation remain in this run's DevOps-gated close-out.
+  status: walked
+  notes: '2026-10-14: scheduled checker Jobs succeeded; 37 scraped metric series include
+    fresh timestamp and 12 zero read-error gauges. Three health/delivery rules loaded
+    in Grafana. Offline failure/stale/absent/recovery fixtures pass within 79 affected
+    tests. No destructive live failure injection. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:41Z'
+    evidence: Scheduled runs, mounted Secrets, fresh scraped snapshot, Grafana provisioned
+      rules and offline fault fixtures verified; live outage injection not performed.
