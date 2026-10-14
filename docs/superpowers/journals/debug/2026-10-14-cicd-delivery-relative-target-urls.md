@@ -20,3 +20,8 @@ Confirmed by original authenticated probes and failing adapter-level regression:
 ### bd5918903516 · finding [fixed] · Resolve Gitea status targets using the declared web root
 
 API.statuses now resolves nonempty relative Gitea targets against CronJob GITEA_WEB_URL, matching apps/gitea/values.yaml server.ROOT_URL. Absolute and absent/empty URLs retain their semantics; raw cached responses are not mutated, and state/description/URL mismatches still warn. Missing/unusable web root raises a checker read error for relative targets. GREEN: 94 checker and outcome-alert tests passed, including the observed #870 regression, alternative configured root/subpath, changed host/scheme/run/query/fragment, empty/absolute targets and root parity. Production deployment and original step4 stay owed until merge and live re-walk.
+
+<!-- fr:journal kind=finding scope=debug id=c1009f631781 created=2026-10-14T20:08:31+00:00 state=fixed -->
+### c1009f631781 · finding [fixed] · Full verification passed for the URL normalization patch
+
+uv run pytest -q scripts/tests/: 1272 passed, 9 skipped, 1 xfailed in 312.22s. The initial 120-second run timed out; completed rerun used a 600-second budget. hugo --source blog --minify completed successfully (155 pages, 576 processed images); first cold build exceeded 120 seconds, rerun passed. scripts/validate-agent-config.sh passed; scripts/validate-plans.sh passed minimal fallback checks with canonical super-fr validator unavailable. Documentation now explains ROOT_URL vs in-cluster API addressing and genuinely different links. Original ci-real-work-delivery row remains failing and step4 owed pending corrected scheduled snapshots and Grafana recovery after merge.
