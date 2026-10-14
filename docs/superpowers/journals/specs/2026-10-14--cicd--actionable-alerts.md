@@ -51,3 +51,10 @@ row_kinds:
 run_gate: devops
 run_kind: live
 ```
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-10-14T19:39:33+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: Ensure tekton-extras and grafana-alerting actually applied the merge revision; assert the live CronJob/script content, not merely ArgoCD Synced status.
+
+Evidence: 2026-10-14: PR869 merge 5ac6e0b verified. tekton-extras initially stale and CronJob absent; explicit HEAD sync succeeded. Live CronJob schedule */5, mounted existing Secrets, non-root and deadline match merged manifest. Live script SHA256 6ab62a1e240cd4a1056cb431c339482dbc6b17c441fea19f12a07fc2df7626fc and Grafana CM SHA256 64fa6515ac843b7ccd36909545381380897045e1ab2c7c62556aaf21565d3d3b equal merged artifacts.
