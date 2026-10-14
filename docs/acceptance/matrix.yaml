@@ -1361,11 +1361,19 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
-  status: walk-owed
-  notes: Implemented and offline-verified idle rule removal, explicit deleteRules
-    and retained fault rules. Deployment and stored Grafana rule deletion remain in
-    this run's DevOps-gated post-merge Test Plan.
+  status: walked
+  notes: '2026-10-14 post-merge PR869: Grafana rollout complete; authenticated provisioning
+    API proves both idle UIDs absent and all nine current Layer25 rules present. Evidence:
+    docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:34Z'
+    evidence: 'Grafana authenticated API after restart: no retired idle UIDs; all
+      six retained fault and three delivery UIDs present.'
 - id: ci-real-work-delivery
   capability: Actionable CI notifications
   acceptance: Overdue expected mirror refs or forwarded Gitea statuses produce a delivery
@@ -1377,12 +1385,22 @@ rows:
   levels:
     api:
     - frank:scripts/tests/test_ci_delivery_check.py
-  status: walk-owed
-  notes: Implemented and behaviourally verified quiet/delayed/missing/recovered mirror
-    and status delivery, including actual Gitea response schema. Authenticated read-only
-    forge contract probes passed. Scheduled deployment and warning evaluation remain
-    in this run's DevOps close-out.
+  status: failing
+  notes: '2026-10-14 live closeout failed healthy-status resolution: 22 false-positive
+    overdue counts across six repos. Authenticated APIs prove delivered states/descriptions
+    and equivalent relative Gitea/absolute GitHub URLs; isolated URL-resolution comparison
+    yields zero counts. frank#870; keep DevOps gate open. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  issues:
+  - derio-net/frank#870
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: fail
+    at: '2026-10-14T19:42:46Z'
+    evidence: 'FAIL: healthy delivered statuses stay overdue because target URL comparison
+      does not resolve relative Gitea URLs.'
 - id: ci-delivery-checker-visible
   capability: Actionable CI notifications
   acceptance: Unreadable forge data or missing/stale delivery checker results produce
@@ -1395,8 +1413,17 @@ rows:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
     api:
     - frank:scripts/tests/test_ci_delivery_check.py
-  status: walk-owed
-  notes: Implemented and offline-tested failed reads, malformed responses, pagination
-    exhaustion, publishing failures and absent/stale snapshots. Deployed checker metrics,
-    scraping and Grafana evaluation remain in this run's DevOps-gated close-out.
+  status: walked
+  notes: '2026-10-14: scheduled checker Jobs succeeded; 37 scraped metric series include
+    fresh timestamp and 12 zero read-error gauges. Three health/delivery rules loaded
+    in Grafana. Offline failure/stale/absent/recovery fixtures pass within 79 affected
+    tests. No destructive live failure injection. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
   verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:41Z'
+    evidence: Scheduled runs, mounted Secrets, fresh scraped snapshot, Grafana provisioned
+      rules and offline fault fixtures verified; live outage injection not performed.
