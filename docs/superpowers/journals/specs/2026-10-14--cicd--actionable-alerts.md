@@ -72,3 +72,11 @@ Evidence: 2026-10-14: operator-authorized Grafana deployment restart completed. 
 Step: Observe a scheduled checker run using existing Secret mounts, verify no credential-bearing logs, and query the scraped timestamp/count/error gauges. Inspect any positive findings against the source/destination APIs.
 
 Evidence: Scheduled 19:25 and 19:30 Jobs succeeded with existing Secret mounts. No mounted token values in latest logs. Grafana datasource proxy returned 37 scraped gauges, timestamp age 249s, all read errors and mirror overdue counts zero. All 22 positive status findings independently checked against authenticated forge APIs: matching state/description, equivalent relative/absolute URLs; false positives tracked by frank#870. See investigation.
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-4 created=2026-10-14T19:42:06+00:00 -->
+### test-plan-step-4 · owed · Test Plan step 4 owed
+
+what: Confirm healthy quiet refs/statuses yield zero overdue counts. Use the offline failure fixtures for deliberate missing/read-error/recovery cases; do not break live webhooks for verification. Record evidence on the linked acceptance rows and clear the DevOps gate only when deployment is verified.
+why: 79 offline checker/outcome tests pass, and quiet repos have zero counts, but 22 healthy delivered statuses warn due to relative Gitea vs absolute GitHub target URLs. frank#870 must be fixed, deployed and re-walked before clearing DevOps gate or archiving. Read-only URL-resolution probe yielded zero counts for all 12 repos; no live forge writes.
+how: fr journal resolve --scope spec --slug 2026-10-14--cicd--actionable-alerts --id test-plan-step-4 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-14--cicd--actionable-alerts#step4
