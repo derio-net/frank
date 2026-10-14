@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / 'apps/tekton/manifests/ci-delivery-check.yaml'
 NOW = datetime(2026, 10, 14, tzinfo=timezone.utc)
 REPO = 'agentic-stoa/hum'
+API_SHA = '0123456789abcdef' * 2 + '01234567'
 
 
 @pytest.fixture
@@ -28,6 +29,7 @@ class Forge:
         self.source = []
         self.dest = []
         self.calls = []
+        self.commits = {'head', 'pr'}
 
     def repo(self, repo):
         self.calls.append(('repo', repo))
@@ -43,6 +45,10 @@ class Forge:
 
     def branch(self, repo, ref):
         return self.refs.get(ref)
+
+    def commit_exists(self, repo, sha):
+        self.calls.append(('commit', repo, sha))
+        return sha in self.commits
 
     def statuses(self, forge, repo, sha):
         self.calls.append((forge, repo, sha))
@@ -92,12 +98,55 @@ def test_stale_forwarding(checker, field, value):
 
 
 def test_no_status_inference_on_unmirrored_commit_or_other_org(checker):
-    f = Forge(); f.refs = {}; f.source = [status()]
+    f = Forge(); f.refs = {}; f.commits = set(); f.source = [status()]
     assert check(checker,f)['counts'][REPO]['status'] == 0
 
     assert not any(call[0] == 'gitea' for call in f.calls)
     f = Forge(); check(checker,f,'derio-homelab/kid-laptops')
     assert not any(call[0] == 'gitea' for call in f.calls)
+
+
+def test_status_delivery_checked_on_readable_commit_despite_branch_drift(checker):
+    f = Forge(); f.prs = [(7, 'head')]; f.refs = {'main':'other'}
+    f.age = timedelta(minutes=20); f.source = [status(age=15)]
+    result = check(checker, f)
+    assert result['counts'][REPO] == {'mirror':0, 'status':1}
+    assert result['errors'][REPO] == 0
+    assert f.calls.count(('commit', REPO, 'head')) == 1
+    assert f.calls.count(('gitea', REPO, 'head')) == 1
+    f.dest = [status(context='gitea-actions/build', age=14)]
+    assert check(checker, f)['counts'][REPO]['status'] == 0
+    f.commits = set()
+    assert check(checker, f)['counts'][REPO]['status'] == 0
+
+
+@pytest.mark.parametrize('code,expected', [(404,False), (401,None), (403,None), (500,None)])
+def test_commit_readability_distinguishes_absence_from_failed_reads(checker, code, expected):
+    calls = []
+    def request(forge, repo, path):
+        calls.append(path)
+        if path == f'/repos/{repo}': return {'full_name':repo}
+        raise checker.urllib.error.HTTPError(path,code,'private-response',{},None)
+    api = checker.API({}, request=request)
+    if expected is False:
+        assert api.commit_exists(REPO,'a'*40) is False
+    else:
+        with pytest.raises(checker.urllib.error.HTTPError): api.commit_exists(REPO,'a'*40)
+    assert calls == [f'/repos/{REPO}', f'/repos/{REPO}/git/commits/'+ 'a'*40]
+
+
+def test_commit_readability_verifies_repository_and_sha(checker):
+    def missing_repo(*args):
+        raise checker.urllib.error.HTTPError('private',404,'private',{},None)
+    api = checker.API({}, request=missing_repo)
+    with pytest.raises(checker.urllib.error.HTTPError): api.commit_exists(REPO,'a'*40)
+    for sha in ('a'*40, 'b'*40):
+        api = checker.API({}, request=lambda forge,repo,path:
+                          {'full_name':repo} if path == f'/repos/{repo}' else {'sha':sha})
+        if sha == 'a'*40:
+            assert api.commit_exists(REPO,sha) is True
+        else:
+            with pytest.raises(ValueError): api.commit_exists(REPO,'a'*40)
 
 
 def test_description_limit(checker):
@@ -117,6 +166,32 @@ def test_destination_latest_is_not_api_order(checker):
     assert check(checker,f)['counts'][REPO]['status'] == 1
     f.dest.append(status(context='gitea-actions/build',age=15,id=3))
     assert check(checker,f)['counts'][REPO]['status'] == 0
+
+
+def test_github_context_identity_is_case_insensitive(checker):
+    f = Forge(); f.prs = []; f.source = [status(context='Build')]
+    f.dest = [status(context='gitea-actions/Build', age=19),
+              status(context='gitea-actions/build', state='failure', age=15)]
+    assert check(checker, f)['counts'][REPO]['status'] == 1
+    f.dest = [status(context='GITEA-ACTIONS/BUILD', age=19)]
+    assert check(checker, f)['counts'][REPO]['status'] == 0
+
+
+def test_source_context_collisions_follow_latest_forwarded_identity(checker):
+    f = Forge(); f.prs = []
+    f.source = [status(context='Build', state='failure', age=25),
+                status(context='build', age=20)]
+    f.dest = [status(context='GITEA-ACTIONS/BUILD', age=19)]
+    assert check(checker, f)['counts'][REPO]['status'] == 0
+    f.dest = []
+    assert check(checker, f)['counts'][REPO]['status'] == 1
+    f.source.reverse()
+    assert check(checker, f)['counts'][REPO]['status'] == 1
+    f.source.append(status(context='BUILD', state='pending', age=5))
+    assert check(checker, f)['counts'][REPO]['status'] == 0
+    # Gitea filter remains case-sensitive even though GitHub identity is not.
+    f.source = [status(context='tektonBuild'), status(context='TektonBuild')]
+    assert check(checker, f)['counts'][REPO]['status'] == 1
 
 
 def test_coverage_and_security():
@@ -167,7 +242,7 @@ def test_partial_page_failure_is_not_success_and_calls_are_cached(checker):
         calls.append(path)
         if path.endswith('page=2'):
             raise OSError('secret-token')
-        return [{'number':7,'head':{'sha':'pr'}}]
+        return [{'number':7,'head':{'sha':API_SHA}}]
     api = checker.API({}, request=request)
     with pytest.raises(OSError): api.pulls(REPO)
     with pytest.raises(OSError): api.pulls(REPO)
@@ -179,14 +254,46 @@ def test_api_adapters_gitea_branch_id_and_status_path(checker):
     def request(forge,repo,path):
         calls.append((forge,path))
         if path == f'/repos/{repo}': return {'full_name':repo}
-        if '/branches/' in path: return {'commit':{'id':'head'}}
+        if '/branches/' in path: return {'commit':{'id':API_SHA}}
         return [status()] if path.endswith('page=1') else []
     api = checker.API({},request=request)
-    assert api.branch(REPO,'main') == 'head'
-    assert checker.latest(api.statuses('gitea',REPO,'head'))['build']['state'] == 'success'
-    assert any('/commits/head/statuses?' in path for forge,path in calls)
+    assert api.branch(REPO,'main') == API_SHA
+    assert checker.latest(api.statuses('gitea',REPO,API_SHA))['build']['state'] == 'success'
+    assert any(f'/commits/{API_SHA}/statuses?' in path for forge,path in calls)
     api.repo(REPO)
     assert calls.count(('gitea',f'/repos/{REPO}')) == 1
+
+
+@pytest.mark.parametrize('sha', ['truncated', 'a'*39, 'a'*41, 'g'*40, 'a'*64, '', None])
+def test_invalid_sha_never_certifies_matching_mirror_healthy(checker, sha):
+    def request(forge, repo, path):
+        if path == f'/repos/{repo}': return {'full_name':repo}
+        if forge == 'github':
+            return {'commit':{'sha':sha, 'commit':{'committer':{'date':NOW.isoformat()}}}}
+        if '/branches/' in path: return {'commit':{'id':sha}}
+        if '/git/commits/' in path: return {'sha':sha}
+        return []
+    api = checker.API({}, request=request)
+    assert checker.check(api,[REPO],[],NOW)['errors'][REPO] == 1
+    with pytest.raises(ValueError): api.branch(REPO, 'main')
+    with pytest.raises(ValueError): api.commit_exists(REPO, API_SHA)
+
+
+def test_valid_full_api_sha_and_invalid_pr_sha(checker):
+    def request(forge, repo, path):
+        if path == f'/repos/{repo}': return {'full_name':repo}
+        if '/branches/' in path:
+            return {'commit':{'id':API_SHA, 'sha':API_SHA,
+                              'commit':{'committer':{'date':NOW.isoformat()}}}}
+        if '/git/commits/' in path: return {'sha':API_SHA}
+        return []
+    api = checker.API({}, request=request)
+    result = checker.check(api,[REPO],[],NOW)
+    assert result['errors'][REPO] == 0
+    assert result['counts'][REPO] == {'mirror':0,'status':0}
+    api = checker.API({}, request=lambda forge,repo,path:
+                      [{'number':7,'head':{'sha':'truncated'}}] if path.endswith('page=1') else [])
+    with pytest.raises(ValueError): api.pulls(REPO)
 
 
 def test_malformed_status_fails_check_and_other_repo_still_checked(checker):

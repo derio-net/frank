@@ -25,11 +25,13 @@ data:
         return at
 
     def sha_value(value):
-        if not isinstance(value, str) or not value or '/' in value or '?' in value:
+        # These GitHub/Gitea API contracts return full SHA-1 object IDs, not
+        # abbreviated git revisions or arbitrary nonempty branch identifiers.
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9a-fA-F]{40}', value):
             raise ValueError('malformed SHA')
         return value
 
-    def latest(statuses):
+    def latest(statuses, case_insensitive=False):
         result = {}
         for s in statuses:
             key = (timestamp(s['created_at']), int(s['id']))
@@ -41,6 +43,8 @@ data:
             for field in ('description', 'target_url'):
                 if s.get(field) is not None and not isinstance(s[field], str):
                     raise ValueError('malformed status text')
+            if case_insensitive:
+                context = context.lower()
             if context not in result or key > result[context][0]:
                 result[context] = (key, s)
         return {context: s for context, (_, s) in result.items()}
@@ -73,26 +77,31 @@ data:
                 if repo in pr_repos:
                     refs.extend((f'sync-pr-{n}', sha, client.commit_time(repo, sha))
                                 for n, sha in client.pulls(repo))
-                mirrored = set()
                 for ref, sha, at in refs:
                     have = client.branch(repo, ref)
-                    if have == sha:
-                        mirrored.add(sha)
-                    elif now - at >= timedelta(minutes=30):
+                    if have != sha and now - at >= timedelta(minutes=30):
                         counts['mirror'] += 1
                         snapshot['diagnostics'].append(f'{repo} mirror {ref}')
                 if not repo.startswith('agentic-stoa/'):
                     continue
-                for sha in sorted(mirrored):
+                # A drifted branch does not imply the source commit is absent:
+                # it can be retained by another ref or an earlier mirror push.
+                for sha in sorted({sha for _, sha, _ in refs}):
+                    if not client.commit_exists(repo, sha):
+                        continue
                     source = latest(client.statuses('gitea', repo, sha))
-                    eligible = [s for context, s in source.items() if not context.startswith('tekton')]
+                    # Preserve Gitea's exact contexts/filter, then collapse the
+                    # eligible events onto GitHub's case-insensitive identity.
+                    eligible = latest([s for context, s in source.items()
+                                       if not context.startswith('tekton')],
+                                      case_insensitive=True).values()
                     if not eligible:
                         continue  # path-filtered CI may intentionally do nothing
-                    destination = latest(client.statuses('github', repo, sha))
+                    destination = latest(client.statuses('github', repo, sha), case_insensitive=True)
                     for s in eligible:
                         if now - timestamp(s['created_at']) < timedelta(minutes=10):
                             continue
-                        got = destination.get('gitea-actions/' + s['context'])
+                        got = destination.get(('gitea-actions/' + s['context']).lower())
                         actual = None if got is None else (
                             got['state'], got.get('description') or '', got.get('target_url') or '')
                         if not matches(actual, forwarded(s)):
@@ -179,6 +188,18 @@ data:
             except urllib.error.HTTPError as exc:
                 if exc.code == 404:
                     return None
+                raise
+
+        def commit_exists(self, repo, sha):
+            self.repo(repo)  # a repository/auth 404 must not mean commit absent
+            try:
+                data = self.get('gitea', repo, f'/repos/{repo}/git/commits/{sha}')
+                if sha_value(data['sha']) != sha:
+                    raise ValueError('wrong commit')
+                return True
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    return False
                 raise
 
         def statuses(self, forge, repo, sha):
