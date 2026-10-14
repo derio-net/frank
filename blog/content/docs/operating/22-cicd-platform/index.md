@@ -222,7 +222,10 @@ Compare authenticated Gitea branch `commit.id`, then newest per-context statuses
 from `/api/v1/repos/<org>/<repo>/commits/<sha>/statuses` (all pages). The bridge
 excludes any context starting `tekton` and maps skipped/warning to success.
 Descriptions must match exactly or their legitimate 140-character capped
-representation; confirm target URLs too. Do not print
+representation; confirm target URLs too. Resolve relative Gitea API targets
+against `GITEA_WEB_URL` (matching Gitea `server.ROOT_URL`) before comparing with
+absolute GitHub links. Equivalent relative/absolute links are healthy, while
+different run links still warn. Do not print
 credentials. Private Gitea reads need operator-selected cluster-admin access,
 not the dev profile. See the Tekton gotchas runbook for error/recovery details.
 Healthy metrics are zero `ci_delivery_overdue` and `ci_delivery_read_error`
