@@ -93,3 +93,39 @@ and archiving the original plan.
 
 Test Plan steps 1–3 ran. Step 4 remains owed because healthy statuses currently
 produce warnings. The original spec and plan remain active.
+
+## Recovery after PR #872
+
+PR #872 merged at 20:17:30Z as
+`d3574040c5a304106e85bfea7e15dcad405fa78b`. The evidence above describes the
+initial failed closeout; the URL blocker is now verified resolved live.
+
+`tekton-extras` again reported Synced while serving the old script and no
+`GITEA_WEB_URL`. An explicit sync to the exact fix merge revision succeeded.
+The live script SHA256 now matches the merged fix:
+`5c8d65f39cbfd6a7a723c81fba7df98bd7a183091c88d77c5491c6ac34a1b8fa`.
+The live CronJob and scheduled Job both have
+`GITEA_WEB_URL=http://192.168.55.209:3000/`, matching Gitea `server.ROOT_URL`.
+
+Scheduled Job `ci-delivery-check-29866820` started at 20:20:00Z and completed
+successfully at 20:20:27Z. Its logs were empty; comparison against the three
+mounted token values confirmed no credentials in the logs. The scraped
+snapshot completed at 20:20:24Z and was 40 seconds old when first observed.
+All 37 expected series were present: **all 24 mirror/status overdue gauges
+and all 12 read-error gauges were zero**, across the same 12 repositories.
+The 22 healthy-status false positives have cleared.
+
+At Grafana's 20:23:30Z evaluation, all three delivery rules were `inactive`,
+with `health: ok` and no evaluation errors. The overdue rule recovered from
+the firing state recorded above. The authenticated provisioning API still
+returned all nine expected CI rules and neither retired idle UID.
+
+The merged checker and outcome-alert suites were rerun: **94 passed**,
+including deliberate missing/read-error/recovery fixtures and the observed
+relative/absolute URL regression. No live webhooks were broken, no forge
+writes were made, and no synthetic CI events were needed for verification.
+
+This evidence completes original Test Plan step 4 and the URL fix's owed
+live walk. The real-work delivery acceptance can move from failing to walked;
+the DevOps closeout obligation is satisfied and the original plan/spec can
+be archived.

@@ -38,3 +38,8 @@ owed_key: row:ci-real-work-delivery
 ### dfa2a95c8a85 · review · Inline code review completed with no outstanding findings
 
 Reviewed the complete diff against #870, the original actionable-alerts requirements and repository reviewer criteria. No outstanding findings. Checked adapter-only normalization, matching declared public root, empty/absolute target semantics, rejection of genuinely different URL identities, cached response immutability, configured-root errors, credential-safe diagnostics and unchanged read-only execution. Regression demonstrably failed first; affected suites and full suite pass. Review was inline, not a separate subagent review. PR872 is draft; operator review/ready transition and post-merge live verification remain required. New debug owed key row:ci-real-work-delivery links the correction to the original failing acceptance and owed step4.
+
+<!-- fr:journal kind=finding scope=debug id=post-merge-url-recovery-resolved created=2026-10-14T20:25:19+00:00 state=fixed resolves=post-merge-url-recovery -->
+### post-merge-url-recovery-resolved · finding [fixed] · resolves post-merge-url-recovery: Verify scheduled healthy delivery and clear the original live gate after merge
+
+2026-10-14 PR872 deployment and recovery verified: script hash and GITEA_WEB_URL match merged fix; scheduled ci-delivery-check-29866820 succeeded; all monitored overdue/read-error counts zero; timestamp fresh; logs empty; all Grafana delivery rules inactive/healthy. ci-real-work-delivery passing live walk recorded and original Test Plan step4 resolved. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md#recovery-after-pr-872.
