@@ -542,3 +542,47 @@ kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-vo
 kubectl -n longhorn-system get replicas.longhorn.io -o json \
   | jq -r '.items[] | "\(.spec.nodeID) \(.spec.diskPath)"' | sort | uniq -c
 ```
+
+## A node holding a volume's last replica cannot be drained under the default `node-drain-policy`
+
+**Symptom.** `kubectl drain <node>` evicts every workload, then loops on
+`Cannot evict pod as it would violate the pod's disruption budget` for the
+node's `instance-manager-*` pod until `--timeout` expires. The node is left
+**cordoned** with its pinned workloads Pending, which is an outage in its own
+right. On pc-1 (2026-10-12) Gitea, Zot and CI were down from about 05:58 to
+07:20 UTC.
+
+**Cause.** Longhorn holds the instance-manager PDB according to
+`node-drain-policy`. The chart default, `block-if-contains-last-replica`,
+holds it while the node carries the last healthy replica of **any** volume,
+including detached ones. Every single-replica volume placed on a node pins it
+permanently. On pc-1 that means every `longhorn-hdd` volume (by design: only
+pc-1 has `hdd` disks) plus Gitea's `gitea-shared-storage` and the runner's
+`act-runner-data` on `longhorn-cicd`. That made 26 volumes on the day.
+
+**Diagnose.**
+
+```bash
+kubectl -n longhorn-system get settings.longhorn.io node-drain-policy -o jsonpath='{.value}{"\n"}'
+# volumes whose only healthy replica is on <node>
+kubectl -n longhorn-system get replicas.longhorn.io -o json | jq -r --arg n <node> '
+  [.items[] | {v:.spec.volumeName, n:.spec.nodeID, f:(.spec.failedAt // "")}]
+  | group_by(.v)[] | select((map(select(.f=="")) | length)==1 and (map(select(.f=="" and .n==$n))|length)==1)
+  | .[0].v'
+```
+
+**Fix (declared).** `defaultSettings.nodeDrainPolicy: allow-if-replica-is-stopped`
+in `apps/longhorn/values.yaml`. It still blocks while a sole replica is
+*running*, meaning its volume is attached. It lets the drain finish once the
+replica has stopped, which the drain causes itself by evicting the consuming
+pod. With that value set by hand, the same pc-1 drain finished in 21 seconds.
+
+`block-for-eviction-if-contains-last-replica` was rejected. It copies sole
+replicas elsewhere first, so every drain would move Gitea's data, and it can
+never move a `longhorn-hdd` replica because no other node has an `hdd` disk.
+
+**What this gives up.** The default protects one case: draining a node in
+order to **decommission or wipe** it while it holds the only copy of
+something. Before retiring a node, run the query above and move or back up
+whatever it lists. For a reboot or a disk swap the data is on disk and comes
+back with the node, so the old guard protected nothing there.

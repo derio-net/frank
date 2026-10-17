@@ -7,6 +7,17 @@ defaultSettings:
   # empty-selector volumes off every tagged disk (hdd, gpu-local). It governs new
   # placement only; existing replicas stay (replica-auto-balance is disabled).
   allowEmptyDiskSelectorVolume: false
+  # The chart default (block-if-contains-last-replica) holds a node's
+  # instance-manager PDB while that node carries the last healthy replica of ANY
+  # volume, even a detached one. pc-1 always does: it holds the only replica of
+  # every longhorn-hdd volume by design, plus Gitea's and act-runner's
+  # single-replica volumes, so `kubectl drain pc-1` could never finish (timed out
+  # after 15 min on 2026-10-12, leaving pc-1 cordoned; frank#824). This value
+  # still blocks while a sole replica is RUNNING (volume attached) and lets the
+  # drain proceed once it has stopped, which the drain itself causes by evicting
+  # the pod. The guard it drops only mattered when DECOMMISSIONING a node that
+  # holds the only copy of something: check for sole replicas before retiring one.
+  nodeDrainPolicy: allow-if-replica-is-stopped
   # Longhorn's provisioning ceiling counts each replica's DECLARED size, not the
   # bytes actually written, so a node can be half-empty and still refuse to grow
   # a volume by a single GiB. Measured 2026-07-27, with this left at the chart

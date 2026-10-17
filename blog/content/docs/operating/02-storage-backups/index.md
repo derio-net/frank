@@ -381,6 +381,22 @@ kubectl -n longhorn-system get settings.longhorn.io allow-empty-disk-selector-vo
 
 Drive health is not monitored by Longhorn itself: re-run the SMART check from the `stor-pc1-hdd-smart-gate` manual operation (`smartctl -H -A` per drive from a privileged debug pod on pc-1). Reallocated (5), pending (197) or offline-uncorrectable (198) sectors rising above zero means the drive should be removed from `402-pc1-hdd-volumes.yaml` and `longhorn-node-disks-pc-1.yaml`.
 
+### Draining pc-1
+
+pc-1 holds the only replica of every `longhorn-hdd` volume, and of Gitea's and the runner's single-replica volumes. A plain drain works only because `nodeDrainPolicy` is `allow-if-replica-is-stopped`: Longhorn releases the node once the drain has detached those volumes. Expect pc-1's pinned services (Gitea, Zot, the act-runner, the pc-1-pinned Tekton pipelines) to be down until you uncordon.
+
+```bash
+source .env
+kubectl -n longhorn-system get settings.longhorn.io node-drain-policy   # must read allow-if-replica-is-stopped
+kubectl drain pc-1 --ignore-daemonsets --delete-emptydir-data --timeout=10m
+talosctl -n 192.168.55.71 reboot        # NOT `talosctl reboot --drain` (PermissionDenied through the Omni proxy)
+kubectl get node pc-1 -w                # wait for Ready
+talosctl -n 192.168.55.71 get volumestatus | grep hdd-   # the hdd volume must be ready again
+kubectl uncordon pc-1
+```
+
+If the drain loops on `Cannot evict pod ... disruption budget` for an `instance-manager-*` pod, a sole replica is still attached: find which volume, or check the setting was not reverted. Never leave pc-1 cordoned while you investigate. Run `kubectl uncordon pc-1` first; the drain can wait.
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
@@ -389,6 +405,8 @@ Drive health is not monitored by Longhorn itself: re-run the SMART check from th
 | NFS backup target works | Longhorn 1.11 generates `host/path` instead of `host:/path` for NFS (bug #11412) | NFS target disabled until v1.13 fix. |
 | ArgoCD can manage the R2 backup secret through {{< abbr "SSA" >}} | {{< abbr "SOPS" >}} `.sops` metadata fields are rejected by ArgoCD's server-side apply — Secret goes OutOfSync immediately | R2 secret lives outside the manifests path, applied out-of-band via `sops --decrypt \| kubectl apply -f -` (`docs/runbooks/frank-gotchas/storage-secrets-ssa.md`). |
 | Longhorn v1.11.0 is stable | Instance Manager anonymous heap leaks ~0.9 GiB/day (`docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`) | raspi-1 wedged at 8 GiB RAM — power-cycle recovery. Pinned to v1.11.2. |
+| The HDD tier's pre-merge steps would run before the merge | The PR merged first, so `longhorn-hdd` and the CI repoint went live with no `hdd` disk behind them; every new workspace PVC failed with `specified disk tag hdd does not exist` | CI stalled about 8.5 h (2026-10-11 21:22 → 10-12 05:53, 23 PipelineRuns timed out) until the SMART gate cleared sdb and its disk came online |
+| `kubectl drain pc-1` would work like any other node | Longhorn's default `node-drain-policy` blocks while a node holds the last replica of any volume, detached or not, and pc-1 always does | First drain timed out after 15 min with pc-1 cordoned: Gitea/Zot/CI down ~82 min. Fixed by declaring `allow-if-replica-is-stopped` |
 | Volume health alerting is automatic | No ServiceMonitor scrapes Longhorn metrics — `longhorn_volume_robustness` is not surfaced | Fallback is `kube_pod_status_ready` on longhorn-manager pods. Alert rule exists but covers only pod liveness. |
 
 ## Quick Reference
