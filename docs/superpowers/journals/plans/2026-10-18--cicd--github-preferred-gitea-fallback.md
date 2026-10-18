@@ -747,3 +747,8 @@ A consequence of vibe-kanban's third-party runner choice, not of this change; a 
 ### xr-checker-refinements-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/884] · resolves xr-checker-refinements: Gate-coverage checker: implicit github.token in actions, and the STOA_CI_GH_TOKEN||GITHUB_TOKEN fallback pattern
 
 Filed at deliver as https://github.com/derio-net/frank/issues/884.
+
+<!-- fr:journal kind=finding scope=plan id=xr-acceptance-step-pin-resolved-2 created=2026-10-18T19:51:09+00:00 state=open resolves=xr-acceptance-step-pin tracked_by=https://github.com/derio-net/frank/issues/885 -->
+### xr-acceptance-step-pin-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/885] · resolves xr-acceptance-step-pin: acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
+
+Filed at deliver as https://github.com/derio-net/frank/issues/885.
