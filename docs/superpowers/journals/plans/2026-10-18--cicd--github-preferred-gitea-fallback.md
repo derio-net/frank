@@ -582,3 +582,28 @@ Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
 ### p4-sec3-resolved · finding [fixed] · resolves p4-sec3: Automated security review: title-search upsert could adopt a human-authored issue (phase 4)
 
 Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=discovery scope=plan id=gitea-runner-admin-api created=2026-10-18T19:21:48+00:00 phase=5 -->
+### gitea-runner-admin-api · discovery · Gitea 1.25.4 has admin Actions runner and job listings (GET, read:admin) (phase 5)
+
+Live Gitea is 1.25.4. GET /api/v1/admin/actions/runners returns {"runners":[{id,name,status("online"|"offline"),busy,ephemeral,labels:[{id,name,type}]}],"total_count":N}; there is NO last_seen field, so liveness is `status`. GET /api/v1/admin/actions/jobs?status=waiting returns {"jobs":[{id,run_id,name,labels,status,conclusion,runner_id,runner_name,created_at,started_at,completed_at,...}],"total_count":N} (empty at capture). GET /admin/actions/runs also exists; /admin/runners is 404. Queue age = now - created_at of waiting jobs. The spec's kube_deployment fallback was therefore not needed. Fixtures captured to scripts/tests/fixtures/ci_budget/gitea_admin_*.json (the waiting queue was empty, so waiting-job tests re-status the one captured job object).
+
+<!-- fr:journal kind=discovery scope=plan id=pc1-var-series-labels created=2026-10-18T19:21:48+00:00 phase=5 -->
+### pc1-var-series-labels · discovery · pc-1 /var series has no node label; identity is instance 192.168.55.71:9100 (phase 5)
+
+node_filesystem_avail_bytes{mountpoint="/var"} on pc-1 carries job=node-exporter, instance=192.168.55.71:9100, device=/dev/sda4, fstype=xfs, namespace=monitoring, pod=victoria-metrics-prometheus-node-exporter-88p8q. Observed 2026-10-18: avail 22.4 GB of 61.6 GB (36%). The rule selects instance+mountpoint. VMSingle is reachable only on its pod IP :8428 via kubectl exec wget (localhost does not listen).
+
+<!-- fr:journal kind=discovery scope=plan id=p5-fifteen-minute-exemption created=2026-10-18T19:21:48+00:00 phase=5 -->
+### p5-fifteen-minute-exemption · discovery · layer-25-pc1-var-low needed a written FIFTEEN_MINUTE_EXEMPTIONS entry (phase 5)
+
+The feature-health guard reserves 15m for DaemonSet rules; the spec mandates 15m for pc-1 /var, so a reasoned exemption was added rather than changing the window.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p5-t1 created=2026-10-18T19:21:48+00:00 phase=5 -->
+### no-refactor-p5-t1 · discovery · no-refactor-because P5.T1 (phase 5)
+
+one-line limit change plus a guard; nothing to clean
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p5-t2 created=2026-10-18T19:21:48+00:00 phase=5 -->
+### no-refactor-p5-t2 · discovery · no-refactor-because P5.T2 (phase 5)
+
+probe functions written once against the captured shapes; no duplication
