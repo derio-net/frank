@@ -722,3 +722,8 @@ vibe-kanban#19 pinned all 28 jobs to GitHub. Its test jobs run on blacksmith-16v
 ### p2-r4-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/882] · resolves p2-r4: gitea-listener status webhooks carry no HMAC (phase 2)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/882.
+
+<!-- fr:journal kind=finding scope=plan id=willikins-doc-pr-authority-resolved created=2026-10-18T19:49:36+00:00 phase=3 state=open resolves=willikins-doc-pr-authority filed_as=derio-net/frank#883 -->
+### willikins-doc-pr-authority-resolved · finding [filed → derio-net/frank#883] · resolves willikins-doc-pr-authority: File follow-up issue in derio-net/willikins: doc-pr must read CI_AUTHORITY (phase 3)
+
+Filed at deliver as derio-net/frank#883; still owed until discharged.
