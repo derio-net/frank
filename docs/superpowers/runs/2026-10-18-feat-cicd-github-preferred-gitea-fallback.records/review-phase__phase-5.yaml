@@ -1,0 +1,127 @@
+{
+ "schema_version": 10,
+ "run": "2026-10-18-feat-cicd-github-preferred-gitea-fallback",
+ "step": "review-phase",
+ "item": "phase/5",
+ "outcome": "done",
+ "journal": [
+  {
+   "kind": "finding",
+   "id": "p5-r1",
+   "title": "runner-offline fired on a single runners_online=0 sample",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r2",
+   "title": "queue-wait fired on one sample and stayed firing after drain",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r3",
+   "title": "Missing/revoked probe token made both runner rules silently OK",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r4",
+   "title": "Queue age counted unservable-label jobs and reruns' original created_at",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r5",
+   "title": "queue-wait LogsQL shape unverified live",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r6",
+   "title": "One failing admin call discarded both signals",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r7",
+   "title": "pc-1 /var rule relied on a hard-coded IP; docs claimed device identity",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "finding",
+   "id": "p5-r8",
+   "title": "Probe tests lacked pagination, exact-URL, offset and page-2 404 cases",
+   "body": "Raised in phase-5 review.",
+   "review_scope": "in",
+   "phase": 5
+  },
+  {
+   "kind": "review",
+   "id": "review-p5",
+   "phase": 5,
+   "title": "Phase 5 code review: 8 findings, all fixed",
+   "body": "Independent code-reviewer subagent reviewed 581a0b53, 1b7d3628, 6aefbef0 and b43d8c3a against spec \u00a77 and plan 05.yaml and ran 144 tests. Fixes landed TDD in 07707bc2 and 8c27dbdd: sustained-condition rules (max/min over the window), a new layer-25-runner-probe-blind rule, an explicit no-token error line, unservable/rerun-aware queue age (Gitea 1.25.4 rerun keeps created, verified in source), per-call guards, pc-1 selected by node_uname_info nodename (checked live), and new pagination/URL/offset tests. LogsQL shapes were verified live (discovery runner-rule-logsql-verified), and Test Plan row 10 was extended. The orchestrator re-ran the suites: they pass."
+  }
+ ],
+ "resolves": [
+  {
+   "id": "p5-r1",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r2",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r3",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r4",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r5",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r6",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r7",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  },
+  {
+   "id": "p5-r8",
+   "state": "fixed",
+   "body": "Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10)."
+  }
+ ],
+ "evidence": {
+  "review": "review-p5",
+  "reviewer": "ac4f1ceb24ecc4c3c",
+  "model": "claude-opus-5-5"
+ }
+}
