@@ -1447,9 +1447,12 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_ci_budget_tiers.py
+  status: ci
+  notes: Implemented in phase 1 (apps/ci-budget/tiers.yaml); schema, read-only-secret
+    allowlist and MAIN_REPOS equality guarded in CI.
   verify: none
 - id: ci-fallback-mirrors-derio-orgs
   capability: CI forge tiers
