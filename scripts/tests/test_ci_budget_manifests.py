@@ -261,6 +261,11 @@ def test_stoa_read_generator_is_read_only_and_scoped_to_the_tier_repos():
     assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["name"] == "github-app-agentic-stoa-ci-read"
 
 
+def test_report_pins_the_issues_apps_bot_login():
+    env = {e["name"]: e.get("value") for e in _report_pod()["containers"][0]["env"]}
+    assert env["REPORT_BOT_LOGIN"] == "derio-fr-automation[bot]"
+
+
 def test_report_cronjob_is_in_the_kustomization():
     k = yaml.safe_load((APP / "kustomization.yaml").read_text())
     assert "cronjob-report.yaml" in k["resources"]

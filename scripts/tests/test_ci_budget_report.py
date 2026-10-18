@@ -198,6 +198,10 @@ def test_safe_error_drops_message_and_url():
 
 # ---------------------------------------------------------------- issue upsert
 
+BOT = "derio-fr-automation[bot]"
+BOTU = {"login": BOT, "type": "Bot"}
+
+
 class FakeIssues:
     def __init__(self, existing=(), unlabelled=()):
         self.issues = [dict(i) for i in existing]
@@ -210,7 +214,7 @@ class FakeIssues:
 
     def create(self, title, body, label):
         self.calls.append(("create", title))
-        self.issues.append({"number": 7, "title": title, "body": body})
+        self.issues.append({"number": 7, "title": title, "body": body, "user": BOTU})
         return 7
 
     def search(self, title):
@@ -226,8 +230,8 @@ class FakeIssues:
 
 def test_upsert_creates_when_absent_then_edits_not_duplicates():
     iss = FakeIssues()
-    n1 = r.upsert_issue(iss, "CI tier review 2026-10", "v1")
-    n2 = r.upsert_issue(iss, "CI tier review 2026-10", "v2")
+    n1 = r.upsert_issue(iss, "CI tier review 2026-10", "v1", BOT)
+    n2 = r.upsert_issue(iss, "CI tier review 2026-10", "v2", BOT)
     assert n1 == n2 == 7
     assert len(iss.issues) == 1 and iss.issues[0]["body"] == "v2"
 
@@ -236,25 +240,48 @@ def test_upsert_ignores_pull_requests_and_other_titles_and_matches_closed_issues
     iss = FakeIssues([
         {"number": 1, "title": "CI tier review 2026-10", "pull_request": {}, "body": ""},
         {"number": 2, "title": "CI tier review 2026-09", "body": ""},
-        {"number": 3, "title": "CI tier review 2026-10", "state": "closed", "body": ""},
+        {"number": 3, "title": "CI tier review 2026-10", "state": "closed", "body": "", "user": BOTU},
     ])
-    assert r.upsert_issue(iss, "CI tier review 2026-10", "x") == 3
+    assert r.upsert_issue(iss, "CI tier review 2026-10", "x", BOT) == 3
     assert ("create", "CI tier review 2026-10") not in iss.calls
 
 
 def test_upsert_falls_back_to_search_when_label_lookup_misses_and_relabels():
     iss = FakeIssues(unlabelled=[
         {"number": 5, "title": "CI tier review 2026-10 (copy)", "body": ""},
-        {"number": 6, "title": "CI tier review 2026-10", "body": ""},
+        {"number": 6, "title": "CI tier review 2026-10", "body": "", "user": BOTU},
     ])
-    assert r.upsert_issue(iss, "CI tier review 2026-10", "x") == 6
+    assert r.upsert_issue(iss, "CI tier review 2026-10", "x", BOT) == 6
     assert ("edit", 6, "ci-tiers") in iss.calls
     assert not any(c[0] == "create" for c in iss.calls)
 
 
+HUMAN = {"login": "mallory", "type": "User"}
+
+
+def test_upsert_never_adopts_or_edits_an_issue_written_by_someone_else():
+    squat = {"number": 4, "title": "CI tier review 2026-10", "body": "squat", "user": HUMAN}
+    spoof = {"number": 5, "title": "CI tier review 2026-10", "body": "spoof",
+             "user": {"login": BOT, "type": "User"}}
+    other_bot = {"number": 8, "title": "CI tier review 2026-10", "body": "x",
+                 "user": {"login": "evil[bot]", "type": "Bot"}}
+    iss = FakeIssues([squat, spoof, other_bot], unlabelled=[dict(squat)])
+    assert r.upsert_issue(iss, "CI tier review 2026-10", "real", BOT) == 7
+    assert [c[0] for c in iss.calls if c[0] in ("edit",)] == []
+    assert [i["body"] for i in iss.issues[:3]] == ["squat", "spoof", "x"]
+    assert iss.issues[-1]["body"] == "real"
+
+
+def test_upsert_without_a_configured_bot_login_adopts_nothing():
+    mine = {"number": 3, "title": "T", "body": "", "user": BOTU}
+    iss = FakeIssues([mine])
+    assert r.upsert_issue(iss, "T", "b", "") == 7
+    assert not any(c[0] == "edit" for c in iss.calls)
+
+
 def test_upsert_creates_only_when_label_and_search_both_miss():
     iss = FakeIssues()
-    assert r.upsert_issue(iss, "T", "b") == 7
+    assert r.upsert_issue(iss, "T", "b", BOT) == 7
     assert [c[0] for c in iss.calls] == ["list", "search", "create"]
 
 
@@ -318,7 +345,7 @@ def test_main_end_to_end_upserts_once_across_two_runs(tmp_path):
             if method == "GET":
                 return 200, issues if url.endswith("&page=1") else []
             if method == "POST":
-                issues.append({"number": 9, "title": body["title"], "body": body["body"]})
+                issues.append({"number": 9, "title": body["title"], "body": body["body"], "user": BOTU})
                 return 201, {"number": 9}
             if method == "PATCH":
                 issues[0]["body"] = body["body"]
@@ -326,7 +353,7 @@ def test_main_end_to_end_upserts_once_across_two_runs(tmp_path):
         raise AssertionError((method, url))
 
     env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "GH_BILLING_TOKEN_DERIO_NET": "b",
-           "GH_AUTHORITY_TOKEN_DERIO_NET": "a", "GH_ISSUES_TOKEN": "i"}
+           "GH_AUTHORITY_TOKEN_DERIO_NET": "a", "GH_ISSUES_TOKEN": "i", "REPORT_BOT_LOGIN": BOT}
     out = []
     assert r.main(env=env, http=http, now=NOW, out=out.append) == 0
     assert r.main(env=env, http=http, now=NOW, out=out.append) == 0
@@ -378,7 +405,7 @@ def test_posted_body_never_leaks_third_party_unlisted_or_error_details(tmp_path)
             return 201, {"number": 1}
         raise AssertionError((method, url))
 
-    env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "GH_ISSUES_TOKEN": "i"}
+    env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "GH_ISSUES_TOKEN": "i", "REPORT_BOT_LOGIN": BOT}
     for k in ("DERIO_NET", "AGENTIC_STOA", "DERIO_HOMELAB"):
         env[f"GH_BILLING_TOKEN_{k}"] = "b"
         env[f"GH_AUTHORITY_TOKEN_{k}"] = "a"

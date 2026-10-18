@@ -122,6 +122,10 @@ spec:
                       name: ci-budget-github-read-agentic-stoa
                       key: token
                       optional: true
+                # The issues App's bot account (App slug + "[bot]"; derio-fr-automation,
+                # App 3994132). The report only adopts an issue this account wrote.
+                - name: REPORT_BOT_LOGIN
+                  value: "derio-fr-automation[bot]"
                 - name: GH_ISSUES_TOKEN
                   valueFrom:
                     secretKeyRef:

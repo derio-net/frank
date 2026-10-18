@@ -171,16 +171,20 @@ def render(month_label: str, orgs: dict, show_unlisted: bool = False) -> str:
     return "\n".join(L).rstrip() + "\n"
 
 
-def upsert_issue(issues, issue_title: str, body: str) -> int:
-    """Edit the issue with this exact title (any state), else create it."""
-    for i in issues.list(LABEL):
-        if i.get("title") == issue_title and "pull_request" not in i:
-            issues.edit(i["number"], body, LABEL)
-            return i["number"]
-    for i in issues.search(issue_title):
-        if i.get("title") == issue_title and "pull_request" not in i:
-            issues.edit(i["number"], body, LABEL)
-            return i["number"]
+def _ours(issue, bot_login: str) -> bool:
+    """Only an issue the issues App itself wrote may be adopted: the repo is
+    public, so anyone can open one with the report's exact title."""
+    user = issue.get("user") or {}
+    return bool(bot_login) and user.get("type") == "Bot" and user.get("login") == bot_login
+
+
+def upsert_issue(issues, issue_title: str, body: str, bot_login: str) -> int:
+    """Edit our own issue with this exact title (any state), else create it."""
+    for lookup in (lambda: issues.list(LABEL), lambda: issues.search(issue_title)):
+        for i in lookup():
+            if i.get("title") == issue_title and "pull_request" not in i and _ours(i, bot_login):
+                issues.edit(i["number"], body, LABEL)
+                return i["number"]
     return issues.create(issue_title, body, LABEL)
 
 
@@ -220,7 +224,7 @@ def main(env=None, http=None, now=None, out=print, show_unlisted=False) -> int:
         out(body)
         return 1 if failed else 0
     issues = forges.GitHubIssues(env.get("GH_ISSUES_TOKEN"), ISSUE_REPO, http)
-    number = upsert_issue(issues, title(label), body)
+    number = upsert_issue(issues, title(label), body, env.get("REPORT_BOT_LOGIN", ""))
     out(f"ci-budget-report result month={label} issue={number} orgs={len(results)} failed={int(failed)}")
     return 1 if failed else 0
 
