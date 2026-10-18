@@ -162,12 +162,15 @@ class GiteaClient:
             page += 1
 
     def _admin_pages(self, path, key, allow=()):
+        """All pages of an admin listing. A status in `allow` on page 1 means
+        the endpoint is unsupported (None); on a later page it just ends the
+        listing, keeping what was already read."""
         out, page = [], 1
         sep = "&" if "?" in path else "?"
         while True:
             status, data = self._call("GET", f"{path}{sep}limit=50&page={page}", allow=allow)
             if status in allow:
-                return None
+                return None if page == 1 else out
             items = (data or {}).get(key) or []
             out += items
             if len(items) < 50:

@@ -858,76 +858,143 @@ def test_github_client_run_annotations_returns_job_annotation_pairs():
 # (journal discovery gitea-runner-admin-api). The queue was empty at capture
 # time, so the waiting-job tests re-status the one captured job object.
 
+JOBS_URL = "http://g/api/v1/admin/actions/jobs?status=waiting&limit=50&page=%d"
+RUNNERS_URL = "http://g/api/v1/admin/actions/runners?limit=50&page=%d"
 
-def _waiting_job(created_at):
+
+def _waiting_job(created_at, labels=("ubuntu-latest",), attempt=1):
     job = _fx("gitea_admin_jobs_one.json")["jobs"][0]
-    return dict(job, status="waiting", conclusion="", created_at=created_at, started_at=None)
+    return dict(job, status="waiting", conclusion="", created_at=created_at, started_at=None,
+                labels=list(labels), run_attempt=attempt)
+
+
+def _runners():
+    return _fx("gitea_admin_runners.json")["runners"]
 
 
 def test_runner_probe_counts_online_runners_and_oldest_wait():
-    runners = _fx("gitea_admin_runners.json")["runners"]
     jobs = [_waiting_job("2026-10-18T11:30:00Z"), _waiting_job("2026-10-18T11:55:00Z")]
-    assert w.runner_probe(runners, jobs, NOW) == {"runners_online": 1, "oldest_waiting_s": 1800, "waiting": 2}
+    assert w.runner_probe(_runners(), jobs, NOW, LABELS) == {
+        "runners_online": 1, "oldest_waiting_s": 1800, "waiting": 2, "unservable": 0}
 
 
 def test_runner_probe_offline_runner_does_not_count_and_empty_queue_is_zero():
-    runners = [dict(_fx("gitea_admin_runners.json")["runners"][0], status="offline")]
-    assert w.runner_probe(runners, [], NOW) == {"runners_online": 0, "oldest_waiting_s": 0, "waiting": 0}
+    runners = [dict(_runners()[0], status="offline")]
+    assert w.runner_probe(runners, [], NOW, LABELS) == {
+        "runners_online": 0, "oldest_waiting_s": 0, "waiting": 0, "unservable": 0}
+
+
+def test_unservable_jobs_are_counted_apart_and_never_age_the_queue():
+    jobs = [_waiting_job("2026-10-18T08:00:00Z", labels=("macos-latest",)),
+            _waiting_job("2026-10-18T11:50:00Z", labels=("ubuntu-latest", "gpu"))]
+    p = w.runner_probe(_runners(), jobs, NOW, LABELS)
+    assert (p["waiting"], p["unservable"], p["oldest_waiting_s"]) == (0, 2, 0)
+
+
+def test_reruns_do_not_age_the_queue_because_gitea_keeps_the_original_created():
+    # Gitea 1.25.4 rerun resets only task_id/status/started/stopped on the job,
+    # so created_at is the first attempt's.
+    jobs = [_waiting_job("2026-10-18T06:00:00Z", attempt=2), _waiting_job("2026-10-18T11:50:00Z")]
+    p = w.runner_probe(_runners(), jobs, NOW, LABELS)
+    assert (p["waiting"], p["oldest_waiting_s"]) == (2, 600)
+
+
+def test_created_at_with_a_non_utc_offset_is_aged_correctly():
+    p = w.runner_probe(_runners(), [_waiting_job("2026-10-18T13:30:00+02:00")], NOW, LABELS)
+    assert p["oldest_waiting_s"] == 1800
 
 
 def test_runner_probe_line_omits_runners_online_when_version_lists_no_runners():
-    assert w.runner_probe_line({"runners_online": 1, "oldest_waiting_s": 5, "waiting": 1}) == \
-        "ci-runner-probe runners_online=1 oldest_waiting_s=5 waiting=1"
-    assert w.runner_probe_line({"runners_online": None, "oldest_waiting_s": 0, "waiting": 0}) == \
-        "ci-runner-probe oldest_waiting_s=0 waiting=0"
+    base = {"oldest_waiting_s": 5, "waiting": 1, "unservable": 2}
+    assert w.runner_probe_line(dict(base, runners_online=1)) == \
+        "ci-runner-probe runners_online=1 oldest_waiting_s=5 waiting=1 unservable=2"
+    assert w.runner_probe_line(dict(base, runners_online=None)) == \
+        "ci-runner-probe oldest_waiting_s=5 waiting=1 unservable=2"
 
 
-def test_gitea_client_reads_admin_actions_with_the_probe_token():
+def test_gitea_client_reads_admin_actions_with_the_probe_token_and_exact_urls():
     t = Transport({
         ("GET", "/admin/actions/runners"): (200, _fx("gitea_admin_runners.json")),
-        ("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
+        ("GET", "/admin/actions/jobs"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
     })
     c = w.GiteaClient("http://g/api/v1", "probe", t)
     assert c.list_admin_runners()[0]["status"] == "online"
     assert c.list_admin_waiting_jobs() == []
+    assert [x[:2] for x in t.calls] == [("GET", RUNNERS_URL % 1), ("GET", JOBS_URL % 1)]
     assert all(call[2]["Authorization"] == "token probe" for call in t.calls)
-    assert all(call[0] == "GET" for call in t.calls)
 
 
-def test_runner_endpoint_missing_yields_no_runners_online(capsys):
+def test_admin_listing_paginates_until_a_short_page():
+    page1 = {"jobs": [_waiting_job("2026-10-18T11:00:00Z") for _ in range(50)]}
+    page2 = {"jobs": [_waiting_job("2026-10-18T11:00:00Z") for _ in range(7)]}
+    t = Transport({("GET", "page=1"): (200, page1), ("GET", "page=2"): (200, page2)})
+    c = w.GiteaClient("http://g/api/v1", "probe", t)
+    assert len(c.list_admin_waiting_jobs()) == 57
+    assert [x[1] for x in t.calls] == [JOBS_URL % 1, JOBS_URL % 2]
+
+
+def test_a_404_on_page_two_keeps_what_was_read_but_on_page_one_means_unsupported():
+    page1 = {"runners": [_runners()[0] for _ in range(50)]}
+    t = Transport({("GET", "page=1"): (200, page1)})  # page 2 -> 404
+    assert len(w.GiteaClient("http://g/api/v1", "probe", t).list_admin_runners()) == 50
+    assert w.GiteaClient("http://g/api/v1", "probe", Transport({})).list_admin_runners() is None
+
+
+def test_runner_endpoint_missing_yields_no_runners_online():
+    t = Transport({("GET", "/admin/actions/jobs"): (200, _fx("gitea_admin_jobs_waiting_empty.json"))})
+    out = []
+    w.log_runner_probe(w.GiteaClient("http://g/api/v1", "probe", t), NOW, LABELS, out.append)
+    assert out == ["ci-runner-probe oldest_waiting_s=0 waiting=0 unservable=0"]
+
+
+def test_runners_failure_still_logs_the_queue_line():
     t = Transport({
-        ("GET", "/admin/actions/runners"): (404, {}),
-        ("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
+        ("GET", "/admin/actions/runners"): (500, {}),
+        ("GET", "/admin/actions/jobs"): (200, {"jobs": [_waiting_job("2026-10-18T11:50:00Z")]}),
     })
-    c = w.GiteaClient("http://g/api/v1", "probe", t)
     out = []
-    w.log_runner_probe(c, NOW, out.append)
-    assert out == ["ci-runner-probe oldest_waiting_s=0 waiting=0"]
+    w.log_runner_probe(w.GiteaClient("http://g/api/v1", "probe", t), NOW, LABELS, out.append)
+    assert len(out) == 2
+    assert out[0].startswith("ci-runner-probe-error runners: ") and "verdict" not in out[0]
+    assert out[1] == "ci-runner-probe oldest_waiting_s=600 waiting=1 unservable=0"
 
 
-def test_probe_failure_logs_a_distinct_line_not_a_verdict():
-    t = Transport({("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (500, {})})
-    c = w.GiteaClient("http://g/api/v1", "probe", t)
+def test_jobs_failure_still_logs_runners_online_with_a_trailing_field():
+    t = Transport({
+        ("GET", "/admin/actions/runners"): (200, _fx("gitea_admin_runners.json")),
+        ("GET", "/admin/actions/jobs"): (500, {}),
+    })
     out = []
-    w.log_runner_probe(c, NOW, out.append)
-    assert len(out) == 1 and out[0].startswith("ci-runner-probe-error ") and "verdict" not in out[0]
+    w.log_runner_probe(w.GiteaClient("http://g/api/v1", "probe", t), NOW, LABELS, out.append)
+    assert out[0].startswith("ci-runner-probe-error jobs: ")
+    assert out[1] == "ci-runner-probe runners_online=1 jobs=unavailable"
 
 
-def test_main_logs_one_probe_line_when_the_probe_token_is_set(tmp_path, capsys):
+def _main_env(tmp_path, extra):
     tiers = tmp_path / "tiers.yaml"
     tiers.write_text("version: 1\norgs: {}\n")
     runner = tmp_path / "runner.yaml"
     runner.write_text("runner:\n  labels: ['ubuntu-latest:docker://x']\n")
+    return {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "SA_TOKEN": "sa", **extra}
+
+
+def _main_http(t):
     k = FakeK8s()
+    return lambda method, url, headers=None, body=None: (k if "/api/v1/namespaces" in url else t)(method, url, headers, body)
+
+
+def test_main_logs_one_probe_line_when_the_probe_token_is_set(tmp_path, capsys):
     t = Transport({
         ("GET", "/admin/actions/runners"): (200, _fx("gitea_admin_runners.json")),
         ("GET", "/admin/actions/jobs?status=waiting"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
     })
-
-    def http(method, url, headers=None, body=None):
-        return (k if "/api/v1/namespaces" in url else t)(method, url, headers, body)
-
-    env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "SA_TOKEN": "sa", "GITEA_PROBE_TOKEN": "p"}
-    assert w.main(env=env, http=http, now=NOW) == 0
+    env = _main_env(tmp_path, {"GITEA_PROBE_TOKEN": "p"})
+    assert w.main(env=env, http=_main_http(t), now=NOW) == 0
     lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("ci-runner-probe")]
-    assert lines == ["ci-runner-probe runners_online=1 oldest_waiting_s=0 waiting=0"]
+    assert lines == ["ci-runner-probe runners_online=1 oldest_waiting_s=0 waiting=0 unservable=0"]
+
+
+def test_main_logs_a_probe_error_when_the_probe_token_is_absent(tmp_path, capsys):
+    assert w.main(env=_main_env(tmp_path, {}), http=_main_http(Transport({})), now=NOW) == 0
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("ci-runner-probe")]
+    assert lines == ["ci-runner-probe-error no probe token"]

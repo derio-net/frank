@@ -414,31 +414,52 @@ class TelegramNotifier:
             raise HttpError(status, resp, "POST", "telegram sendMessage")
 
 
-def runner_probe(runners, waiting_jobs, now):
+def runner_probe(runners, waiting_jobs, now, labels):
     """Summarise runner liveness and queue age (spec section 7).
 
     runners is None when the Gitea version lists no runners, in which case
-    runners_online is omitted from the log line.
+    runners_online is omitted from the log line. Jobs whose labels the runner
+    does not serve are counted as `unservable` and never age the queue; reruns
+    (run_attempt > 1) are counted but excluded from the age, because Gitea
+    1.25.4 keeps the first attempt's created_at on a rerun.
     """
-    ages = [int((now - parse_ts(j["created_at"])).total_seconds()) for j in waiting_jobs]
+    servable = [j for j in waiting_jobs if set(j.get("labels") or []) <= labels]
+    ages = [
+        int((now - parse_ts(j["created_at"])).total_seconds())
+        for j in servable
+        if (j.get("run_attempt") or 1) <= 1
+    ]
     return {
         "runners_online": None if runners is None else sum(1 for r in runners if r.get("status") == "online"),
         "oldest_waiting_s": max(ages, default=0),
-        "waiting": len(waiting_jobs),
+        "waiting": len(servable),
+        "unservable": len(waiting_jobs) - len(servable),
     }
 
 
 def runner_probe_line(p):
     online = "" if p.get("runners_online") is None else f" runners_online={p['runners_online']}"
-    return f"ci-runner-probe{online} oldest_waiting_s={p['oldest_waiting_s']} waiting={p['waiting']}"
+    return f"ci-runner-probe{online} oldest_waiting_s={p['oldest_waiting_s']} waiting={p['waiting']} unservable={p['unservable']}"
 
 
-def log_runner_probe(gitea, now, log=print):
-    """One read-only probe per run; failure is a distinct line, never a verdict."""
+def log_runner_probe(gitea, now, labels, log=print):
+    """One read-only probe per run. Each call is guarded on its own and
+    whatever succeeded is logged; a failure is a ci-runner-probe-error line,
+    never a verdict line."""
+    runners, jobs = None, None
     try:
-        log(runner_probe_line(runner_probe(gitea.list_admin_runners(), gitea.list_admin_waiting_jobs(), now)))
+        runners = gitea.list_admin_runners()
     except Exception as e:  # noqa: BLE001
-        log(f"ci-runner-probe-error {e}")
+        log(f"ci-runner-probe-error runners: {e}")
+    try:
+        jobs = gitea.list_admin_waiting_jobs()
+    except Exception as e:  # noqa: BLE001
+        log(f"ci-runner-probe-error jobs: {e}")
+        if runners is not None:
+            online = sum(1 for r in runners if r.get("status") == "online")
+            log(f"ci-runner-probe runners_online={online} jobs=unavailable")
+        return
+    log(runner_probe_line(runner_probe(runners, jobs, now, labels)))
 
 
 def _env_key(org):
@@ -477,7 +498,9 @@ def main(env=None, http=None, now=None, out=print):
     store.save(state)
     if env.get("GITEA_PROBE_TOKEN"):
         probe = GiteaClient(env.get("GITEA_API", "http://gitea-http.gitea.svc:3000/api/v1"), env["GITEA_PROBE_TOKEN"], http)
-        log_runner_probe(probe, now, out)
+        log_runner_probe(probe, now, labels, out)
+    else:
+        out("ci-runner-probe-error no probe token")
     return 1 if failed else 0
 
 
