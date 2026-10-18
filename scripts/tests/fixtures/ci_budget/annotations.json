@@ -1,0 +1,8 @@
+{
+  "spend": [
+    {"path": ".github", "start_line": 1, "end_line": 1, "start_column": null, "end_column": null, "annotation_level": "failure", "title": "", "message": "The job was not started because recent account payments have failed or your Spending Limit needs to be increased. Please check the 'Billing & plans' section in your settings", "raw_details": "", "blob_href": "https://github.com/derio-net/willikins/blob/aaaaaaaaaaaa/.github"}
+  ],
+  "ordinary": [
+    {"path": ".github", "start_line": 3, "end_line": 3, "start_column": null, "end_column": null, "annotation_level": "failure", "title": "", "message": "Process completed with exit code 1.", "raw_details": "", "blob_href": ""}
+  ]
+}
