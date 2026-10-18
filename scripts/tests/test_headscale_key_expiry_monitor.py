@@ -73,7 +73,7 @@ def test_cronjob_uses_the_headplane_secret_and_pinned_non_root_image():
     env = {item["name"]: item for item in container["env"]}
     assert env["API_KEY"]["valueFrom"]["secretKeyRef"] == {"name": "headplane-api-key", "key": "api-key"}
     assert env["WARN_DAYS"]["value"] == "30"
-    assert set(env["EXPECTED_PREFIXES"]["value"].split(",")) == {"8HpmMnl", "lTe41sn"}
+    assert set(env["EXPECTED_PREFIXES"]["value"].split(",")) == {"8HpmMnl", "lTe41sn", "yGvokhX"}
     assert "@sha256:" in container["image"]
     assert pod["securityContext"]["runAsNonRoot"] is True
     assert container["securityContext"]["readOnlyRootFilesystem"] is True
