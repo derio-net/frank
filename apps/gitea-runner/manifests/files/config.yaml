@@ -18,6 +18,11 @@ runner:
   # workflows run unmodified. node/go/python setup-actions install on top.
   labels:
     - "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+    # ubuntu-24.04 is the same image (ubuntu-latest is 24.04 today) so jobs that
+    # pin the version label run on the fallback. Other version labels
+    # (ubuntu-22.04, ...) are deliberately UNSERVED: scripts/ci_gate_coverage.py
+    # flags them instead of silently queueing forever (frank#875).
+    - "ubuntu-24.04:docker://gitea/runner-images:ubuntu-latest"
 cache:
   enabled: true
   dir: /data/cache

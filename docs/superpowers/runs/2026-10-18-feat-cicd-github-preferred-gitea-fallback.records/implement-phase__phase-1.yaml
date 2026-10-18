@@ -1,0 +1,25 @@
+schema_version: 10
+run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T2.S1, P1.T2.S2, P1.T3.S1, P1.T3.S2, P1.T3.S3, P1.T4.S1]
+refactor:
+  P1.T2: "tiers.yaml and its test are data plus plain assertions; nothing to clean."
+journal:
+  - kind: discovery
+    id: gate-coverage-baseline
+    phase: 1
+    title: "Gate-coverage baseline across the eleven cross-repo targets (work list)"
+    body: |
+      Checker run read-only on 2026-10-18 against the local clones (all workflows; the cnc repos are gitea-only here, so their numbers are wider than the release.yml-only scope of R17).
+      willikins 6 ungated; herdr-vertical-tabs 2 ungated; presentation-craft 3 ungated; vibe-kanban 28 ungated (VK_PRIVATE_DEPLOY_KEY passed as gitea_secret); runs-fr 7 ungated;
+      proxmox-cluster 3 ungated; omada-controller 2 ungated; homelab 2 ungated; ansible-pihole 1 missing-rerun-triggers (gates already present);
+      cnc-frd 1 ungated + 1 fallback-github-token-to-github + 1 fallback-secret-not-mirrored + 2 missing-rerun-triggers; cnc-fru 1 ungated + 1 fallback-github-token-to-github + 2 fallback-secret-not-mirrored + 2 missing-rerun-triggers.
+      Only release.yml in cnc-frd/cnc-fru gets the GitHub pin (spec section 6); the other cnc findings are context, not work.
+  - kind: discovery
+    id: worktree-has-no-venv
+    phase: 1
+    title: "Worktree has no .venv; use the base clone's venv python/pytest by absolute path"
+    body: "The checker needs PyYAML, so the baseline was run with the base clone's .venv python."
+evidence: {tests: /Users/derio/.claude-tmp/p875-phase1-tests.log}

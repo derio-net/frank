@@ -1,0 +1,10 @@
+name: pinned
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    if: github.server_url == 'https://github.com'
+    runs-on: macos-latest
+    steps:
+      - run: make build

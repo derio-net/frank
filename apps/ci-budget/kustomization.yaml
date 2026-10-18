@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No top-level `namespace:` — each resource sets namespace tekton-pipelines.
+# The tier config ships via configMapGenerator (hash-suffixed name) so a tier
+# edit changes the consuming CronJob specs and rolls them.
+configMapGenerator:
+  - name: ci-budget-config
+    namespace: tekton-pipelines
+    files:
+      - tiers.yaml
