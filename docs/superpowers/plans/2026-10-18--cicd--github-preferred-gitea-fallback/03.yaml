@@ -1,0 +1,113 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Budget watcher — billing, ordered flips, backstop, notify, heartbeat
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - ci-budget-flips-at-threshold
+  - ci-budget-backstop-spending-limit
+  - ci-budget-notifies-and-heartbeat
+  - ci-authority-readable-on-github
+  tier: standard
+  files:
+  - apps/ci-budget/**
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/test_ci_budget_*.py
+  - scripts/tests/fixtures/ci_budget/**
+  - docs/superpowers/plans/**
+  estimate_lines: 1300
+tasks:
+- number: 1
+  title: Decision core (red → green)
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write scripts/tests/test_ci_budget_watcher.py against pure functions in apps/ci-budget/files/watcher.py: included_minutes_used(usage_items) (Linux ×1, Windows ×2, macOS ×10 over Actions SKUs; an unknown Actions SKU raises); pinned_share; desired_authority(pct, threshold, backstop_hit, month_stamp, now_month, pin) — below threshold → github; ≥85 → gitea and stamp; stamp == current month → gitea below threshold; stamp from last month → github; pin wins and never stamps; backstop hit → gitea; backstop_hits(runs, annotations, now, handled_ids) ignoring runs older than 30 min, runs created before the UTC month start and handled ids, matching 'spending limit' case-insensitively. Fixtures in scripts/tests/fixtures/ci_budget/ follow GitHub's documented response shapes (usage items, workflow runs, check-run annotations). Run: FAILS.
+  - id: P3.T1.S2
+    text: |-
+      Implement those functions in apps/ci-budget/files/watcher.py (stdlib + PyYAML). Run: passes.
+- number: 2
+  title: Ordered two-forge apply and idempotence (red → green)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Add tests with fake GitHub and Gitea clients recording calls: toward gitea the order is Gitea repo variable write → Gitea read-back → GitHub repo variable write → GitHub read-back; toward github the reverse; a failed read-back stops that repo's sequence and the run exits non-zero; when both sides match nothing is written; a repo with coverage findings is written on neither side; Gitea ORG variables are never written for CI_AUTHORITY (only CI_BUDGET_MONTH, and only on a computed gitea move); a repo whose GitHub variable is unset gets `github` written explicitly; an org in dry-run writes nothing. Run: FAILS.
+  - id: P3.T2.S2
+    text: |-
+      Implement apply(): a GitHub client (urllib, Bearer token, X-GitHub-Api-Version 2022-11-28; POST a variable on 404 else PATCH); a Gitea client (token auth; repo Actions variables create/update; org variable CI_BUDGET_MONTH); the coverage gate calling ci_gate_coverage.check_workflows on workflow files fetched through the contents API; and the backstop re-run (create Gitea branch sync-rerun-<sha12> at the run head sha; delete sync-rerun-* branches older than 24h). Run: passes.
+- number: 3
+  title: State, notifications, heartbeat (red → green)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Add tests: notification keys flip:/would-flip:/refuse:/backstop: (spec §4 step 8) are sent once — three consecutive dry-run runs over threshold produce exactly one Telegram call; billing is read only when the last read is ≥55 min old or a backstop hit is pending; state round-trips through a fake ConfigMap client; a missing Telegram secret means no send and no error; each run prints exactly one `ci-budget-watcher verdict=… org=… pct=… mode=…` line per org. Run: FAILS.
+  - id: P3.T3.S2
+    text: |-
+      Implement the state (in-cluster Kubernetes API with the ServiceAccount token, ConfigMap ci-budget-state), Telegram send (bot API) and heartbeat. Run: passes.
+- number: 4
+  title: Manifests and dead-man rule
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Write scripts/tests/test_ci_budget_manifests.py asserting: CronJob ci-budget-watcher (*/10, Forbid, image pinned by digest, non-root, readOnlyRootFilesystem, PyYAML installed by an initContainer from a hash-pinned requirement into an emptyDir on PYTHONPATH, Secrets ci-budget-gitea / ci-budget-gitea-probe / ci-budget-telegram optional); the configMapGenerator's ci_gate_coverage.py equals scripts/ci_gate_coverage.py byte-for-byte; ClusterGenerators github-app-{derio-net,derio-homelab,agentic-stoa}-ci-billing (organization_administration read + metadata read, no repositories) and github-app-{derio-net,derio-homelab}-ci-authority (variables write; actions, checks, contents, metadata read; repositories = every tiers.yaml repo of that org) with ExternalSecrets; a Role limited to configmaps/ci-budget-state; and no ClusterGenerator outside apps/ci-budget grants organization_administration or variables. Run: FAILS.
+  - id: P3.T4.S2
+    text: |-
+      Add those manifests to apps/ci-budget (the ci_gate_coverage.py copy listed in configMapGenerator). Run: passes.
+  - id: P3.T4.S3
+    text: |-
+      Add Grafana rule ci-budget-heartbeat-stale to alert-rules-cm.yaml, modelled on crowdsec-canary-heartbeat-stale (feature-health folder, telegram_direct, LogsQL on `_msg` matching `ci-budget-watcher verdict`, queryType stats, lt 1 over 40m); uid ≤40 chars. Run the existing grafana rule guard tests and the ci-budget tests: pass.
+- number: 5
+  title: willikins doc-pr follow-up
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      Record an `owed` plan-journal entry `willikins-doc-pr-authority` whose body is the follow-up issue for derio-net/willikins (doc-pr ship can merge on GitHub-only `skipped` checks while Gitea is authoritative; interface: `gh variable get CI_AUTHORITY`), so deliver files it with `fr journal file`.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

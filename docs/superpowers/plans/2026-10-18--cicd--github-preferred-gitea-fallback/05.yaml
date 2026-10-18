@@ -1,0 +1,72 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Runner memory and runner/pc-1 health alerts
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - runner-memory-and-placement
+  - runner-health-alerts
+  tier: standard
+  files:
+  - apps/gitea-runner/manifests/deployment.yaml
+  - apps/ci-budget/**
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/test_gitea_runner_capacity.py
+  - scripts/tests/test_ci_budget_*.py
+  - scripts/tests/fixtures/ci_budget/**
+  - docs/superpowers/plans/**
+  estimate_lines: 400
+tasks:
+- number: 1
+  title: Runner guard (red → green)
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Write scripts/tests/test_gitea_runner_capacity.py: runner container memory limit 2Gi, nodeSelector kubernetes.io/hostname pc-1, config capacity 2. Run: FAILS on 1Gi.
+  - id: P5.T1.S2
+    text: |-
+      Set the runner limit to 2Gi in apps/gitea-runner/manifests/deployment.yaml with a comment (30-day peak 925 MB, frank#875). Run: passes.
+- number: 2
+  title: Runner probe in the watcher (red → green)
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      From the repo root with `source .env`, read-only: find the live Gitea version and try its admin Actions runner and job listing endpoints with GET only (admin creds from Secret gitea-secrets, ns gitea); record which exist and their response shape as a plan-journal discovery `gitea-runner-admin-api`.
+  - id: P5.T2.S2
+    text: |-
+      Add a test with fixtures in that observed shape, then implement: each watcher run logs `ci-runner-probe runners_online=N oldest_waiting_s=S waiting=W` using the ci-budget-gitea-probe token (omitting runners_online when the version lists no runners). Run: passes.
+- number: 3
+  title: Alert rules
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Read-only: query VictoriaMetrics for node_filesystem_avail_bytes{mountpoint="/var"} on pc-1 and record the exact labels. Add rules layer-25-runner-offline (LogsQL `ci-runner-probe` runners_online < 1 for 10m, or kube_deployment_status_replicas_unavailable{namespace="gitea-runner"} > 0 for 10m when no runner list exists), layer-25-runner-queue-wait (oldest_waiting_s > 900 for 10m) and layer-25-pc1-var-low (avail/size < 0.15 for 15m, observed labels). Run the grafana guard tests and the full suite excluding the hugo blog tests: pass.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

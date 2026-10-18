@@ -1,0 +1,98 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Mirror derio-net and four derio-homelab repos; status bridge for three orgs
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - ci-fallback-mirrors-derio-orgs
+  - ci-fallback-status-reaches-github
+  tier: standard
+  files:
+  - apps/tekton/triggers/*.yaml
+  - apps/tekton/pipelines/derio-net-pull-sync.yaml
+  - apps/tekton/pipelines/stoa-status-bridge.yaml
+  - apps/tekton/tasks/github-status.yaml
+  - apps/tekton/manifests/clustergenerator-derio-net-mirror-github-app.yaml
+  - apps/tekton/manifests/externalsecret-derio-net-github-mirror.yaml
+  - apps/tekton/manifests/mirror-reconcile.yaml
+  - apps/tekton/manifests/ci-delivery-check.yaml
+  - apps/tekton/manifests/triggers-rbac.yaml
+  - apps/tekton/webhooks.yaml
+  - scripts/tests/test_ci_mirror_resilience.py
+  - scripts/tests/test_kid_laptops_mirror_wiring.py
+  - scripts/tests/test_webhook_delivery_paths.py
+  - scripts/tests/test_ci_delivery_check.py
+  - scripts/tests/test_mirror_reconcile_behaviour.py
+  - scripts/tests/test_stoa_mirror_triggers.py
+  - scripts/tests/test_github_preferred_mirrors.py
+  - scripts/tests/test_github_status_token_select.py
+  - docs/superpowers/plans/**
+  estimate_lines: 900
+tasks:
+- number: 1
+  title: Wiring guards for the nine new mirrors (red)
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Write scripts/tests/test_github_preferred_mirrors.py asserting: github-listener has triggers derio-net-main-sync and derio-net-pr-sync (secret derio-net-github-webhook-secret) and derio-homelab-main-sync and derio-homelab-pr-sync (secret derio-homelab-github-webhook-secret), whose repo lists equal tiers.yaml's github-preferred repos for that org (plus kid-laptops in derio-homelab-main-sync only); PR triggers write refs/heads/sync-pr-<N> on opened/synchronize/reopened; derio-net triggers use templates whose Pipeline derio-net-pull-sync reads Secret derio-net-github-mirror; ClusterGenerator github-app-derio-mirror has appID 3994132, installID 138773908, key github-app-derio-key, permissions {contents: read, pull_requests: read, statuses: write, metadata: read} and repositories = the five derio-net repos; the gitea-push filter excludes derio-net/; gitea-status-bridge admits all three orgs and still excludes context tekton*. Change TRIGGER_NAME in test_kid_laptops_mirror_wiring.py to derio-homelab-main-sync keeping every assertion. Run both: FAIL.
+- number: 2
+  title: Triggers, pipeline, token (green)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Add apps/tekton/manifests/clustergenerator-derio-net-mirror-github-app.yaml and externalsecret-derio-net-github-mirror.yaml (refreshInterval 45m; comments in the derio-homelab files' style, including the consumer-namespace PEM note). Add apps/tekton/pipelines/derio-net-pull-sync.yaml cloned from derio-homelab-pull-sync.yaml reading the derio-net Secret, and its TriggerTemplates (main, pr) beside the existing ones in apps/tekton/triggers/.
+  - id: P2.T2.S2
+    text: |-
+      In eventlistener-github.yaml add derio-net-main-sync / derio-net-pr-sync, and rename + generalise derio-homelab-kid-laptops-main-sync to derio-homelab-main-sync (repo list) plus a new derio-homelab-pr-sync, keeping the kid-laptops comment's reasoning. In eventlistener.yaml add the derio-net/ exclusion to gitea-push (comment: defence in depth, no push hook delivers it) and widen gitea-status-bridge to the three orgs. Run test_github_preferred_mirrors.py and test_kid_laptops_mirror_wiring.py: pass.
+  - id: P2.T2.S3
+    text: |-
+      Write scripts/tests/test_github_status_token_select.py running the github-status script (bash, fake env, curl stubbed on PATH) for an agentic-stoa, a derio-homelab and a derio-net repo, asserting the matching token is used, and a non-zero exit naming the owner when that org's token is empty. Run: FAILS. Edit apps/tekton/tasks/github-status.yaml: keep GITHUB_TOKEN (stoa-github-mirror) and add optional GITHUB_TOKEN_DERIO_HOMELAB / GITHUB_TOKEN_DERIO_NET, selecting by owner. Update stoa-status-bridge.yaml's description and header comment to say three orgs. Run: passes.
+- number: 3
+  title: Reconciler, delivery check, webhooks (red → green)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Extend test_ci_mirror_resilience.py: generalise the PR-repo extractor (:114) to any mirrored org and the org→Secret assertions (:208-226) to three orgs in BOTH the plan and push stages. Extend test_ci_delivery_check.py so a derio-net and a derio-homelab repo get the forwarded-status comparison (skipped today at ci-delivery-check.yaml:85). Run: FAIL.
+  - id: P2.T3.S2
+    text: |-
+      Edit mirror-reconcile.yaml: MAIN_REPOS/PR_REPOS gain the nine repos in both stages; optional GITHUB_TOKEN_DERIO_NET in plan and push; plan.py and push.sh select the token by owner. Edit ci-delivery-check.yaml: lists, a derio-net token mount and map entry, and status comparison for every org in the token map. Run the extended tests plus test_mirror_reconcile_behaviour.py and test_stoa_mirror_triggers.py: pass.
+  - id: P2.T3.S3
+    text: |-
+      Add to apps/tekton/webhooks.yaml one repo-scoped GitHub webhook entry (push, pull_request) per new mirrored repo to github-listener, and a Gitea org-scoped `status` entry for derio-net and derio-homelab to gitea-listener, each noting manual op cicd-github-preferred-gitea-mirrors or cicd-derio-net-gitea-org. Run test_webhook_delivery_paths.py: passes.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

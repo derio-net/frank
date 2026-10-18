@@ -1,0 +1,91 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Tier config, gate-coverage checker and the ci-budget app skeleton
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - tier-config-declares-repo-tiers
+  - gate-coverage-checker-flags-gaps
+  skeleton: true
+  tier: standard
+  files:
+  - apps/ci-budget/**
+  - apps/root/templates/ci-budget.yaml
+  - apps/gitea-runner/manifests/files/config.yaml
+  - scripts/ci_gate_coverage.py
+  - scripts/tests/test_ci_budget_*.py
+  - scripts/tests/test_ci_gate_coverage.py
+  - scripts/tests/fixtures/ci_gate_coverage/**
+  - docs/acceptance/**
+  - docs/superpowers/plans/**
+  estimate_lines: 900
+tasks:
+- number: 1
+  title: Smoke — the app skeleton and a trivial guard go green in CI
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create apps/ci-budget/kustomization.yaml (no top-level namespace; each resource sets namespace tekton-pipelines) generating ConfigMap `ci-budget-config` from apps/ci-budget/tiers.yaml with configMapGenerator (a one-line placeholder tiers.yaml is fine here), and apps/root/templates/ci-budget.yaml (single source, path apps/ci-budget, destination namespace tekton-pipelines, CreateNamespace=false, ServerSideApply=true, selfHeal true, prune TRUE with a comment that configMapGenerator needs it and that the only stateful object, ci-budget-state, is created at runtime and never in git). Write scripts/tests/test_ci_budget_app.py asserting the template's sync options and that `kubectl kustomize apps/ci-budget` renders a ConfigMap named ci-budget-config-<hash>. Run `.venv/bin/pytest scripts/tests/test_ci_budget_app.py -q`: passes.
+- number: 2
+  title: Tier config schema (red → green)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Write scripts/tests/test_ci_budget_tiers.py: load apps/ci-budget/tiers.yaml; assert version 1; orgs derio-net, derio-homelab, agentic-stoa each with included_minutes 2000, threshold_pct 85, a gitea_org, mode in {dry-run, live} and every org shipped as dry-run; every repo tier in {github-only, gitea-only, github-preferred}; optional pin_authority in {github, gitea}; gitea_secrets a list of names; the derio-net and derio-homelab github-preferred sets equal the spec's (willikins, herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr / proxmox-cluster, omada-controller, homelab, ansible-pihole); kid-laptops is gitea-only; every agentic-stoa repo in mirror-reconcile MAIN_REPOS is listed gitea-only. Run: FAILS.
+  - id: P1.T2.S2
+    text: |-
+      Write apps/ci-budget/tiers.yaml per spec §1 (header comment: what each tier means, public repos are always github-only, pin_authority never stamps the month, gitea_secrets must be read-only). Run the test: passes.
+- number: 3
+  title: Gate-coverage checker (red → green → refactor)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add fixture workflows under scripts/tests/fixtures/ci_gate_coverage/ covering: a fully gated check job with sync-pr-**/sync-rerun-** push triggers (ok); an ungated job (ungated); a GitHub-pinned macos-latest job (ok); an authority-gated job on ubuntu-22.04 (fallback-on-unserved-label); an authority-gated job with runs-on ${{ matrix.os }} (fallback-runs-on-expression); an authority-gated job using secrets.DEPLOY_KEY not in gitea_secrets (fallback-secret-not-mirrored) and the same job with it listed (ok); an authority-gated job running `gh pr view` with GITHUB_TOKEN (fallback-github-token-to-github); a pull_request workflow without the rerun push branches (missing-rerun-triggers); an existing `if:` joined to the gate by && (ok); the exact kid-laptops/ansible-pihole gate expression (ok). Write scripts/tests/test_ci_gate_coverage.py asserting each verdict and that a gitea-only repo requires one of the two gates on every job. Run: FAILS.
+  - id: P1.T3.S2
+    text: |-
+      Implement scripts/ci_gate_coverage.py: pure `check_workflows(files: dict[str, str], tier: str, gitea_secrets: list[str], runner_labels: set[str]) -> list[Finding]` and `runner_labels(config_yaml: str)`, plus a CLI `python3 scripts/ci_gate_coverage.py <checkout-dir> --tier <t> [--gitea-secret NAME ...] [--runner-config <path>]` printing one line per non-ok job and exiting 1 on any. Gate detection normalises whitespace and accepts the gate as one conjunct of a larger `if:`. PyYAML only. Run the test: passes.
+  - id: P1.T3.S3
+    text: |-
+      Refactor (one function per verdict). Add `ubuntu-24.04:docker://gitea/runner-images:ubuntu-latest` to apps/gitea-runner/manifests/files/config.yaml labels with a comment (ubuntu-latest is 24.04 today; other version labels deliberately unserved, frank#875). Add a test that runner_labels() of the real config is exactly {ubuntu-latest, ubuntu-24.04}. Run `.venv/bin/pytest scripts/tests/test_ci_gate_coverage.py scripts/tests/test_ci_budget_tiers.py scripts/tests/test_ci_budget_app.py -q`: passes.
+- number: 4
+  title: Baseline the eleven repos
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Run the checker CLI read-only against each local clone listed in spec §6's table (on whatever branch is checked out; do not modify those clones) and record the per-repo verdict counts as a plan-journal discovery `gate-coverage-baseline` — the work list for the cross-repo PRs.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

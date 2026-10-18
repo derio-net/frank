@@ -611,3 +611,9 @@ covered by CI.
     for 15 minutes and `layer-25-runner-offline` fires (then restore); query
     the pc-1 `/var` series in VMUI and confirm `layer-25-pc1-var-low`
     evaluates against real data.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-18--cicd--github-preferred-gitea-fallback | `derio-net/frank` | `2026-10-18--cicd--github-preferred-gitea-fallback` | — |
