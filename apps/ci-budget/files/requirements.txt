@@ -1,0 +1,7 @@
+# Hash-pinned: installed by the ci-budget-watcher initContainer with
+# `pip install --require-hashes --only-binary=:all:` into an emptyDir.
+# Wheels for python:3.13-alpine (musllinux_1_2), x86_64 and aarch64 only.
+# Regenerate from https://pypi.org/pypi/PyYAML/<version>/json when bumping.
+pyyaml==6.0.3 \
+    --hash=sha256:eda16858a3cab07b80edaf74336ece1f986ba330fdb8ee0d6c0d68fe82bc96be \
+    --hash=sha256:f7057c9a337546edc7973c0d3ba84ddcdf0daa14533c2065749c9075001090e6
