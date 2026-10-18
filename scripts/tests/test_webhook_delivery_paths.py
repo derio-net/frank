@@ -182,13 +182,27 @@ def test_no_declaration_serves_a_trigger_that_no_longer_exists():
 
 
 def test_every_repoless_exemption_is_still_repoless():
-    """If a REPOLESS_OK trigger gains repos, it must be covered like the rest."""
-    triggers = _triggers()
-    wrong = [n for n in REPOLESS_OK if triggers.get(n, {}).get("repos")]
-    assert not wrong, (
-        "these triggers now name repositories, so they need declared delivery "
-        "paths and must come out of REPOLESS_OK: " + ", ".join(wrong)
-    )
+    """A REPOLESS_OK trigger is served by org-level hooks, not per-repo ones.
+
+    The status bridge names an explicit repo list (so an org-wide hook cannot
+    forward repos with no GitHub twin), which makes it NOT strictly repo-less.
+    The exemption therefore holds only while every repo it names sits in an
+    org that has an org-scoped declaration serving it; a repo in an uncovered
+    org must come out of the list or gain the org hook.
+    """
+    triggers, decls = _triggers(), _declarations()
+    uncovered = []
+    for name in REPOLESS_OK:
+        t = triggers.get(name, {})
+        for repo in t.get("repos", []):
+            org = repo.split("/")[0]
+            if not any(
+                d["scope"] == "org" and d["target"] == org
+                and d["listener"] == t["listener"] and name in (d.get("serves") or [])
+                for d in decls
+            ):
+                uncovered.append(f"{name}: {repo} has no org-scoped hook for {org}")
+    assert not uncovered, "\n".join(uncovered)
 
 
 @pytest.mark.parametrize("field", ["forge", "scope", "target", "listener", "events"])

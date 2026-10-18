@@ -58,7 +58,9 @@ def test_bridge_trigger_filter():
     filt = " && ".join(filters)
 
     assert "X-Gitea-Event" in filt and "'status'" in filt
-    assert "body.repository.full_name.startsWith('agentic-stoa/')" in filt
+    # Explicit repo list since the three-org widening (guarded against
+    # mirror-reconcile MAIN_REPOS in test_ci_mirror_resilience.py).
+    assert "body.repository.full_name in [" in filt and "'agentic-stoa/hum'" in filt
     assert "!body.context.startsWith('tekton')" in filt
 
     assert trig["template"]["ref"] == "stoa-status-bridge-template"
