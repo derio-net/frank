@@ -432,6 +432,15 @@ gate: devops
 - tier-config-declares-repo-tiers: none — offline tests in CI (`scripts/tests/`) parse `apps/ci-budget/tiers.yaml` and assert its schema and the read-only-secret rule
 - gate-coverage-checker-flags-gaps: none — offline tests in CI run the checker on fixture workflows
 - runner-memory-and-placement: none — a manifest guard in CI asserts the limit, node selector and capacity
+- ci-fallback-mirrors-derio-orgs: live — needs real GitHub webhooks, the App installations and the Gitea orgs, which exist only after the manual ops; CI asserts the trigger/reconcile wiring offline
+- ci-fallback-status-reaches-github: live — needs a real Gitea Actions run and a write to GitHub with each org's token
+- ci-budget-flips-at-threshold: live — the decision logic is unit-tested in CI, but the ordered writes to both forges' variables can only be shown against the live APIs
+- ci-budget-backstop-spending-limit: live — the annotation is produced only by GitHub refusing a job; CI tests the detector on captured payloads
+- ci-budget-notifies-and-heartbeat: live — Telegram delivery and the VictoriaLogs → Grafana dead-man exist only on the cluster
+- ci-authority-readable-on-github: live — the repo variables are GitHub state written by the deployed watcher
+- ci-tier-monthly-report: live — the report reads the live billing API and writes a real issue
+- workflows-carry-forge-gates: live — the eleven workflow PRs live in other repos and merge independently of this one
+- runner-health-alerts: live — the rules read live VictoriaLogs/VictoriaMetrics series whose presence must be observed on the cluster
 
 ## Test Plan
 
