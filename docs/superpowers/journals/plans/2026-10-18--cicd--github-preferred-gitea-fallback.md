@@ -752,3 +752,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/884.
 ### xr-acceptance-step-pin-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/885] · resolves xr-acceptance-step-pin: acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
 
 Filed at deliver as https://github.com/derio-net/frank/issues/885.
+
+<!-- fr:journal kind=finding scope=plan id=xr-vibe-kanban-no-fallback-resolved-2 created=2026-10-18T19:51:17+00:00 state=open resolves=xr-vibe-kanban-no-fallback tracked_by=https://github.com/derio-net/frank/issues/886 -->
+### xr-vibe-kanban-no-fallback-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/886] · resolves xr-vibe-kanban-no-fallback: vibe-kanban has no Gitea fallback (Blacksmith runners): review its tier
+
+Filed at deliver as https://github.com/derio-net/frank/issues/886.
