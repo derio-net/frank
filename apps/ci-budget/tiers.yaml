@@ -17,6 +17,8 @@
 #       org secret, so no other repo in the org can read it). They MUST be
 #       read-only credentials and each must be declared in readonly_secrets
 #       below (names matching PAT|WRITE|ADMIN|PUSH are rejected by the guard).
+# third_party: true (optional, per org) - the org's repos are not ours to name in a
+#   public issue; the monthly report prints usage totals and counts only.
 # mode: dry-run | live, per org. Every org ships dry-run.
 version: 1
 # Allowlist of the read-only credentials gitea_secrets may reference.
@@ -53,6 +55,7 @@ orgs:
     threshold_pct: 85
     gitea_org: agentic-stoa
     mode: dry-run            # no github-preferred repos: nothing to write
+    third_party: true        # the monthly report posts counts only, never repo names
     repos:                   # every currently mirrored agentic-stoa repo
       hum:             {tier: gitea-only}
       content-factory: {tier: gitea-only}

@@ -97,7 +97,7 @@ def test_no_unknown_keys():
     cfg = _cfg()
     assert set(cfg) <= {"version", "orgs", "readonly_secrets"}
     for name, org in cfg["orgs"].items():
-        extra = set(org) - {"included_minutes", "threshold_pct", "gitea_org", "mode", "repos"}
+        extra = set(org) - {"included_minutes", "threshold_pct", "gitea_org", "mode", "repos", "third_party"}
         assert not extra, (name, extra)
         for repo, e in org["repos"].items():
             extra = set(e) - {"tier", "pin_authority", "gitea_secrets"}
@@ -128,3 +128,9 @@ def test_gitea_secrets_are_declared_readonly():
 def test_header_says_secrets_are_repo_level():
     head = TIERS.read_text().split("version:")[0].lower()
     assert "repository secret" in head and "that repo only" in head
+
+
+def test_agentic_stoa_is_marked_third_party():
+    orgs = yaml.safe_load((Path(__file__).resolve().parents[2] / "apps/ci-budget/tiers.yaml").read_text())["orgs"]
+    assert orgs["agentic-stoa"].get("third_party") is True
+    assert not any(o.get("third_party") for n, o in orgs.items() if n != "agentic-stoa")

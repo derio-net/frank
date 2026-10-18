@@ -174,7 +174,7 @@ class GitHubIssues:
     def _call(self, method, path, body=None):
         if not self.token:
             raise RuntimeError("no GitHub issues token configured")
-        url = f"{GitHubClient.API}/repos/{self.repo}{path}"
+        url = path if path.startswith("http") else f"{GitHubClient.API}/repos/{self.repo}{path}"
         headers = {"Authorization": f"Bearer {self.token}", "Accept": "application/vnd.github+json",
                    "X-GitHub-Api-Version": "2022-11-28"}
         status, data = self.http(method, url, headers, body)
@@ -196,5 +196,12 @@ class GitHubIssues:
     def create(self, title, body, label):
         return self._call("POST", "/issues", {"title": title, "body": body, "labels": [label]})["number"]
 
-    def edit(self, number, body):
+    def search(self, title):
+        """Issues whose title matches, via the search API (no label needed)."""
+        q = urllib.parse.urlencode({"q": f'repo:{self.repo} in:title "{title}" type:issue', "per_page": 100})
+        return (self._call("GET", f"{GitHubClient.API}/search/issues?{q}") or {}).get("items", [])
+
+    def edit(self, number, body, label=None):
         self._call("PATCH", f"/issues/{number}", {"body": body})
+        if label:
+            self._call("POST", f"/issues/{number}/labels", {"labels": [label]})

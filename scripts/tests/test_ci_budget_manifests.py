@@ -152,7 +152,7 @@ def test_authority_generators_scoped_to_the_orgs_tier_repos():
         assert sorted(g["repositories"]) == sorted(tiers[org]["repos"])
         assert (g["appID"], g["installID"]) == APPS[org][:2]
     assert "github-app-agentic-stoa-ci-authority" not in gens
-    assert len(gens) == 6
+    assert len(gens) == 7
 
 
 def test_external_secrets_reference_their_generators():
@@ -162,7 +162,7 @@ def test_external_secrets_reference_their_generators():
         ref = d["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]
         assert ref["kind"] == "ClusterGenerator" and ref["name"] in gens
         assert d["spec"]["refreshInterval"] in ("30m", "45m")
-    assert len(_kind("ExternalSecret")) == 6
+    assert len(_kind("ExternalSecret")) == 7
 
 
 def test_role_limited_to_the_state_configmap():
@@ -232,7 +232,9 @@ def test_report_tokens_are_optional_secrets_that_exist():
     assert env["GH_ISSUES_TOKEN"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-issues-derio-frank"
     assert "ci-budget-github-issues-derio-frank" in es
     # stoa has no authority generator: its workflow files are read with the mirror token
-    assert env["GH_AUTHORITY_TOKEN_AGENTIC_STOA"]["valueFrom"]["secretKeyRef"]["name"] == "stoa-github-mirror"
+    assert env["GH_AUTHORITY_TOKEN_AGENTIC_STOA"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-read-agentic-stoa"
+    assert "ci-budget-github-read-agentic-stoa" in es
+    assert "stoa-github-mirror" not in str(_report_pod())
 
 
 def test_issues_generator_is_scoped_to_frank_with_issues_write_only():
@@ -247,6 +249,16 @@ def test_issues_generator_is_scoped_to_frank_with_issues_write_only():
     for name, spec in _generators().items():
         if name != "github-app-derio-frank-issues":
             assert "issues" not in spec["permissions"], name
+
+
+def test_stoa_read_generator_is_read_only_and_scoped_to_the_tier_repos():
+    g = _generators()["github-app-agentic-stoa-ci-read"]
+    assert g["permissions"] == {"contents": "read", "metadata": "read"}
+    assert sorted(g["repositories"]) == sorted(_tiers()["orgs"]["agentic-stoa"]["repos"])
+    assert (g["appID"], g["installID"]) == APPS["agentic-stoa"][:2]
+    assert g["auth"]["privateKey"]["secretRef"] == {"name": "github-app-stoa-key", "key": "key"}
+    (es,) = [d for d in _kind("ExternalSecret") if d["metadata"]["name"] == "ci-budget-github-read-agentic-stoa"]
+    assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["name"] == "github-app-agentic-stoa-ci-read"
 
 
 def test_report_cronjob_is_in_the_kustomization():

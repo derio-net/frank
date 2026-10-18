@@ -4,7 +4,8 @@
 # only - the operator acts by editing tiers.yaml. Same image, initContainer and
 # ConfigMaps as the watcher; no Kubernetes API access, no Gitea or Telegram
 # credentials. agentic-stoa has no authority generator, so its workflow files
-# are read with the stoa-github-mirror token (contents read).
+# are read with a dedicated contents:read generator (github-app-agentic-stoa-ci-read);
+# the mirror token carries statuses:write and is deliberately not used here.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -118,7 +119,7 @@ spec:
                 - name: GH_AUTHORITY_TOKEN_AGENTIC_STOA
                   valueFrom:
                     secretKeyRef:
-                      name: stoa-github-mirror
+                      name: ci-budget-github-read-agentic-stoa
                       key: token
                       optional: true
                 - name: GH_ISSUES_TOKEN

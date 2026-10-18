@@ -73,12 +73,12 @@ def analyse_org(org, ocfg, usage_items, public_repos) -> dict:
         if c["tier"] != "unlisted" or c["minutes"] <= 0:
             continue
         if c["macos"] >= c["minutes"]:
-            props.append({"repo": c["repo"], "action": "github-only",
+            props.append({"repo": c["repo"], "action": "github-only", "unlisted": True,
                           "reason": f"billed {c['minutes']:.0f} minutes, all macOS (cannot run on Gitea)"})
         else:
-            props.append({"repo": c["repo"], "action": "github-preferred",
+            props.append({"repo": c["repo"], "action": "github-preferred", "unlisted": True,
                           "reason": f"billed {c['minutes']:.0f} minutes but is absent from tiers.yaml"})
-    return {"org": org, "used": used, "included": included, "pct": pct, "threshold": threshold,
+    return {"org": org, "third_party": bool(ocfg.get("third_party")), "used": used, "included": included, "pct": pct, "threshold": threshold,
             "over_threshold": pct >= threshold, "pinned_share": pinned, "eligible_share": 1 - pinned if used else 0.0,
             "consumers": consumers, "proposals": props}
 
@@ -93,7 +93,7 @@ def gate_gaps(ocfg, gh, labels, public) -> dict:
             findings = ci_gate_coverage.check_workflows(
                 gh.workflow_files(name), tier, list(cfg.get("gitea_secrets") or []), labels)
         except Exception as e:  # noqa: BLE001 - one unreadable repo must not sink the report
-            out[name] = [f"could not read workflow files: {e}"]
+            out[name] = [f"could not read workflow files: {safe_error(e)}"]
             continue
         lines = sorted(f.line() for f in findings if f.verdict != "ok")
         if lines:
@@ -101,25 +101,72 @@ def gate_gaps(ocfg, gh, labels, public) -> dict:
     return out
 
 
-def render(month_label: str, orgs: dict) -> str:
+def safe_error(e: Exception) -> str:
+    """Class and HTTP status only. The report is posted to a public repo, so an
+    exception's message, URL and response body (repo names, tokens) stay in the log."""
+    status = getattr(e, "status", None)
+    return f"{type(e).__name__}" + (f" {status}" if status else "")
+
+
+def _unlisted(a):
+    return [c for c in a["consumers"] if c["tier"] == "unlisted" and c["minutes"] > 0]
+
+
+def _usage_line(a):
+    return (f"{a['used']:.0f} of {a['included']:.0f} included minutes used ({a['pct']:.1f}%, "
+            f"threshold {a['threshold']:.0f}%). Fallback-eligible share {a['eligible_share']:.0%}, "
+            f"GitHub-pinned share {a['pinned_share']:.0%}.")
+
+
+def _render_third_party(a, gaps):
+    n_gaps = sum(len(v) for v in gaps.values())
+    return [_usage_line(a), f"{len(a['proposals'])} proposals.",
+            f"{n_gaps} gate-coverage gaps across {len(gaps)} repos."]
+
+
+def _render_org(a, gaps, show_unlisted):
+    L = [_usage_line(a), ""]
+    listed = [c for c in a["consumers"] if c["tier"] != "unlisted"]
+    unl = _unlisted(a)
+    L += ["| Repo | Minutes | macOS minutes | Tier |", "| --- | --- | --- | --- |"]
+    L += [f"| {c['repo']} | {c['minutes']:.0f} | {c['macos']:.0f} | {c['tier']} |" for c in listed]
+    if unl:
+        k = sum(1 for p in a["proposals"] if p.get("unlisted") and p["action"] == "github-preferred")
+        j = sum(1 for p in a["proposals"] if p.get("unlisted") and p["action"] == "github-only")
+        L += ["", f"{len(unl)} unlisted private repos, {sum(c['minutes'] for c in unl):.0f} min "
+                  f"({k} \u2192 github-preferred, {j} \u2192 github-only) \u2014 run the report locally "
+                  "with --show-unlisted to see them"]
+    if a["over_threshold"]:
+        ranked = [(c["repo"], c["minutes"], c["macos"], c["tier"]) for c in listed]
+        if unl:
+            ranked.append((f"<unlisted \u00d7{len(unl)}>", sum(c["minutes"] for c in unl),
+                           sum(c["macos"] for c in unl), "unlisted"))
+        ranked.sort(key=lambda t: (-t[1], t[0]))
+        L += ["", "Threshold crossed. Ranked consumers (the pinned minutes kept billing GitHub after the flip):"]
+        L += [f"{i}. {n} [{t}]: {m:.0f} min ({x:.0f} macOS)" for i, (n, m, x, t) in enumerate(ranked, 1)]
+    L += ["", "Proposals:"]
+    L += [f"- {p['repo']} -> {p['action']}: {p['reason']}" for p in a["proposals"] if not p.get("unlisted")] or ["- none"]
+    L += ["", "Gate coverage:"]
+    L += [f"- {n}: {line}" for n, lines in sorted(gaps.items()) for line in lines] or ["- no gaps"]
+    if show_unlisted:
+        L += ["", "Unlisted repos (local view, never posted):"]
+        L += [f"- {c['repo']}: {c['minutes']:.0f} min ({c['macos']:.0f} macOS)" for c in unl] or ["- none"]
+        L += [f"- {p['repo']} -> {p['action']}: {p['reason']}" for p in a["proposals"] if p.get("unlisted")]
+    return L
+
+
+def render(month_label: str, orgs: dict, show_unlisted: bool = False) -> str:
     L = [f"Tier review for {month_label}. Report only: act by editing `apps/ci-budget/tiers.yaml`.", ""]
     for org, res in orgs.items():
         L.append(f"## {org}")
         if "error" in res:
-            L += [f"Could not be analysed: {res['error']}", ""]
+            L += [res["error"], ""]
             continue
         a, gaps = res["analysis"], res["gaps"]
-        L.append(f"{a['used']:.0f} of {a['included']:.0f} included minutes used ({a['pct']:.1f}%, "
-                 f"threshold {a['threshold']:.0f}%). Fallback-eligible share {a['eligible_share']:.0%}, "
-                 f"GitHub-pinned share {a['pinned_share']:.0%}.")
-        if a["over_threshold"]:
-            L += ["", "Threshold crossed. Ranked consumers (the pinned minutes kept billing GitHub after the flip):"]
-            L += [f"{i}. {c['repo']} [{c['tier']}]: {c['minutes']:.0f} min ({c['macos']:.0f} macOS)"
-                  for i, c in enumerate(a["consumers"], 1)]
-        L += ["", "Proposals:"]
-        L += [f"- {p['repo']} -> {p['action']}: {p['reason']}" for p in a["proposals"]] or ["- none"]
-        L += ["", "Gate coverage:"]
-        L += [f"- {n}: {line}" for n, lines in sorted(gaps.items()) for line in lines] or ["- no gaps"]
+        L += _render_third_party(a, gaps) if a.get("third_party") else _render_org(a, gaps, show_unlisted)
+        if show_unlisted and a.get("third_party"):
+            L += ["", "Unlisted repos (local view, never posted):"]
+            L += [f"- {c['repo']}: {c['minutes']:.0f} min" for c in _unlisted(a)] or ["- none"]
         L.append("")
     return "\n".join(L).rstrip() + "\n"
 
@@ -128,12 +175,21 @@ def upsert_issue(issues, issue_title: str, body: str) -> int:
     """Edit the issue with this exact title (any state), else create it."""
     for i in issues.list(LABEL):
         if i.get("title") == issue_title and "pull_request" not in i:
-            issues.edit(i["number"], body)
+            issues.edit(i["number"], body, LABEL)
+            return i["number"]
+    for i in issues.search(issue_title):
+        if i.get("title") == issue_title and "pull_request" not in i:
+            issues.edit(i["number"], body, LABEL)
             return i["number"]
     return issues.create(issue_title, body, LABEL)
 
 
-def main(env=None, http=None, now=None, out=print) -> int:
+def parse_args(argv) -> bool:
+    """True for --show-unlisted (local view: print to stdout, never post)."""
+    return "--show-unlisted" in argv
+
+
+def main(env=None, http=None, now=None, out=print, show_unlisted=False) -> int:
     import yaml
 
     env = os.environ if env is None else env
@@ -145,21 +201,29 @@ def main(env=None, http=None, now=None, out=print) -> int:
     label = f"{year:04d}-{month:02d}"
     results, failed = {}, False
     for org, ocfg in (cfg.get("orgs") or {}).items():
+        stage = "billing read"
         try:
             k = watcher._env_key(org)
             gh = forges.GitHubClient(org, env.get(f"GH_BILLING_TOKEN_{k}"), env.get(f"GH_AUTHORITY_TOKEN_{k}"), http)
             public = gh.public_repos(org)
-            analysis = analyse_org(org, ocfg, gh.billing_usage(org, year, month), public)
+            usage = gh.billing_usage(org, year, month)
+            stage = "analysis"
+            analysis = analyse_org(org, ocfg, usage, public)
             results[org] = {"analysis": analysis, "gaps": gate_gaps(ocfg, gh, labels, public)}
         except Exception as e:  # noqa: BLE001
             failed = True
-            results[org] = {"error": str(e)}
+            # the issue is public: class + status only; the full text stays in the log
+            results[org] = {"error": f"{stage} failed for {org}: {safe_error(e)}"}
             out(f"ci-budget-report error org={org}: {e}")
+    body = render(label, results, show_unlisted)
+    if show_unlisted:
+        out(body)
+        return 1 if failed else 0
     issues = forges.GitHubIssues(env.get("GH_ISSUES_TOKEN"), ISSUE_REPO, http)
-    number = upsert_issue(issues, title(label), render(label, results))
+    number = upsert_issue(issues, title(label), body)
     out(f"ci-budget-report result month={label} issue={number} orgs={len(results)} failed={int(failed)}")
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(show_unlisted=parse_args(sys.argv[1:])))
