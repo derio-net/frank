@@ -1492,9 +1492,12 @@ rows:
     forge gate, or would queue forever on Gitea, are reported.
   origin:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_ci_gate_coverage.py
+  status: ci
+  notes: Implemented in phase 1 (scripts/ci_gate_coverage.py); 36 fixtures with exact
+    verdict sets run in CI; 11 cross-repo PRs validated against it.
   verify: none
 - id: workflows-carry-forge-gates
   capability: CI forge tiers
