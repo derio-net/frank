@@ -717,3 +717,8 @@ Raised by the reviewers on homelab#38, omada-controller#53, presentation-craft#6
 ### xr-vibe-kanban-no-fallback · finding [open] (reviewer: out of scope) · vibe-kanban has no Gitea fallback (Blacksmith runners): review its tier
 
 vibe-kanban#19 pinned all 28 jobs to GitHub. Its test jobs run on blacksmith-16vcpu-ubuntu-2404, and switching them would change GitHub behaviour, so its github-preferred tier moves nothing. Either mark it github-only in tiers.yaml at the next monthly review, or add a separate authority-gated ubuntu-latest check job.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved-2 created=2026-10-18T19:49:28+00:00 phase=2 state=open resolves=p2-r4 tracked_by=https://github.com/derio-net/frank/issues/882 -->
+### p2-r4-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/882] · resolves p2-r4: gitea-listener status webhooks carry no HMAC (phase 2)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/882.
