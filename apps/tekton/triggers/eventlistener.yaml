@@ -60,6 +60,10 @@ spec:
     # cicd-stoa-gitea-org-actions-config (agentic-stoa) and
     # cicd-derio-net-gitea-org (derio-net, derio-homelab). Three orgs since
     # 2026-10-18: github-status picks the GitHub token by repo owner.
+    # The filter is an EXPLICIT repo list (== mirror-reconcile MAIN_REPOS,
+    # guarded by test_ci_mirror_resilience.py), not an org prefix: an org-wide
+    # Gitea hook also delivers repos that are not mirrored (e.g. derio-homelab
+    # repos with no GitHub twin), and forwarding those would 404 on GitHub.
     # Notes: statuses attach to shas, not branches — mirror-main runs also
     # forward (intentional: GitHub main commits get gitea-actions/* statuses
     # too). description/target_url are omitempty in Gitea's payload, hence
@@ -79,9 +83,7 @@ spec:
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'status') &&
-                (body.repository.full_name.startsWith('agentic-stoa/') ||
-                 body.repository.full_name.startsWith('derio-homelab/') ||
-                 body.repository.full_name.startsWith('derio-net/')) &&
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health', 'agentic-stoa/site', 'derio-homelab/kid-laptops', 'derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole', 'derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr'] &&
                 !body.context.startsWith('tekton')
             - name: "overlays"
               value:

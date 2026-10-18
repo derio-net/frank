@@ -224,7 +224,8 @@ spec:
     # push does.
     #
     # kid-laptops is main-sync only (no PR trigger): it runs no PR-time CI on
-    # Frank yet. The PR trigger below therefore lists the four others.
+    # Frank yet. The PR trigger below therefore lists the four others, and
+    # admits same-repo PRs only: a fork PR must not write a sync-pr branch.
     # ──────────────────────────────────────────────────────────────────
     - name: derio-homelab-main-sync
       interceptors:
@@ -269,6 +270,8 @@ spec:
               value: >-
                 body.repository.full_name in ['derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole']
                 && body.action in ['opened', 'synchronize', 'reopened']
+                && has(body.pull_request.head.repo)
+                && body.pull_request.head.repo.full_name == body.repository.full_name
             - name: overlays
               value:
                 - {key: repo_full_name, expression: "body.repository.full_name"}
@@ -331,6 +334,8 @@ spec:
               value: >-
                 body.repository.full_name in ['derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
                 && body.action in ['opened', 'synchronize', 'reopened']
+                && has(body.pull_request.head.repo)
+                && body.pull_request.head.repo.full_name == body.repository.full_name
             - name: overlays
               value:
                 - {key: repo_full_name, expression: "body.repository.full_name"}

@@ -543,3 +543,24 @@ def test_push_failure_and_empty_quiet_snapshot(checker):
     def failed(*args,**kw): raise OSError('private-response')
     assert checker.finish(snapshot,NOW,send=failed) == 1
     assert checker.finish(snapshot,NOW,send=lambda *a,**kw: None) == 0
+
+
+def test_pulls_ignores_fork_prs(checker):
+    def request(forge, repo, path):
+        if not path.endswith('page=1'):
+            return []
+        return [
+            {'number': 1, 'head': {'sha': API_SHA, 'repo': {'full_name': REPO}}},
+            {'number': 2, 'head': {'sha': API_SHA, 'repo': {'full_name': 'evil/hum'}}},
+            {'number': 3, 'head': {'sha': API_SHA, 'repo': None}},
+        ]
+    api = checker.API({}, request=request)
+    assert api.pulls(REPO) == [(1, API_SHA)]
+
+
+def test_every_org_token_volume_is_optional():
+    docs = list(yaml.safe_load_all(MANIFEST.read_text()))
+    vols = {v['name']: v for v in docs[1]['spec']['jobTemplate']['spec']['template']['spec']['volumes']}
+    for name in ('stoa', 'homelab', 'net'):
+        assert vols[name]['secret']['optional'] is True, name
+    assert 'optional' not in vols['gitea']['secret']

@@ -164,14 +164,18 @@ data:
 
 
     def token_for(repo, environ):
-        """The GitHub App token for the repo's org: GITHUB_TOKEN_<ORG> (org upper-cased,
-        '-' -> '_'), else GITHUB_TOKEN. agentic-stoa has no suffixed variable, so it
-        takes the fallback. An org with no token of its own gets the fallback too and
-        therefore a 404, recorded in errors.txt, which fails the Job loudly without
-        taking the other org's repairs down with a KeyError.
+        """The GitHub App token for the repo's org, or None when that org has none.
+
+        agentic-stoa uses GITHUB_TOKEN; every other org uses GITHUB_TOKEN_<ORG>
+        (upper-cased, '-' -> '_'). There is deliberately NO fallback to the stoa
+        token: it is a guaranteed 404 on another org's private repo and sends one
+        org's credential to a repo it was not minted for. A None is recorded by
+        the caller as a per-repo error, which fails the Job loudly without taking
+        the other orgs' repairs down.
         """
-        var = "GITHUB_TOKEN_" + repo.split("/")[0].upper().replace("-", "_")
-        return environ.get(var) or environ["GITHUB_TOKEN"]
+        org = repo.split("/")[0]
+        var = "GITHUB_TOKEN" if org == "agentic-stoa" else "GITHUB_TOKEN_" + org.upper().replace("-", "_")
+        return environ.get(var) or None
 
 
     def _github(path, token):
@@ -188,7 +192,6 @@ data:
 
 
     def main():
-        os.environ["GITHUB_TOKEN"]  # the fallback token must exist: fail before any API call
         plan_dir = os.environ.get("PLAN_DIR", "/plan")
         main_repos = os.environ["MAIN_REPOS"].split()
         pr_repos = os.environ["PR_REPOS"].split()
@@ -206,9 +209,15 @@ data:
         for repo in sorted(set(main_repos + pr_repos) - listed):
             errors.append(f"{repo}: Gitea heads unreadable")
 
+        def token(repo):
+            tok = token_for(repo, os.environ)
+            if tok is None:
+                raise RuntimeError(f"no GitHub token for org {repo.split('/')[0]}")
+            return tok
+
         def github_head(repo):
             try:
-                branch = _github(f"/repos/{repo}/branches/main", token_for(repo, os.environ))
+                branch = _github(f"/repos/{repo}/branches/main", token(repo))
                 return branch["commit"]["sha"], _ts(branch["commit"]["commit"]["committer"]["date"])
             except Exception as exc:  # one repo's failure must not stop the rest
                 errors.append(f"{repo}: GitHub main unreadable: {exc}")
@@ -216,15 +225,19 @@ data:
 
         def github_open_prs(repo):
             try:
-                prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token_for(repo, os.environ))
-                return [(p["number"], p["head"]["sha"]) for p in prs]
+                prs = _github(f"/repos/{repo}/pulls?state=open&per_page=100", token(repo))
+                # Same-repo PRs only: a fork PR never gets a sync-pr branch.
+                return [
+                    (p["number"], p["head"]["sha"]) for p in prs
+                    if p["head"].get("repo") and p["head"]["repo"]["full_name"] == repo
+                ]
             except Exception as exc:
                 errors.append(f"{repo}: GitHub PRs unreadable: {exc}")
                 return []
 
         def commit_time(repo, sha):
             try:
-                commit = _github(f"/repos/{repo}/commits/{sha}", token_for(repo, os.environ))
+                commit = _github(f"/repos/{repo}/commits/{sha}", token(repo))
                 return _ts(commit["commit"]["committer"]["date"])
             except Exception as exc:
                 errors.append(f"{repo}: GitHub commit {sha[:12]} unreadable: {exc}")
@@ -260,12 +273,17 @@ data:
     # an event, which is worth a look even when the Job succeeds.
     set -u
     . /scripts/common.sh
-    # Same rule as plan.py's token_for: GITHUB_TOKEN_<ORG> (upper-cased, '-' -> '_'),
-    # else GITHUB_TOKEN. Each org is its own GitHub App installation.
+    # Same rule as plan.py's token_for: agentic-stoa uses GITHUB_TOKEN, every other
+    # org GITHUB_TOKEN_<ORG> (upper-cased, '-' -> '_'). NO fallback to the stoa
+    # token for another org: an empty token returns non-zero and the repo is
+    # counted as failed (no-token), never fetched with a credential from
+    # another org. Each org is its own GitHub App installation.
     auth_for() {
-      var="GITHUB_TOKEN_$(printf '%s' "${1%%/*}" | tr 'a-z-' 'A-Z_')"
+      org="${1%%/*}"
+      if [ "$org" = "agentic-stoa" ]; then var=GITHUB_TOKEN
+      else var="GITHUB_TOKEN_$(printf '%s' "$org" | tr 'a-z-' 'A-Z_')"; fi
       eval "tok=\${$var:-}"
-      [ -n "$tok" ] || tok="$GITHUB_TOKEN"
+      [ -n "$tok" ] || return 1
       printf 'Authorization: Basic %s' "$(printf 'x-access-token:%s' "$tok" | base64 | tr -d '\n')"
     }
     drift=0 repaired=0 skipped=0 failed=0
@@ -286,7 +304,11 @@ data:
         prev="$bare"
       fi
       [ -d "$bare" ] || git init -q --bare "$bare"
-      auth="$(auth_for "$repo")"
+      if ! auth="$(auth_for "$repo")"; then
+        echo "mirror-reconcile no-token $repo"
+        failed=$((failed + 1))
+        continue
+      fi
       if ! git -C "$bare" -c http.extraHeader="$auth" fetch -q \
           "$GITHUB_GIT/$repo.git" "+$src:refs/reconcile/src"; then
         echo "mirror-reconcile fetch-failed $repo $src"
@@ -419,7 +441,7 @@ spec:
                     derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
                 - {name: GRACE_MINUTES, value: "10"}
                 - name: GITHUB_TOKEN
-                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token, optional: true}}
                 # optional: a missing derio-homelab Secret must only blind
                 # kid-laptops (404 -> plan error -> Job fails loudly), never stop
                 # the agentic-stoa repairs with CreateContainerConfigError.
@@ -441,7 +463,7 @@ spec:
                 - {name: HOME, value: /tmp/home}
                 - {name: DRY_RUN, value: "0"}
                 - name: GITHUB_TOKEN
-                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                  valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token, optional: true}}
                 - name: GITHUB_TOKEN_DERIO_HOMELAB
                   valueFrom: {secretKeyRef: {name: derio-homelab-github-mirror, key: token, optional: true}}
                 - name: GITHUB_TOKEN_DERIO_NET

@@ -236,10 +236,12 @@ def test_plan_reads_each_repo_with_its_own_orgs_token() -> None:
     assert token_for("agentic-stoa/hum", env) == "stoa"
     assert token_for("derio-homelab/kid-laptops", env) == "homelab"
     assert token_for("derio-net/willikins", env) == "net"
-    # An org with no token of its own falls back to the original one: the
-    # request then fails loudly (404) into errors.txt and fails the Job, which
-    # is better than a KeyError that takes the other org's repairs down too.
-    assert token_for("someone-else/x", env) == "stoa"
+    # No fallback to the stoa token for another org (p2-r6): a missing token is
+    # None, which the caller records as a per-repo error.
+    assert token_for("someone-else/x", env) is None
+    assert token_for("derio-net/willikins", {"GITHUB_TOKEN": "stoa"}) is None
+    assert token_for("derio-homelab/homelab", {"GITHUB_TOKEN": "stoa"}) is None
+    assert token_for("agentic-stoa/hum", {"GITHUB_TOKEN_DERIO_NET": "net"}) is None
 
 
 def test_reconciler_cannot_regress_a_newer_gitea_head() -> None:
@@ -390,8 +392,8 @@ def test_main_wires_github_and_gitea_into_the_plan(tmp_path, monkeypatch) -> Non
     responses = {
         "/repos/agentic-stoa/a/branches/main": {"commit": {"sha": "newmain", "commit": {"committer": {"date": old}}}},
         "/repos/agentic-stoa/a/pulls?state=open&per_page=100": [
-            {"number": 5, "head": {"sha": "prsha"}},
-            {"number": 6, "head": {"sha": "pr6sha"}},
+            {"number": 5, "head": {"sha": "prsha", "repo": {"full_name": "agentic-stoa/a"}}},
+            {"number": 6, "head": {"sha": "pr6sha", "repo": {"full_name": "agentic-stoa/a"}}},
         ],
         "/repos/agentic-stoa/a/commits/pr6sha": {"commit": {"committer": {"date": old}}},
     }
@@ -477,3 +479,68 @@ def test_the_repair_path_has_its_own_dead_man() -> None:
 @pytest.mark.parametrize("uid", [SYNC_FAILING_UID, RECONCILE_STALE_UID])
 def test_new_rules_fit_grafanas_uid_limit(uid: str) -> None:
     assert len(uid) <= 40
+
+
+def _run_plan_main(tmp_path, monkeypatch, github, *, env_extra=None, main="agentic-stoa/hum", pr="agentic-stoa/hum"):
+    mod = _plan_module()
+    (tmp_path / "gitea-heads.txt").write_text(f"{main} __listed__ -\n")
+    for k, v in {"PLAN_DIR": str(tmp_path), "MAIN_REPOS": main, "PR_REPOS": pr,
+                 "GRACE_MINUTES": "0", **(env_extra or {})}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(mod, "_github", github)
+    mod.main()
+    return (tmp_path / "plan.txt").read_text(), (tmp_path / "errors.txt").read_text()
+
+
+def test_plan_ignores_fork_prs(tmp_path, monkeypatch) -> None:
+    """A fork PR's head sha is not in the base repo's refs the way a same-repo
+    head is, and a fork author must not get a sync-pr branch on the mirror."""
+    repo = "agentic-stoa/hum"
+    sha_in, sha_fork = "a" * 40, "b" * 40
+    when = {"commit": {"committer": {"date": "2026-01-01T00:00:00Z"}}}
+
+    def github(path, token):
+        if path.startswith(f"/repos/{repo}/pulls"):
+            return [
+                {"number": 1, "head": {"sha": sha_in, "repo": {"full_name": repo}}},
+                {"number": 2, "head": {"sha": sha_fork, "repo": {"full_name": "evil/hum"}}},
+                {"number": 3, "head": {"sha": sha_fork, "repo": None}},
+            ]
+        if "/branches/main" in path:
+            return {"commit": {"sha": "c" * 40, **when}}
+        return when
+
+    plan, _ = _run_plan_main(tmp_path, monkeypatch, github, env_extra={"GITHUB_TOKEN": "t"})
+    assert "sync-pr-1" in plan and "sync-pr-2" not in plan and "sync-pr-3" not in plan
+
+
+def test_plan_records_a_per_repo_error_when_an_orgs_token_is_missing(tmp_path, monkeypatch) -> None:
+    calls = []
+
+    def github(path, token):
+        calls.append((path, token))
+        raise AssertionError("must not call GitHub without that org's token")
+
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN_DERIO_NET", raising=False)
+    plan, errors = _run_plan_main(
+        tmp_path, monkeypatch, github, main="derio-net/willikins", pr="derio-net/willikins",
+        env_extra={"GITHUB_TOKEN": "stoa-only"},
+    )
+    assert plan == "" and not calls
+    assert "derio-net/willikins" in errors and "token" in errors.lower()
+
+
+def test_gitea_status_bridge_lists_exactly_the_mirrored_main_repos() -> None:
+    trig = {t["name"]: t for t in _one(EL_GITEA, "EventListener", "gitea-listener")["spec"]["triggers"]}
+    flt = _cel(trig["gitea-status-bridge"])["filter"]
+    listed = re.search(r"body\.repository\.full_name in \[([^\]]*)\]", flt)
+    assert listed, "status bridge must name an explicit repo list (p2-r3)"
+    repos = re.findall(r"'([^']+)'", listed.group(1))
+    pod = _cronjob()["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    main_env = next(
+        e["value"] for c in pod["initContainers"] for e in c.get("env", []) if e["name"] == "MAIN_REPOS"
+    )
+    assert sorted(repos) == sorted(main_env.split())
+    assert "!body.context.startsWith('tekton')" in flt
+    assert "startsWith('agentic-stoa/')" not in flt

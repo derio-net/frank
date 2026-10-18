@@ -16,11 +16,14 @@
 # (derio-net → derio-fr-automation, agentic-stoa → stoa-fr-automation) and keeps
 # key compromise scoped to a single org.
 #
-# Installed on derio-homelab scoped to kid-laptops ONLY (verified:
-# repository_selection=selected, total_count=1). Permissions: contents:read,
-# metadata:read, statuses:write — the last is not needed by the mirror but
-# satisfies requirement 8 (GitHub commit-status merge gate) in advance, since
-# adding a permission later forces every installation to re-approve.
+# Installed on derio-homelab (repository_selection=selected) for kid-laptops and,
+# since 2026-10-18 (frank#875), the four github-preferred repos proxmox-cluster,
+# omada-controller, homelab and ansible-pihole. The minted token is narrowed to
+# exactly those five repos and to contents:read, pull_requests:read (open PR
+# heads for mirror-reconcile), statuses:write (the gitea-actions/* status
+# bridge) and metadata:read, so a leak of the Tekton secret reaches nothing
+# else the installation can see. Adding a permission later forces the org to
+# re-approve (manual op cicd-ci-budget-app-permissions).
 #
 # NOTE: ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret's
 # namespace (tekton-pipelines) and IGNORES secretRef.namespace — deliberately no
@@ -48,3 +51,14 @@ spec:
           secretRef:
             name: github-app-homelab-key
             key: key
+      permissions:
+        contents: read
+        pull_requests: read
+        statuses: write
+        metadata: read
+      repositories:
+        - kid-laptops
+        - proxmox-cluster
+        - omada-controller
+        - homelab
+        - ansible-pihole

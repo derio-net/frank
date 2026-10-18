@@ -8,9 +8,9 @@
 #   agentic-stoa  -> GITHUB_TOKEN               (stoa-github-mirror)
 #   derio-homelab -> GITHUB_TOKEN_DERIO_HOMELAB (derio-homelab-github-mirror)
 #   derio-net     -> GITHUB_TOKEN_DERIO_NET     (derio-net-github-mirror)
-# The two newer Secrets are `optional: true`, so a missing one blinds only
-# that org's TaskRuns (the step fails naming the owner) and never stops the
-# agentic-stoa callers with CreateContainerConfigError. A missing token never
+# All three Secrets are `optional: true`, so a missing one blinds only that
+# org's TaskRuns (the step fails naming the owner) and never stops another
+# org's with CreateContainerConfigError. A missing token never
 # falls back to another org's.
 #
 # Used as the mandatory final step of any pipeline that runs against a
@@ -63,6 +63,7 @@ spec:
             secretKeyRef:
               name: stoa-github-mirror
               key: token
+              optional: true
         - name: GITHUB_TOKEN_DERIO_HOMELAB
           valueFrom:
             secretKeyRef:

@@ -181,7 +181,13 @@ data:
             for p in data:
                 if type(p['number']) is not int or p['number'] <= 0:
                     raise ValueError('malformed PR number')
-                result.append((p['number'], sha_value(p['head']['sha'])))
+                sha = sha_value(p['head']['sha'])
+                # Same-repo PRs only, matching the mirror trigger and the
+                # reconciler: a fork PR never gets a sync-pr branch.
+                head_repo = p['head'].get('repo')
+                if not head_repo or head_repo.get('full_name') != repo:
+                    continue
+                result.append((p['number'], sha))
             return result
 
         def commit_time(self, repo, sha):
@@ -348,7 +354,7 @@ spec:
             - name: scripts
               configMap: {name: ci-delivery-check-scripts}
             - name: stoa
-              secret: {secretName: stoa-github-mirror, defaultMode: 0440, items: [{key: token, path: token}]}
+              secret: {secretName: stoa-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
             - name: homelab
               secret: {secretName: derio-homelab-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
             - name: net

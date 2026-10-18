@@ -251,3 +251,26 @@ def test_push_fetches_each_org_with_that_orgs_own_token(world: dict) -> None:
     homelab = next(l for l in fetches if "/derio-homelab/k.git" in l)
     assert header("stoa-tok") in stoa and header("homelab-tok") not in stoa
     assert header("homelab-tok") in homelab and header("stoa-tok") not in homelab
+
+
+def test_push_never_falls_back_to_another_orgs_token(world: dict) -> None:
+    """An org whose own token is missing must fail ITS repos (no-token, failed=1),
+    never be fetched with the agentic-stoa token: that is a guaranteed 404 and
+    sends one org's credential to a repo it was not minted for."""
+    if world["runner"] != "host":
+        pytest.skip("the git shim is host-side")
+    c, root = world["c"], world["root"]
+    shim = root / "shim2"
+    shim.mkdir()
+    log = root / "fetch2.log"
+    (shim / "git").write_text(
+        f"#!/bin/sh\ncase \"$*\" in *http.extraHeader=*) printf '%s\\n' \"$*\" >> {log};; esac\n"
+        f"exec {shutil.which('git')} \"$@\"\n"
+    )
+    (shim / "git").chmod(0o755)
+    _plan(world, f"derio-net/k refs/heads/main refs/heads/main {c['c2']} {c['c1']}")
+    res = _run(world, "push.sh", PATH=f"{shim}:{os.environ['PATH']}", GITHUB_TOKEN="stoa-tok")
+    assert res.returncode != 0
+    assert "no-token derio-net/k" in res.stdout
+    assert "failed=1" in res.stdout
+    assert not log.exists(), "nothing may be fetched with another org's token"

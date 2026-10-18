@@ -82,7 +82,7 @@ def test_owner_selects_its_own_token(tmp_path: Path, org: str) -> None:
     assert sent == f"Authorization: token {TOKENS[org][1]}"
 
 
-@pytest.mark.parametrize("org", ["derio-homelab", "derio-net"])
+@pytest.mark.parametrize("org", ["agentic-stoa", "derio-homelab", "derio-net"])
 def test_missing_org_token_fails_naming_the_owner_and_sends_nothing(tmp_path: Path, org: str) -> None:
     tokens = _all_tokens()
     tokens[TOKENS[org][0]] = ""
@@ -111,7 +111,9 @@ def test_secret_refs_are_optional_for_the_new_orgs() -> None:
     env = {e["name"]: e for e in _step()["env"]}
     stoa = env["GITHUB_TOKEN"]["valueFrom"]["secretKeyRef"]
     assert (stoa["name"], stoa["key"]) == ("stoa-github-mirror", "token")
-    assert not stoa.get("optional")
+    # Optional too (p2-r6): the empty-token check fails that owner loudly, and a
+    # missing stoa Secret must not stop the other two orgs' TaskRuns starting.
+    assert stoa.get("optional") is True
     for var, secret in (
         ("GITHUB_TOKEN_DERIO_HOMELAB", "derio-homelab-github-mirror"),
         ("GITHUB_TOKEN_DERIO_NET", "derio-net-github-mirror"),

@@ -102,9 +102,10 @@ webhooks:
     serves: [gitea-status-bridge]
     note: >-
       Org-level and status-ONLY: forwards Gitea Actions statuses on the four
-      github-preferred homelab mirrors (and kid-laptops, whose Tekton statuses
-      are excluded by the tekton* context filter) to GitHub, written with the
-      derio-homelab token. The existing kid-laptops repo hook (push) is a
+      github-preferred homelab mirrors and kid-laptops to GitHub, written with
+      the derio-homelab token. kid-laptops' Gitea Actions statuses are
+      forwarded by design: it is gitea-only, so its Gitea results belong on
+      GitHub (Tekton's own tekton* contexts are still filtered out). The existing kid-laptops repo hook (push) is a
       different path and stays. Created by manual-op
       cicd-derio-net-gitea-org alongside the derio-net one.
 

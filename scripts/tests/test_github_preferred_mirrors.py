@@ -96,6 +96,11 @@ def test_pr_sync_triggers_serve_the_tier_repos_only_and_write_sync_pr_refs() -> 
         overlays = str(cel["overlays"])
         assert "refs/heads/sync-pr-" in overlays and "body.pull_request.head.sha" in overlays
         assert _github_secret(t) == SECRETS[org]
+        # p2-r1: a fork PR must never write a sync-pr branch on the mirror.
+        assert cel["filter"].rstrip().endswith(
+            "&& has(body.pull_request.head.repo) && "
+            "body.pull_request.head.repo.full_name == body.repository.full_name"
+        ), cel["filter"]
         events = next(
             p["value"] for i in t["interceptors"] if i.get("ref", {}).get("name") == "github"
             for p in i["params"] if p["name"] == "eventTypes"
@@ -153,8 +158,7 @@ def test_gitea_push_excludes_derio_net_and_status_bridge_admits_three_orgs() -> 
     for org in ("agentic-stoa", "derio-homelab", "derio-net"):
         assert f"!body.repository.full_name.startsWith('{org}/')" in push
     bridge = _cel(trig["gitea-status-bridge"])["filter"]
-    for org in ("agentic-stoa", "derio-homelab", "derio-net"):
-        assert f"body.repository.full_name.startsWith('{org}/')" in bridge
+    assert "startsWith('agentic-stoa/')" not in bridge, "explicit list, not an org prefix (p2-r3)"
     assert "!body.context.startsWith('tekton')" in bridge
 
 
@@ -162,3 +166,21 @@ def test_status_bridge_pipeline_keeps_its_name_and_says_three_orgs() -> None:
     p = _one(BRIDGE, "Pipeline")
     assert p["metadata"]["name"] == "stoa-status-bridge"
     assert "three" in p["spec"]["description"].lower()
+
+
+def test_homelab_generator_is_scoped_to_the_five_repos_with_minimal_permissions() -> None:
+    path = TEKTON / "manifests/clustergenerator-derio-homelab-github-app.yaml"
+    spec = _one(path, "ClusterGenerator")["spec"]["generator"]["githubAccessTokenSpec"]
+    assert spec["permissions"] == {
+        "contents": "read", "pull_requests": "read", "statuses": "write", "metadata": "read",
+    }
+    assert sorted(spec["repositories"]) == sorted(
+        r.split("/")[1] for r in _preferred("derio-homelab") + ["derio-homelab/kid-laptops"]
+    )
+    assert "kid-laptops ONLY" not in path.read_text()
+
+
+def test_webhooks_do_not_claim_kid_laptops_statuses_are_all_tekton() -> None:
+    text = (TEKTON / "webhooks.yaml").read_text()
+    assert "are excluded by the tekton* context filter" not in text
+    assert "forwarded by design" in text
