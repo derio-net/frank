@@ -201,7 +201,7 @@ def test_issues_client_lists_all_states_across_pages_and_patches_body():
 
     def http(method, url, headers=None, body=None):
         seen.append((method, url, body))
-        if method == "GET" and "page=1" in url:
+        if method == "GET" and url.endswith("&page=1"):
             return 200, [{"number": i, "title": f"t{i}"} for i in range(100)]
         if method == "GET":
             return 200, [{"number": 100, "title": "last"}]
@@ -241,7 +241,7 @@ def test_main_end_to_end_upserts_once_across_two_runs(tmp_path):
             return 200, {"content": _b64(UNGATED)}
         if "/repos/derio-net/frank/issues" in url:
             if method == "GET":
-                return 200, issues if "page=1" in url else []
+                return 200, issues if url.endswith("&page=1") else []
             if method == "POST":
                 issues.append({"number": 9, "title": body["title"], "body": body["body"]})
                 return 201, {"number": 9}
