@@ -61,16 +61,21 @@ steps:
       phase/6:
         state: manual
       phase/1/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-18T14:47:38+00:00'
           agent: a12fdc0984aa443a6
           agent_type: super-fr:fr-phase-executor
           harness: claude-code
-          model: claude-sonnet-5
+          model: claude-sonnet-5-5
           tier: standard
           bound: sonnet
           session: f8c04d2c-b477-4d2b-8144-f38afe34098a
+          returned: '2026-10-18T14:51:19+00:00'
+          outcome: done
+        evidence:
+          tests: p875-phase1-tests.log@d7aeb715f197;tree=c2791777117522ac03467408f231427716613bcd32a956241a87d7176273d7e3
+          visual: none
   journal-check:
     state: pending
   deliver:
