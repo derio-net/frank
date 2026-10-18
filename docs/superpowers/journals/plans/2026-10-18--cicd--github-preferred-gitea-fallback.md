@@ -199,3 +199,108 @@ New manifests cloned from the homelab precedent and the four TriggerTemplates ge
 ### no-refactor-p2-t3 · discovery · no-refactor-because P2.T3 (phase 2)
 
 Edits were list widenings plus one TOKEN_FILES constant; the delivery-check org gate already shares that constant with main(), nothing left to clean.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r1 · finding [open] (reviewer: in scope) · PR-sync triggers mirrored fork PR heads into the privileged shared DinD (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r2 · finding [open] (reviewer: in scope) · mirror-reconcile / ci-delivery-check re-created or expected sync-pr refs for fork PRs (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r3 · finding [open] (reviewer: in scope) · Status bridge admitted whole orgs by prefix (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=out -->
+### p2-r4 · finding [open] (reviewer: out of scope) · gitea-listener status webhooks carry no HMAC (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r5 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r5 · finding [open] (reviewer: in scope) · Merging would page: lists name nine repos whose Gitea side is created post-merge (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r6 · finding [open] (reviewer: in scope) · Stoa token mandatory everywhere and token_for fell back to the stoa token for other orgs (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r7 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r7 · finding [open] (reviewer: in scope) · Renamed TriggerTemplate orphaned live under prune:false (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r8 · finding [open] (reviewer: in scope) · Homelab ClusterGenerator unscoped with stale header (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-r9 · finding [open] (reviewer: in scope) · Unverified claim that kid-laptops statuses are all tekton* (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=finding scope=plan id=p2-sec1 created=2026-10-18T15:31:13+00:00 phase=2 state=open review_scope=in -->
+### p2-sec1 · finding [open] (reviewer: in scope) · Automated security review: status bridge unauthenticated + org-prefix filter; fork PR mirroring in triggers and reconciler (phase 2)
+
+Raised in phase-2 review.
+
+<!-- fr:journal kind=review scope=plan id=review-p2 created=2026-10-18T15:31:13+00:00 phase=2 -->
+### review-p2 · review · Phase 2 code review: 9 findings (8 in, 1 out), all handled (phase 2)
+
+Independent code-reviewer subagent reviewed 30d153f5, f2137b70 and 6f07f05b against spec §2/§3 and plan 02.yaml, ran 236 tests, and gave explicit verdicts on three security items (all confirmed). In-scope findings were fixed TDD in 1b481097 and f50965ea, or in spec, prose and 06.yaml. p2-r4 (HMAC) is out of scope as pre-existing. The orchestrator re-ran the suites: 176 passed, 2 skipped.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r1 -->
+### p2-r1-resolved · finding [fixed] · resolves p2-r1: PR-sync triggers mirrored fork PR heads into the privileged shared DinD (phase 2)
+
+Same-repo CEL filter on derio-net-pr-sync and derio-homelab-pr-sync (1b481097).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r2 -->
+### p2-r2-resolved · finding [fixed] · resolves p2-r2: mirror-reconcile / ci-delivery-check re-created or expected sync-pr refs for fork PRs (phase 2)
+
+plan.py github_open_prs and ci-delivery-check pulls skip forks, with fork fixtures (1b481097).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r3 -->
+### p2-r3-resolved · finding [fixed] · resolves p2-r3: Status bridge admitted whole orgs by prefix (phase 2)
+
+Explicit 21-repo allowlist guarded equal to mirror-reconcile MAIN_REPOS (1b481097, f50965ea).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=open resolves=p2-r4 out_of_scope=true -->
+### p2-r4-resolved · finding [out-of-scope] · resolves p2-r4: gitea-listener status webhooks carry no HMAC (phase 2)
+
+Pre-existing for agentic-stoa since 2026-07-19; closing it needs a secret on every Gitea org hook (manual op) and a github-interceptor on the trigger. This change narrows the surface to an explicit repo list (p2-r3) but does not cause the gap. Filed at deliver as a follow-up.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r5-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r5 -->
+### p2-r5-resolved · finding [fixed] · resolves p2-r5: Merging would page: lists name nine repos whose Gitea side is created post-merge (phase 2)
+
+Gitea org, repos and status hooks moved to PRE-MERGE in spec §8, plan prose and 06.yaml; GitHub repo webhooks stay post-merge.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r6 -->
+### p2-r6-resolved · finding [fixed] · resolves p2-r6: Stoa token mandatory everywhere and token_for fell back to the stoa token for other orgs (phase 2)
+
+Stoa token optional in github-status, mirror-reconcile, ci-delivery-check; no cross-org fallback, per-repo error instead (1b481097).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r7-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r7 -->
+### p2-r7-resolved · finding [fixed] · resolves p2-r7: Renamed TriggerTemplate orphaned live under prune:false (phase 2)
+
+New manual op cicd-kid-laptops-template-orphan-delete, in phase 6.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r8 -->
+### p2-r8-resolved · finding [fixed] · resolves p2-r8: Homelab ClusterGenerator unscoped with stale header (phase 2)
+
+Scoped to 5 repos and 4 permissions, header fixed, test added (1b481097).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-r9 -->
+### p2-r9-resolved · finding [fixed] · resolves p2-r9: Unverified claim that kid-laptops statuses are all tekton* (phase 2)
+
+webhooks.yaml note now says kid-laptops Gitea Actions statuses are forwarded by design (1b481097).
+
+<!-- fr:journal kind=finding scope=plan id=p2-sec1-resolved created=2026-10-18T15:31:13+00:00 phase=2 state=fixed resolves=p2-sec1 -->
+### p2-sec1-resolved · finding [fixed] · resolves p2-sec1: Automated security review: status bridge unauthenticated + org-prefix filter; fork PR mirroring in triggers and reconciler (phase 2)
+
+Same fixes as p2-r1/r2/r3; HMAC part tracked as p2-r4.
