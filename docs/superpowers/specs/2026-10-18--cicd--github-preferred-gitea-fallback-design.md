@@ -528,16 +528,20 @@ draft until they pass.
   `github`, push a workflow echoing `vars.CI_AUTHORITY`, confirm `github`;
   create a branch through the API and confirm the push-triggered run starts.
   Delete the scratch repo.
-- `cicd-derio-net-gitea-org` — create the `derio-net` Gitea org; grant
+- `cicd-derio-net-gitea-org` **[PRE-MERGE]** — create the `derio-net` Gitea org; grant
   `stoa-bot` write on it; create the `ci-budget` bot (org owner on derio-net
   and derio-homelab) and its token, and the `read:admin` probe token (SOPS
   secrets `ci-budget-gitea`, `ci-budget-gitea-probe`); add the org `status`
   webhook on derio-net and on derio-homelab.
-- `cicd-github-preferred-gitea-mirrors` — create the nine Gitea repos with
+- `cicd-github-preferred-gitea-mirrors` **[PRE-MERGE]** (except the GitHub
+  repo webhooks, added after merge) — the merged reconciler and delivery check
+  list the nine repos at once, so they must already exist on Gitea — create the nine Gitea repos with
   `has_actions: true` and repo variable `CI_AUTHORITY=github`; backfill; add
   the nine GitHub repo webhooks.
 - `cicd-gitea-readonly-secrets` — set each `gitea_secrets` entry as a Gitea
   repository secret on its own repo.
+- `cicd-kid-laptops-template-orphan-delete` — delete the TriggerTemplate the
+  kid-laptops trigger rename leaves behind under `prune: false`.
 - `cicd-ci-budget-go-live` — after every repo PR has merged and the
   post-merge rows pass, change an org's `mode` to `live` in git.
 

@@ -21,7 +21,7 @@ tasks:
       Run manual-op cicd-ci-budget-app-permissions (App permissions, re-approvals, installation widening, then a live billing read with each org's App installation token). If any org refuses an installation token, stop and return to the operator.
   - id: P6.T1.S2
     text: |-
-      Run manual-op cicd-gitea-variable-semantics (a repo variable overrides the org one; an API-created branch fires a push-triggered run).
+      Run manual-op cicd-gitea-variable-semantics (a repo variable overrides the org one; an API-created branch fires a push-triggered run, including a paths-filtered one). Then run cicd-derio-net-gitea-org and cicd-github-preferred-gitea-mirrors (Gitea side only; the GitHub repo webhooks wait for merge).
 - number: 2
   title: Cross-repo workflow PRs (R17)
   steps:
@@ -33,7 +33,7 @@ tasks:
   steps:
   - id: P6.T3.S1
     text: |-
-      Run manual-ops cicd-derio-net-gitea-org, cicd-github-preferred-gitea-mirrors and cicd-gitea-readonly-secrets.
+      After merge: add the nine GitHub repo webhooks (last command of cicd-github-preferred-gitea-mirrors), run cicd-gitea-readonly-secrets and cicd-kid-laptops-template-orphan-delete.
   - id: P6.T3.S2
     text: |-
       After the repo PRs merge and the spec Test Plan rows pass, run cicd-ci-budget-go-live per org.

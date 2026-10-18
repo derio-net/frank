@@ -82,7 +82,7 @@ id: cicd-derio-net-gitea-org
 layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-10-18--cicd--github-preferred-gitea-fallback/06.yaml
-when: After the frank PR merges, before the mirrors are created.
+when: PRE-MERGE — the merged reconciler and delivery check list the nine repos immediately, so their Gitea org, repos and status hooks must already exist (review p2-r5; the #836 shape).
 why_manual: Gitea org, bot users and tokens are forge UI/API state; tokens are SOPS bootstrap secrets.
 commands:
   - '# create Gitea org derio-net (private); add stoa-bot to a team with write on all repos'
@@ -102,14 +102,14 @@ id: cicd-github-preferred-gitea-mirrors
 layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-10-18--cicd--github-preferred-gitea-fallback/06.yaml
-when: After cicd-derio-net-gitea-org.
+when: PRE-MERGE, after cicd-derio-net-gitea-org — except the GitHub repo webhooks (last command), which are added AFTER merge so their first deliveries find the new triggers live.
 why_manual: One-time Gitea repo creation and history backfill with stoa-bot credentials, plus GitHub repo webhooks (pattern of cicd-stoa-site-gitea-mirror).
 commands:
   - '# for each of derio-net/{willikins,herdr-vertical-tabs,presentation-craft,vibe-kanban,runs-fr} and derio-homelab/{proxmox-cluster,omada-controller,homelab,ansible-pihole}:'
   - '#   POST /api/v1/orgs/<org>/repos {"name":"<repo>","private":true,"default_branch":"main"}; PATCH /api/v1/repos/<org>/<repo> {"has_actions":true}'
   - '#   POST /api/v1/repos/<org>/<repo>/actions/variables/CI_AUTHORITY {"value":"github"}'
   - '#   git clone --mirror git@github.com:<org>/<repo>.git && git push --mirror ssh://git@192.168.55.209:2222/<org>/<repo>.git'
-  - '#   GitHub repo webhook: push + pull_request → the github-listener URL, secret = the org webhook secret (derio-net-github-webhook-secret / derio-homelab-github-webhook-secret)'
+  - '#   POST-MERGE ONLY: GitHub repo webhook: push + pull_request → the github-listener URL, secret = the org webhook secret (derio-net-github-webhook-secret / derio-homelab-github-webhook-secret)'
 verify:
   - A test push to each repo creates a matching ref on Gitea within a minute (github-listener PipelineRun Succeeded).
 status: pending
@@ -143,5 +143,21 @@ commands:
   - '# in apps/ci-budget/tiers.yaml set orgs.<org>.mode: live; PR, merge'
 verify:
   - The next ci-budget-watcher heartbeat line for the org shows mode=live.
+status: pending
+```
+
+```yaml
+# manual-operation
+id: cicd-kid-laptops-template-orphan-delete
+layer: cicd
+app: tekton
+plan: docs/superpowers/plans/2026-10-18--cicd--github-preferred-gitea-fallback/06.yaml
+when: After the frank PR merges and tekton-extras has synced the renamed derio-homelab-main-sync trigger.
+why_manual: tekton-extras runs prune:false, so the TriggerTemplate renamed away from derio-homelab-kid-laptops-main-sync-template stays live as an orphan (review p2-r7).
+commands:
+  - source .env && kubectl -n tekton-pipelines get triggertemplate derio-homelab-main-sync-template
+  - kubectl -n tekton-pipelines delete triggertemplate derio-homelab-kid-laptops-main-sync-template
+verify:
+  - kubectl -n tekton-pipelines get triggertemplate derio-homelab-kid-laptops-main-sync-template returns NotFound
 status: pending
 ```
