@@ -3,7 +3,7 @@ run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
 workflow: fr-goal@1
 branch: feat/cicd-github-preferred-gitea-fallback
 started: '2026-10-18T14:00:29+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -210,7 +210,12 @@ steps:
           visual: none
           findings: p5-r1,p5-r2,p5-r3,p5-r4,p5-r5,p5-r6,p5-r7,p5-r8
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-18T19:38:19+00:00'
+    exit: 0
+    stdout: |
+      1 out-of-scope finding(s): p2-r4
+      1 owed action(s) open: willikins-doc-pr-authority
   deliver:
     state: pending
 fr_version: 5.27.0rc3
