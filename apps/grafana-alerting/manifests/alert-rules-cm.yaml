@@ -3399,3 +3399,119 @@ data:
             annotations:
               summary: "ci-budget-watcher logged more than 3 verdict=error lines in 40m: it runs but cannot do its job (billing read, token, Gitea or apply failing), so the GitHub-minutes budget is effectively unwatched."
               runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=100 | grep -E 'error|verdict=error'; check the ci-budget-github-* / ci-budget-gitea Secrets and the App permissions (manual op cicd-ci-budget-app-permissions). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"
+
+      # Runner health (spec 2026-10-18 section 7, R19, frank#875). The first two
+      # rules read the `ci-runner-probe` line the ci-budget-watcher prints each
+      # run (Gitea admin Actions API, GET only). They are scoped to the watcher
+      # container and pod, use Frank's `_msg` field, and a dead watcher is caught
+      # by ci-budget-heartbeat-stale (NoData -> OK here). The pc-1 rule uses the
+      # labels observed live 2026-10-18: node-exporter has no node label, so
+      # pc-1 is instance 192.168.55.71:9100 (device /dev/sda4, xfs); a selector
+      # on a series that does not exist would be silent under noDataState OK.
+      # uids are well under Grafana's 40-char limit.
+      - orgId: 1
+        name: ci-runner-health
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: layer-25-runner-offline
+            title: Layer 25 Gitea Runner Offline
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-runner-probe runners_online=0 " | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "Gitea Actions runner offline: the watcher reported runners_online=0 for 10m. Gitea-authoritative CI will queue with no taker."
+              runbook: "kubectl -n gitea-runner get pods -o wide; kubectl -n gitea-runner logs deploy/act-runner -c runner --tail=50 (registration state lives on the act-runner-data PVC). Spec section 7."
+          - uid: layer-25-runner-queue-wait
+            title: Layer 25 Gitea Runner Queue Wait
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"oldest_waiting_s=" | extract "oldest_waiting_s=<age> waiting=" | stats max(age) as value'
+              - refId: B
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [900] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "A Gitea Actions job has waited more than 15 minutes for a runner for 10m: the runner is offline, saturated or stuck."
+              runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=20 | grep ci-runner-probe; check the runner pod on pc-1 and DinD disk. Spec section 7."
+          - uid: layer-25-pc1-var-low
+            title: Layer 25 pc-1 /var Free Space Low
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'min(node_filesystem_avail_bytes{instance="192.168.55.71:9100",mountpoint="/var"} / node_filesystem_size_bytes{instance="192.168.55.71:9100",mountpoint="/var"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [0.15] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "pc-1 /var has under 15% free for 15m. The Gitea runner's DinD volume and Longhorn data live there."
+              runbook: "talosctl -n 192.168.55.71 df; docker image/volume prune via a DinD restart (kubectl -n gitea-runner rollout restart deploy/act-runner); check Longhorn replicas on pc-1. Spec section 7."
