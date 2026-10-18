@@ -126,7 +126,7 @@ R7. A budget watcher on Frank reads each org's billing usage at least hourly and
 R8. When an org reaches ≥85% of its included minutes, the watcher moves that org's `github-preferred` repos to `CI_AUTHORITY=gitea`; the authority stays `gitea` for the rest of that UTC calendar month and returns to `github` once the month changes.
 R9. Flips are ordered so that no window exists where neither forge runs a job: toward Gitea, the Gitea side is set first, then GitHub; toward GitHub, GitHub first, then Gitea. Both sides are per-repo variables, so a flip touches only the repos it flips; `gitea-only` repos in the same Gitea org are never affected.
 R10. The watcher is idempotent (a run that finds both forges already at the desired authority writes nothing) and has a dry-run mode, per org, that computes and notifies without writing. Every org ships in dry-run; going live is a one-line git change per org.
-R11. The watcher refuses to flip a repo whose workflows fail the gate-coverage check (R16) — on both forges — and says so in its notification.
+R11. The watcher refuses to move a repo TOWARD Gitea while its workflows fail the gate-coverage check (R16) — on both forges — and says so in its notification. A move back to GitHub is never refused (it is the safe direction).
 R12. Backstop: within 10 minutes of a GitHub job in a `github-preferred` repo failing with the "spending limit" annotation, the watcher flips that org (R8, R9) and re-runs the affected commit on Gitea — PR heads and default-branch commits alike.
 R13. Every flip, would-flip (dry-run), refusal and backstop trigger is sent to Telegram once (not once per run); every watcher run emits a heartbeat log line, and a Grafana rule pages when the heartbeat stops.
 R14. The current authority of every `github-preferred` repo is readable from GitHub alone: the watcher sets the repo variable `CI_AUTHORITY` explicitly to `github` or `gitea` (never leaves it unset), so a consumer such as willikins' `doc-pr` can read it with `gh variable get CI_AUTHORITY`. A follow-up issue for the doc-pr side is filed in derio-net/willikins.
@@ -330,9 +330,10 @@ the month lock live on the forges (below), so they survive a lost ConfigMap.
    (non-pinned) move to `gitea` sets `CI_BUDGET_MONTH` to the current month,
    so the authority stays `gitea` for the rest of the month (R8) and the next
    month's first run returns it to `github`.
-5. **Coverage:** run the R16 checker against each repo's default branch
-   (contents API, no clone). A repo with gaps keeps its current authority on
-   **both** forges and is named in a refusal notification (R11).
+5. **Coverage:** for a move toward `gitea` only, run the R16 checker against
+   each repo's default branch (contents API, no clone). A repo with gaps keeps
+   its current authority on **both** forges and is named in a refusal
+   notification (R11). A move back to `github` is never gated.
 6. **Apply** (only when the org's `mode` is `live`), per repo whose desired
    authority differs from what the two variables say, ordered (R9):
    - toward `gitea`: Gitea **repo** variable `CI_AUTHORITY=gitea` → read back

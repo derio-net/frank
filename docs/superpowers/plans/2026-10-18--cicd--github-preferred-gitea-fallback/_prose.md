@@ -53,6 +53,7 @@ commands:
   - '# live proof per org: mint an installation token from the PEM (RS256 JWT → POST /app/installations/<id>/access_tokens with {"permissions":{"organization_administration":"read"}}), then GET /organizations/<org>/settings/billing/usage?year=YYYY&month=M'
 verify:
   - Each of the three orgs returns HTTP 200 with usageItems for the installation token. Any 403/404 → stop, return to the operator before merge.
+  - Record the shape of usageItems[].repositoryName (bare `repo` or `owner/repo`) and the Actions SKU names; the watcher normalises to the bare name and raises on an unknown Actions SKU, so a new SKU name must be added before go-live.
 status: pending
 ```
 
