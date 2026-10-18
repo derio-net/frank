@@ -46,5 +46,4 @@ journal:
     body: "A trailing colon turned the CronJob arg into a dict; caught by the manifest test. Quote it. Hashes in files/requirements.txt were verified with a real pip install --require-hashes for musllinux_1_2_x86_64/cp313."
     phase: 3
 resolves: []
-evidence:
-  tests: /var/folders/28/d4n60x_92gbgh3rtf4vstb0h0000gn/T/p875-phase3-tests.log
+evidence: {}
