@@ -1,0 +1,50 @@
+schema_version: 10
+run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
+step: implement-phase
+item: phase/3
+outcome: done
+ticks: [P3.T1.S1, P3.T1.S2, P3.T2.S1, P3.T2.S2, P3.T3.S1, P3.T3.S2, P3.T4.S1, P3.T4.S2, P3.T4.S3, P3.T5.S1]
+refactor:
+  P3.T1: "pure functions written minimal; nothing to clean"
+  P3.T2: "apply_authority and run_org were written once against the tests; no duplication to extract"
+  P3.T3: "state, notifier and main are thin adapters over run_org; nothing to clean"
+  P3.T4: "manifests are declarative and generated from one table; nothing to clean"
+journal:
+  - kind: decision
+    id: p3-stamp-flag-only-when-unstamped
+    title: desired_authority returns stamp=True only when CI_BUDGET_MONTH differs from the current month
+    body: "Re-stamping an already-stamped month would be a write every 10 minutes; the flag is therefore False when the stamp already equals now_month, which keeps apply idempotent (R10)."
+    phase: 3
+  - kind: decision
+    id: p3-billing-reread-on-month-rollover
+    title: A cached pct from a previous UTC month forces a billing re-read
+    body: "The 55-minute cadence alone would let the first run of a new month reuse last month's pct and re-stamp gitea. need_billing also compares the last-read month."
+    phase: 3
+  - kind: decision
+    id: p3-public-repos-excluded-from-minutes
+    title: Public repos are excluded from included-minute consumption via a repo listing
+    body: "Usage items carry no visibility. The watcher lists the org's public repos with the billing token (metadata read) and passes them as exclude_repos to included_minutes_used and pinned_share, so R7's private-only sum holds."
+    phase: 3
+  - kind: decision
+    id: p3-rerun-branch-age-from-state
+    title: sync-rerun-* branch age comes from the state timestamp, falling back to the head commit time
+    body: "Gitea's branch listing only exposes the head commit timestamp, which for a rerun of an old sha is old on creation and would be deleted at once. The watcher records the creation time in ci-budget-state and uses the commit time only for branches it has no record of."
+    phase: 3
+  - kind: discovery
+    id: p3-rbac-create-cannot-be-name-scoped
+    title: RBAC resourceNames cannot restrict create, so the Role has one unnamed create rule
+    body: "Spec says get/create/update/patch on ci-budget-state. A rule with resourceNames never matches create, so get/patch/update are name-scoped and create on configmaps is a separate unnamed rule. The manifest test pins exactly this shape."
+    phase: 3
+  - kind: discovery
+    id: p3-stoa-org-skips-gitea
+    title: An org with no github-preferred repo makes no Gitea calls
+    body: "agentic-stoa has no github-preferred repo and the Gitea bot holds no rights there, so run_org skips the CI_BUDGET_MONTH read/write for it; it still reads billing and heartbeats (pct only)."
+    phase: 3
+  - kind: discovery
+    id: p3-yaml-colon-arg-trap
+    title: An unquoted `--only-binary=:all:` list item parses as a mapping
+    body: "A trailing colon turned the CronJob arg into a dict; caught by the manifest test. Quote it. Hashes in files/requirements.txt were verified with a real pip install --require-hashes for musllinux_1_2_x86_64/cp313."
+    phase: 3
+resolves: []
+evidence:
+  tests: /var/folders/28/d4n60x_92gbgh3rtf4vstb0h0000gn/T//p875-phase3-tests.log
