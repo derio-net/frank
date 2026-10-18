@@ -352,7 +352,9 @@ the month lock live on the forges (below), so they survive a lost ConfigMap.
    `push: branches: ['sync-pr-**', 'sync-rerun-**']` (§6), so the gated check
    jobs run on Gitea at that sha — PR heads and default-branch commits alike
    — and the status bridge posts their results to that sha on GitHub. The
-   watcher deletes `sync-rerun-*` branches older than 24 hours.
+   watcher deletes `sync-rerun-*` branches older than 24 hours. Whether
+   Gitea fires a `paths:`-filtered push workflow on a freshly created branch
+   is proven by the PRE-MERGE op `cicd-gitea-variable-semantics` (§8).
 8. **Notify** (Telegram, `ci-budget-telegram` Secret, optional — absent means
    heartbeat-only, like crowdsec-canary). Each event has a key — `flip:<org>/<repo>:<authority>:<YYYY-MM>`,
    `would-flip:<org>/<repo>:<authority>:<YYYY-MM>`, `refuse:<org>/<repo>:<sha of gap list>`,
