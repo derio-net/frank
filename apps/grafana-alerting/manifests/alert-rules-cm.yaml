@@ -3309,3 +3309,56 @@ data:
             annotations:
               summary: "CrowdSec ban-pipeline canary heartbeat stale: no verdict line in crowdsec-system for 20m. The canary is dead/suspended and the Hop ban pipeline is unwatched."
               runbook: "Check the canary CronJob on Hop: kubectl -n crowdsec-system get cronjob,jobs,pods -l app=crowdsec-ban-canary; unsuspend if suspended; inspect the last Job pod logs. Spec: docs/superpowers/specs/2026-06-21--obs--crowdsec-ban-pipeline-canary-design.md"
+
+      # Dead-man's switch for the ci-budget-watcher (GitHub-preferred CI with Gitea
+      # fallback). The */10 CronJob in tekton-pipelines prints one
+      # "ci-budget-watcher verdict=... org=... pct=... mode=..." line per org per
+      # run -> fluent-bit -> VictoriaLogs. If the heartbeat stops (CronJob suspended,
+      # image or secret broken) nothing watches the GitHub minutes budget and no
+      # flip or backstop happens, so this fires. `stats count()` WITHOUT a `by()`
+      # returns a guaranteed single 0-row when nothing matches -> threshold lt 1
+      # fires; a VictoriaLogs outage yields noData -> OK (blindness != death).
+      # Frank's VictoriaLogs message field is `_msg`, NOT Hop's `log` (verified live
+      # for the sibling cred-expiry rule). Window 40m = four cadences, so up to three
+      # missed runs are tolerated. telegram_direct pages Telegram DIRECTLY, bypassing
+      # the LLM agent. uid is 25 chars (Grafana's limit is 40 - a longer one
+      # crash-loops Grafana).
+      # Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md
+      - orgId: 1
+        name: ci-budget-watcher
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: ci-budget-heartbeat-stale
+            title: ci-budget-watcher heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND _msg:"ci-budget-watcher verdict" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "ci-budget-watcher heartbeat stale: no verdict line in namespace tekton-pipelines for 40m. The GitHub-minutes budget is unwatched: no flip to Gitea and no spending-limit backstop will happen."
+              runbook: "kubectl -n tekton-pipelines get cronjob,jobs,pods -l app=ci-budget-watcher; unsuspend if suspended; read the last Job pod logs (init container deps = PyYAML install; watcher = verdict lines). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"

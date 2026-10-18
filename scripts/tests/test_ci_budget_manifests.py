@@ -194,3 +194,39 @@ def test_no_other_generator_grants_billing_or_variables():
             if {"organization_administration", "variables"} & set(perms):
                 offenders.append(str(p.relative_to(REPO)))
     assert offenders == []
+
+
+CM = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
+RULE_UID = "ci-budget-heartbeat-stale"
+
+
+def _rule():
+    cm = yaml.safe_load(CM.read_text())
+    for blob in cm["data"].values():
+        for grp in yaml.safe_load(blob).get("groups", []):
+            for rule in grp.get("rules", []):
+                if rule["uid"] == RULE_UID:
+                    return grp, rule
+    raise AssertionError(f"rule {RULE_UID} not found")
+
+
+def test_heartbeat_rule_is_a_frank_dead_mans_switch():
+    grp, rule = _rule()
+    assert len(RULE_UID) <= 40
+    assert grp["folder"] == "feature-health"
+    a, b, c = (next(d for d in rule["data"] if d["refId"] == r) for r in "ABC")
+    assert a["model"]["queryType"] == "stats"
+    expr = a["model"]["expr"]
+    assert "stats count() as value" in expr and 'by (' not in expr
+    assert '_msg:"ci-budget-watcher verdict"' in expr  # Frank field, not Hop's `log`
+    assert "kubernetes.namespace_name:tekton-pipelines" in expr
+    assert a["relativeTimeRange"]["from"] == 2400
+    assert c["model"]["conditions"][0]["evaluator"] == {"type": "lt", "params": [1]}
+    assert rule["noDataState"] == "OK"
+    assert rule["labels"]["telegram_direct"] == "true"
+    assert rule["labels"]["severity"] == "critical"
+
+
+def test_heartbeat_line_the_rule_matches_is_what_the_watcher_prints():
+    src = (APP / "files/watcher.py").read_text()
+    assert "ci-budget-watcher verdict=" in src
