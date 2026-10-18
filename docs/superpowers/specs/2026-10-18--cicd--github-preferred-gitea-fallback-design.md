@@ -290,8 +290,10 @@ digest-pinned stock `python:3-alpine`, script from the configMapGenerator
 | `github-app-<org>-ci-authority` | derio-net, derio-homelab | `variables: write`, `actions: read`, `checks: read`, `contents: read`, `metadata: read` | every repo of that org in `tiers.yaml` |
 
 For agentic-stoa (no `github-preferred` repo, never written) the report reads
-workflow files with the existing `stoa-github-mirror` token, which already
-has `contents: read` on the mirrored stoa repos. Mirror, status and push
+workflow files with a dedicated read-only generator,
+`github-app-agentic-stoa-ci-read` (`contents: read`, `metadata: read`, the
+agentic-stoa repos in `tiers.yaml`), rather than reusing `stoa-github-mirror`,
+which also carries `statuses: write`. Mirror, status and push
 tokens never carry the billing or variables permissions.
 
 Gitea side: a `ci-budget` Gitea bot with org-owner rights on `derio-net` and
@@ -381,7 +383,7 @@ statuses arrive) and the interface: `gh variable get CI_AUTHORITY` per repo.
 
 CronJob `ci-budget-report` (`0 6 1 * *`), same image and config. Tokens: each
 org's `ci-billing` generator (usage), each org's `ci-authority` generator or
-`stoa-github-mirror` (workflow files for the checker), and a ClusterGenerator
+`github-app-agentic-stoa-ci-read` (workflow files for the checker), and a ClusterGenerator
 `github-app-derio-frank-issues` on the derio-net App scoped to
 `derio-net/frank` with `issues: write` (permission added in the same manual
 op).
