@@ -367,3 +367,98 @@ state, notifier and main are thin adapters over run_org; nothing to clean
 ### no-refactor-p3-t4 · discovery · no-refactor-because P3.T4 (phase 3)
 
 manifests are declarative and generated from one table; nothing to clean
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r1 · finding [open] (reviewer: in scope) · Backstop matched 'spending limit' in any annotation (spoofable month-long flip) (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r2 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r2 · finding [open] (reviewer: in scope) · Heartbeat rule counted any tekton-pipelines pod and verdict=error lines (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r3 · finding [open] (reviewer: in scope) · billing repositoryName may be owner/name; public exclusion and pinned_share assumed bare names (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r4 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r4 · finding [open] (reviewer: in scope) · Backstop rerun branch created and run marked handled after a failed apply; notice overstated (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r5 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r5 · finding [open] (reviewer: in scope) · Coverage refusal also blocked the safe move back to github (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r6 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r6 · finding [open] (reviewer: in scope) · Rerun-branch cleanup aged branches by commit time after state loss (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r7 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-r7 · finding [open] (reviewer: in scope) · Missing month-sequence, spoof and owner/name tests; heartbeat-line test was a source grep (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-sec1 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-sec1 · finding [open] (reviewer: in scope) · Automated security review: backstop annotation spoofing (same as p3-r1) (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=finding scope=plan id=p3-sec2 created=2026-10-18T15:57:31+00:00 phase=3 state=open review_scope=in -->
+### p3-sec2 · finding [open] (reviewer: in scope) · Automated security review: heartbeat fail-open/spoofing (same as p3-r2) (phase 3)
+
+Raised in phase-3 review.
+
+<!-- fr:journal kind=review scope=plan id=review-p3 created=2026-10-18T15:57:31+00:00 phase=3 -->
+### review-p3 · review · Phase 3 code review: 7 findings + 2 security items, all fixed (phase 3)
+
+Independent code-reviewer subagent reviewed the six phase-3 commits against spec §4 and plan 03.yaml, ran 126 tests and gave explicit verdicts on the two security items (both confirmed). Fixes landed TDD in e93c5e5f: strict backstop matching, a scoped heartbeat that excludes errors plus a ci-budget-watcher-erroring rule, repositoryName normalisation, outcome-based rerun and retry, a gitea-only coverage gate (spec R11 updated), first-seen branch ageing, and a three-tick month test. The orchestrator re-ran the suites: 141 passed.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r1 -->
+### p3-r1-resolved · finding [fixed] · resolves p3-r1: Backstop matched 'spending limit' in any annotation (spoofable month-long flip) (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r2-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r2 -->
+### p3-r2-resolved · finding [fixed] · resolves p3-r2: Heartbeat rule counted any tekton-pipelines pod and verdict=error lines (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r3 -->
+### p3-r3-resolved · finding [fixed] · resolves p3-r3: billing repositoryName may be owner/name; public exclusion and pinned_share assumed bare names (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r4-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r4 -->
+### p3-r4-resolved · finding [fixed] · resolves p3-r4: Backstop rerun branch created and run marked handled after a failed apply; notice overstated (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r5-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r5 -->
+### p3-r5-resolved · finding [fixed] · resolves p3-r5: Coverage refusal also blocked the safe move back to github (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r6-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r6 -->
+### p3-r6-resolved · finding [fixed] · resolves p3-r6: Rerun-branch cleanup aged branches by commit time after state loss (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r7-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-r7 -->
+### p3-r7-resolved · finding [fixed] · resolves p3-r7: Missing month-sequence, spoof and owner/name tests; heartbeat-line test was a source grep (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-sec1-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-sec1 -->
+### p3-sec1-resolved · finding [fixed] · resolves p3-sec1: Automated security review: backstop annotation spoofing (same as p3-r1) (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=finding scope=plan id=p3-sec2-resolved created=2026-10-18T15:57:31+00:00 phase=3 state=fixed resolves=p3-sec2 -->
+### p3-sec2-resolved · finding [fixed] · resolves p3-sec2: Automated security review: heartbeat fail-open/spoofing (same as p3-r2) (phase 3)
+
+Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
