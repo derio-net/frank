@@ -12,10 +12,19 @@
 #   pin_authority: github|gitea - operator override that wins over the computed
 #       authority (live single-repo test, manual holds). A pin never stamps the
 #       month in the watcher state.
-#   gitea_secrets: [NAME, ...] - secrets mirrored as Gitea org secrets so the
-#       fallback runs can use them. They MUST be read-only credentials.
+#   gitea_secrets: [NAME, ...] - secrets the fallback runs need. Each entry is
+#       provisioned as a Gitea repository secret on that repo only (never an
+#       org secret, so no other repo in the org can read it). They MUST be
+#       read-only credentials and each must be declared in readonly_secrets
+#       below (names matching PAT|WRITE|ADMIN|PUSH are rejected by the guard).
 # mode: dry-run | live, per org. Every org ships dry-run.
 version: 1
+# Allowlist of the read-only credentials gitea_secrets may reference.
+readonly_secrets:
+  - name: VK_PRIVATE_DEPLOY_KEY
+    repo: derio-net/vibe-kanban
+    kind: deploy-key
+    note: read-only deploy key (spec section 1)
 orgs:
   derio-net:
     included_minutes: 2000

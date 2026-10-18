@@ -124,9 +124,9 @@ when: After cicd-github-preferred-gitea-mirrors.
 why_manual: Secret values live only in the source repos' GitHub settings/Infisical; Gitea Actions secrets are forge state.
 commands:
   - '# for each gitea_secrets entry in apps/ci-budget/tiers.yaml (today: derio-net VK_PRIVATE_DEPLOY_KEY — confirm it is a read-only deploy key first):'
-  - '#   PUT /api/v1/orgs/<gitea_org>/actions/secrets/<NAME> {"data":"<value>"}'
+  - '#   PUT /api/v1/repos/<gitea_org>/<repo>/actions/secrets/<NAME> {"data":"<value>"}   (REPOSITORY secret on that repo only — never an org secret)'
 verify:
-  - GET /api/v1/orgs/<gitea_org>/actions/secrets lists every declared name.
+  - GET /api/v1/repos/<gitea_org>/<repo>/actions/secrets lists each declared name; GET /api/v1/orgs/<gitea_org>/actions/secrets does not.
 status: pending
 ```
 

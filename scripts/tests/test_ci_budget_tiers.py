@@ -78,7 +78,53 @@ def test_kid_laptops_is_gitea_only():
 
 def test_every_mirrored_stoa_repo_is_gitea_only():
     repos = _cfg()["orgs"]["agentic-stoa"]["repos"]
-    stoa = [r.split("/", 1)[1] for r in _main_repos() if r.startswith("agentic-stoa/")]
+    stoa = {r.split("/", 1)[1] for r in _main_repos() if r.startswith("agentic-stoa/")}
     assert stoa
+    assert set(repos) == stoa  # exact: no stale and no missing repo
     for r in stoa:
-        assert repos.get(r, {}).get("tier") == "gitea-only", r
+        assert repos[r]["tier"] == "gitea-only", r
+
+
+def test_every_gitea_only_repo_is_mirrored():
+    main = set(_main_repos())
+    for org, o in _cfg()["orgs"].items():
+        for repo, e in o["repos"].items():
+            if e["tier"] == "gitea-only":
+                assert f"{org}/{repo}" in main, f"{org}/{repo} not in MAIN_REPOS"
+
+
+def test_no_unknown_keys():
+    cfg = _cfg()
+    assert set(cfg) <= {"version", "orgs", "readonly_secrets"}
+    for name, org in cfg["orgs"].items():
+        extra = set(org) - {"included_minutes", "threshold_pct", "gitea_org", "mode", "repos"}
+        assert not extra, (name, extra)
+        for repo, e in org["repos"].items():
+            extra = set(e) - {"tier", "pin_authority", "gitea_secrets"}
+            assert not extra, (name, repo, extra)
+
+
+FORBIDDEN_SECRET = re.compile(r"PAT|WRITE|ADMIN|PUSH", re.I)
+
+
+def test_gitea_secrets_are_declared_readonly():
+    cfg = _cfg()
+    allow = cfg["readonly_secrets"]
+    for a in allow:
+        assert set(a) == {"name", "repo", "kind", "note"}, a
+        assert a["kind"] in {"deploy-key", "read-token"}, a
+        assert a["note"], a
+        assert not FORBIDDEN_SECRET.search(a["name"]), a
+    declared = {(a["repo"], a["name"]) for a in allow}
+    used = set()
+    for org, o in cfg["orgs"].items():
+        for repo, e in o["repos"].items():
+            for n in e.get("gitea_secrets", []):
+                assert not FORBIDDEN_SECRET.search(n), n
+                used.add((f"{org}/{repo}", n))
+    assert used == declared
+
+
+def test_header_says_secrets_are_repo_level():
+    head = TIERS.read_text().split("version:")[0].lower()
+    assert "repository secret" in head and "that repo only" in head

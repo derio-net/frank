@@ -118,7 +118,7 @@ are not proof that an App installation token is accepted.
 
 R1. A tier config in git declares, per GitHub org: the included minutes (2,000), the flip threshold (85%), the Gitea org, the watcher mode (`dry-run` or `live`), and per private repo a tier — `github-only`, `gitea-only` or `github-preferred` — plus an optional operator pin of the repo's authority. A repo absent from the config is `github-only`; public repos are always `github-only`.
 R2. In a `github-preferred` repo only check jobs (tests, lint, build-verify) fall back to Gitea. Mutating jobs (release, publish, deploy, auto-tag, image push, acceptance-report issue upsert) and every `macos-*` job stay on GitHub regardless of authority.
-R3. A check job may fall back while using a secret only if that secret is read-only (a deploy key, a read token). Such secrets are listed per repo in the tier config and provisioned as Gitea org secrets; a job needing a write-capable secret stays on GitHub.
+R3. A check job may fall back while using a secret only if that secret is read-only (a deploy key, a read token). Such secrets are listed per repo in the tier config and provisioned as Gitea repository secrets on that repo only (never org secrets, which every repo's workflows in the Gitea org could read); a job needing a write-capable secret stays on GitHub.
 R4. derio-net's five `github-preferred` repos (willikins, herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr) are mirrored into a `derio-net` Gitea org: main and PR heads (`sync-pr-<N>`) are push-synced on every GitHub push, repaired by `mirror-reconcile`, checked by `ci-delivery-check`, and declared in `apps/tekton/webhooks.yaml`.
 R5. derio-homelab's four `github-preferred` repos (proxmox-cluster, omada-controller, homelab, ansible-pihole) are mirrored the same way into the existing `derio-homelab` Gitea org, alongside kid-laptops.
 R6. Gitea Actions commit statuses from all three orgs' mirrors reach the same sha on GitHub as `gitea-actions/<context>` statuses, each org written with its own org's token; a missing token for one org blinds only that org, and `ci-delivery-check` verifies the forwarding for all three.
@@ -191,7 +191,7 @@ orgs:
 Which jobs are check jobs is **not** in the tier config: it is expressed in
 the workflows themselves by which gate a job carries (§6). The tier config
 says which repos the watcher may flip. `gitea_secrets` is the declared list
-of read-only secrets mirrored as Gitea org secrets (R3); the checker (§6)
+of read-only secrets mirrored as Gitea **repository** secrets on that repo only (R3) — an org secret would expose, e.g., vibe-kanban's deploy key to every derio-net mirror's workflows. Each name is also listed in a top-level `readonly_secrets:` allowlist (`{name, repo, kind: deploy-key|read-token, note}`), and names matching `PAT|WRITE|ADMIN|PUSH` are rejected by the tier-config test; the checker (§6)
 reports every `secrets.X` used by an authority-gated job that is neither
 listed there nor `GITHUB_TOKEN` (and flags `GITHUB_TOKEN` itself when it is
 used against GitHub, see §6).
@@ -427,25 +427,35 @@ The checker, `scripts/ci_gate_coverage.py`, parses workflow YAML (a checkout
 directory or a dict of fetched files) and reports per job:
 
 - `ok`;
-- `ungated` — neither gate;
+- `ungated` — neither gate as a top-level `&&` conjunct of the job's `if:`
+  (a gate inside `||` or under `!` does not count);
+- `malformed-gate` — a conjunct that mentions `CI_AUTHORITY` but is not the
+  exact authority gate (typo, other case, missing `|| 'github'` default);
 - `fallback-on-unserved-label` — an authority-gated job whose `runs-on` is not
   a label in `apps/gitea-runner/manifests/files/config.yaml`;
 - `fallback-runs-on-expression` — an authority-gated job whose `runs-on` is an
   expression (no static label to check, e.g. `${{ matrix.os }}`);
 - `fallback-secret-not-mirrored` — an authority-gated job using a secret not
-  in the repo's `gitea_secrets`;
+  in the repo's `gitea_secrets` (job, workflow-level `env`/`defaults`, and
+  `secrets: inherit` on a reusable-workflow call all count);
 - `fallback-github-token-to-github` — an authority-gated job passing
-  `secrets.GITHUB_TOKEN`/`github.token` to `gh`, `api.github.com` or a
-  `github.com` checkout of another repo (on Gitea that token is Gitea's);
-- `missing-rerun-triggers` — per workflow, the `sync-pr-**`/`sync-rerun-**`
-  push triggers are absent.
+  `secrets.GITHUB_TOKEN`/`github.token` to `gh`, `api.github.com`, a
+  `github.com` checkout of another repo, or any action input (`with:`), from
+  the job or workflow-level `env` (on Gitea that token is Gitea's);
+- `missing-rerun-triggers` — per workflow, pushes to `sync-pr-*`/`sync-rerun-*`
+  would not fire it (an unfiltered `push` covers them; a tags-only `push` or a
+  `branches-ignore` matching them does not).
+
+Workflows are read from `.github/workflows/` and `.gitea/workflows/`; local
+reusable-workflow callees are resolved from the same file set.
 
 For a `gitea-only` repo every job must carry the authority gate or the GitHub
 pin. The same module is loaded by the watcher and the report (copied into the
 configMapGenerator; a test asserts the copy equals the source).
 
-The runner gains the label `ubuntu-24.04` mapped to the same image as
-`ubuntu-latest` (24.04 today); other version labels stay unserved and flagged.
+The runner gains the label `ubuntu-24.04`, mapped to the pinned
+`gitea/runner-images:ubuntu-24.04` tag (not the floating `ubuntu-latest`, which
+moves to the next LTS); other version labels stay unserved and flagged.
 
 **Cross-repo PRs (R17).** One PR per repo, each in its own fr workspace in its
 own repo, applying the convention above and passing the checker against its
@@ -525,7 +535,7 @@ draft until they pass.
   `has_actions: true` and repo variable `CI_AUTHORITY=github`; backfill; add
   the nine GitHub repo webhooks.
 - `cicd-gitea-readonly-secrets` — set each `gitea_secrets` entry as a Gitea
-  org secret.
+  repository secret on its own repo.
 - `cicd-ci-budget-go-live` — after every repo PR has merged and the
   post-merge rows pass, change an org's `mode` to `live` in git.
 
