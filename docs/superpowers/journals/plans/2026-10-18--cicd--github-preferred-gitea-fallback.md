@@ -737,3 +737,8 @@ Not caused by this change: implicit default-token use is undetectable statically
 ### xr-acceptance-step-pin-resolved · finding [out-of-scope] · resolves xr-acceptance-step-pin: acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
 
 Spec R2 pins acceptance-report as mutating; a step-level split is an optional improvement in other repos.
+
+<!-- fr:journal kind=finding scope=plan id=xr-vibe-kanban-no-fallback-resolved created=2026-10-18T19:50:53+00:00 state=open resolves=xr-vibe-kanban-no-fallback out_of_scope=true -->
+### xr-vibe-kanban-no-fallback-resolved · finding [out-of-scope] · resolves xr-vibe-kanban-no-fallback: vibe-kanban has no Gitea fallback (Blacksmith runners): review its tier
+
+A consequence of vibe-kanban's third-party runner choice, not of this change; a tier-review item for the monthly report.
