@@ -319,13 +319,13 @@ class HttpError(RuntimeError):
         self.status = status
 
 
-def default_http(method, url, headers=None, body=None, timeout=30):
+def default_http(method, url, headers=None, body=None, timeout=30, context=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers=dict(headers or {}))
     if data is not None:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=context) as r:
             raw = r.read()
             status = r.status
     except urllib.error.HTTPError as e:
@@ -463,3 +463,100 @@ class GiteaClient:
 
     def delete_branch(self, org, repo, name):
         self._call("DELETE", f"/repos/{org}/{repo}/branches/{urllib.parse.quote(name, safe='')}", allow=(404,))
+
+
+SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount"
+
+
+class ConfigMapState:
+    """The watcher's state: one JSON blob in the ci-budget-state ConfigMap."""
+
+    def __init__(self, namespace, name, token, http=default_http, host="https://kubernetes.default.svc"):
+        self.ns, self.name, self.token, self.http, self.host = namespace, name, token, http, host
+        self.version = None
+
+    def _headers(self):
+        return {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
+
+    def _url(self, named=True):
+        base = f"{self.host}/api/v1/namespaces/{self.ns}/configmaps"
+        return f"{base}/{self.name}" if named else base
+
+    def load(self):
+        status, cm = self.http("GET", self._url(), self._headers(), None)
+        if status == 404:
+            self.version = None
+            return {}
+        if status != 200:
+            raise HttpError(status, cm, "GET", self._url())
+        self.version = cm["metadata"].get("resourceVersion")
+        return json.loads((cm.get("data") or {}).get("state.json", "{}"))
+
+    def save(self, state):
+        body = {"apiVersion": "v1", "kind": "ConfigMap",
+                "metadata": {"name": self.name, "namespace": self.ns},
+                "data": {"state.json": json.dumps(state, sort_keys=True)}}
+        if self.version is None:
+            status, resp = self.http("POST", self._url(False), self._headers(), body)
+        else:
+            body["metadata"]["resourceVersion"] = self.version
+            status, resp = self.http("PUT", self._url(), self._headers(), body)
+        if status not in (200, 201):
+            raise HttpError(status, resp, "save", self._url())
+        self.version = resp["metadata"].get("resourceVersion")
+
+
+class TelegramNotifier:
+    def __init__(self, token, chat_id, http=default_http):
+        self.token, self.chat_id, self.http = token, chat_id, http
+
+    @property
+    def enabled(self):
+        return bool(self.token and self.chat_id)
+
+    def send(self, text):
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        status, resp = self.http("POST", url, {}, {"chat_id": self.chat_id, "text": text})
+        if status != 200:
+            raise HttpError(status, resp, "POST", "telegram sendMessage")
+
+
+def _env_key(org):
+    return org.upper().replace("-", "_")
+
+
+def main(env=None, http=None, now=None, out=print):
+    import yaml
+
+    env = os.environ if env is None else env
+    now = now or datetime.now(timezone.utc)
+    cfg = yaml.safe_load(open(env.get("TIERS_FILE", "/config/tiers.yaml")))
+    labels = ci_gate_coverage.runner_labels(open(env.get("RUNNER_CONFIG", "/config/runner-config.yaml")).read())
+    k8s_http = http
+    if http is None:
+        ca = ssl.create_default_context(cafile=f"{SA_DIR}/ca.crt")
+        k8s_http = lambda m, u, h=None, b=None: default_http(m, u, h, b, context=ca)  # noqa: E731
+        http = default_http
+    sa_token = env.get("SA_TOKEN") or open(f"{SA_DIR}/token").read().strip()
+    store = ConfigMapState(env.get("NAMESPACE", "tekton-pipelines"), "ci-budget-state", sa_token, http=k8s_http)
+    state = store.load()
+    gitea = GiteaClient(env.get("GITEA_API", "http://gitea-http.gitea.svc:3000/api/v1"), env.get("GITEA_TOKEN"), http)
+    notifier = TelegramNotifier(env.get("TELEGRAM_TOKEN"), env.get("TELEGRAM_CHATID"), http)
+    failed = False
+    for org, ocfg in (cfg.get("orgs") or {}).items():
+        try:
+            k = _env_key(org)
+            gh = GitHubClient(org, env.get(f"GH_BILLING_TOKEN_{k}"), env.get(f"GH_AUTHORITY_TOKEN_{k}"), http)
+            st = state.setdefault(org, {})
+            res = run_org(org, ocfg, gh, gitea, st, now, notifier, labels, log=out)
+            failed |= res["failed"]
+        except Exception as e:  # noqa: BLE001
+            failed = True
+            out(f"ci-budget-watcher error org={org}: {e}")
+            out(f"ci-budget-watcher verdict=error org={org} pct=0.0 mode={ocfg.get('mode', 'dry-run')}")
+    store.save(state)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

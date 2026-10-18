@@ -8,7 +8,7 @@ Part 3: state, notifications and the heartbeat line.
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -514,3 +514,186 @@ def test_http_error_other_than_404_raises():
     t = Transport({("GET", "/repos/o/r/actions/variables/X"): (500, {"message": "boom"})})
     with pytest.raises(w.HttpError):
         w.GitHubClient("o", "b", "a", http=t).get_variable("r", "X")
+
+
+# ---------------------------------------------------------------- part 3
+
+
+def _state_run(st, now, mode="dry-run", notifier=None, gh=None, gitea=None):
+    calls = []
+    gh = gh or FakeGH(calls, usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                      gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = gitea or FakeGitea(calls, repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gh.calls = gitea.calls = calls
+    out = []
+    w.run_org("derio-net", org_cfg(mode=mode), gh, gitea, st, now, notifier or FakeNotifier(), LABELS, log=out.append)
+    return calls, out
+
+
+def test_three_dry_run_passes_over_threshold_send_one_message():
+    note = FakeNotifier()
+    st = {}
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    for i in range(3):
+        _state_run(st, NOW + timedelta(minutes=10 * i), notifier=note, gh=gh, gitea=gitea)
+    assert len(note.sent) == 1
+    assert "would move" in note.sent[0] and "pct=90.0" in note.sent[0]
+
+
+def test_billing_read_hourly_not_every_run():
+    st = {}
+    gh = FakeGH([], usage=[], gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    reads = lambda: len([c for c in gh.calls if c[1] == "billing"])  # noqa: E731
+    total = 0
+    for minutes, expected in [(0, 1), (10, 1), (50, 1), (54, 1), (55, 2), (65, 2), (120, 3)]:
+        gh.calls = gitea.calls = []
+        _state_run(st, NOW + timedelta(minutes=minutes), gh=gh, gitea=gitea)
+        total += reads()
+        assert total == expected, minutes
+
+
+def test_billing_reread_on_month_rollover():
+    st = {"last_read": "2026-09-30T23:50:00Z", "pct": 99.0, "pinned_share": 0.0}
+    gh = FakeGH([], usage=[], gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    calls, out = _state_run(st, utc(2026, 10, 1, 0, 5), gh=gh, gitea=gitea)
+    assert [c for c in calls if c[1] == "billing"]
+    assert st["pct"] == 0.0
+
+
+def test_pending_backstop_forces_billing_read():
+    st = {"last_read": "2026-10-18T11:59:00Z", "pct": 1.0, "pinned_share": 0.0}
+    gh = FakeGH([], usage=[], runs={"willikins": [dict(_runs()[0])]},
+                ann={9001: _fx("annotations.json")["spend"]},
+                files={"willikins": {"w.yml": GATED_WF}}, gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    calls, _ = _state_run(st, NOW, gh=gh, gitea=gitea)
+    assert [c for c in calls if c[1] == "billing"]
+
+
+def test_missing_telegram_secret_means_no_send_and_no_error():
+    st = {}
+    note = FakeNotifier(enabled=False)
+    calls, out = _state_run(st, NOW, notifier=note)
+    assert note.sent == []
+    assert st.get("sent", []) == []  # nothing recorded: a later-configured bot still tells
+    assert [l for l in out if "verdict=would-flip" in l]
+
+
+def test_failed_send_is_retried_next_run():
+    class Flaky(FakeNotifier):
+        n = 0
+
+        def send(self, text):
+            Flaky.n += 1
+            if Flaky.n == 1:
+                raise OSError("telegram down")
+            self.sent.append(text)
+
+    st, note = {}, Flaky()
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    _state_run(st, NOW, notifier=note, gh=gh, gitea=gitea)
+    _state_run(st, NOW + timedelta(minutes=10), notifier=note, gh=gh, gitea=gitea)
+    assert len(note.sent) == 1
+
+
+def test_exactly_one_heartbeat_line_per_org():
+    import re
+    for mode in ("dry-run", "live"):
+        _, out = _state_run({}, NOW, mode=mode)
+        beats = [l for l in out if "verdict=" in l]
+        assert len(beats) == 1
+        assert re.fullmatch(
+            r"ci-budget-watcher verdict=(ok|flipped|would-flip|refused|error) org=derio-net pct=\d+\.\d mode=(dry-run|live)",
+            beats[0],
+        ), beats[0]
+
+
+def test_error_run_still_emits_one_heartbeat():
+    class Boom(FakeGH):
+        def billing_usage(self, *a):
+            raise RuntimeError("403")
+
+    calls = []
+    gh, gitea = Boom(calls), FakeGitea(calls)
+    out = []
+    res = w.run_org("derio-net", org_cfg(), gh, gitea, {}, NOW, FakeNotifier(), LABELS, log=out.append)
+    assert res["failed"] and len([l for l in out if "verdict=" in l]) == 1
+    assert "verdict=error" in [l for l in out if "verdict=" in l][0]
+
+
+class FakeK8s:
+    def __init__(self):
+        self.cm = None
+        self.calls = []
+
+    def __call__(self, method, url, headers=None, body=None):
+        self.calls.append((method, url, dict(headers or {}), body))
+        assert url.endswith("/api/v1/namespaces/tekton-pipelines/configmaps" + ("" if method == "POST" else "/ci-budget-state"))
+        if method == "GET":
+            return (200, self.cm) if self.cm else (404, {})
+        if method == "POST":
+            self.cm = dict(body, metadata=dict(body["metadata"], resourceVersion="1"))
+            return 201, self.cm
+        if method == "PUT":
+            assert body["metadata"]["resourceVersion"] == self.cm["metadata"]["resourceVersion"]
+            self.cm = dict(body, metadata=dict(body["metadata"], resourceVersion="2"))
+            return 200, self.cm
+        raise AssertionError(method)
+
+
+def test_state_round_trips_through_configmap():
+    k = FakeK8s()
+    s = w.ConfigMapState("tekton-pipelines", "ci-budget-state", "tok", http=k)
+    assert s.load() == {}
+    s.save({"derio-net": {"sent": ["a"], "pct": 3.5}})
+    assert k.cm["kind"] == "ConfigMap" and k.cm["metadata"]["name"] == "ci-budget-state"
+    s2 = w.ConfigMapState("tekton-pipelines", "ci-budget-state", "tok", http=k)
+    assert s2.load() == {"derio-net": {"sent": ["a"], "pct": 3.5}}
+    s2.save({"derio-net": {"sent": ["a", "b"]}})  # update path, resourceVersion carried
+    assert json.loads(k.cm["data"]["state.json"]) == {"derio-net": {"sent": ["a", "b"]}}
+    assert k.calls[0][2]["Authorization"] == "Bearer tok"
+
+
+def test_telegram_notifier_enabled_only_with_both_secrets():
+    assert not w.TelegramNotifier(None, "1").enabled
+    assert not w.TelegramNotifier("t", "").enabled
+    t = Transport({("POST", "/bott/sendMessage"): (200, {"ok": True})})
+    n = w.TelegramNotifier("t", "42", http=t)
+    assert n.enabled
+    n.send("hi")
+    assert t.calls[0][3] == {"chat_id": "42", "text": "hi"}
+
+
+def test_main_runs_every_org_and_exits_nonzero_on_error(tmp_path, capsys):
+    tiers = tmp_path / "tiers.yaml"
+    tiers.write_text(
+        "version: 1\norgs:\n"
+        "  derio-net: {included_minutes: 2000, threshold_pct: 85, gitea_org: derio-net, mode: dry-run, repos: {}}\n"
+        "  agentic-stoa: {included_minutes: 2000, threshold_pct: 85, gitea_org: agentic-stoa, mode: dry-run, repos: {}}\n"
+    )
+    runner = tmp_path / "runner.yaml"
+    runner.write_text("runner:\n  labels: ['ubuntu-latest:docker://x']\n")
+    k = FakeK8s()
+    t = Transport({
+        ("GET", "/organizations/derio-net/settings/billing/usage"): (200, {"usageItems": []}),
+        ("GET", "/orgs/derio-net/repos"): (200, []),
+    })
+
+    def http(method, url, headers=None, body=None):
+        return (k if "/api/v1/namespaces" in url else t)(method, url, headers, body)
+
+    env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "NAMESPACE": "tekton-pipelines",
+           "SA_TOKEN": "sa", "GH_BILLING_TOKEN_DERIO_NET": "b"}
+    rc = w.main(env=env, http=http, now=NOW)
+    beats = [l for l in capsys.readouterr().out.splitlines() if "verdict=" in l]
+    assert rc == 1
+    assert len(beats) == 2
+    assert "verdict=ok org=derio-net" in beats[0]
+    assert "verdict=error org=agentic-stoa" in beats[1]  # no billing token for that org
+    assert "derio-net" in json.loads(k.cm["data"]["state.json"])
