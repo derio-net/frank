@@ -1,0 +1,65 @@
+schema_version: 2
+run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
+captures:
+- host: h-81662bf4
+  harness: claude-code
+  mode: host-worktree
+  captured_at: '2026-10-18T14:33:07+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: f8c04d2c-b477-4d2b-8144-f38afe34098a
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 74
+        cache_write: 213435
+        cache_read: 7022345
+        output: 43457
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 1
+      other:
+        usd: null
+        turns: 26
+      paperwork:
+        usd: null
+        turns: 10
+    steps:
+      (outside run):
+        usd: null
+        turns: 3
+        input: 6
+        cache_write: 133550
+        cache_read: 343881
+        output: 704
+      brainstorm:
+        usd: null
+        turns: 34
+        input: 68
+        cache_write: 79885
+        cache_read: 6678464
+        output: 42753
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 3
+          input: 6
+          cache_write: 133550
+          cache_read: 343881
+          output: 704
+        brainstorm:
+          usd: null
+          turns: 34
+          input: 68
+          cache_write: 79885
+          cache_read: 6678464
+          output: 42753
+    briefs:
+      toolu_01NX88ij78M2pYvabuC6UaKo: 306
+      toolu_013hvbVfTPjRuU5t8vyirFgn: 362
+      toolu_019FjXCZXatwjdXPZbKm6dv9: 204

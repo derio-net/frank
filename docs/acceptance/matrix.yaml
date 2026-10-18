@@ -1438,3 +1438,133 @@ rows:
     at: '2026-10-14T19:42:41Z'
     evidence: Scheduled runs, mounted Secrets, fresh scraped snapshot, Grafana provisioned
       rules and offline fault fixtures verified; live outage injection not performed.
+- id: tier-config-declares-repo-tiers
+  capability: CI forge tiers
+  acceptance: Each private repo's forge tier (github-only, gitea-only, github-preferred)
+    and its Gitea-mirrored read-only secrets are declared in one config in git, and
+    only check jobs are eligible to fall back.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
+- id: ci-fallback-mirrors-derio-orgs
+  capability: CI forge tiers
+  acceptance: Every push and pull request to a github-preferred repo in derio-net
+    or derio-homelab is mirrored to Frank's Gitea, including PR heads, and missed
+    syncs are repaired.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-fallback-status-reaches-github
+  capability: CI forge tiers
+  acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
+    the matching GitHub commit as gitea-actions statuses.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-tier-monthly-report
+  capability: CI forge tiers
+  acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
+    tier changes, updated in place if regenerated.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: gate-coverage-checker-flags-gaps
+  capability: CI forge tiers
+  acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
+    forge gate, or would queue forever on Gitea, are reported.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
+- id: workflows-carry-forge-gates
+  capability: CI forge tiers
+  acceptance: The nine github-preferred repos and the cnc-frd/cnc-fru release workflows
+    pass the gate-coverage check.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-flips-at-threshold
+  capability: CI budget fallback
+  acceptance: When an org reaches 85% of its included GitHub minutes, its github-preferred
+    repos move to Gitea for the rest of the month and return to GitHub at the monthly
+    reset, never leaving a window where neither forge runs.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-backstop-spending-limit
+  capability: CI budget fallback
+  acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
+    ten minutes and its pull request is re-run on Gitea.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-notifies-and-heartbeat
+  capability: CI budget fallback
+  acceptance: The operator is told on Telegram about every authority change, would-change
+    and refusal, and is paged if the budget watcher stops running.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-authority-readable-on-github
+  capability: CI budget fallback
+  acceptance: The current CI authority of every github-preferred repo can be read
+    from GitHub alone.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: runner-memory-and-placement
+  capability: CI runner
+  acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
+    memory limit.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
+- id: runner-health-alerts
+  capability: CI runner
+  acceptance: An alert fires when the Gitea runner is offline, when jobs wait too
+    long for it, or when pc-1 /var runs low.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live

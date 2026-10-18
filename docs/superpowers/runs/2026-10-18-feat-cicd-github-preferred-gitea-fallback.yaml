@@ -3,11 +3,14 @@ run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
 workflow: fr-goal@1
 branch: feat/cicd-github-preferred-gitea-fallback
 started: '2026-10-18T14:00:29+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-18T14:00:39+00:00'
+    state: done
+    at: '2026-10-18T14:33:06+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md
   spec-review:
     state: pending
   plan:
