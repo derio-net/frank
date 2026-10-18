@@ -399,3 +399,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p3 created=2026-10-18T14:47:08+00:00 -->
 ### phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p3 · decision · ask: the budget watcher (R7-R14) is the core fallback ask
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p4 created=2026-10-18T14:47:11+00:00 -->
+### phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p4 · decision · ask: the monthly tier-review report (R15) is a separate ask in the brief
