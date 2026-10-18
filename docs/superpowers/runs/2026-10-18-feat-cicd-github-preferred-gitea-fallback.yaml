@@ -217,5 +217,13 @@ steps:
       1 out-of-scope finding(s): p2-r4
       1 owed action(s) open: willikins-doc-pr-authority
   deliver:
-    state: pending
+    state: running
+    at: '2026-10-18T19:38:24+00:00'
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-10-18T19:38:24+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: f8c04d2c-b477-4d2b-8144-f38afe34098a
 fr_version: 5.27.0rc3
