@@ -1560,9 +1560,11 @@ rows:
     memory limit.
   origin:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_gitea_runner_capacity.py
+  status: ci
+  notes: 'Phase 5: runner limit 2Gi, pc-1 nodeSelector and capacity 2 guarded in CI.'
   verify: none
 - id: runner-health-alerts
   capability: CI runner
