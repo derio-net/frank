@@ -174,3 +174,28 @@ Fixed in 95a3e02f with a failing fixture/test first.
 ### p1-sec1-resolved · finding [fixed] · resolves p1-sec1: gitea_secrets as Gitea org secrets would expose a repo's deploy key to every mirror in the org (phase 1)
 
 Repo-level Gitea secrets in spec, manual op and tiers.yaml header (95a3e02f).
+
+<!-- fr:journal kind=discovery scope=plan id=p2-kid-laptops-now-status-checked created=2026-10-18T15:13:40+00:00 phase=2 -->
+### p2-kid-laptops-now-status-checked · discovery · ci-delivery-check now compares forwarded statuses for kid-laptops too (phase 2)
+
+Spec R6 widens the comparison to every org in the token map, which includes derio-homelab/kid-laptops (previously skipped). Its Tekton statuses are excluded by the tekton* filter, but any non-tekton Gitea status there is now verified and can raise ci_delivery_overdue kind=status. Watch on go-live.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-staging-gate-guards-coupled created=2026-10-18T15:13:40+00:00 phase=2 -->
+### p2-staging-gate-guards-coupled · discovery · test_staging_gate_manifests pins the ClusterGenerator set and takes the first runs-fr webhook entry (phase 2)
+
+Adding github-app-derio-mirror and a repo-scoped derio-net/runs-fr mirror entry broke two staging-gate guards; updated the generator baseline and made the runs-fr lookup filter scope=direct-post. github-app-derio stays unscoped.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-pr-repos-sorted created=2026-10-18T15:13:40+00:00 phase=2 -->
+### p2-pr-repos-sorted · discovery · PR_REPOS must stay alphabetical, MAIN_REPOS in listener order (phase 2)
+
+test_ci_mirror_resilience derives PR_REPOS sorted and MAIN_REPOS in trigger order, so the env lists in mirror-reconcile and ci-delivery-check follow those orders.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t2 created=2026-10-18T15:13:40+00:00 phase=2 -->
+### no-refactor-p2-t2 · discovery · no-refactor-because P2.T2 (phase 2)
+
+New manifests cloned from the homelab precedent and the four TriggerTemplates generated from one shape; nothing duplicated beyond the deliberate per-org isolation.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t3 created=2026-10-18T15:13:40+00:00 phase=2 -->
+### no-refactor-p2-t3 · discovery · no-refactor-because P2.T3 (phase 2)
+
+Edits were list widenings plus one TOKEN_FILES constant; the delivery-check org gate already shares that constant with main(), nothing left to clean.
