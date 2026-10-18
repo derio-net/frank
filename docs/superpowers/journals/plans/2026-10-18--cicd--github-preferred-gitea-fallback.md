@@ -304,3 +304,11 @@ webhooks.yaml note now says kid-laptops Gitea Actions statuses are forwarded by 
 ### p2-sec1-resolved · finding [fixed] · resolves p2-sec1: Automated security review: status bridge unauthenticated + org-prefix filter; fork PR mirroring in triggers and reconciler (phase 2)
 
 Same fixes as p2-r1/r2/r3; HMAC part tracked as p2-r4.
+
+<!-- fr:journal kind=owed scope=plan id=willikins-doc-pr-authority created=2026-10-18T15:44:36+00:00 phase=3 -->
+### willikins-doc-pr-authority · owed · File follow-up issue in derio-net/willikins: doc-pr must read CI_AUTHORITY (phase 3)
+
+what: File an issue in derio-net/willikins: `doc-pr ship` can merge on GitHub-only `skipped` checks while Gitea is authoritative (GitHub shows only skipped jobs, so `gh pr checks` can go green before the `gitea-actions/*` statuses arrive). Interface: `gh variable get CI_AUTHORITY` per repo (the watcher sets it explicitly to `github` or `gitea` on every github-preferred repo); when it reads `gitea`, wait for the `gitea-actions/*` statuses before merging.
+why: spec 2026-10-18--cicd--github-preferred-gitea-fallback R14; the fix belongs in willikins, not in frank.
+how: fr journal file --scope plan --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id willikins-doc-pr-authority --repo derio-net/willikins
+owed_key: plan:2026-10-18--cicd--github-preferred-gitea-fallback#p3
