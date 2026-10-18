@@ -59,7 +59,9 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              memory: 1Gi
+              # 30-day peak was 925 MB against the old 1Gi (frank#875); 2Gi
+              # leaves real headroom. Node and capacity: 2 are unchanged.
+              memory: 2Gi
         - name: dind
           image: docker:28.3.2-dind
           securityContext:
