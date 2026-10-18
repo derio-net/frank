@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-10-18T14:33:08+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-10-18T14:33:08+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: f8c04d2c-b477-4d2b-8144-f38afe34098a
   plan:
     state: pending
   plan-review:
