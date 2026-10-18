@@ -462,3 +462,28 @@ Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation a
 ### p3-sec2-resolved · finding [fixed] · resolves p3-sec2: Automated security review: heartbeat fail-open/spoofing (same as p3-r2) (phase 3)
 
 Fixed in e93c5e5f (p3-r5 also in spec R11/§4 step 5; p3-r3 shape confirmation added to the PRE-MERGE billing op).
+
+<!-- fr:journal kind=decision scope=plan id=p4-report-reads-visibility-via-billing-token created=2026-10-18T16:07:45+00:00 phase=4 -->
+### p4-report-reads-visibility-via-billing-token · decision · Report reads public repos with the billing token's repo listing (phase 4) (phase 4)
+
+Same public_repos call the watcher uses (metadata read), so public-repo exclusion and the 'now public, remove' proposal agree with the flip logic; spec said authority token where visible, but billing token is the one that can list the whole org.
+
+<!-- fr:journal kind=decision scope=plan id=p4-issue-upsert-matches-any-state created=2026-10-18T16:07:45+00:00 phase=4 -->
+### p4-issue-upsert-matches-any-state · decision · Issue upsert matches by exact title across open and closed issues, ignoring PRs (phase 4) (phase 4)
+
+GET issues?labels=ci-tiers&state=all paginated; a re-run edits the existing body (never duplicates, never reopens). Pull requests that carry the label are skipped.
+
+<!-- fr:journal kind=decision scope=plan id=p4-stoa-workflow-files-via-mirror-token created=2026-10-18T16:07:45+00:00 phase=4 -->
+### p4-stoa-workflow-files-via-mirror-token · decision · agentic-stoa workflow files are read with the stoa-github-mirror token (phase 4) (phase 4)
+
+The report CronJob maps GH_AUTHORITY_TOKEN_AGENTIC_STOA to the stoa-github-mirror Secret (optional), since stoa has no ci-authority generator. It mounts no service-account token and no Gitea/Telegram credentials.
+
+<!-- fr:journal kind=discovery scope=plan id=p4-fake-http-page-substring-trap created=2026-10-18T16:07:45+00:00 phase=4 -->
+### p4-fake-http-page-substring-trap · discovery · A fake pager matching 'page=1' in the URL also matches per_page=100 (phase 4) (phase 4)
+
+Looped forever on page 2; the fake now matches url.endswith('&page=1').
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p4-t2 created=2026-10-18T16:07:45+00:00 phase=4 -->
+### no-refactor-p4-t2 · discovery · no-refactor-because P4.T2 (phase 4) (phase 4)
+
+manifests are declarative, derived from the watcher CronJob; nothing to clean
