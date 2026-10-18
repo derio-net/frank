@@ -139,3 +139,278 @@ def test_backstop_hits_month_start_guard():
     # a run created at/after the month start does
     runs = [dict(_runs()[2], created_at="2026-10-01T00:00:00Z")]
     assert [r["id"] for r in w.backstop_hits(runs, _ann(), utc(2026, 10, 1, 0, 10), set())] == [9003]
+
+
+# ---------------------------------------------------------------- part 2
+# Fake clients record every call in one shared list, so ordering across the
+# two forges is observable.
+
+LABELS = {"ubuntu-latest", "ubuntu-24.04"}
+GATED_WF = (FIX.parent / "ci_gate_coverage/ok-gated.yml").read_text()
+UNGATED_WF = (
+    "name: bad\non:\n  pull_request:\njobs:\n  check:\n"
+    "    runs-on: ubuntu-latest\n    steps:\n      - run: make test\n"
+)
+
+
+class FakeGH:
+    def __init__(self, calls, gh_vars=None, usage=None, public=(), runs=None, ann=None, files=None, drop=()):
+        self.calls = calls
+        self.vars = dict(gh_vars or {})
+        self.usage = usage if usage is not None else []
+        self.public = set(public)
+        self.runs = runs or {}
+        self.ann = ann or {}
+        self.files = files if files is not None else {}
+        self.drop = set(drop)
+
+    def billing_usage(self, org, year, month):
+        self.calls.append(("gh", "billing", org, year, month))
+        return self.usage
+
+    def public_repos(self, org):
+        self.calls.append(("gh", "public_repos", org))
+        return self.public
+
+    def list_failed_runs(self, repo, since):
+        self.calls.append(("gh", "runs", repo))
+        return list(self.runs.get(repo, []))
+
+    def run_annotations(self, repo, run_id):
+        self.calls.append(("gh", "annotations", repo, run_id))
+        return self.ann.get(run_id, [])
+
+    def workflow_files(self, repo):
+        self.calls.append(("gh", "files", repo))
+        return dict(self.files.get(repo, {}))
+
+    def get_variable(self, repo, name):
+        self.calls.append(("gh", "get", repo, name))
+        return self.vars.get((repo, name))
+
+    def set_variable(self, repo, name, value):
+        self.calls.append(("gh", "set", repo, name, value))
+        if ("gh", repo) not in self.drop:
+            self.vars[(repo, name)] = value
+
+
+class FakeGitea:
+    def __init__(self, calls, repo_vars=None, org_vars=None, branches=None, drop=()):
+        self.calls = calls
+        self.repo_vars = dict(repo_vars or {})
+        self.org_vars = dict(org_vars or {})
+        self.branches = branches if branches is not None else {}
+        self.drop = set(drop)
+
+    def get_repo_var(self, org, repo, name):
+        self.calls.append(("gitea", "get", repo, name))
+        return self.repo_vars.get((repo, name))
+
+    def set_repo_var(self, org, repo, name, value):
+        self.calls.append(("gitea", "set", repo, name, value))
+        if ("gitea", repo) not in self.drop:
+            self.repo_vars[(repo, name)] = value
+
+    def get_org_var(self, org, name):
+        self.calls.append(("gitea", "org-get", name))
+        return self.org_vars.get(name)
+
+    def set_org_var(self, org, name, value):
+        self.calls.append(("gitea", "org-set", name, value))
+        self.org_vars[name] = value
+
+    def create_branch(self, org, repo, name, sha):
+        self.calls.append(("gitea", "branch-create", repo, name, sha))
+        self.branches.setdefault(repo, {})[name] = {"name": name, "commit": {"timestamp": "2026-10-18T12:00:00Z"}}
+
+    def list_branches(self, org, repo):
+        self.calls.append(("gitea", "branch-list", repo))
+        return list(self.branches.get(repo, {}).values())
+
+    def delete_branch(self, org, repo, name):
+        self.calls.append(("gitea", "branch-delete", repo, name))
+        self.branches.get(repo, {}).pop(name, None)
+
+
+class FakeNotifier:
+    def __init__(self, enabled=True):
+        self.enabled = enabled
+        self.sent = []
+
+    def send(self, text):
+        self.sent.append(text)
+
+
+def org_cfg(mode="live", repos=None, **kw):
+    cfg = {
+        "included_minutes": 2000,
+        "threshold_pct": 85,
+        "gitea_org": "derio-net",
+        "mode": mode,
+        "repos": repos
+        or {
+            "willikins": {"tier": "github-preferred"},
+            "keepme": {"tier": "gitea-only"},
+        },
+    }
+    cfg.update(kw)
+    return cfg
+
+
+def over_threshold_usage():
+    # 1800 Linux minutes of 2000 = 90%
+    return [{"product": "actions", "sku": "Actions Linux", "quantity": 1800, "repositoryName": "willikins"}]
+
+
+def run(cfg=None, gh=None, gitea=None, st=None, notifier=None, now=NOW, org="derio-net"):
+    calls = []
+    gh = gh or FakeGH(calls)
+    gitea = gitea or FakeGitea(calls)
+    gh.calls = gitea.calls = calls
+    out = []
+    res = w.run_org(
+        org, cfg or org_cfg(), gh, gitea, st if st is not None else {}, now,
+        notifier or FakeNotifier(), LABELS, log=out.append,
+    )
+    return res, calls, out
+
+
+def writes(calls):
+    return [c for c in calls if c[1] in ("set", "org-set", "branch-create", "branch-delete")]
+
+
+def test_toward_gitea_order_gitea_first_with_readbacks():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    res, calls, _ = run(gh=gh, gitea=gitea)
+    seq = [(c[0], c[1]) for c in calls if len(c) > 3 and c[2] == "willikins" and c[3] == "CI_AUTHORITY"]
+    # gitea set, gitea read-back, github set, github read-back
+    set_i = [i for i, c in enumerate(seq) if c[1] == "set"]
+    assert [seq[i] for i in set_i] == [("gitea", "set"), ("gh", "set")]
+    assert seq[set_i[0] + 1] == ("gitea", "get")
+    assert seq[set_i[1] + 1] == ("gh", "get")
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "gitea"
+    assert gitea.repo_vars[("willikins", "CI_AUTHORITY")] == "gitea"
+    assert res["verdict"] == "flipped"
+
+
+def test_toward_github_order_github_first():
+    # last month's stamp, below threshold: desired is github
+    gh = FakeGH([], usage=[], files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "gitea"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "gitea"},
+                      org_vars={"CI_BUDGET_MONTH": "2026-09"})
+    res, calls, _ = run(gh=gh, gitea=gitea)
+    sets = [(c[0], c[3]) for c in calls if c[1] == "set"]
+    assert sets == [("gh", "CI_AUTHORITY"), ("gitea", "CI_AUTHORITY")]
+    assert calls.index(("gh", "set", "willikins", "CI_AUTHORITY", "github")) < calls.index(
+        ("gitea", "set", "willikins", "CI_AUTHORITY", "github"))
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "github"
+
+
+def test_failed_readback_stops_that_repos_sequence_and_errors():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"},
+                      drop={("gitea", "willikins")})
+    res, calls, out = run(gh=gh, gitea=gitea)
+    assert res["verdict"] == "error"
+    assert res["failed"] is True
+    # the GitHub side must never be written after the Gitea read-back failed
+    assert not [c for c in calls if c[:2] == ("gh", "set")]
+
+
+def test_matching_sides_write_nothing():
+    gh = FakeGH([], usage=[], gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    res, calls, _ = run(gh=gh, gitea=gitea)
+    assert writes(calls) == []
+    assert res["verdict"] == "ok"
+
+
+def test_coverage_findings_block_both_sides():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": UNGATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    note = FakeNotifier()
+    res, calls, _ = run(gh=gh, gitea=gitea, notifier=note)
+    assert not [c for c in writes(calls) if c[1] == "set"]
+    assert res["verdict"] == "refused"
+    assert len(note.sent) == 1 and "willikins" in note.sent[0]
+
+
+def test_org_variables_only_get_budget_month():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    run(gh=gh, gitea=gitea)
+    assert gitea.org_vars == {"CI_BUDGET_MONTH": "2026-10"}
+    assert [c for c in gitea.calls if c[1] == "org-set"] == [("gitea", "org-set", "CI_BUDGET_MONTH", "2026-10")]
+
+
+def test_unset_github_variable_is_written_explicitly():
+    gh = FakeGH([], usage=[], files={"willikins": {"w.yml": GATED_WF}})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    run(gh=gh, gitea=gitea)
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "github"
+    # the Gitea side already matched and is not rewritten
+    assert not [c for c in gitea.calls if c[:2] == ("gitea", "set")]
+
+
+def test_dry_run_writes_nothing():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    res, calls, _ = run(cfg=org_cfg(mode="dry-run"), gh=gh, gitea=gitea)
+    assert writes(calls) == []
+    assert res["verdict"] == "would-flip"
+
+
+def test_gitea_only_repos_are_never_touched():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    _, calls, _ = run(gh=gh, gitea=gitea)
+    assert not [c for c in calls if "keepme" in c]
+
+
+def test_pin_wins_over_the_computed_authority():
+    cfg = org_cfg(repos={"willikins": {"tier": "github-preferred", "pin_authority": "github"}})
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    run(cfg=cfg, gh=gh, gitea=gitea)
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "github"
+    assert gitea.repo_vars[("willikins", "CI_AUTHORITY")] == "github"
+
+
+def test_backstop_flips_and_reruns_on_gitea():
+    runs = {"willikins": [dict(_runs()[0])]}
+    gh = FakeGH([], usage=[], runs=runs, ann={9001: _fx("annotations.json")["spend"]},
+                files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    st = {}
+    res, calls, _ = run(gh=gh, gitea=gitea, st=st)
+    assert gitea.repo_vars[("willikins", "CI_AUTHORITY")] == "gitea"
+    assert ("gitea", "branch-create", "willikins", "sync-rerun-aaaaaaaaaaaa", _runs()[0]["head_sha"]) in calls
+    assert 9001 in st["handled"]
+    # handled: the next run sees no backstop hit
+    gh.calls = gitea.calls = []
+    w.run_org("derio-net", org_cfg(), gh, gitea, st, NOW, FakeNotifier(), LABELS, log=lambda s: None)
+    assert not [c for c in gitea.calls if c[1] == "branch-create"]
+
+
+def test_old_rerun_branches_are_deleted():
+    gh = FakeGH([], usage=[], gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    st = {"rerun": {"willikins/sync-rerun-old": "2026-10-17T11:00:00Z",
+                    "willikins/sync-rerun-new": "2026-10-18T11:00:00Z"}}
+    gitea.branches = {"willikins": {
+        "sync-rerun-old": {"name": "sync-rerun-old", "commit": {"timestamp": "2026-10-17T11:00:00Z"}},
+        "sync-rerun-new": {"name": "sync-rerun-new", "commit": {"timestamp": "2026-10-18T11:00:00Z"}},
+        "main": {"name": "main", "commit": {"timestamp": "2026-01-01T00:00:00Z"}},
+    }}
+    run(gh=gh, gitea=gitea, st=st)
+    assert [c[3] for c in gitea.calls if c[1] == "branch-delete"] == ["sync-rerun-old"]
