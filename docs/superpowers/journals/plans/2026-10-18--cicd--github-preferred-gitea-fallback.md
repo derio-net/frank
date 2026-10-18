@@ -312,3 +312,58 @@ what: File an issue in derio-net/willikins: `doc-pr ship` can merge on GitHub-on
 why: spec 2026-10-18--cicd--github-preferred-gitea-fallback R14; the fix belongs in willikins, not in frank.
 how: fr journal file --scope plan --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id willikins-doc-pr-authority --repo derio-net/willikins
 owed_key: plan:2026-10-18--cicd--github-preferred-gitea-fallback#p3
+
+<!-- fr:journal kind=decision scope=plan id=p3-stamp-flag-only-when-unstamped created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-stamp-flag-only-when-unstamped · decision · desired_authority returns stamp=True only when CI_BUDGET_MONTH differs from the current month (phase 3)
+
+Re-stamping an already-stamped month would be a write every 10 minutes; the flag is therefore False when the stamp already equals now_month, which keeps apply idempotent (R10).
+
+<!-- fr:journal kind=decision scope=plan id=p3-billing-reread-on-month-rollover created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-billing-reread-on-month-rollover · decision · A cached pct from a previous UTC month forces a billing re-read (phase 3)
+
+The 55-minute cadence alone would let the first run of a new month reuse last month's pct and re-stamp gitea. need_billing also compares the last-read month.
+
+<!-- fr:journal kind=decision scope=plan id=p3-public-repos-excluded-from-minutes created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-public-repos-excluded-from-minutes · decision · Public repos are excluded from included-minute consumption via a repo listing (phase 3)
+
+Usage items carry no visibility. The watcher lists the org's public repos with the billing token (metadata read) and passes them as exclude_repos to included_minutes_used and pinned_share, so R7's private-only sum holds.
+
+<!-- fr:journal kind=decision scope=plan id=p3-rerun-branch-age-from-state created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-rerun-branch-age-from-state · decision · sync-rerun-* branch age comes from the state timestamp, falling back to the head commit time (phase 3)
+
+Gitea's branch listing only exposes the head commit timestamp, which for a rerun of an old sha is old on creation and would be deleted at once. The watcher records the creation time in ci-budget-state and uses the commit time only for branches it has no record of.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-rbac-create-cannot-be-name-scoped created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-rbac-create-cannot-be-name-scoped · discovery · RBAC resourceNames cannot restrict create, so the Role has one unnamed create rule (phase 3)
+
+Spec says get/create/update/patch on ci-budget-state. A rule with resourceNames never matches create, so get/patch/update are name-scoped and create on configmaps is a separate unnamed rule. The manifest test pins exactly this shape.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-stoa-org-skips-gitea created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-stoa-org-skips-gitea · discovery · An org with no github-preferred repo makes no Gitea calls (phase 3)
+
+agentic-stoa has no github-preferred repo and the Gitea bot holds no rights there, so run_org skips the CI_BUDGET_MONTH read/write for it; it still reads billing and heartbeats (pct only).
+
+<!-- fr:journal kind=discovery scope=plan id=p3-yaml-colon-arg-trap created=2026-10-18T15:47:26+00:00 phase=3 -->
+### p3-yaml-colon-arg-trap · discovery · An unquoted `--only-binary=:all:` list item parses as a mapping (phase 3)
+
+A trailing colon turned the CronJob arg into a dict; caught by the manifest test. Quote it. Hashes in files/requirements.txt were verified with a real pip install --require-hashes for musllinux_1_2_x86_64/cp313.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t1 created=2026-10-18T15:47:26+00:00 phase=3 -->
+### no-refactor-p3-t1 · discovery · no-refactor-because P3.T1 (phase 3)
+
+pure functions written minimal; nothing to clean
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t2 created=2026-10-18T15:47:26+00:00 phase=3 -->
+### no-refactor-p3-t2 · discovery · no-refactor-because P3.T2 (phase 3)
+
+apply_authority and run_org were written once against the tests; no duplication to extract
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t3 created=2026-10-18T15:47:26+00:00 phase=3 -->
+### no-refactor-p3-t3 · discovery · no-refactor-because P3.T3 (phase 3)
+
+state, notifier and main are thin adapters over run_org; nothing to clean
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t4 created=2026-10-18T15:47:26+00:00 phase=3 -->
+### no-refactor-p3-t4 · discovery · no-refactor-because P3.T4 (phase 3)
+
+manifests are declarative and generated from one table; nothing to clean
