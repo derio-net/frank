@@ -3,7 +3,7 @@ run: 2026-10-18-feat-cicd-github-preferred-gitea-fallback
 workflow: fr-goal@1
 branch: feat/cicd-github-preferred-gitea-fallback
 started: '2026-10-18T14:00:29+00:00'
-cursor: implement
+cursor: journal-check
 steps:
   brainstorm:
     state: done
@@ -52,8 +52,8 @@ steps:
     stdout: |
       self-review passed
   implement:
-    state: running
-    at: '2026-10-18T19:21:59+00:00'
+    state: done
+    at: '2026-10-18T19:38:04+00:00'
     members:
     - implement-phase
     - review-phase
@@ -196,12 +196,19 @@ steps:
           tests: p875-phase5-tests.log@9cdb8b3e746c;tree=f7d2f2a21f4821ddb5b8ea1103b08f255d26acd93ff3b8f9806d7eca91bebb43
           visual: none
       phase/5/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-18T19:21:59+00:00'
           harness: claude-code
           model: claude-opus-5-5
           session: f8c04d2c-b477-4d2b-8144-f38afe34098a
+          returned: '2026-10-18T19:38:04+00:00'
+          outcome: done
+        evidence:
+          review: review-p5
+          reviewer: ac4f1ceb24ecc4c3c
+          visual: none
+          findings: p5-r1,p5-r2,p5-r3,p5-r4,p5-r5,p5-r6,p5-r7,p5-r8
   journal-check:
     state: pending
   deliver:

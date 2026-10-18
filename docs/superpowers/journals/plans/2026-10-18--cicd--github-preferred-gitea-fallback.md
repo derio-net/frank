@@ -617,3 +617,88 @@ Read-only stats_query on Frank VictoriaLogs (pod IP :9428). No ci-runner-probe l
 ### gitea-rerun-keeps-created · discovery · Gitea 1.25.4 rerun keeps the job's original created_at (phase 5) (phase 5)
 
 Read from go-gitea v1.25.4 routers/web/repo/actions/view.go: rerun of a job updates only task_id, status, started, stopped (UpdateRunJob columns); the job's xorm-created 'created' is untouched, so the API created_at is the first attempt's. The API job object carries run_attempt, so the watcher counts reruns in waiting but excludes run_attempt>1 from oldest_waiting_s, and counts jobs whose labels the runner does not serve as unservable=K instead.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r1 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r1 · finding [open] (reviewer: in scope) · runner-offline fired on a single runners_online=0 sample (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r2 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r2 · finding [open] (reviewer: in scope) · queue-wait fired on one sample and stayed firing after drain (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r3 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r3 · finding [open] (reviewer: in scope) · Missing/revoked probe token made both runner rules silently OK (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r4 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r4 · finding [open] (reviewer: in scope) · Queue age counted unservable-label jobs and reruns' original created_at (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r5 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r5 · finding [open] (reviewer: in scope) · queue-wait LogsQL shape unverified live (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r6 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r6 · finding [open] (reviewer: in scope) · One failing admin call discarded both signals (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r7 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r7 · finding [open] (reviewer: in scope) · pc-1 /var rule relied on a hard-coded IP; docs claimed device identity (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r8 created=2026-10-18T19:37:55+00:00 phase=5 state=open review_scope=in -->
+### p5-r8 · finding [open] (reviewer: in scope) · Probe tests lacked pagination, exact-URL, offset and page-2 404 cases (phase 5)
+
+Raised in phase-5 review.
+
+<!-- fr:journal kind=review scope=plan id=review-p5 created=2026-10-18T19:37:55+00:00 phase=5 -->
+### review-p5 · review · Phase 5 code review: 8 findings, all fixed (phase 5)
+
+Independent code-reviewer subagent reviewed 581a0b53, 1b7d3628, 6aefbef0 and b43d8c3a against spec §7 and plan 05.yaml and ran 144 tests. Fixes landed TDD in 07707bc2 and 8c27dbdd: sustained-condition rules (max/min over the window), a new layer-25-runner-probe-blind rule, an explicit no-token error line, unservable/rerun-aware queue age (Gitea 1.25.4 rerun keeps created, verified in source), per-call guards, pc-1 selected by node_uname_info nodename (checked live), and new pagination/URL/offset tests. LogsQL shapes were verified live (discovery runner-rule-logsql-verified), and Test Plan row 10 was extended. The orchestrator re-ran the suites: they pass.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r1-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r1 -->
+### p5-r1-resolved · finding [fixed] · resolves p5-r1: runner-offline fired on a single runners_online=0 sample (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r2-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r2 -->
+### p5-r2-resolved · finding [fixed] · resolves p5-r2: queue-wait fired on one sample and stayed firing after drain (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r3-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r3 -->
+### p5-r3-resolved · finding [fixed] · resolves p5-r3: Missing/revoked probe token made both runner rules silently OK (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r4-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r4 -->
+### p5-r4-resolved · finding [fixed] · resolves p5-r4: Queue age counted unservable-label jobs and reruns' original created_at (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r5-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r5 -->
+### p5-r5-resolved · finding [fixed] · resolves p5-r5: queue-wait LogsQL shape unverified live (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r6-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r6 -->
+### p5-r6-resolved · finding [fixed] · resolves p5-r6: One failing admin call discarded both signals (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r7-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r7 -->
+### p5-r7-resolved · finding [fixed] · resolves p5-r7: pc-1 /var rule relied on a hard-coded IP; docs claimed device identity (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r8-resolved created=2026-10-18T19:37:55+00:00 phase=5 state=fixed resolves=p5-r8 -->
+### p5-r8-resolved · finding [fixed] · resolves p5-r8: Probe tests lacked pagination, exact-URL, offset and page-2 404 cases (phase 5)
+
+Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
