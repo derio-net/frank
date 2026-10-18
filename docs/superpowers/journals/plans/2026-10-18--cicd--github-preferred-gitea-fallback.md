@@ -732,3 +732,8 @@ Filed at deliver as derio-net/frank#883; still owed until discharged.
 ### xr-checker-refinements-resolved · finding [out-of-scope] · resolves xr-checker-refinements: Gate-coverage checker: implicit github.token in actions, and the STOA_CI_GH_TOKEN||GITHUB_TOKEN fallback pattern
 
 Not caused by this change: implicit default-token use is undetectable statically, and the stoa fallback pattern predates it. Follow-up only.
+
+<!-- fr:journal kind=finding scope=plan id=xr-acceptance-step-pin-resolved created=2026-10-18T19:50:50+00:00 state=open resolves=xr-acceptance-step-pin out_of_scope=true -->
+### xr-acceptance-step-pin-resolved · finding [out-of-scope] · resolves xr-acceptance-step-pin: acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
+
+Spec R2 pins acceptance-report as mutating; a step-level split is an optional improvement in other repos.
