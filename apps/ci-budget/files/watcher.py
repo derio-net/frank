@@ -10,15 +10,11 @@ months are UTC. This module is split in three layers:
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
 import ssl
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import ci_gate_coverage

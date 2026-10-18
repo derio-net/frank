@@ -7,6 +7,7 @@ resources:
   - clustergenerators.yaml
   - externalsecrets.yaml
   - cronjob.yaml
+  - cronjob-report.yaml
 # Both ConfigMaps are hash-suffixed so an edit changes the CronJob spec and
 # rolls the next run. files/ci_gate_coverage.py and files/runner-config.yaml are
 # byte copies of scripts/ci_gate_coverage.py and
@@ -23,5 +24,7 @@ configMapGenerator:
     namespace: tekton-pipelines
     files:
       - files/watcher.py
+      - files/forges.py
+      - files/report.py
       - files/ci_gate_coverage.py
       - files/requirements.txt

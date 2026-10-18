@@ -121,7 +121,7 @@ def test_every_generator_has_a_consumed_token_secret():
 def test_script_ships_in_config_map_generator_and_matches_the_checker_byte_for_byte():
     k = yaml.safe_load((APP / "kustomization.yaml").read_text())
     files = {f for g in k["configMapGenerator"] for f in g["files"]}
-    assert {"files/watcher.py", "files/ci_gate_coverage.py", "files/requirements.txt", "tiers.yaml"} <= files
+    assert {"files/watcher.py", "files/forges.py", "files/report.py", "files/ci_gate_coverage.py", "files/requirements.txt", "tiers.yaml"} <= files
     assert (APP / "files/ci_gate_coverage.py").read_bytes() == (REPO / "scripts/ci_gate_coverage.py").read_bytes()
     assert (APP / "files/runner-config.yaml").read_bytes() == (
         REPO / "apps/gitea-runner/manifests/files/config.yaml"
@@ -152,7 +152,7 @@ def test_authority_generators_scoped_to_the_orgs_tier_repos():
         assert sorted(g["repositories"]) == sorted(tiers[org]["repos"])
         assert (g["appID"], g["installID"]) == APPS[org][:2]
     assert "github-app-agentic-stoa-ci-authority" not in gens
-    assert len(gens) == 5
+    assert len(gens) == 6
 
 
 def test_external_secrets_reference_their_generators():
@@ -162,7 +162,7 @@ def test_external_secrets_reference_their_generators():
         ref = d["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]
         assert ref["kind"] == "ClusterGenerator" and ref["name"] in gens
         assert d["spec"]["refreshInterval"] in ("30m", "45m")
-    assert len(_kind("ExternalSecret")) == 5
+    assert len(_kind("ExternalSecret")) == 6
 
 
 def test_role_limited_to_the_state_configmap():
@@ -194,6 +194,64 @@ def test_no_other_generator_grants_billing_or_variables():
             if {"organization_administration", "variables"} & set(perms):
                 offenders.append(str(p.relative_to(REPO)))
     assert offenders == []
+
+
+def _report():
+    return _kind("CronJob", "ci-budget-report")[0]
+
+
+def _report_pod():
+    return _report()["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+
+
+def test_report_cronjob_runs_monthly_with_the_watcher_image_and_init_pattern():
+    cj, pod, wpod = _report(), _report_pod(), _pod()
+    assert cj["spec"]["schedule"] == "0 6 1 * *"
+    assert cj["spec"]["concurrencyPolicy"] == "Forbid"
+    assert cj["metadata"]["namespace"] == "tekton-pipelines"
+    assert pod["containers"][0]["command"] == ["python3", "/app/report.py"]
+    assert pod["containers"][0]["image"] == wpod["containers"][0]["image"]
+    assert pod["initContainers"] == wpod["initContainers"]
+    assert pod["securityContext"] == wpod["securityContext"]
+    sc = pod["containers"][0]["securityContext"]
+    assert sc["readOnlyRootFilesystem"] is True and sc["capabilities"]["drop"] == ["ALL"]
+    assert {v["name"] for v in pod["volumes"]} == {v["name"] for v in wpod["volumes"]}
+    # it needs no Kubernetes API access and no Gitea/Telegram credentials
+    assert pod.get("automountServiceAccountToken") is False
+    names = {e["name"] for e in pod["containers"][0]["env"]}
+    assert not {"GITEA_TOKEN", "GITEA_PROBE_TOKEN", "TELEGRAM_TOKEN"} & names
+
+
+def test_report_tokens_are_optional_secrets_that_exist():
+    env = {e["name"]: e for e in _report_pod()["containers"][0]["env"]}
+    es = {d["spec"]["target"]["name"] for d in _kind("ExternalSecret")}
+    for name in ("GH_BILLING_TOKEN_DERIO_NET", "GH_AUTHORITY_TOKEN_DERIO_NET", "GH_BILLING_TOKEN_DERIO_HOMELAB",
+                 "GH_AUTHORITY_TOKEN_DERIO_HOMELAB", "GH_BILLING_TOKEN_AGENTIC_STOA", "GH_ISSUES_TOKEN"):
+        ref = env[name]["valueFrom"]["secretKeyRef"]
+        assert ref["key"] == "token" and ref["optional"] is True, name
+    assert env["GH_ISSUES_TOKEN"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-issues-derio-frank"
+    assert "ci-budget-github-issues-derio-frank" in es
+    # stoa has no authority generator: its workflow files are read with the mirror token
+    assert env["GH_AUTHORITY_TOKEN_AGENTIC_STOA"]["valueFrom"]["secretKeyRef"]["name"] == "stoa-github-mirror"
+
+
+def test_issues_generator_is_scoped_to_frank_with_issues_write_only():
+    g = _generators()["github-app-derio-frank-issues"]
+    assert g["permissions"] == {"issues": "write", "metadata": "read"}
+    assert g["repositories"] == ["frank"]
+    assert (g["appID"], g["installID"]) == APPS["derio-net"][:2]
+    assert g["auth"]["privateKey"]["secretRef"] == {"name": "github-app-derio-key", "key": "key"}
+    (es,) = [d for d in _kind("ExternalSecret") if d["metadata"]["name"] == "ci-budget-github-issues-derio-frank"]
+    assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["name"] == "github-app-derio-frank-issues"
+    # no other generator in the repo may carry issues:write on frank's token scope
+    for name, spec in _generators().items():
+        if name != "github-app-derio-frank-issues":
+            assert "issues" not in spec["permissions"], name
+
+
+def test_report_cronjob_is_in_the_kustomization():
+    k = yaml.safe_load((APP / "kustomization.yaml").read_text())
+    assert "cronjob-report.yaml" in k["resources"]
 
 
 CM = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"

@@ -128,3 +128,27 @@ spec:
       permissions:
         organization_administration: read
         metadata: read
+---
+# Issues write on derio-net/frank only: the monthly tier-review report
+# (ci-budget-report) upserts its issue with this token. Added to the derio-net
+# App by manual op cicd-ci-budget-app-permissions.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-frank-issues
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+      permissions:
+        issues: write
+        metadata: read
+      repositories:
+        - frank
