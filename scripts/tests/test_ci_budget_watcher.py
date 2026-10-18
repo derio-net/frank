@@ -414,3 +414,103 @@ def test_old_rerun_branches_are_deleted():
     }}
     run(gh=gh, gitea=gitea, st=st)
     assert [c[3] for c in gitea.calls if c[1] == "branch-delete"] == ["sync-rerun-old"]
+
+
+class Transport:
+    """Scripted HTTP: maps (method, url-substring) -> (status, body)."""
+
+    def __init__(self, routes):
+        self.routes = routes
+        self.calls = []
+
+    def __call__(self, method, url, headers=None, body=None):
+        self.calls.append((method, url, dict(headers or {}), body))
+        for (m, frag), resp in self.routes.items():
+            if m == method and frag in url:
+                return resp(body) if callable(resp) else resp
+        return 404, {"message": "Not Found"}
+
+
+def test_github_client_headers_and_variable_upsert():
+    t = Transport({
+        ("PATCH", "/actions/variables/CI_AUTHORITY"): (404, {}),
+        ("POST", "/actions/variables"): (201, {}),
+    })
+    c = w.GitHubClient("derio-net", "bill-tok", "auth-tok", http=t)
+    c.set_variable("willikins", "CI_AUTHORITY", "github")
+    assert [x[0] for x in t.calls] == ["PATCH", "POST"]
+    method, url, headers, body = t.calls[0]
+    assert url == "https://api.github.com/repos/derio-net/willikins/actions/variables/CI_AUTHORITY"
+    assert headers["Authorization"] == "Bearer auth-tok"
+    assert headers["X-GitHub-Api-Version"] == "2022-11-28"
+    assert t.calls[1][3] == {"name": "CI_AUTHORITY", "value": "github"}
+
+
+def test_github_client_patch_when_variable_exists():
+    t = Transport({("PATCH", "/actions/variables/CI_AUTHORITY"): (204, None)})
+    w.GitHubClient("derio-net", "b", "a", http=t).set_variable("willikins", "CI_AUTHORITY", "gitea")
+    assert [x[0] for x in t.calls] == ["PATCH"]
+
+
+def test_github_client_uses_billing_token_for_usage():
+    t = Transport({("GET", "/settings/billing/usage"): (200, _fx("usage.json"))})
+    c = w.GitHubClient("derio-net", "bill-tok", "auth-tok", http=t)
+    items = c.billing_usage("derio-net", 2026, 10)
+    assert len(items) == 6
+    assert t.calls[0][1].startswith("https://api.github.com/organizations/derio-net/settings/billing/usage?")
+    assert "year=2026" in t.calls[0][1] and "month=10" in t.calls[0][1]
+    assert t.calls[0][2]["Authorization"] == "Bearer bill-tok"
+
+
+def test_github_client_get_variable_404_is_none():
+    t = Transport({})
+    assert w.GitHubClient("o", "b", "a", http=t).get_variable("r", "X") is None
+
+
+def test_github_client_workflow_files_reads_both_dirs():
+    import base64
+    wf = base64.b64encode(b"name: x\n").decode()
+    t = Transport({
+        ("GET", "/contents/.github/workflows/ci.yml"): (200, {"content": wf, "encoding": "base64"}),
+        ("GET", "/contents/.github/workflows"): (200, [
+            {"name": "ci.yml", "type": "file", "url": "https://api.github.com/repos/o/r/contents/.github/workflows/ci.yml"},
+            {"name": "README.md", "type": "file", "url": "https://x/README.md"},
+        ]),
+    })
+    files = w.GitHubClient("o", "b", "a", http=t).workflow_files("r")
+    assert files == {".github/workflows/ci.yml": "name: x\n"}
+
+
+def test_gitea_client_repo_variable_put_then_post():
+    t = Transport({
+        ("PUT", "/repos/derio-net/willikins/actions/variables/CI_AUTHORITY"): (404, {}),
+        ("POST", "/repos/derio-net/willikins/actions/variables/CI_AUTHORITY"): (201, {}),
+    })
+    c = w.GiteaClient("http://g/api/v1", "gtok", http=t)
+    c.set_repo_var("derio-net", "willikins", "CI_AUTHORITY", "gitea")
+    assert [x[0] for x in t.calls] == ["PUT", "POST"]
+    assert t.calls[0][2]["Authorization"] == "token gtok"
+    assert t.calls[1][3] == {"value": "gitea"}
+
+
+def test_gitea_client_reads_variable_data_and_org_variable():
+    t = Transport({
+        ("GET", "/repos/o/r/actions/variables/CI_AUTHORITY"): (200, {"name": "CI_AUTHORITY", "data": "gitea"}),
+        ("GET", "/orgs/o/actions/variables/CI_BUDGET_MONTH"): (200, {"data": "2026-10"}),
+    })
+    c = w.GiteaClient("http://g/api/v1", "t", http=t)
+    assert c.get_repo_var("o", "r", "CI_AUTHORITY") == "gitea"
+    assert c.get_org_var("o", "CI_BUDGET_MONTH") == "2026-10"
+    assert c.get_org_var("o", "NOPE") is None
+
+
+def test_gitea_client_branch_create_tolerates_existing():
+    t = Transport({("POST", "/repos/o/r/branches"): (409, {})})
+    w.GiteaClient("http://g/api/v1", "t", http=t).create_branch("o", "r", "sync-rerun-abc", "deadbeef")
+    assert t.calls[0][3] == {"new_branch_name": "sync-rerun-abc", "old_ref_name": "deadbeef"}
+
+
+def test_http_error_other_than_404_raises():
+    t = Transport({("GET", "/repos/o/r/actions/variables/X"): (500, {"message": "boom"})})
+    with pytest.raises(w.HttpError):
+        w.GitHubClient("o", "b", "a", http=t).get_variable("r", "X")
