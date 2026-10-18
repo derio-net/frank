@@ -407,6 +407,16 @@ Output: an issue in derio-net/frank titled `CI tier review <YYYY-MM>`, label
 `ci-tiers`, found by title on re-run and edited (R15). The operator acts by
 editing `tiers.yaml`.
 
+**Redaction (derio-net/frank is public).** The issue never names a repo that
+`tiers.yaml` does not already name in git: billed repos absent from the config
+appear only as a count with their total minutes ("3 unlisted private repos,
+412 min — run the report locally with `--show-unlisted` to see them"). The
+third-party org agentic-stoa (`.claude/rules/third-party-privacy.md`) appears
+only as an org total and its gate-coverage gap count, never per repo. Errors
+are reported by class and org (`billing read failed for <org>: HTTPError 403`),
+never as raw exception text or response bodies. A test renders a fixture with
+unlisted and agentic-stoa repos and asserts none of their names appear.
+
 ### 6. Gate convention and coverage checker (R2, R11, R16, R17)
 
 Two job-level gates, combined with any existing `if:` by `&&`:
