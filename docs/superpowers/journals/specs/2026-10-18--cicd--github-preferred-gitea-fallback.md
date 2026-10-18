@@ -396,3 +396,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p2 created=2026-10-18T14:47:05+00:00 -->
 ### phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p2 · decision · ask: mirroring derio-net/derio-homelab and the three-org status bridge (R4-R6) is reviewable on its own
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p3 created=2026-10-18T14:47:08+00:00 -->
+### phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p3 · decision · ask: the budget watcher (R7-R14) is the core fallback ask
