@@ -707,3 +707,8 @@ Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan r
 ### xr-checker-refinements · finding [open] (reviewer: out of scope) · Gate-coverage checker: implicit github.token in actions, and the STOA_CI_GH_TOKEN||GITHUB_TOKEN fallback pattern
 
 Raised by the cross-repo PR reviewers (runs-fr#43, cnc-fru#41). (1) The checker cannot see actions that use the default github.token implicitly (e.g. golangci-lint-action), so a gated job can still call GitHub with Gitea's token. Confirm them on the first real Gitea run. (2) The checker flags agentic-stoa's established secrets.STOA_CI_GH_TOKEN || secrets.GITHUB_TOKEN with: pattern as fallback-github-token-to-github, which is likely a false positive. Not caused by this change: agentic-stoa is never flipped, so only the report gets noisier.
+
+<!-- fr:journal kind=finding scope=plan id=xr-acceptance-step-pin created=2026-10-18T19:48:19+00:00 state=open review_scope=out -->
+### xr-acceptance-step-pin · finding [open] (reviewer: out of scope) · acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
+
+Raised by the reviewers on homelab#38, omada-controller#53, presentation-craft#6 and proxmox-cluster#109. Each repo's acceptance-report job is GitHub-pinned as a whole, per spec R2. Authority-gating the job and pinning only the weekly upsert step would keep 'fr acceptance check' running on Gitea during fallback. This change does not require it.
