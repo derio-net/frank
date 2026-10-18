@@ -24,3 +24,8 @@ The checker needs PyYAML, so the baseline was run with the base clone's .venv py
 ### no-refactor-p1-t2 · discovery · no-refactor-because P1.T2 (phase 1)
 
 tiers.yaml and its test are data plus plain assertions; nothing to clean.
+
+<!-- fr:journal kind=discovery scope=plan id=gate-coverage-baseline-2 created=2026-10-18T14:58:15+00:00 phase=1 -->
+### gate-coverage-baseline-2 · discovery · Gate-coverage baseline re-run with the hardened checker (supersedes gate-coverage-baseline) (phase 1)
+
+Re-run 2026-10-18 after review fixes, same clones, read-only. Counts: willikins 6 ungated; herdr-vertical-tabs 2 ungated; presentation-craft 3 ungated; vibe-kanban 28 ungated; runs-fr 7 ungated; proxmox-cluster 3 ungated; omada-controller 2 ungated; homelab 2 ungated; ansible-pihole 1 missing-rerun-triggers; cnc-frd 1 ungated + 1 token-to-github + 1 secret-not-mirrored + 2 missing-rerun-triggers; cnc-fru 1 ungated + 2 token-to-github + 2 secret-not-mirrored + 2 missing-rerun-triggers (cnc-fru gains one token hit from the broader token detection). No malformed-gate findings anywhere. Also: gitea/runner-images:ubuntu-24.04 exists on Docker Hub, so the ubuntu-24.04 label now maps to it.
