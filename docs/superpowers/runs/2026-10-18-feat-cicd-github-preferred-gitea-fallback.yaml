@@ -217,8 +217,10 @@ steps:
       1 out-of-scope finding(s): p2-r4
       1 owed action(s) open: willikins-doc-pr-authority
   deliver:
-    state: running
-    at: '2026-10-18T19:38:24+00:00'
+    state: done
+    at: '2026-10-18T19:53:50+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/878
     units:
       step/deliver:
         attempts:
@@ -226,4 +228,11 @@ steps:
           harness: claude-code
           model: claude-opus-5-5
           session: f8c04d2c-b477-4d2b-8144-f38afe34098a
+          returned: '2026-10-18T19:53:23+00:00'
+          outcome: done
+        evidence:
+          tests: p875-deliver-full-suite.log@024a539f9c5e
+          walk: none
+          proportionality: 3336a32e3d96562c75258d116e458ebc1a3d19a5:868ee326f84a04fb3e1d5528b965907f6f67c850e50e316a6b37286eacc49b51
+          visual: none
 fr_version: 5.27.0rc3
