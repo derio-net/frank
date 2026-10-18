@@ -487,3 +487,98 @@ Looped forever on page 2; the fake now matches url.endswith('&page=1').
 ### no-refactor-p4-t2 · discovery · no-refactor-because P4.T2 (phase 4) (phase 4)
 
 manifests are declarative, derived from the watcher CronJob; nothing to clean
+
+<!-- fr:journal kind=finding scope=plan id=p4-r1 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r1 · finding [open] (reviewer: in scope) · Report named billed repos absent from tiers.yaml in the public issue (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r2 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r2 · finding [open] (reviewer: in scope) · agentic-stoa (third party) rendered per repo (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r3 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r3 · finding [open] (reviewer: in scope) · Raw exception text and response bodies rendered into the issue (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r4 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r4 · finding [open] (reviewer: in scope) · Tests asserted the leak; redaction test missing (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r5 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r5 · finding [open] (reviewer: in scope) · Per-repo minutes and tier rendered only for over-threshold orgs (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r6 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-r6 · finding [open] (reviewer: in scope) · Upsert found the issue only through its label (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec1 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-sec1 · finding [open] (reviewer: in scope) · Automated security review: private data in the public issue (same as p4-r1..r3) (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec2 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-sec2 · finding [open] (reviewer: in scope) · Automated security review: report reused stoa-github-mirror (statuses:write) to read workflow files (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec3 created=2026-10-18T18:56:10+00:00 phase=4 state=open review_scope=in -->
+### p4-sec3 · finding [open] (reviewer: in scope) · Automated security review: title-search upsert could adopt a human-authored issue (phase 4)
+
+Raised in phase-4 review.
+
+<!-- fr:journal kind=review scope=plan id=review-p4 created=2026-10-18T18:56:10+00:00 phase=4 -->
+### review-p4 · review · Phase 4 code review: 6 findings + 3 security items, all fixed (phase 4)
+
+Independent code-reviewer subagent reviewed 8e9be73d, 27d89429 and 2b9a04dd against spec §5 (incl. the Redaction paragraph) and plan 04.yaml. It found the redaction unimplemented and the tests locking in the leak. Fixes landed TDD in d1bfe190 and eae880d4: unlisted repos collapsed to a count, a third_party org rendered as totals only, errors reported by class and status, a redaction test via main, a per-repo table every month, a title-search fallback that adopts only issues by derio-fr-automation[bot], and a dedicated read-only stoa token. The orchestrator re-ran the suites: 131 passed.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r1-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r1 -->
+### p4-r1-resolved · finding [fixed] · resolves p4-r1: Report named billed repos absent from tiers.yaml in the public issue (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r2-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r2 -->
+### p4-r2-resolved · finding [fixed] · resolves p4-r2: agentic-stoa (third party) rendered per repo (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r3-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r3 -->
+### p4-r3-resolved · finding [fixed] · resolves p4-r3: Raw exception text and response bodies rendered into the issue (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r4-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r4 -->
+### p4-r4-resolved · finding [fixed] · resolves p4-r4: Tests asserted the leak; redaction test missing (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r5-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r5 -->
+### p4-r5-resolved · finding [fixed] · resolves p4-r5: Per-repo minutes and tier rendered only for over-threshold orgs (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r6-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-r6 -->
+### p4-r6-resolved · finding [fixed] · resolves p4-r6: Upsert found the issue only through its label (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec1-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-sec1 -->
+### p4-sec1-resolved · finding [fixed] · resolves p4-sec1: Automated security review: private data in the public issue (same as p4-r1..r3) (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec2-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-sec2 -->
+### p4-sec2-resolved · finding [fixed] · resolves p4-sec2: Automated security review: report reused stoa-github-mirror (statuses:write) to read workflow files (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
+
+<!-- fr:journal kind=finding scope=plan id=p4-sec3-resolved created=2026-10-18T18:56:10+00:00 phase=4 state=fixed resolves=p4-sec3 -->
+### p4-sec3-resolved · finding [fixed] · resolves p4-sec3: Automated security review: title-search upsert could adopt a human-authored issue (phase 4)
+
+Fixed in d1bfe190 / eae880d4 (p4-sec2 also in spec §4/§5).
