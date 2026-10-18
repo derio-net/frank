@@ -702,3 +702,8 @@ Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan r
 ### p5-r8-resolved · finding [fixed] · resolves p5-r8: Probe tests lacked pagination, exact-URL, offset and page-2 404 cases (phase 5)
 
 Fixed in 07707bc2 / 8c27dbdd (p5-r5 also discovery f4aa6e7d and spec Test Plan row 10).
+
+<!-- fr:journal kind=finding scope=plan id=xr-checker-refinements created=2026-10-18T19:48:16+00:00 state=open review_scope=out -->
+### xr-checker-refinements · finding [open] (reviewer: out of scope) · Gate-coverage checker: implicit github.token in actions, and the STOA_CI_GH_TOKEN||GITHUB_TOKEN fallback pattern
+
+Raised by the cross-repo PR reviewers (runs-fr#43, cnc-fru#41). (1) The checker cannot see actions that use the default github.token implicitly (e.g. golangci-lint-action), so a gated job can still call GitHub with Gitea's token. Confirm them on the first real Gitea run. (2) The checker flags agentic-stoa's established secrets.STOA_CI_GH_TOKEN || secrets.GITHUB_TOKEN with: pattern as fallback-github-token-to-github, which is likely a false positive. Not caused by this change: agentic-stoa is never flipped, so only the report gets noisier.
