@@ -712,3 +712,8 @@ Raised by the cross-repo PR reviewers (runs-fr#43, cnc-fru#41). (1) The checker 
 ### xr-acceptance-step-pin · finding [open] (reviewer: out of scope) · acceptance-report: pin only the issue-upsert step so the acceptance check also falls back
 
 Raised by the reviewers on homelab#38, omada-controller#53, presentation-craft#6 and proxmox-cluster#109. Each repo's acceptance-report job is GitHub-pinned as a whole, per spec R2. Authority-gating the job and pinning only the weekly upsert step would keep 'fr acceptance check' running on Gitea during fallback. This change does not require it.
+
+<!-- fr:journal kind=finding scope=plan id=xr-vibe-kanban-no-fallback created=2026-10-18T19:48:22+00:00 state=open review_scope=out -->
+### xr-vibe-kanban-no-fallback · finding [open] (reviewer: out of scope) · vibe-kanban has no Gitea fallback (Blacksmith runners): review its tier
+
+vibe-kanban#19 pinned all 28 jobs to GitHub. Its test jobs run on blacksmith-16vcpu-ubuntu-2404, and switching them would change GitHub behaviour, so its github-preferred tier moves nothing. Either mark it github-only in tiers.yaml at the next monthly review, or add a separate authority-gated ubuntu-latest check job.
