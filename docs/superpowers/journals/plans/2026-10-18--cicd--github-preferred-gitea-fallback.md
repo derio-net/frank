@@ -607,3 +607,8 @@ one-line limit change plus a guard; nothing to clean
 ### no-refactor-p5-t2 · discovery · no-refactor-because P5.T2 (phase 5)
 
 probe functions written once against the captured shapes; no duplication
+
+<!-- fr:journal kind=discovery scope=plan id=runner-rule-logsql-verified created=2026-10-18T19:33:55+00:00 phase=5 -->
+### runner-rule-logsql-verified · discovery · Runner LogsQL shapes verified live against VictoriaLogs (phase 5) (phase 5)
+
+Read-only stats_query on Frank VictoriaLogs (pod IP :9428). No ci-runner-probe lines exist yet (watcher not deployed): the exact scoped query parses and returns an empty value (NoData -> OK). On an existing Frank stream with the same key=<number> shape (pipelinerun-ttl-gc result ... deleted=N remaining=N cutoff=...), '| extract "deleted=<n> remaining=" | stats max(n)' returned 419 and min(n) 0, '| extract "remaining=<n> cutoff=" | stats max(n)' returned 989: extract + stats max/min are numeric. Needs an explicit _time window in ad-hoc queries; Grafana supplies it from relativeTimeRange. Hop streams carry the message in 'log', Frank in '_msg'. The pc-1 join node_filesystem_avail_bytes/size * on(instance) group_left() node_uname_info{nodename="pc-1"} returns the pc-1 /var series (0.363).
