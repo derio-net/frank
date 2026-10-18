@@ -72,6 +72,7 @@ commands:
 verify:
   - The main push run prints `repo` (repo variable overrides org).
   - The API-created branch starts a push-triggered run.
+  - A workflow whose push trigger has BOTH `branches: [sync-rerun-**]` and a `paths:` filter also starts on the API-created branch (a new branch has no diff base; willikins#492 relies on this). If it does NOT, record it and the watcher must re-run path-filtered workflows another way before go-live.
 status: pending
 ```
 
