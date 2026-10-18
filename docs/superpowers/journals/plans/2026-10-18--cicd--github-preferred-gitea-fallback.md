@@ -727,3 +727,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/882.
 ### willikins-doc-pr-authority-resolved · finding [filed → derio-net/frank#883] · resolves willikins-doc-pr-authority: File follow-up issue in derio-net/willikins: doc-pr must read CI_AUTHORITY (phase 3)
 
 Filed at deliver as derio-net/frank#883; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=plan id=xr-checker-refinements-resolved created=2026-10-18T19:50:47+00:00 state=open resolves=xr-checker-refinements out_of_scope=true -->
+### xr-checker-refinements-resolved · finding [out-of-scope] · resolves xr-checker-refinements: Gate-coverage checker: implicit github.token in actions, and the STOA_CI_GH_TOKEN||GITHUB_TOKEN fallback pattern
+
+Not caused by this change: implicit default-token use is undetectable statically, and the stoa fallback pattern predates it. Follow-up only.
