@@ -639,7 +639,11 @@ covered by CI.
     `ci-runner-probe` line shows `runners_online ≥ 1`; scale the runner to 0
     for 15 minutes and `layer-25-runner-offline` fires (then restore); query
     the pc-1 `/var` series in VMUI and confirm `layer-25-pc1-var-low`
-    evaluates against real data.
+    evaluates against real data; with real `ci-runner-probe` lines present,
+    run the queue-wait LogsQL in VMUI and confirm it yields a numeric
+    `oldest_waiting_s`; revoke nothing, but confirm a missing probe token
+    produces `ci-runner-probe-error` lines and `layer-25-runner-probe-blind`
+    evaluates against them.
 
 ## Implementation Plans
 
