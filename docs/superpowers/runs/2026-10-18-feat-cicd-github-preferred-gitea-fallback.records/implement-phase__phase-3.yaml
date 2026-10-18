@@ -47,4 +47,4 @@ journal:
     phase: 3
 resolves: []
 evidence:
-  tests: /var/folders/28/d4n60x_92gbgh3rtf4vstb0h0000gn/T//p875-phase3-tests.log
+  tests: /var/folders/28/d4n60x_92gbgh3rtf4vstb0h0000gn/T/p875-phase3-tests.log
