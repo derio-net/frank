@@ -23,11 +23,16 @@ spec:
             # PipelineRuns — the second being this generic gitea-ci pipeline,
             # which fails. The failing run carries the generic name, so it reads
             # as an unrelated CI problem rather than a routing bug.
+            # derio-net/ (2026-10-18): defence in depth — its mirrors run Gitea
+            # Actions, and no push hook delivers derio-net repos to this
+            # listener, but if one were ever added this must not start a
+            # generic gitea-ci run for them.
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'push') &&
                 !body.repository.full_name.startsWith('agentic-stoa/') &&
-                !body.repository.full_name.startsWith('derio-homelab/')
+                !body.repository.full_name.startsWith('derio-homelab/') &&
+                !body.repository.full_name.startsWith('derio-net/')
             - name: "overlays"
               value:
                 - key: branch_name
@@ -52,7 +57,9 @@ spec:
     # dual-status writes (context tekton/*) are excluded: GitHub already
     # gets those directly; forwarding would double-post every CI result.
     # Requires the org-level Gitea webhook (Status event) — manual op
-    # cicd-stoa-gitea-org-actions-config.
+    # cicd-stoa-gitea-org-actions-config (agentic-stoa) and
+    # cicd-derio-net-gitea-org (derio-net, derio-homelab). Three orgs since
+    # 2026-10-18: github-status picks the GitHub token by repo owner.
     # Notes: statuses attach to shas, not branches — mirror-main runs also
     # forward (intentional: GitHub main commits get gitea-actions/* statuses
     # too). description/target_url are omitempty in Gitea's payload, hence
@@ -72,7 +79,9 @@ spec:
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'status') &&
-                body.repository.full_name.startsWith('agentic-stoa/') &&
+                (body.repository.full_name.startsWith('agentic-stoa/') ||
+                 body.repository.full_name.startsWith('derio-homelab/') ||
+                 body.repository.full_name.startsWith('derio-net/')) &&
                 !body.context.startsWith('tekton')
             - name: "overlays"
               value:
