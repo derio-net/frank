@@ -18,6 +18,12 @@ data:
     from datetime import datetime, timedelta, timezone
     from pathlib import Path
 
+    # One GitHub App installation per org. The orgs listed here are exactly
+    # those whose forwarded statuses are verified; the Gitea API token is added
+    # in main() and is not an org.
+    TOKEN_FILES = {'agentic-stoa': '/tokens/stoa/token', 'derio-homelab': '/tokens/homelab/token',
+                   'derio-net': '/tokens/net/token'}
+
     def timestamp(value):
         at = datetime.fromisoformat(value.replace('Z', '+00:00'))
         if at.tzinfo is None:
@@ -82,8 +88,8 @@ data:
                     if have != sha and now - at >= timedelta(minutes=30):
                         counts['mirror'] += 1
                         snapshot['diagnostics'].append(f'{repo} mirror {ref}')
-                if not repo.startswith('agentic-stoa/'):
-                    continue
+                if repo.split('/')[0] not in TOKEN_FILES:
+                    continue  # forwarding is checked for every org in the token map
                 # A drifted branch does not imply the source commit is absent:
                 # it can be retained by another ref or an earlier mirror push.
                 for sha in sorted({sha for _, sha, _ in refs}):
@@ -261,8 +267,7 @@ data:
         return int(any(snapshot['errors'].values()))
 
     def main():
-        client = API({'agentic-stoa': '/tokens/stoa/token',
-                      'derio-homelab': '/tokens/homelab/token', 'gitea': '/tokens/gitea/token'})
+        client = API({**TOKEN_FILES, 'gitea': '/tokens/gitea/token'})
         snapshot = check(client, os.environ['MAIN_REPOS'].split(), os.environ['PR_REPOS'].split(),
                          datetime.now(timezone.utc))
         return finish(snapshot, datetime.now(timezone.utc))
@@ -310,12 +315,21 @@ spec:
                     agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog
                     agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
                     agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
-                    agentic-stoa/flexible-health agentic-stoa/site derio-homelab/kid-laptops
+                    agentic-stoa/flexible-health agentic-stoa/site
+                    derio-homelab/kid-laptops derio-homelab/proxmox-cluster
+                    derio-homelab/omada-controller derio-homelab/homelab
+                    derio-homelab/ansible-pihole
+                    derio-net/willikins derio-net/herdr-vertical-tabs
+                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
                 - name: PR_REPOS
                   value: >-
                     agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
                     agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
+                    derio-homelab/ansible-pihole derio-homelab/homelab
+                    derio-homelab/omada-controller derio-homelab/proxmox-cluster
+                    derio-net/herdr-vertical-tabs derio-net/presentation-craft
+                    derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -327,6 +341,7 @@ spec:
                 - {name: scripts, mountPath: /scripts, readOnly: true}
                 - {name: stoa, mountPath: /tokens/stoa, readOnly: true}
                 - {name: homelab, mountPath: /tokens/homelab, readOnly: true}
+                - {name: net, mountPath: /tokens/net, readOnly: true}
                 - {name: gitea, mountPath: /tokens/gitea, readOnly: true}
                 - {name: tmp, mountPath: /tmp}
           volumes:
@@ -336,6 +351,8 @@ spec:
               secret: {secretName: stoa-github-mirror, defaultMode: 0440, items: [{key: token, path: token}]}
             - name: homelab
               secret: {secretName: derio-homelab-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
+            - name: net
+              secret: {secretName: derio-net-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
             - name: gitea
               secret: {secretName: gitea-api-token, defaultMode: 0440, items: [{key: token, path: token}]}
             - {name: tmp, emptyDir: {sizeLimit: 16Mi}}

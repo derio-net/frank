@@ -73,7 +73,7 @@ def _github_listener() -> dict:
     return _one(EL_GITHUB, "EventListener", "github-listener")
 
 
-MIRRORED_ORGS = ("agentic-stoa", "derio-homelab")
+MIRRORED_ORGS = ("agentic-stoa", "derio-homelab", "derio-net")
 
 
 def _main_sync_repos() -> list[str]:
@@ -111,7 +111,7 @@ def _pr_sync_repos() -> list[str]:
         cel = _cel(trig)
         if "sync-pr-" not in str(cel.get("overlays")):
             continue
-        repos += re.findall(r"'(agentic-stoa/[\w.-]+)'", cel["filter"])
+        repos += re.findall(rf"'((?:{'|'.join(MIRRORED_ORGS)})/[\w.-]+)'", cel["filter"])
     return sorted(set(repos))
 
 
@@ -197,11 +197,14 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
     assert "derio-homelab/kid-laptops" in _main_sync_repos(), (
         "the derivation must see the second org's trigger, not only agentic-stoa's"
     )
-    # The derivation must not silently collapse: these eight write sync-pr-N today.
+    # The derivation must not silently collapse: these write sync-pr-N today.
     assert _pr_sync_repos() == sorted(
-        f"agentic-stoa/{r}"
-        for r in ("cnc-fr", "cnc-frd", "cnc-fru", "content-factory", "hermes-brain",
-                  "hum", "second-brain", "stoa-blog")
+        [f"agentic-stoa/{r}" for r in ("cnc-fr", "cnc-frd", "cnc-fru", "content-factory",
+                                       "hermes-brain", "hum", "second-brain", "stoa-blog")]
+        + [f"derio-homelab/{r}" for r in ("proxmox-cluster", "omada-controller", "homelab",
+                                          "ansible-pihole")]
+        + [f"derio-net/{r}" for r in ("willikins", "herdr-vertical-tabs", "presentation-craft",
+                                      "vibe-kanban", "runs-fr")]
     )
 
 
@@ -211,7 +214,11 @@ def test_every_mirrored_org_has_its_own_github_token_wired_to_the_right_secret()
     in MAIN_REPOS with only the first org's token wired is a reconciler that
     looks covered and fails every run — loudly, but only after the first drift.
     """
-    secrets = {"agentic-stoa": "stoa-github-mirror", "derio-homelab": "derio-homelab-github-mirror"}
+    secrets = {
+        "agentic-stoa": "stoa-github-mirror",
+        "derio-homelab": "derio-homelab-github-mirror",
+        "derio-net": "derio-net-github-mirror",
+    }
     pod = _cronjob()["spec"]["jobTemplate"]["spec"]["template"]["spec"]
     stages = {c["name"]: c for c in pod["initContainers"] + pod["containers"]}
     orgs = {repo.split("/")[0] for repo in _main_sync_repos()}
@@ -225,9 +232,10 @@ def test_every_mirrored_org_has_its_own_github_token_wired_to_the_right_secret()
 
 def test_plan_reads_each_repo_with_its_own_orgs_token() -> None:
     token_for = _plan_module().token_for
-    env = {"GITHUB_TOKEN": "stoa", "GITHUB_TOKEN_DERIO_HOMELAB": "homelab"}
+    env = {"GITHUB_TOKEN": "stoa", "GITHUB_TOKEN_DERIO_HOMELAB": "homelab", "GITHUB_TOKEN_DERIO_NET": "net"}
     assert token_for("agentic-stoa/hum", env) == "stoa"
     assert token_for("derio-homelab/kid-laptops", env) == "homelab"
+    assert token_for("derio-net/willikins", env) == "net"
     # An org with no token of its own falls back to the original one: the
     # request then fails loudly (404) into errors.txt and fails the Job, which
     # is better than a KeyError that takes the other org's repairs down too.
