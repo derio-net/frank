@@ -48,12 +48,12 @@ def test_included_minutes_weights_skus():
     items = _fx("usage.json")["usageItems"]
     # Linux 100*1 + Windows 50*2 + macOS 20*10 + Linux 40*1 (storage and
     # copilot are not minutes)
-    assert w.included_minutes_used(items) == 440
+    assert w.included_minutes_used(items) == 450
 
 
 def test_included_minutes_excludes_public_repos():
     items = _fx("usage.json")["usageItems"]
-    assert w.included_minutes_used(items, exclude_repos={"frank-public-thing"}) == 400
+    assert w.included_minutes_used(items, exclude_repos={"frank-public-thing"}) == 410
 
 
 def test_included_minutes_unknown_actions_sku_raises():
@@ -73,10 +73,11 @@ def test_included_minutes_sku_case_and_separator_insensitive():
 def test_pinned_share_counts_non_preferred_repos_and_macos():
     items = _fx("usage.json")["usageItems"]
     ex = {"frank-public-thing"}
-    # preferred = all three: only herdr's macOS (200 of 400) is pinned
-    assert w.pinned_share(items, {"willikins", "vibe-kanban", "herdr-vertical-tabs"}, ex) == 0.5
+    # preferred = all three: only herdr's macOS (200 of 410) is pinned
+    # (the owner/name row 'derio-net/willikins' counts as willikins)
+    assert w.pinned_share(items, {"willikins", "vibe-kanban", "herdr-vertical-tabs"}, ex) == 200 / 410
     # only willikins preferred: vibe 100 + herdr 200 pinned of 400
-    assert w.pinned_share(items, {"willikins"}, ex) == 0.75
+    assert w.pinned_share(items, {"willikins"}, ex) == 300 / 410
     assert w.pinned_share([], {"willikins"}) == 0.0
 
 
@@ -111,9 +112,16 @@ def _runs():
     return _fx("runs.json")["workflow_runs"]
 
 
+def _jobs():
+    return _fx("annotations.json")["jobs"]
+
+
+def _pairs(kind, job="never_started"):
+    return [(_jobs()[job], _fx("annotations.json")[kind])]
+
+
 def _ann():
-    a = _fx("annotations.json")
-    return {9001: a["spend"], 9002: a["ordinary"], 9003: a["spend"], 9004: a["spend"]}
+    return {9001: _pairs("spend"), 9002: _pairs("ordinary"), 9003: _pairs("spend"), 9004: _pairs("spend")}
 
 
 def test_backstop_hits_selects_recent_spending_limit_failures():
@@ -122,6 +130,25 @@ def test_backstop_hits_selects_recent_spending_limit_failures():
     # 9002: older than 30 min and not a spending message.
     # 9003: before the UTC month start. 9004: not a failure.
     assert [r["id"] for r in hits] == [9001]
+
+
+@pytest.mark.parametrize(
+    "kind,job",
+    [
+        ("spend", "started"),                    # ::error:: spoof on a job that ran steps
+        ("spoof_warning", "never_started"),      # log echo / ::warning:: level
+        ("spoof_text", "never_started"),         # wrong sentence shape
+        ("ordinary", "never_started"),
+    ],
+)
+def test_backstop_rejects_spoofs(kind, job):
+    runs = [_runs()[0]]
+    assert w.backstop_hits(runs, {9001: _pairs(kind, job)}, NOW, set()) == []
+
+
+def test_backstop_accepts_empty_runner_name_and_case_insensitive_text():
+    runs = [_runs()[0]]
+    assert [r["id"] for r in w.backstop_hits(runs, {9001: _pairs("spend", "never_started_empty_runner")}, NOW, set())] == [9001]
 
 
 def test_backstop_hits_skips_handled_ids():
@@ -178,7 +205,7 @@ class FakeGH:
 
     def run_annotations(self, repo, run_id):
         self.calls.append(("gh", "annotations", repo, run_id))
-        return self.ann.get(run_id, [])
+        return self.ann.get(run_id, [])  # [(job, annotations)] pairs
 
     def workflow_files(self, repo):
         self.calls.append(("gh", "files", repo))
@@ -387,7 +414,7 @@ def test_pin_wins_over_the_computed_authority():
 
 def test_backstop_flips_and_reruns_on_gitea():
     runs = {"willikins": [dict(_runs()[0])]}
-    gh = FakeGH([], usage=[], runs=runs, ann={9001: _fx("annotations.json")["spend"]},
+    gh = FakeGH([], usage=[], runs=runs, ann={9001: _pairs("spend")},
                 files={"willikins": {"w.yml": GATED_WF}},
                 gh_vars={("willikins", "CI_AUTHORITY"): "github"})
     gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
@@ -456,7 +483,7 @@ def test_github_client_uses_billing_token_for_usage():
     t = Transport({("GET", "/settings/billing/usage"): (200, _fx("usage.json"))})
     c = w.GitHubClient("derio-net", "bill-tok", "auth-tok", http=t)
     items = c.billing_usage("derio-net", 2026, 10)
-    assert len(items) == 6
+    assert len(items) == 7
     assert t.calls[0][1].startswith("https://api.github.com/organizations/derio-net/settings/billing/usage?")
     assert "year=2026" in t.calls[0][1] and "month=10" in t.calls[0][1]
     assert t.calls[0][2]["Authorization"] == "Bearer bill-tok"
@@ -567,7 +594,7 @@ def test_billing_reread_on_month_rollover():
 def test_pending_backstop_forces_billing_read():
     st = {"last_read": "2026-10-18T11:59:00Z", "pct": 1.0, "pinned_share": 0.0}
     gh = FakeGH([], usage=[], runs={"willikins": [dict(_runs()[0])]},
-                ann={9001: _fx("annotations.json")["spend"]},
+                ann={9001: _pairs("spend")},
                 files={"willikins": {"w.yml": GATED_WF}}, gh_vars={("willikins", "CI_AUTHORITY"): "github"})
     gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
     calls, _ = _state_run(st, NOW, gh=gh, gitea=gitea)
@@ -697,3 +724,130 @@ def test_main_runs_every_org_and_exits_nonzero_on_error(tmp_path, capsys):
     assert "verdict=ok org=derio-net" in beats[0]
     assert "verdict=error org=agentic-stoa" in beats[1]  # no billing token for that org
     assert "derio-net" in json.loads(k.cm["data"]["state.json"])
+
+
+# ------------------------------------------------ phase-3 review fixes
+
+
+def _backstop_world(files=None, gh_val="github", gitea_val="github", cfg=None, mode="live", drop=()):
+    runs = {"willikins": [dict(_runs()[0])]}
+    gh = FakeGH([], usage=[], runs=runs, ann={9001: _pairs("spend")},
+                files={"willikins": files or {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): gh_val}, drop=drop)
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): gitea_val}, drop=drop)
+    st, note = {}, FakeNotifier()
+    out = []
+    res = w.run_org("derio-net", cfg or org_cfg(mode=mode), gh, gitea, st, NOW, note, LABELS, log=out.append)
+    return res, gh, gitea, st, note
+
+
+def test_rerun_created_when_already_at_gitea_on_both_sides():
+    _, gh, gitea, st, note = _backstop_world(gh_val="gitea", gitea_val="gitea")
+    assert [c for c in gitea.calls if c[1] == "branch-create"]
+    assert "re-running on Gitea" in note.sent[0]
+
+
+def test_failed_apply_leaves_backstop_unhandled_and_no_rerun():
+    res, gh, gitea, st, note = _backstop_world(drop={("gitea", "willikins")})
+    assert res["verdict"] == "error"
+    assert 9001 not in st.get("handled", [])
+    assert not [c for c in gitea.calls if c[1] == "branch-create"]
+    assert "apply failed" in note.sent[0]
+
+
+def test_refused_repo_gets_no_rerun_and_honest_text():
+    res, gh, gitea, st, note = _backstop_world(files={"w.yml": UNGATED_WF})
+    assert not [c for c in gitea.calls if c[1] == "branch-create"]
+    assert any("refused" in m for m in note.sent)
+    assert not any("re-running on Gitea" in m for m in note.sent)
+
+
+def test_pinned_github_repo_gets_no_rerun_and_honest_text():
+    cfg = org_cfg(repos={"willikins": {"tier": "github-preferred", "pin_authority": "github"}})
+    res, gh, gitea, st, note = _backstop_world(cfg=cfg)
+    assert not [c for c in gitea.calls if c[1] == "branch-create"]
+    assert "pinned" in note.sent[0]
+
+
+def test_dry_run_backstop_text_says_no_rerun():
+    _, _, _, _, note = _backstop_world(mode="dry-run")
+    assert "dry-run" in note.sent[0]
+
+
+def test_move_to_github_is_never_refused_by_the_coverage_gate():
+    gh = FakeGH([], usage=[], files={"willikins": {"w.yml": UNGATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "gitea"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "gitea"},
+                      org_vars={"CI_BUDGET_MONTH": "2026-09"})
+    res, calls, _ = run(gh=gh, gitea=gitea)
+    assert res["verdict"] == "flipped"
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "github"
+    assert not [c for c in calls if c[1] == "files"]
+
+
+def test_move_to_gitea_is_still_refused_by_the_coverage_gate():
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": UNGATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    res, calls, _ = run(gh=gh, gitea=gitea)
+    assert res["verdict"] == "refused"
+
+
+def test_unknown_rerun_branch_is_first_seen_now_never_aged_by_commit_time():
+    gh = FakeGH([], usage=[], gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea.branches = {"willikins": {
+        "sync-rerun-abc": {"name": "sync-rerun-abc", "commit": {"timestamp": "2020-01-01T00:00:00Z"}}}}
+    st = {}
+    run(gh=gh, gitea=gitea, st=st)
+    assert not [c for c in gitea.calls if c[1] == "branch-delete"]
+    assert st["rerun"]["willikins/sync-rerun-abc"] == "2026-10-18T12:00:00Z"
+    # 24h+ later it is reaped
+    gh.calls = gitea.calls = []
+    w.run_org("derio-net", org_cfg(), gh, gitea, st, NOW + timedelta(hours=25), FakeNotifier(), LABELS, log=lambda s: None)
+    assert [c[3] for c in gitea.calls if c[1] == "branch-delete"] == ["sync-rerun-abc"]
+
+
+def test_three_tick_month_sequence():
+    st, note = {}, FakeNotifier()
+    gh = FakeGH([], usage=over_threshold_usage(), files={"willikins": {"w.yml": GATED_WF}},
+                gh_vars={("willikins", "CI_AUTHORITY"): "github"})
+    gitea = FakeGitea([], repo_vars={("willikins", "CI_AUTHORITY"): "github"})
+    shared = []
+    gh.calls = gitea.calls = shared
+
+    def tick(now):
+        del shared[:]
+        return w.run_org("derio-net", org_cfg(), gh, gitea, st, now, note, LABELS, log=lambda s: None)
+
+    # tick 1: over threshold -> stamp + flip
+    assert tick(NOW)["verdict"] == "flipped"
+    assert gitea.org_vars == {"CI_BUDGET_MONTH": "2026-10"}
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "gitea"
+    # tick 2: usage now low, same month -> stays gitea, no writes at all
+    gh.usage = []
+    assert tick(NOW + timedelta(hours=2))["verdict"] == "ok"
+    assert w_writes(shared) == []
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "gitea"
+    # tick 3: next month -> back to github, GitHub written before Gitea
+    assert tick(utc(2026, 11, 1, 0, 10))["verdict"] == "flipped"
+    order = [c[0] for c in shared if c[1] == "set"]
+    assert order == ["gh", "gitea"]
+    assert gh.vars[("willikins", "CI_AUTHORITY")] == "github"
+    assert gitea.repo_vars[("willikins", "CI_AUTHORITY")] == "github"
+
+
+def w_writes(calls):
+    return [c for c in calls if c[1] in ("set", "org-set", "branch-create", "branch-delete")]
+
+
+def test_github_client_run_annotations_returns_job_annotation_pairs():
+    jobs = _jobs()
+    t = Transport({
+        ("GET", "/check-runs/71/annotations"): (200, _fx("annotations.json")["spend"]),
+        ("GET", "/check-runs/73/annotations"): (200, _fx("annotations.json")["ordinary"]),
+        ("GET", "/actions/runs/9001/jobs"): (200, {"jobs": [jobs["never_started"], jobs["started"]]}),
+    })
+    pairs = w.GitHubClient("derio-net", "b", "a", http=t).run_annotations("willikins", 9001)
+    assert [(j["id"], len(a)) for j, a in pairs] == [(71, 1), (73, 1)]
+    assert pairs[0][0]["runner_name"] is None and pairs[1][0]["steps"]

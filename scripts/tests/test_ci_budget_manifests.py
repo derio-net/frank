@@ -200,26 +200,38 @@ CM = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
 RULE_UID = "ci-budget-heartbeat-stale"
 
 
-def _rule():
+def _rule(uid=RULE_UID):
     cm = yaml.safe_load(CM.read_text())
     for blob in cm["data"].values():
         for grp in yaml.safe_load(blob).get("groups", []):
             for rule in grp.get("rules", []):
-                if rule["uid"] == RULE_UID:
+                if rule["uid"] == uid:
                     return grp, rule
-    raise AssertionError(f"rule {RULE_UID} not found")
+    raise AssertionError(f"rule {uid} not found")
 
 
-def test_heartbeat_rule_is_a_frank_dead_mans_switch():
+def _expr(rule):
+    return next(d for d in rule["data"] if d["refId"] == "A")["model"]["expr"]
+
+
+def _container():
+    return _pod()["containers"][0]["name"]
+
+
+def test_heartbeat_rule_is_a_scoped_frank_dead_mans_switch():
     grp, rule = _rule()
     assert len(RULE_UID) <= 40
     assert grp["folder"] == "feature-health"
     a, b, c = (next(d for d in rule["data"] if d["refId"] == r) for r in "ABC")
     assert a["model"]["queryType"] == "stats"
     expr = a["model"]["expr"]
-    assert "stats count() as value" in expr and 'by (' not in expr
-    assert '_msg:"ci-budget-watcher verdict"' in expr  # Frank field, not Hop's `log`
-    assert "kubernetes.namespace_name:tekton-pipelines" in expr
+    assert "stats count() as value" in expr and "by (" not in expr
+    assert expr == (
+        "kubernetes.namespace_name:tekton-pipelines AND "
+        f"kubernetes.container_name:{_container()} AND "
+        "kubernetes.pod_name:ci-budget-watcher* AND "
+        '_msg:"ci-budget-watcher verdict" AND NOT _msg:"verdict=error" | stats count() as value'
+    )
     assert a["relativeTimeRange"]["from"] == 2400
     assert c["model"]["conditions"][0]["evaluator"] == {"type": "lt", "params": [1]}
     assert rule["noDataState"] == "OK"
@@ -227,6 +239,76 @@ def test_heartbeat_rule_is_a_frank_dead_mans_switch():
     assert rule["labels"]["severity"] == "critical"
 
 
-def test_heartbeat_line_the_rule_matches_is_what_the_watcher_prints():
-    src = (APP / "files/watcher.py").read_text()
-    assert "ci-budget-watcher verdict=" in src
+def test_erroring_rule_pages_on_repeated_error_verdicts():
+    uid = "ci-budget-watcher-erroring"
+    grp, rule = _rule(uid)
+    assert len(uid) <= 40
+    assert grp["folder"] == "feature-health"
+    assert _expr(rule) == (
+        "kubernetes.namespace_name:tekton-pipelines AND "
+        f"kubernetes.container_name:{_container()} AND "
+        "kubernetes.pod_name:ci-budget-watcher* AND "
+        '_msg:"ci-budget-watcher verdict=error" | stats count() as value'
+    )
+    c = next(d for d in rule["data"] if d["refId"] == "C")
+    assert c["model"]["conditions"][0]["evaluator"] == {"type": "gt", "params": [3]}
+    assert next(d for d in rule["data"] if d["refId"] == "A")["relativeTimeRange"]["from"] == 2400
+    assert rule["noDataState"] == "OK"
+    assert rule["labels"]["telegram_direct"] == "true"
+
+
+def _terms(expr):
+    """(required substrings, forbidden substrings) from the _msg terms."""
+    import re as _re
+    msg = [(m.group(1) == "NOT ", m.group(2)) for m in _re.finditer(r'(NOT )?_msg:"([^"]+)"', expr)]
+    return [t for n, t in msg if not n], [t for n, t in msg if n]
+
+
+def _watcher():
+    import importlib.util, sys
+    sys.path.insert(0, str(APP / "files"))
+    try:
+        spec = importlib.util.spec_from_file_location("watcher_for_rule", APP / "files/watcher.py")
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+    finally:
+        sys.path.remove(str(APP / "files"))
+    return m
+
+
+def test_lines_the_watcher_prints_satisfy_the_rule_terms():
+    w = _watcher()
+
+    class Boom:
+        def billing_usage(self, *a):
+            raise RuntimeError("403")
+
+        public_repos = list_failed_runs = billing_usage
+
+    class Gitea:
+        def get_org_var(self, *a):
+            return None
+
+    from datetime import datetime, timezone
+    cfg = {"included_minutes": 2000, "threshold_pct": 85, "gitea_org": "o", "mode": "dry-run", "repos": {}}
+    ok, bad = [], []
+
+    class Ok:
+        def billing_usage(self, *a):
+            return []
+
+        def public_repos(self, *a):
+            return set()
+
+    now = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
+    w.run_org("o", cfg, Ok(), Gitea(), {}, now, type("N", (), {"enabled": False})(), set(), log=ok.append)
+    w.run_org("o", cfg, Boom(), Gitea(), {}, now, type("N", (), {"enabled": False})(), set(), log=bad.append)
+    beat_req, beat_forbid = _terms(_expr(_rule()[1]))
+    err_req, _ = _terms(_expr(_rule("ci-budget-watcher-erroring")[1]))
+    healthy = [l for l in ok if "verdict=" in l]
+    errors = [l for l in bad if "verdict=" in l]
+    assert len(healthy) == 1 and len(errors) == 1
+    assert all(t in healthy[0] for t in beat_req) and not any(t in healthy[0] for t in beat_forbid)
+    # an erroring run is NOT a heartbeat, and is what the erroring rule counts
+    assert any(t in errors[0] for t in beat_forbid)
+    assert all(t in errors[0] for t in err_req)

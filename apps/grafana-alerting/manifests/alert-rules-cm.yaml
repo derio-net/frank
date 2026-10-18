@@ -3320,7 +3320,10 @@ data:
       # fires; a VictoriaLogs outage yields noData -> OK (blindness != death).
       # Frank's VictoriaLogs message field is `_msg`, NOT Hop's `log` (verified live
       # for the sibling cred-expiry rule). Window 40m = four cadences, so up to three
-      # missed runs are tolerated. telegram_direct pages Telegram DIRECTLY, bypassing
+      # missed runs are tolerated. The query is scoped to the watcher's own pods and
+      # container (any other pod in tekton-pipelines could print the phrase) and
+      # EXCLUDES verdict=error lines: a watcher that runs but errors every time is
+      # not alive. The sibling rule ci-budget-watcher-erroring pages on those. telegram_direct pages Telegram DIRECTLY, bypassing
       # the LLM agent. uid is 25 chars (Grafana's limit is 40 - a longer one
       # crash-loops Grafana).
       # Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md
@@ -3339,7 +3342,7 @@ data:
                 model:
                   refId: A
                   queryType: stats
-                  expr: 'kubernetes.namespace_name:tekton-pipelines AND _msg:"ci-budget-watcher verdict" | stats count() as value'
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-budget-watcher verdict" AND NOT _msg:"verdict=error" | stats count() as value'
               - refId: B
                 relativeTimeRange: { from: 2400, to: 0 }
                 datasourceUid: __expr__
@@ -3362,3 +3365,37 @@ data:
             annotations:
               summary: "ci-budget-watcher heartbeat stale: no verdict line in namespace tekton-pipelines for 40m. The GitHub-minutes budget is unwatched: no flip to Gitea and no spending-limit backstop will happen."
               runbook: "kubectl -n tekton-pipelines get cronjob,jobs,pods -l app=ci-budget-watcher; unsuspend if suspended; read the last Job pod logs (init container deps = PyYAML install; watcher = verdict lines). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"
+
+          - uid: ci-budget-watcher-erroring
+            title: ci-budget-watcher is erroring
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-budget-watcher verdict=error" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [3] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "ci-budget-watcher logged more than 3 verdict=error lines in 40m: it runs but cannot do its job (billing read, token, Gitea or apply failing), so the GitHub-minutes budget is effectively unwatched."
+              runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=100 | grep -E 'error|verdict=error'; check the ci-budget-github-* / ci-budget-gitea Secrets and the App permissions (manual op cicd-ci-budget-app-permissions). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"

@@ -1,8 +1,99 @@
 {
   "spend": [
-    {"path": ".github", "start_line": 1, "end_line": 1, "start_column": null, "end_column": null, "annotation_level": "failure", "title": "", "message": "The job was not started because recent account payments have failed or your Spending Limit needs to be increased. Please check the 'Billing & plans' section in your settings", "raw_details": "", "blob_href": "https://github.com/derio-net/willikins/blob/aaaaaaaaaaaa/.github"}
+    {
+      "path": ".github",
+      "start_line": 1,
+      "end_line": 1,
+      "start_column": null,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "The job was not started because recent account payments have failed or your Spending Limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+      "raw_details": "",
+      "blob_href": "https://github.com/derio-net/willikins/blob/aaaaaaaaaaaa/.github"
+    }
   ],
   "ordinary": [
-    {"path": ".github", "start_line": 3, "end_line": 3, "start_column": null, "end_column": null, "annotation_level": "failure", "title": "", "message": "Process completed with exit code 1.", "raw_details": "", "blob_href": ""}
-  ]
+    {
+      "path": ".github",
+      "start_line": 3,
+      "end_line": 3,
+      "start_column": null,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "Process completed with exit code 1.",
+      "raw_details": "",
+      "blob_href": ""
+    }
+  ],
+  "spoof_warning": [
+    {
+      "path": ".github",
+      "start_line": 1,
+      "end_line": 1,
+      "start_column": null,
+      "end_column": null,
+      "annotation_level": "warning",
+      "title": "echo",
+      "message": "The job was not started because recent account payments have failed or your Spending Limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+      "raw_details": "",
+      "blob_href": "https://github.com/derio-net/willikins/blob/aaaaaaaaaaaa/.github"
+    }
+  ],
+  "spoof_text": [
+    {
+      "path": ".github",
+      "start_line": 1,
+      "end_line": 1,
+      "start_column": null,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "Spending limit! (printed by ::error:: from a step)",
+      "raw_details": "",
+      "blob_href": "https://github.com/derio-net/willikins/blob/aaaaaaaaaaaa/.github"
+    }
+  ],
+  "jobs": {
+    "never_started": {
+      "id": 71,
+      "name": "check",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner_name": null,
+      "runner_id": null,
+      "steps": []
+    },
+    "never_started_empty_runner": {
+      "id": 72,
+      "name": "check",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner_name": "",
+      "steps": []
+    },
+    "started": {
+      "id": 73,
+      "name": "check",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner_name": "GitHub Actions 12",
+      "runner_id": 12,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "run",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 2
+        }
+      ]
+    }
+  }
 }

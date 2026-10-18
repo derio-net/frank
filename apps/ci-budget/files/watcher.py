@@ -28,6 +28,7 @@ import ci_gate_coverage
 SKU_MULTIPLIER = {"actions linux": 1, "actions windows": 2, "actions macos": 10}
 BACKSTOP_WINDOW = timedelta(minutes=30)
 BACKSTOP_NEEDLE = "spending limit"
+BACKSTOP_PREFIX = "the job was not started because"
 
 
 def _sku(item: dict) -> str:
@@ -48,6 +49,11 @@ def _weighted(item: dict) -> float | None:
     raise ValueError(f"unknown Actions SKU {item.get('sku')!r}: refusing to guess a multiplier")
 
 
+def _repo_name(item: dict) -> str:
+    """repositoryName may arrive as 'owner/name'; tiers and exclusions use bare names."""
+    return str(item.get("repositoryName", "")).rsplit("/", 1)[-1]
+
+
 def included_minutes_used(usage_items, exclude_repos=()) -> float:
     """Included-minute consumption: Linux x1, Windows x2, macOS x10.
 
@@ -56,7 +62,7 @@ def included_minutes_used(usage_items, exclude_repos=()) -> float:
     """
     total = 0.0
     for it in usage_items:
-        if not _is_actions(it) or it.get("repositoryName") in exclude_repos:
+        if not _is_actions(it) or _repo_name(it) in exclude_repos:
             continue
         wt = _weighted(it)
         if wt is not None:
@@ -72,13 +78,13 @@ def pinned_share(usage_items, preferred_repos, exclude_repos=()) -> float:
     """
     total = pinned = 0.0
     for it in usage_items:
-        if not _is_actions(it) or it.get("repositoryName") in exclude_repos:
+        if not _is_actions(it) or _repo_name(it) in exclude_repos:
             continue
         wt = _weighted(it)
         if wt is None:
             continue
         total += wt
-        if it.get("repositoryName") not in preferred_repos or _sku(it) == "actions macos":
+        if _repo_name(it) not in preferred_repos or _sku(it) == "actions macos":
             pinned += wt
     return pinned / total if total else 0.0
 
@@ -105,11 +111,26 @@ def month_start(now: datetime) -> datetime:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
+def _billing_block(job, anns) -> bool:
+    if job.get("runner_name") or job.get("steps"):
+        return False
+    for a in anns:
+        msg = str(a.get("message", "")).strip().lower()
+        if (a.get("annotation_level") == "failure" and msg.startswith(BACKSTOP_PREFIX)
+                and BACKSTOP_NEEDLE in msg):
+            return True
+    return False
+
+
 def backstop_hits(runs, annotations, now, handled_ids):
     """Failed runs from the last 30 min, this UTC month, not yet handled, whose
     annotations say 'spending limit' (case-insensitive).
 
-    `annotations` maps run id -> list of check-run annotation dicts.
+    `annotations` maps run id -> list of (job, [annotation]) pairs. GitHub's own
+    annotation is a failure-level message "The job was not started because ...
+    spending limit ..." on a job that never ran: no runner and no steps. A step
+    can print the same words (`::error::`, `::warning::`, an echo), so all of
+    level, sentence and the never-started job are required.
     """
     start = month_start(now)
     out = []
@@ -119,7 +140,7 @@ def backstop_hits(runs, annotations, now, handled_ids):
         created = parse_ts(r["created_at"])
         if created < start or now - created > BACKSTOP_WINDOW:
             continue
-        if any(BACKSTOP_NEEDLE in str(a.get("message", "")).lower() for a in annotations.get(r["id"], [])):
+        if any(_billing_block(job, anns) for job, anns in annotations.get(r["id"], [])):
             out.append(r)
     return out
 
@@ -236,15 +257,21 @@ def run_org(org, cfg, gh, gitea, st, now, notifier, labels, log=print):
                 raise ReadbackError(f"{org}: {MONTH_VAR} did not read back as {now_month}")
 
         desired_by_repo = {}
+        at_gitea: set[str] = set()   # gitea on BOTH sides after this pass
+        apply_failed: set[str] = set()
         for repo, tcfg in preferred.items():
             desired = tcfg.get("pin_authority") or computed
             desired_by_repo[repo] = desired
             gh_val = gh.get_variable(repo, AUTHORITY_VAR)
             gitea_val = gitea.get_repo_var(gitea_org, repo, AUTHORITY_VAR)
             if gh_val == desired and gitea_val == desired:
+                if desired == "gitea":
+                    at_gitea.add(repo)
                 continue
             try:
-                gaps = coverage_gaps(repo, tcfg, gh, labels)
+                # Only a move TOWARD gitea can run an ungated job on a runner that
+                # cannot serve it; returning to github is never refused.
+                gaps = coverage_gaps(repo, tcfg, gh, labels) if desired == "gitea" else []
                 if gaps:
                     refused.append(repo)
                     digest = hashlib.sha1("\n".join(gaps).encode()).hexdigest()[:8]
@@ -259,19 +286,33 @@ def run_org(org, cfg, gh, gitea, st, now, notifier, labels, log=print):
                     continue
                 apply_authority(repo, desired, gh, gitea, gitea_org, gh_val, gitea_val)
                 flipped.append(repo)
+                if desired == "gitea":
+                    at_gitea.add(repo)
                 _send(st, notifier, f"flip:{org}/{repo}:{desired}:{now_month}",
                       f"ci-budget: moved {org}/{repo} to {desired} ({tag})")
             except Exception as e:  # noqa: BLE001 - one repo's failure must not hide the rest
                 errors.append(f"{repo}: {e}")
+                apply_failed.add(repo)
 
-        # backstop notification + Gitea re-run
+        # backstop notification + Gitea re-run, worded from the actual outcome
         rerun = st.setdefault("rerun", {})
         for hit in hits:
             repo = hit["_repo"]
+            if repo in apply_failed:
+                outcome = "apply failed; will retry next run"
+            elif repo in refused:
+                outcome = "refused (gate-coverage gaps), no re-run"
+            elif desired_by_repo.get(repo) != "gitea":
+                outcome = "repo is pinned to github, no re-run"
+            elif mode != "live":
+                outcome = "dry-run, no re-run"
+            elif repo in at_gitea:
+                outcome = "re-running on Gitea"
+            else:
+                outcome = "not on gitea on both sides, no re-run"
             _send(st, notifier, f"backstop:{hit['id']}",
-                  f"ci-budget: spending-limit failure in {org}/{repo} (run {hit['id']}); "
-                  + ("re-running on Gitea" if mode == "live" else "dry-run, no re-run"))
-            if mode == "live" and repo not in refused and desired_by_repo.get(repo) == "gitea":
+                  f"ci-budget: spending-limit failure in {org}/{repo} (run {hit['id']}); {outcome}")
+            if outcome == "re-running on Gitea":
                 name = RERUN_PREFIX + hit["head_sha"][:12]
                 try:
                     gitea.create_branch(gitea_org, repo, name, hit["head_sha"])
@@ -279,6 +320,8 @@ def run_org(org, cfg, gh, gitea, st, now, notifier, labels, log=print):
                 except Exception as e:  # noqa: BLE001
                     errors.append(f"{repo}: re-run {name}: {e}")
                     continue
+            elif repo in apply_failed:
+                continue  # leave unhandled: the next tick retries
             st.setdefault("handled", []).append(hit["id"])
         del st.get("handled", [])[:-SENT_KEEP]
 
@@ -288,10 +331,15 @@ def run_org(org, cfg, gh, gitea, st, now, notifier, labels, log=print):
                     name = b["name"]
                     if not name.startswith(RERUN_PREFIX):
                         continue
-                    made = rerun.get(f"{repo}/{name}") or b.get("commit", {}).get("timestamp")
-                    if made and now - parse_ts(made) > RERUN_MAX_AGE:
+                    key = f"{repo}/{name}"
+                    made = rerun.get(key)
+                    if not made:
+                        # unknown branch: first seen now; the commit time says
+                        # nothing about when the branch was created
+                        rerun[key] = _iso(now)
+                    elif now - parse_ts(made) > RERUN_MAX_AGE:
                         gitea.delete_branch(gitea_org, repo, name)
-                        rerun.pop(f"{repo}/{name}", None)
+                        rerun.pop(key, None)
     except Exception as e:  # noqa: BLE001
         errors.append(str(e))
 
@@ -385,7 +433,7 @@ class GitHubClient:
         for j in (jobs or {}).get("jobs", []):
             _, a = self._call(self.authority_token, "GET",
                               f"/repos/{self.org}/{repo}/check-runs/{j['id']}/annotations?per_page=100")
-            out += a or []
+            out.append((j, a or []))
         return out
 
     def get_variable(self, repo, name):
