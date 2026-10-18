@@ -851,3 +851,83 @@ def test_github_client_run_annotations_returns_job_annotation_pairs():
     pairs = w.GitHubClient("derio-net", "b", "a", http=t).run_annotations("willikins", 9001)
     assert [(j["id"], len(a)) for j, a in pairs] == [(71, 1), (73, 1)]
     assert pairs[0][0]["runner_name"] is None and pairs[1][0]["steps"]
+
+
+# ------------------------------------------------ phase 5: runner probe
+# Fixtures are captures from the live Gitea 1.25.4 admin Actions API
+# (journal discovery gitea-runner-admin-api). The queue was empty at capture
+# time, so the waiting-job tests re-status the one captured job object.
+
+
+def _waiting_job(created_at):
+    job = _fx("gitea_admin_jobs_one.json")["jobs"][0]
+    return dict(job, status="waiting", conclusion="", created_at=created_at, started_at=None)
+
+
+def test_runner_probe_counts_online_runners_and_oldest_wait():
+    runners = _fx("gitea_admin_runners.json")["runners"]
+    jobs = [_waiting_job("2026-10-18T11:30:00Z"), _waiting_job("2026-10-18T11:55:00Z")]
+    assert w.runner_probe(runners, jobs, NOW) == {"runners_online": 1, "oldest_waiting_s": 1800, "waiting": 2}
+
+
+def test_runner_probe_offline_runner_does_not_count_and_empty_queue_is_zero():
+    runners = [dict(_fx("gitea_admin_runners.json")["runners"][0], status="offline")]
+    assert w.runner_probe(runners, [], NOW) == {"runners_online": 0, "oldest_waiting_s": 0, "waiting": 0}
+
+
+def test_runner_probe_line_omits_runners_online_when_version_lists_no_runners():
+    assert w.runner_probe_line({"runners_online": 1, "oldest_waiting_s": 5, "waiting": 1}) == \
+        "ci-runner-probe runners_online=1 oldest_waiting_s=5 waiting=1"
+    assert w.runner_probe_line({"runners_online": None, "oldest_waiting_s": 0, "waiting": 0}) == \
+        "ci-runner-probe oldest_waiting_s=0 waiting=0"
+
+
+def test_gitea_client_reads_admin_actions_with_the_probe_token():
+    t = Transport({
+        ("GET", "/admin/actions/runners"): (200, _fx("gitea_admin_runners.json")),
+        ("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
+    })
+    c = w.GiteaClient("http://g/api/v1", "probe", t)
+    assert c.list_admin_runners()[0]["status"] == "online"
+    assert c.list_admin_waiting_jobs() == []
+    assert all(call[2]["Authorization"] == "token probe" for call in t.calls)
+    assert all(call[0] == "GET" for call in t.calls)
+
+
+def test_runner_endpoint_missing_yields_no_runners_online(capsys):
+    t = Transport({
+        ("GET", "/admin/actions/runners"): (404, {}),
+        ("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
+    })
+    c = w.GiteaClient("http://g/api/v1", "probe", t)
+    out = []
+    w.log_runner_probe(c, NOW, out.append)
+    assert out == ["ci-runner-probe oldest_waiting_s=0 waiting=0"]
+
+
+def test_probe_failure_logs_a_distinct_line_not_a_verdict():
+    t = Transport({("GET", "/admin/actions/jobs?status=waiting&limit=50&page=1"): (500, {})})
+    c = w.GiteaClient("http://g/api/v1", "probe", t)
+    out = []
+    w.log_runner_probe(c, NOW, out.append)
+    assert len(out) == 1 and out[0].startswith("ci-runner-probe-error ") and "verdict" not in out[0]
+
+
+def test_main_logs_one_probe_line_when_the_probe_token_is_set(tmp_path, capsys):
+    tiers = tmp_path / "tiers.yaml"
+    tiers.write_text("version: 1\norgs: {}\n")
+    runner = tmp_path / "runner.yaml"
+    runner.write_text("runner:\n  labels: ['ubuntu-latest:docker://x']\n")
+    k = FakeK8s()
+    t = Transport({
+        ("GET", "/admin/actions/runners"): (200, _fx("gitea_admin_runners.json")),
+        ("GET", "/admin/actions/jobs?status=waiting"): (200, _fx("gitea_admin_jobs_waiting_empty.json")),
+    })
+
+    def http(method, url, headers=None, body=None):
+        return (k if "/api/v1/namespaces" in url else t)(method, url, headers, body)
+
+    env = {"TIERS_FILE": str(tiers), "RUNNER_CONFIG": str(runner), "SA_TOKEN": "sa", "GITEA_PROBE_TOKEN": "p"}
+    assert w.main(env=env, http=http, now=NOW) == 0
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("ci-runner-probe")]
+    assert lines == ["ci-runner-probe runners_online=1 oldest_waiting_s=0 waiting=0"]

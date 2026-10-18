@@ -414,6 +414,33 @@ class TelegramNotifier:
             raise HttpError(status, resp, "POST", "telegram sendMessage")
 
 
+def runner_probe(runners, waiting_jobs, now):
+    """Summarise runner liveness and queue age (spec section 7).
+
+    runners is None when the Gitea version lists no runners, in which case
+    runners_online is omitted from the log line.
+    """
+    ages = [int((now - parse_ts(j["created_at"])).total_seconds()) for j in waiting_jobs]
+    return {
+        "runners_online": None if runners is None else sum(1 for r in runners if r.get("status") == "online"),
+        "oldest_waiting_s": max(ages, default=0),
+        "waiting": len(waiting_jobs),
+    }
+
+
+def runner_probe_line(p):
+    online = "" if p.get("runners_online") is None else f" runners_online={p['runners_online']}"
+    return f"ci-runner-probe{online} oldest_waiting_s={p['oldest_waiting_s']} waiting={p['waiting']}"
+
+
+def log_runner_probe(gitea, now, log=print):
+    """One read-only probe per run; failure is a distinct line, never a verdict."""
+    try:
+        log(runner_probe_line(runner_probe(gitea.list_admin_runners(), gitea.list_admin_waiting_jobs(), now)))
+    except Exception as e:  # noqa: BLE001
+        log(f"ci-runner-probe-error {e}")
+
+
 def _env_key(org):
     return org.upper().replace("-", "_")
 
@@ -448,6 +475,9 @@ def main(env=None, http=None, now=None, out=print):
             out(f"ci-budget-watcher error org={org}: {e}")
             out(f"ci-budget-watcher verdict=error org={org} pct=0.0 mode={ocfg.get('mode', 'dry-run')}")
     store.save(state)
+    if env.get("GITEA_PROBE_TOKEN"):
+        probe = GiteaClient(env.get("GITEA_API", "http://gitea-http.gitea.svc:3000/api/v1"), env["GITEA_PROBE_TOKEN"], http)
+        log_runner_probe(probe, now, out)
     return 1 if failed else 0
 
 

@@ -161,6 +161,26 @@ class GiteaClient:
                 return out
             page += 1
 
+    def _admin_pages(self, path, key, allow=()):
+        out, page = [], 1
+        sep = "&" if "?" in path else "?"
+        while True:
+            status, data = self._call("GET", f"{path}{sep}limit=50&page={page}", allow=allow)
+            if status in allow:
+                return None
+            items = (data or {}).get(key) or []
+            out += items
+            if len(items) < 50:
+                return out
+            page += 1
+
+    def list_admin_runners(self):
+        """Instance runners (read:admin). None when this Gitea has no such endpoint."""
+        return self._admin_pages("/admin/actions/runners", "runners", allow=(404,))
+
+    def list_admin_waiting_jobs(self):
+        return self._admin_pages("/admin/actions/jobs?status=waiting", "jobs")
+
     def delete_branch(self, org, repo, name):
         self._call("DELETE", f"/repos/{org}/{repo}/branches/{urllib.parse.quote(name, safe='')}", allow=(404,))
 

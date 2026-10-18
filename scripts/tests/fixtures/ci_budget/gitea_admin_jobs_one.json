@@ -1,0 +1,27 @@
+{
+  "jobs": [
+    {
+      "id": 1,
+      "url": "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/second-brain/actions/jobs/1",
+      "html_url": "http://192.168.55.209:3000/agentic-stoa/second-brain/actions/runs/1/jobs/0",
+      "run_id": 1,
+      "run_url": "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/second-brain/actions/runs/1",
+      "name": "matrix",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "run_attempt": 1,
+      "head_sha": "b4c16782711f8cf17a47b7065c3967d82a323828",
+      "head_branch": "main",
+      "status": "completed",
+      "conclusion": "failure",
+      "runner_id": 1,
+      "runner_name": "act-runner-5dff4c5956-dwpqw",
+      "steps": null,
+      "created_at": "2026-07-20T11:35:24Z",
+      "started_at": "2026-07-20T11:35:27Z",
+      "completed_at": "2026-07-20T11:52:29Z"
+    }
+  ],
+  "total_count": 8401
+}
