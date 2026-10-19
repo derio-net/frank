@@ -100,7 +100,7 @@ also remove it from the App installation's repository access.
 |---|---|---|
 | `app-permissions` | PRE-MERGE | UI; `status` verifies the permissions, the installation repos and a live billing read with each App token |
 | `gitea-semantics` | PRE-MERGE | `apply gitea-semantics` (scratch repo, then cleanup; it records the proof) |
-| `gitea-org` | PRE-MERGE | `apply gitea-org` (org, bot, tokens written as SOPS files + applied, status webhooks) |
+| `gitea-org` | PRE-MERGE | `apply gitea-org` (org, bot, tokens written as SOPS files + applied, status webhooks, and the read-only `ci-readers` team that lets `tekton-bot` — the `ci-delivery-check` identity — read every private mirror; without it the checker gets 404 and reports `read-error 404`) |
 | `gitea-mirrors` | PRE-MERGE | `apply gitea-mirrors` |
 | `webhook-secret` | post-merge, before webhooks | `apply webhook-secret` — seeds the never-seeded derio-net HMAC secret (Infisical `/derio-net/GITHUB_WEBHOOK_SECRET`, pre-existing op `cicd-staging-gate-runs-fr-webhook`) and the same value into runs-fr's `FRANK_STAGING_GATE_WEBHOOK_SECRET` |
 | `github-webhooks` | post-merge | `apply github-webhooks` |

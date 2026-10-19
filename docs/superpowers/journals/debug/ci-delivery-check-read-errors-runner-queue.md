@@ -1,0 +1,32 @@
+<!-- fr:journal-schema=2 -->
+# Journal: ci-delivery-check-read-errors-runner-queue
+
+<!-- fr:journal kind=repro scope=debug id=19731e8daa1d created=2026-10-19T14:48:06+00:00 -->
+### 19731e8daa1d · repro · ci-delivery-check errors every run; runner queue 54 jobs / 9h
+
+2026-10-19 after #878/#887 merged: 3 consecutive ci-delivery-check Error pods listing read-error on 9 derio-net/derio-homelab mirrors + ansible-pihole; ci-runner-probe runners_online=1 oldest_waiting_s=32438 waiting=54 while runner CPU ~1m.
+
+<!-- fr:journal kind=root-cause scope=debug id=7d55964061bd created=2026-10-19T14:48:09+00:00 -->
+### 7d55964061bd · root-cause · RC1: delivery-check reads Gitea as tekton-bot, which is not a member of derio-net/derio-homelab
+
+Mirrors exist (ci-budget-ops status gitea-mirrors: 0 open). tekton-bot GET /repos/<org>/<repo> -> 404, /orgs/<org> -> 403; ci-budget (Owners) -> 200 on all 9. API.http uses one gitea token (gitea-api-token) for every org. kid-laptops only works because it was granted explicitly. The bare except in check() hides the HTTP code.
+
+<!-- fr:journal kind=root-cause scope=debug id=453e616daabd created=2026-10-19T14:48:12+00:00 -->
+### 453e616daabd · root-cause · RC2: derio-homelab/ansible-pihole default branch is picl; check + mirror-reconcile hardcode main
+
+GitHub branches/main -> 404 for ansible-pihole only (others 200); gh api default_branch=picl. ci-delivery-check head() and mirror-reconcile (lines ~137,220) use main; ci-budget-ops resolves default_branch.
+
+<!-- fr:journal kind=root-cause scope=debug id=c35e757df2b6 created=2026-10-19T14:48:14+00:00 -->
+### c35e757df2b6 · root-cause · RC3: 54 waiting jobs are one vibe-kanban run (7598) from tag v0.0.1 created by the mirror backfill
+
+All 54 jobs belong to derio-net/vibe-kanban run 7598, pre-release.yml@refs/tags/v0.0.1, event push, created 05:39:25-40Z (apply gitea-mirrors push of all tags). The tag's OLD workflow has no github.server_url guard; current main version is workflow_dispatch-only. Runner is healthy (restarted 13:30 after dind race) and served willikins/kid-laptops tasks since, yet never took these. Not yet explained why jobs stay waiting.
+
+<!-- fr:journal kind=finding scope=debug id=fef7c65fce7a created=2026-10-19T15:09:31+00:00 state=fixed -->
+### fef7c65fce7a · finding [fixed] · RC1+RC2 fixed: ci-readers team (applied live) + default-branch resolution in both CronJobs
+
+gitea-org op now creates team ci-readers (read, all repos) with tekton-bot in derio-net and derio-homelab; applied 2026-10-19, tekton-bot GET repos -> 200. ci-delivery-check and mirror-reconcile resolve GitHub default_branch (ansible-pihole=picl); read-error diagnostics carry the HTTP status. Tests: test_ci_delivery_check.py, test_ci_mirror_resilience.py (208 passed across related suites). RC3 open: 8 queued tag-push runs on vibe-kanban; Gitea 1.25 has no cancel API.
+
+<!-- fr:journal kind=review scope=debug id=76f7a2864636 created=2026-10-19T15:09:51+00:00 -->
+### 76f7a2864636 · review · Self-review only
+
+No independent reviewer dispatched; no findings raised. Related suites green (208 passed).

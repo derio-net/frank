@@ -190,6 +190,9 @@ st_gitea_org() {
       [ "$o" = derio-net ] && { gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1 | while read -r tid; do gt GET "/teams/$tid/members" | jq -r '.[].login'; done | grep -qx stoa-bot && done_ "derio-net: stoa-bot has write (team mirror-writers)" || open_ "derio-net: stoa-bot lacks write"; }
       gt GET "/orgs/$o/hooks" | jq -e --arg u "$LISTENER_GITEA" '[.[]|select(.config.url==$u and (.events|index("status")) and .active)]|length>0' >/dev/null \
         && done_ "$o: org status webhook → gitea-listener" || open_ "$o: org status webhook missing"
+      # ci-delivery-check reads every mirror as tekton-bot; a non-member gets 404 on private repos.
+      gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="ci-readers")|.id' | head -1 | while read -r rid; do gt GET "/teams/$rid/members" | jq -r '.[].login'; done | grep -qx tekton-bot \
+        && done_ "$o: tekton-bot can read every mirror (team ci-readers)" || open_ "$o: tekton-bot cannot read the mirrors (apply gitea-org)"
     else open_ "$o: org teams not readable (does the org exist?)"; fi
   done
   for s in ci-budget-gitea ci-budget-gitea-probe; do
@@ -198,11 +201,17 @@ st_gitea_org() {
 }
 ap_gitea_org() {
   gitea_admin_auth
-  confirm "Create/ensure Gitea org derio-net, team mirror-writers(stoa-bot), user ci-budget (owner of derio-net + derio-homelab), its token, a read:admin probe token, and status webhooks?"
+  confirm "Create/ensure Gitea org derio-net, team mirror-writers(stoa-bot), team ci-readers(tekton-bot, read) in both orgs, user ci-budget (owner of derio-net + derio-homelab), its token, a read:admin probe token, and status webhooks?"
   [ "$(gt_code /orgs/derio-net)" = 200 ] || gt POST /orgs '{"username":"derio-net","visibility":"private"}' >/dev/null
   local tid; tid=$(gt GET /orgs/derio-net/teams | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1)
   [ -n "$tid" ] || tid=$(gt POST /orgs/derio-net/teams '{"name":"mirror-writers","permission":"write","includes_all_repositories":true,"units":["repo.code","repo.actions"]}' | jq -r .id)
   gt PUT "/teams/$tid/members/stoa-bot" >/dev/null
+  # Read-only access for the delivery checker (tekton-bot), one team per mirrored org.
+  for o in derio-net derio-homelab; do
+    local rid; rid=$(gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="ci-readers")|.id' | head -1)
+    [ -n "$rid" ] || rid=$(gt POST "/orgs/$o/teams" '{"name":"ci-readers","permission":"read","includes_all_repositories":true,"units":["repo.code"]}' | jq -r .id)
+    gt PUT "/teams/$rid/members/tekton-bot" >/dev/null
+  done
   if [ "$(gt_code /users/ci-budget)" != 200 ]; then
     CB_PW="$(openssl rand -base64 30)"
     gt POST /admin/users "$(jq -n --arg p "$CB_PW" '{username:"ci-budget",email:"ci-budget@noreply.invalid",password:$p,must_change_password:false,visibility:"private"}')" >/dev/null

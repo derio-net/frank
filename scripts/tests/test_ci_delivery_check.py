@@ -30,6 +30,10 @@ class Forge:
         self.dest = []
         self.calls = []
         self.commits = {'head', 'pr'}
+        self.default = 'main'
+
+    def default_branch(self, repo):
+        return self.default
 
     def repo(self, repo):
         self.calls.append(('repo', repo))
@@ -164,7 +168,7 @@ def test_commit_readability_distinguishes_absence_from_failed_reads(checker, cod
     calls = []
     def request(forge, repo, path):
         calls.append(path)
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         raise checker.urllib.error.HTTPError(path,code,'private-response',{},None)
     api = checker.API({}, request=request)
     if expected is False:
@@ -181,7 +185,7 @@ def test_commit_readability_verifies_repository_and_sha(checker):
     with pytest.raises(checker.urllib.error.HTTPError): api.commit_exists(REPO,'a'*40)
     for sha in ('a'*40, 'b'*40):
         api = checker.API({}, request=lambda forge,repo,path:
-                          {'full_name':repo} if path == f'/repos/{repo}' else {'sha':sha})
+                          {'full_name':repo,'default_branch':'main'} if path == f'/repos/{repo}' else {'sha':sha})
         if sha == 'a'*40:
             assert api.commit_exists(REPO,sha) is True
         else:
@@ -292,7 +296,7 @@ def test_api_adapters_gitea_branch_id_and_status_path(checker):
     calls = []
     def request(forge,repo,path):
         calls.append((forge,path))
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         if '/branches/' in path: return {'commit':{'id':API_SHA}}
         return [gitea_api_status()] if path.endswith('page=1') else []
     api = checker.API({},request=request)
@@ -332,7 +336,7 @@ def test_gitea_status_adapter_requires_status_and_github_remains_unchanged(check
 
 def test_live_shaped_nonempty_gitea_history_does_not_blind_checker(checker):
     def request(forge,repo,path):
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         if '/branches/' in path:
             return {'commit':{'id':API_SHA, 'sha':API_SHA,
                               'commit':{'committer':{'date':NOW.isoformat()}}}}
@@ -355,7 +359,7 @@ def test_live_relative_gitea_target_matches_delivered_absolute_url(checker, monk
     destination['target_url'] = 'http://192.168.55.209:3000/agentic-stoa/cnc-fr/actions/runs/3939/jobs/0'
 
     def request(forge, repo, path):
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         if '/branches/' in path:
             return {'commit':{'id':API_SHA, 'sha':API_SHA,
                               'commit':{'committer':{'date':NOW.isoformat()}}}}
@@ -421,7 +425,7 @@ def test_deployed_web_root_matches_gitea_generated_status_links(checker, monkeyp
 @pytest.mark.parametrize('sha', ['truncated', 'a'*39, 'a'*41, 'g'*40, 'a'*64, '', None])
 def test_invalid_sha_never_certifies_matching_mirror_healthy(checker, sha):
     def request(forge, repo, path):
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         if forge == 'github':
             return {'commit':{'sha':sha, 'commit':{'committer':{'date':NOW.isoformat()}}}}
         if '/branches/' in path: return {'commit':{'id':sha}}
@@ -435,7 +439,7 @@ def test_invalid_sha_never_certifies_matching_mirror_healthy(checker, sha):
 
 def test_valid_full_api_sha_and_invalid_pr_sha(checker):
     def request(forge, repo, path):
-        if path == f'/repos/{repo}': return {'full_name':repo}
+        if path == f'/repos/{repo}': return {'full_name':repo,'default_branch':'main'}
         if '/branches/' in path:
             return {'commit':{'id':API_SHA, 'sha':API_SHA,
                               'commit':{'committer':{'date':NOW.isoformat()}}}}
@@ -483,7 +487,7 @@ def test_unreadable_repository_not_missing_branch(checker, code):
 def test_verified_repo_missing_branch_and_malformed_head(checker):
     def request(forge,repo,path):
         if path.endswith('/'+repo):
-            return {'full_name':repo}
+            return {'full_name':repo,'default_branch':'main'}
         raise checker.urllib.error.HTTPError(path,404,'missing',{},None)
     api = checker.API({},request=request)
     assert api.branch(REPO,'main') is None
@@ -564,3 +568,42 @@ def test_every_org_token_volume_is_optional():
     for name in ('stoa', 'homelab', 'net'):
         assert vols[name]['secret']['optional'] is True, name
     assert 'optional' not in vols['gitea']['secret']
+
+
+def test_mirror_is_compared_on_the_default_branch_not_on_main(checker):
+    # derio-homelab/ansible-pihole's default branch is `picl`; `main` never existed there.
+    f = Forge(); f.default = 'picl'; f.refs = {'picl': 'head'}; f.prs = []
+    assert check(checker, f)['counts'][REPO]['mirror'] == 0
+    f.refs = {'main': 'head'}  # a stale `main` must not satisfy the check
+    assert check(checker, f)['counts'][REPO]['mirror'] == 1
+
+
+def test_api_resolves_the_default_branch_before_reading_its_head(checker):
+    calls = []
+    def request(forge, repo, path):
+        calls.append((forge, path))
+        if path == f'/repos/{repo}': return {'default_branch': 'picl', 'full_name': repo}
+        if path == f'/repos/{repo}/branches/picl':
+            return {'commit': {'sha': API_SHA, 'commit': {'committer': {'date': '2026-10-14T00:00:00Z'}}}}
+        raise AssertionError(path)
+    api = checker.API({}, request=request)
+    assert api.default_branch(REPO) == 'picl'
+    assert api.head(REPO)[0] == API_SHA
+    assert not any(path.endswith('/branches/main') for _, path in calls)
+
+
+@pytest.mark.parametrize('bad', [None, '', 7, 'a b', '../x'])
+def test_malformed_default_branch_is_an_error(checker, bad):
+    api = checker.API({}, request=lambda forge, repo, path: {'default_branch': bad})
+    with pytest.raises(ValueError): api.default_branch(REPO)
+
+
+def test_read_error_diagnostic_names_the_http_status_but_no_forge_text(checker):
+    import urllib.error
+    f = Forge()
+    def boom(repo): raise urllib.error.HTTPError('http://x', 404, 'secret-body', {}, None)
+    f.repo = boom
+    snap = check(checker, f)
+    assert snap['diagnostics'] == [f'{REPO} read-error 404']
+    f.repo = lambda repo: (_ for _ in ()).throw(TimeoutError('token abc'))
+    assert check(checker, f)['diagnostics'] == [f'{REPO} read-error TimeoutError']
