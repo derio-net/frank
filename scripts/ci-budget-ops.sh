@@ -137,6 +137,9 @@ ap_gitea_semantics() {
   gitea_admin_auth
   local org=derio-homelab repo=ci-var-probe-$$ run
   confirm "Create scratch repo $org/$repo (+ org variable CI_PROBE), run 4 tiny workflows, then delete both?"
+  # Clean up on ANY exit (Ctrl-C, timeout, error): an interrupted probe once left
+  # ci-var-probe-<pid> behind, which status then flags as an orphan mirror.
+  trap 'gt DELETE "/repos/'"$org"'/'"$repo"'" >/dev/null 2>&1; gt DELETE "/orgs/'"$org"'/actions/variables/CI_PROBE" >/dev/null 2>&1' EXIT INT TERM
   gt POST "/orgs/$org/repos" '{"name":"'"$repo"'","private":true,"auto_init":true,"default_branch":"main"}' >/dev/null
   gt PATCH "/repos/$org/$repo" '{"has_actions":true}' >/dev/null
   gt POST "/orgs/$org/actions/variables/CI_PROBE" '{"value":"org"}' >/dev/null || true
@@ -167,7 +170,8 @@ ap_gitea_semantics() {
   local orgwins; orgwins=$(echo "$js" | jq -r '[.workflow_runs[]? | select(.name=="org-wins")][0].status // "absent"')
   echo "repo-wins@main=$res_repo  org-wins=$orgwins  repo-wins@sync-rerun=$res_branch  paths-filtered@sync-rerun=${res_paths:-NOT-STARTED}"
   gt DELETE "/repos/$org/$repo" >/dev/null; gt DELETE "/orgs/$org/actions/variables/CI_PROBE" >/dev/null || true
-  if [ "$res_repo" = success ] && [ "$res_branch" = success ]; then
+  trap - EXIT INT TERM
+  if [ "$res_repo" = success ] && [ "$res_branch" = success ] && [ "$orgwins" != success ]; then
     printf 'proven %s: repo variable overrides org (repo-wins=success, org-wins=%s); API-created branch fires push runs; paths-filtered workflow on new branch: %s\n' \
       "$(date -u +%FT%TZ)" "$orgwins" "${res_paths:-NOT-STARTED within 3 min after the plain runs, with a tip commit touching src/** — re-run of path-filtered workflows needs another mechanism before go-live}" > "$STATE_DIR/gitea-semantics.ok"
     cat "$STATE_DIR/gitea-semantics.ok"
