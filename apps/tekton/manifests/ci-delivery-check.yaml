@@ -67,6 +67,35 @@ data:
         state, description, url = expected
         return actual in (expected, (state, description[:140], url))
 
+    def undelivered(client, repo, shas, now):
+        """(sha, gitea status, expected GitHub tuple) for each eligible status
+        older than the grace window that GitHub does not carry as forwarded.
+        scripts/ci_status_backfill.py re-forwards exactly this set."""
+        missing = []
+        # A drifted branch does not imply the source commit is absent:
+        # it can be retained by another ref or an earlier mirror push.
+        for sha in sorted(shas):
+            if not client.commit_exists(repo, sha):
+                continue
+            source = latest(client.statuses('gitea', repo, sha))
+            # Preserve Gitea's exact contexts/filter, then collapse the
+            # eligible events onto GitHub's case-insensitive identity.
+            eligible = latest([s for context, s in source.items()
+                               if not context.startswith('tekton')],
+                              case_insensitive=True).values()
+            if not eligible:
+                continue  # path-filtered CI may intentionally do nothing
+            destination = latest(client.statuses('github', repo, sha), case_insensitive=True)
+            for s in eligible:
+                if now - timestamp(s['created_at']) < timedelta(minutes=10):
+                    continue
+                got = destination.get(('gitea-actions/' + s['context']).lower())
+                actual = None if got is None else (
+                    got['state'], got.get('description') or '', got.get('target_url') or '')
+                if not matches(actual, forwarded(s)):
+                    missing.append((sha, s, forwarded(s)))
+        return missing
+
     def check(client, main_repos, pr_repos, now):
         snapshot = {'counts': {}, 'errors': {}, 'diagnostics': []}
         for repo in sorted(set(main_repos + pr_repos)):
@@ -90,30 +119,10 @@ data:
                         snapshot['diagnostics'].append(f'{repo} mirror {ref}')
                 if repo.split('/')[0] not in TOKEN_FILES:
                     continue  # forwarding is checked for every org in the token map
-                # A drifted branch does not imply the source commit is absent:
-                # it can be retained by another ref or an earlier mirror push.
-                for sha in sorted({sha for _, sha, _ in refs}):
-                    if not client.commit_exists(repo, sha):
-                        continue
-                    source = latest(client.statuses('gitea', repo, sha))
-                    # Preserve Gitea's exact contexts/filter, then collapse the
-                    # eligible events onto GitHub's case-insensitive identity.
-                    eligible = latest([s for context, s in source.items()
-                                       if not context.startswith('tekton')],
-                                      case_insensitive=True).values()
-                    if not eligible:
-                        continue  # path-filtered CI may intentionally do nothing
-                    destination = latest(client.statuses('github', repo, sha), case_insensitive=True)
-                    for s in eligible:
-                        if now - timestamp(s['created_at']) < timedelta(minutes=10):
-                            continue
-                        got = destination.get(('gitea-actions/' + s['context']).lower())
-                        actual = None if got is None else (
-                            got['state'], got.get('description') or '', got.get('target_url') or '')
-                        if not matches(actual, forwarded(s)):
-                            counts['status'] += 1
-                            # Never log arbitrary forge text: it may contain credentials.
-                            snapshot['diagnostics'].append(f'{repo} status delivery mismatch')
+                for _ in undelivered(client, repo, {sha for _, sha, _ in refs}, now):
+                    counts['status'] += 1
+                    # Never log arbitrary forge text: it may contain credentials.
+                    snapshot['diagnostics'].append(f'{repo} status delivery mismatch')
             except Exception as exc:
                 snapshot['errors'][repo] = 1
                 # HTTP status or exception class only, never forge text (it may carry
