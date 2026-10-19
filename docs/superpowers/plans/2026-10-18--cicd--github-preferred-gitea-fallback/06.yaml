@@ -60,9 +60,11 @@ state:
       note: 'status github-webhooks (9 repos), readonly-secrets, orphan-template:
         all DONE, 0 open (2026-10-19)'
     P6.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-10-19T19:32:39+00:00'
+      note: 'derio-net live 2026-10-19 (#892). derio-homelab still dry-run (go-live
+        is per org; both gate PRs merged, would-flip 91.6%): its flip is a separate
+        decision.'
   completion:
     at: null
     note: null
