@@ -102,6 +102,7 @@ also remove it from the App installation's repository access.
 | `gitea-semantics` | PRE-MERGE | `apply gitea-semantics` (scratch repo, then cleanup; it records the proof) |
 | `gitea-org` | PRE-MERGE | `apply gitea-org` (org, bot, tokens written as SOPS files + applied, status webhooks) |
 | `gitea-mirrors` | PRE-MERGE | `apply gitea-mirrors` |
+| `webhook-secret` | post-merge, before webhooks | `apply webhook-secret` — seeds the never-seeded derio-net HMAC secret (Infisical `/derio-net/GITHUB_WEBHOOK_SECRET`, pre-existing op `cicd-staging-gate-runs-fr-webhook`) and the same value into runs-fr's `FRANK_STAGING_GATE_WEBHOOK_SECRET` |
 | `github-webhooks` | post-merge | `apply github-webhooks` |
 | `readonly-secrets` | post-merge | `apply readonly-secrets` (none declared today) |
 | `orphan-template` | post-merge | `apply orphan-template` |
