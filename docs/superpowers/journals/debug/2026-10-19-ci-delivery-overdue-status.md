@@ -25,3 +25,8 @@ The derio-net/derio-homelab org status hooks were created 05:13:25Z (manual op, 
 ### 7470ff74b336 · finding [fixed] · Backfill tool re-forwards the checker's undelivered set through the bridge; 23 stranded statuses repaired live
 
 ci-delivery-check's per-SHA comparison is factored into undelivered() (check() counts it, behaviour unchanged: 146 delivery/bridge tests green). scripts/ci_status_backfill.py loads undelivered() from the ConfigMap and renders stoa-status-bridge PipelineRuns from the bridge's own TriggerTemplate; prints only, the operator pipes to kubectl create; stale pending skipped unless --include-pending. Pinned by scripts/tests/test_ci_status_backfill.py (written first, red on missing module). Live (operator-approved): dry run = exactly the 24 found by hand (23 + herdr test-macos pending skipped); 23 PipelineRuns Succeeded; re-run reports 0 undelivered. herdr keeps 1 overdue (the permanent-pending macOS status) pending the open unservable-label decision. Gotcha + tekton.md updated (trigger-first onboarding; stale 'only agentic-stoa forwarded' line corrected).
+
+<!-- fr:journal kind=review scope=debug id=b49dc7aac99e created=2026-10-19T19:51:54+00:00 -->
+### b49dc7aac99e · review · Self-review of #895: no findings; one verification slip caught
+
+Reviewed the diff: check() refactor preserves sorted SHA iteration and grace/mapping (existing 44 delivery tests unchanged and green); backfill is print-only and derives repos, comparison and PipelineRun shape from the manifests, not copies. No code findings. Process note: the first post-backfill verification read a stale FAILED 16:30Z job because of an and/or precedence slip in the Monitor filter; re-verified on the 19:45Z (24 mismatches) vs 19:50Z (1, herdr pending) ticks.
