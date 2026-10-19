@@ -46,10 +46,10 @@ commands:
   - '# derio-fr-automation (derio-net), homelab-fr-automation (derio-homelab), stoa-fr-automation (agentic-stoa): App settings → Permissions'
   - '# all three: Organization permissions → Administration: Read-only'
   - '# derio-fr-automation + homelab-fr-automation: Repository → Variables: Read and write; Checks: Read-only; Actions: Read-only; Pull requests: Read-only'
-  - '# derio-fr-automation: Repository → Issues: Read and write; Commit statuses: Read and write (if absent)'
+  - '# derio-fr-automation: Repository → Issues: Read and write (report issue in derio-net/willikins); Commit statuses: Read and write (if absent)'
   - '# each org: Settings → GitHub Apps → the App → Review request → Accept new permissions'
   - '# homelab-fr-automation installation: Repository access → add proxmox-cluster, omada-controller, homelab, ansible-pihole (keep kid-laptops)'
-  - '# derio-fr-automation installation: confirm willikins, herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr, frank are included'
+  - '# derio-fr-automation installation: confirm willikins, herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr are included (willikins also receives the monthly report issue)'
   - '# live proof per org: mint an installation token from the PEM (RS256 JWT → POST /app/installations/<id>/access_tokens with {"permissions":{"organization_administration":"read"}}), then GET /organizations/<org>/settings/billing/usage?year=YYYY&month=M'
 verify:
   - Each of the three orgs returns HTTP 200 with usageItems for the installation token. Any 403/404 → stop, return to the operator before merge.

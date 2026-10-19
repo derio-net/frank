@@ -130,7 +130,7 @@ R11. The watcher refuses to move a repo TOWARD Gitea while its workflows fail th
 R12. Backstop: within 10 minutes of a GitHub job in a `github-preferred` repo failing with the "spending limit" annotation, the watcher flips that org (R8, R9) and re-runs the affected commit on Gitea — PR heads and default-branch commits alike.
 R13. Every flip, would-flip (dry-run), refusal and backstop trigger is sent to Telegram once (not once per run); every watcher run emits a heartbeat log line, and a Grafana rule pages when the heartbeat stops.
 R14. The current authority of every `github-preferred` repo is readable from GitHub alone: the watcher sets the repo variable `CI_AUTHORITY` explicitly to `github` or `gitea` (never leaves it unset), so a consumer such as willikins' `doc-pr` can read it with `gh variable get CI_AUTHORITY`. A follow-up issue for the doc-pr side is filed in derio-net/willikins.
-R15. On the 1st of each month a report is opened as an issue in derio-net/frank: per org and per repo, the previous month's billed minutes (each job rounded up to a whole minute by GitHub's billing, macOS ×10), the share consumed by GitHub-pinned jobs, the current tier, a proposed tier change with its reason, billed repos that the tier config does not list, and the gate-coverage gaps. Re-running it for the same month updates the same issue.
+R15. On the 1st of each month a report is opened as an issue in the private derio-net/willikins repo: per org and per repo, the previous month's billed minutes (each job rounded up to a whole minute by GitHub's billing, macOS ×10), the share consumed by GitHub-pinned jobs, the current tier, a proposed tier change with its reason, billed repos that the tier config does not list, and the gate-coverage gaps. Re-running it for the same month updates the same issue.
 R16. A gate-coverage checker reports, for every workflow in a `github-preferred` or `gitea-only` repo, each job that lacks a forge gate, each fallback-eligible job that a Gitea runner cannot serve or that cannot work on Gitea, and each fallback workflow missing the Gitea-only re-run triggers. It runs offline against a checkout and is reused by the watcher (R11) and the report (R15).
 R17. The nine `github-preferred` repos and `agentic-stoa/cnc-frd` / `cnc-fru` `release.yml` are brought to full gate coverage, one PR per repo.
 R18. The act_runner stays on pc-1 only, capacity 2; its `runner` container memory limit rises from 1Gi to 2Gi.
@@ -384,8 +384,8 @@ statuses arrive) and the interface: `gh variable get CI_AUTHORITY` per repo.
 CronJob `ci-budget-report` (`0 6 1 * *`), same image and config. Tokens: each
 org's `ci-billing` generator (usage), each org's `ci-authority` generator or
 `github-app-agentic-stoa-ci-read` (workflow files for the checker), and a ClusterGenerator
-`github-app-derio-frank-issues` on the derio-net App scoped to
-`derio-net/frank` with `issues: write` (permission added in the same manual
+`github-app-derio-willikins-issues` on the derio-net App scoped to
+`derio-net/willikins` with `issues: write` (permission added in the same manual
 op).
 
 For each org, the previous month's usage by `repositoryName` (GitHub's billed
@@ -405,11 +405,11 @@ the issue with its reason:
   `ci-authority` token where that token can see it) → propose removing it;
 - gate-coverage gaps (R16) for every `github-preferred` and `gitea-only` repo.
 
-Output: an issue in derio-net/frank titled `CI tier review <YYYY-MM>`, label
+Output: an issue in derio-net/willikins (private; operator decision 2026-10-19 — frank is public) titled `CI tier review <YYYY-MM>`, label
 `ci-tiers`, found by title on re-run and edited (R15). The operator acts by
 editing `tiers.yaml`.
 
-**Redaction (derio-net/frank is public).** The issue never names a repo that
+**Redaction.** Written when the target was the public frank repo; kept after the move to private willikins as defence in depth (a repo's visibility can change). The issue never names a repo that
 `tiers.yaml` does not already name in git: billed repos absent from the config
 appear only as a count with their total minutes ("3 unlisted private repos,
 412 min — run the report locally with `--show-unlisted` to see them"). The
@@ -529,11 +529,11 @@ draft until they pass.
   `Administration: read` to derio-fr-automation, homelab-fr-automation and
   stoa-fr-automation; add repository `Variables: write`, `Checks: read`,
   `Actions: read`, `Pull requests: read` to derio-fr-automation and
-  homelab-fr-automation; add `Issues: write` (derio-net/frank) and
+  homelab-fr-automation; add `Issues: write` (derio-net/willikins) and
   `Statuses: write` to derio-fr-automation if absent; re-approve each
   installation; widen homelab-fr-automation to the five homelab repos and
-  confirm derio-fr-automation covers the five derio-net repos and
-  derio-net/frank. Then mint an installation token from each PEM and call
+  confirm derio-fr-automation covers the five derio-net repos (willikins
+  among them). Then mint an installation token from each PEM and call
   `/organizations/<org>/settings/billing/usage` — if any org's App token is
   refused, stop and return to the operator before merging.
 - `cicd-gitea-variable-semantics` **[PRE-MERGE]** — on a scratch Gitea repo

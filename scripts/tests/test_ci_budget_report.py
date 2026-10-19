@@ -301,11 +301,11 @@ def test_issues_client_lists_all_states_across_pages_and_patches_body():
             return 200, [{"number": 100, "title": "last"}]
         return 200, {"number": 100}
 
-    c = forges.GitHubIssues("tok", "derio-net/frank", http=http)
+    c = forges.GitHubIssues("tok", "derio-net/willikins", http=http)
     assert len(c.list("ci-tiers")) == 101
     assert "state=all" in seen[0][1] and "labels=ci-tiers" in seen[0][1]
     c.edit(100, "b", "ci-tiers")
-    assert seen[-2][0] == "PATCH" and seen[-2][1].endswith("/repos/derio-net/frank/issues/100")
+    assert seen[-2][0] == "PATCH" and seen[-2][1].endswith("/repos/derio-net/willikins/issues/100")
     assert seen[-1][0] == "POST" and seen[-1][1].endswith("/issues/100/labels")
     assert seen[-1][2] == {"labels": ["ci-tiers"]}
     c.search("CI tier review 2026-10")
@@ -341,7 +341,7 @@ def test_main_end_to_end_upserts_once_across_two_runs(tmp_path):
             return 200, {"items": []}
         if url.endswith("/issues/9/labels"):
             return 200, [{"name": "ci-tiers"}]
-        if "/repos/derio-net/frank/issues" in url:
+        if "/repos/derio-net/willikins/issues" in url:
             if method == "GET":
                 return 200, issues if url.endswith("&page=1") else []
             if method == "POST":
@@ -398,7 +398,7 @@ def test_posted_body_never_leaks_third_party_unlisted_or_error_details(tmp_path)
             return 200, {"content": _b64(UNGATED)}
         if "/search/issues" in url:
             return 200, {"items": []}
-        if "/repos/derio-net/frank/issues" in url:
+        if "/repos/derio-net/willikins/issues" in url:
             if method == "GET":
                 return 200, []
             posted.append(body)
@@ -441,3 +441,8 @@ def test_show_unlisted_prints_names_and_never_posts(tmp_path):
     assert r.main(env=env, http=http, now=NOW, out=out.append, show_unlisted=True) == 0
     assert any("hidden-private" in line for line in out)
     assert r.parse_args(["--show-unlisted"]) is True and r.parse_args([]) is False
+
+
+def test_report_issue_lives_in_the_private_willikins_repo():
+    """frank is public; the tier review goes to derio-net/willikins (private), operator decision 2026-10-19."""
+    assert r.ISSUE_REPO == "derio-net/willikins"

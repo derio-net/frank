@@ -229,25 +229,25 @@ def test_report_tokens_are_optional_secrets_that_exist():
                  "GH_AUTHORITY_TOKEN_DERIO_HOMELAB", "GH_BILLING_TOKEN_AGENTIC_STOA", "GH_ISSUES_TOKEN"):
         ref = env[name]["valueFrom"]["secretKeyRef"]
         assert ref["key"] == "token" and ref["optional"] is True, name
-    assert env["GH_ISSUES_TOKEN"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-issues-derio-frank"
-    assert "ci-budget-github-issues-derio-frank" in es
+    assert env["GH_ISSUES_TOKEN"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-issues-derio-willikins"
+    assert "ci-budget-github-issues-derio-willikins" in es
     # stoa has no authority generator: its workflow files are read with the mirror token
     assert env["GH_AUTHORITY_TOKEN_AGENTIC_STOA"]["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-github-read-agentic-stoa"
     assert "ci-budget-github-read-agentic-stoa" in es
     assert "stoa-github-mirror" not in str(_report_pod())
 
 
-def test_issues_generator_is_scoped_to_frank_with_issues_write_only():
-    g = _generators()["github-app-derio-frank-issues"]
+def test_issues_generator_is_scoped_to_willikins_with_issues_write_only():
+    g = _generators()["github-app-derio-willikins-issues"]
     assert g["permissions"] == {"issues": "write", "metadata": "read"}
-    assert g["repositories"] == ["frank"]
+    assert g["repositories"] == ["willikins"]
     assert (g["appID"], g["installID"]) == APPS["derio-net"][:2]
     assert g["auth"]["privateKey"]["secretRef"] == {"name": "github-app-derio-key", "key": "key"}
-    (es,) = [d for d in _kind("ExternalSecret") if d["metadata"]["name"] == "ci-budget-github-issues-derio-frank"]
-    assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["name"] == "github-app-derio-frank-issues"
-    # no other generator in the repo may carry issues:write on frank's token scope
+    (es,) = [d for d in _kind("ExternalSecret") if d["metadata"]["name"] == "ci-budget-github-issues-derio-willikins"]
+    assert es["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]["name"] == "github-app-derio-willikins-issues"
+    # no other generator in the repo may carry issues:write on willikins' token scope
     for name, spec in _generators().items():
-        if name != "github-app-derio-frank-issues":
+        if name != "github-app-derio-willikins-issues":
             assert "issues" not in spec["permissions"], name
 
 

@@ -2,7 +2,7 @@
 """ci-budget monthly tier review (spec 2026-10-18 section 5, R15).
 
 Once a month, reads each org's previous-month GitHub Actions usage, proposes
-tier changes, and upserts one issue in derio-net/frank titled
+tier changes, and upserts one issue in derio-net/willikins (private) titled
 `CI tier review <YYYY-MM>` (label `ci-tiers`). Report only: the operator acts by
 editing tiers.yaml. Reuses watcher.py's usage functions and forges.py's clients.
 """
@@ -18,7 +18,7 @@ import forges
 import watcher
 
 LABEL = "ci-tiers"
-ISSUE_REPO = "derio-net/frank"
+ISSUE_REPO = "derio-net/willikins"  # private: the tier review never goes to the public frank repo
 HALF = 0.5
 
 

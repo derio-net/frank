@@ -129,13 +129,13 @@ spec:
         organization_administration: read
         metadata: read
 ---
-# Issues write on derio-net/frank only: the monthly tier-review report
+# Issues write on derio-net/willikins only (private repo): the monthly tier-review report
 # (ci-budget-report) upserts its issue with this token. Added to the derio-net
 # App by manual op cicd-ci-budget-app-permissions.
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: ClusterGenerator
 metadata:
-  name: github-app-derio-frank-issues
+  name: github-app-derio-willikins-issues
 spec:
   kind: GithubAccessToken
   generator:
@@ -151,7 +151,7 @@ spec:
         issues: write
         metadata: read
       repositories:
-        - frank
+        - willikins
 ---
 # Read-only workflow-file access for the monthly report on agentic-stoa (the org
 # has no ci-authority generator). contents + metadata read ONLY - never reuse

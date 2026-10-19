@@ -1,6 +1,6 @@
 # ci-budget-report (spec 2026-10-18 section 5, R15): monthly CI tier review.
 # Reads last month's GitHub Actions usage per org and upserts ONE issue in
-# derio-net/frank titled "CI tier review <YYYY-MM>" (label ci-tiers). Report
+# derio-net/willikins (private) titled "CI tier review <YYYY-MM>" (label ci-tiers). Report
 # only - the operator acts by editing tiers.yaml. Same image, initContainer and
 # ConfigMaps as the watcher; no Kubernetes API access, no Gitea or Telegram
 # credentials. agentic-stoa has no authority generator, so its workflow files
@@ -129,7 +129,7 @@ spec:
                 - name: GH_ISSUES_TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: ci-budget-github-issues-derio-frank
+                      name: ci-budget-github-issues-derio-willikins
                       key: token
                       optional: true
               resources:
