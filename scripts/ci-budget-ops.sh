@@ -12,7 +12,7 @@
 #   bash scripts/ci-budget-ops.sh offboard <org/repo>  # retire a mirrored repo (see the runbook)
 #
 # ops (in order):  app-permissions  gitea-semantics  gitea-org  gitea-mirrors
-#                  github-webhooks  readonly-secrets  orphan-template  go-live
+#                  webhook-secret  github-webhooks  readonly-secrets  orphan-template  go-live
 #
 # The repo list is DERIVED from apps/ci-budget/tiers.yaml (github-preferred repos of
 # derio-net and derio-homelab), so onboarding a new repo = add it to tiers.yaml and
@@ -248,6 +248,59 @@ write_sops_secret() { # name key value -> SOPS file in the checkout + kubectl ap
 }
 
 # ==================================================================================
+st_webhook_secret() {
+  hdr "webhook-secret  [needed by github-webhooks; pre-existing op cicd-staging-gate-runs-fr-webhook]"
+  local org es
+  for org in $mirrored_orgs; do
+    es=$(kubectl -n tekton-pipelines get externalsecret "$org-github-webhook-secret" -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || true)
+    if [ -n "$(k_secret tekton-pipelines "$org-github-webhook-secret" secret || true)" ]; then done_ "$org: webhook HMAC Secret present (ExternalSecret: ${es:-n/a})"
+    else open_ "$org: webhook HMAC Secret missing (ExternalSecret: ${es:-absent}) — run: $0 apply webhook-secret"; fi
+  done
+}
+ap_webhook_secret() {
+  # Seeds Infisical /derio-net/GITHUB_WEBHOOK_SECRET (the derio-net ExternalSecret's
+  # source, never seeded — manual op cicd-staging-gate-runs-fr-webhook) and the
+  # SAME value into runs-fr's FRANK_STAGING_GATE_WEBHOOK_SECRET (its direct POST
+  # to the staging gate signs with it). derio-homelab's secret already exists.
+  if [ -n "$(k_secret tekton-pipelines derio-net-github-webhook-secret secret || true)" ]; then
+    echo "derio-net webhook secret already present — nothing to do"; st_webhook_secret; return 0; fi
+  confirm "Generate a new derio-net webhook HMAC secret, store it in Infisical /derio-net/GITHUB_WEBHOOK_SECRET and in derio-net/runs-fr's FRANK_STAGING_GATE_WEBHOOK_SECRET?"
+  local SECRET api cid csec tok ws wrote=0 code
+  SECRET=$(openssl rand -hex 32)
+  api=$(kubectl get clustersecretstore infisical -o jsonpath='{.spec.provider.infisical.hostAPI}')
+  ws=$(kubectl get clustersecretstore infisical -o jsonpath='{.spec.provider.infisical.secretsScope.projectSlug}')
+  cid=$(k_secret external-secrets infisical-credentials clientId || true)
+  csec=$(k_secret external-secrets infisical-credentials clientSecret || true)
+  tok=$(curl -sS -X POST "$api/v1/auth/universal-auth/login" -H 'Content-Type: application/json' \
+        -d "$(jq -n --arg i "$cid" --arg s "$csec" '{clientId:$i,clientSecret:$s}')" | jq -r '.accessToken // empty')
+  unset csec
+  if [ -n "$tok" ]; then
+    # folder /derio-net (ignore "already exists"), then the secret
+    curl -sS -o /dev/null -X POST "$api/v1/folders" -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' \
+      -d "$(jq -n --arg w "$ws" '{projectSlug:$w,workspaceSlug:$w,environment:"prod",name:"derio-net",path:"/"}')" || true
+    code=$(curl -sS -o "$STATE_DIR/infisical.out" -w '%{http_code}' -X POST "$api/v3/secrets/raw/GITHUB_WEBHOOK_SECRET" \
+      -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' \
+      -d "$(jq -n --arg w "$ws" --arg v "$SECRET" '{workspaceSlug:$w,projectSlug:$w,environment:"prod",secretPath:"/derio-net",secretValue:$v,type:"shared"}')")
+    [ "$code" = 200 ] && wrote=1 || echo "  Infisical API write refused (HTTP $code: $(jq -r '.message // empty' "$STATE_DIR/infisical.out" 2>/dev/null)) — ESO's identity is probably read-only"
+    rm -f "$STATE_DIR/infisical.out"
+  fi
+  if [ $wrote = 0 ]; then
+    printf '%s' "$SECRET" | pbcopy
+    echo "  The value is on your CLIPBOARD (not printed). In the Infisical UI (http://192.168.55.204), project $ws, env prod:"
+    echo "  create folder /derio-net if missing, then secret GITHUB_WEBHOOK_SECRET = <paste>."
+    read -r -p "  Press Enter once saved in Infisical… " _
+  fi
+  kubectl -n tekton-pipelines annotate externalsecret derio-net-github-webhook-secret force-sync="$(date +%s)" --overwrite >/dev/null
+  local i; for i in $(seq 1 30); do [ -n "$(k_secret tekton-pipelines derio-net-github-webhook-secret secret || true)" ] && break; sleep 2; done
+  [ "$(k_secret tekton-pipelines derio-net-github-webhook-secret secret || true)" = "$SECRET" ] || { printf '' | pbcopy; die "ExternalSecret did not sync the new value — check Infisical path /derio-net/GITHUB_WEBHOOK_SECRET (same project as the ClusterSecretStore)"; }
+  printf '%s' "$SECRET" | ghx secret set FRANK_STAGING_GATE_WEBHOOK_SECRET --repo derio-net/runs-fr >/dev/null
+  printf '' | pbcopy; unset SECRET
+  echo "  Secret synced to the cluster and set as runs-fr FRANK_STAGING_GATE_WEBHOOK_SECRET (clipboard cleared)."
+  echo "  Remember to flip cicd-staging-gate-runs-fr-webhook to done in the runbook."
+  st_webhook_secret
+}
+
+# ==================================================================================
 st_gitea_mirrors() {
   hdr "gitea-mirrors  [PRE-MERGE, Gitea side]"
   gitea_admin_auth
@@ -305,18 +358,24 @@ st_github_webhooks() {
 }
 ap_github_webhooks() {
   confirm "Create/patch GitHub repo webhooks (push, pull_request) → $HOOK_URL on $(all_mirrors | wc -l | tr -d ' ') repos? (only after the frank PR is merged and synced)"
-  local full org sec id
+  local full org sec id missing=""
   for full in $(all_mirrors); do
-    org=${full%/*}; sec=$(k_secret tekton-pipelines "$org-github-webhook-secret" secret)
-    [ -n "$sec" ] || die "cannot read Secret tekton-pipelines/$org-github-webhook-secret"
+    org=${full%/*}
+    sec=$(k_secret tekton-pipelines "$org-github-webhook-secret" secret || true)
+    if [ -z "$sec" ]; then
+      case " $missing " in *" $org "*) ;; *) missing="$missing $org";; esac
+      echo "  SKIP $full: Secret tekton-pipelines/$org-github-webhook-secret missing (run: $0 apply webhook-secret)"; continue
+    fi
     id=$(ghx api "repos/$full/hooks" | jq -r --arg u "$HOOK_URL" '[.[]|select((.config.url|rtrimstr("/"))==$u)][0].id // empty')
     if [ -n "$id" ]; then
       jq -n --arg s "$sec" --arg u "$HOOK_URL" '{active:true,events:["push","pull_request"],config:{url:$u,content_type:"json",secret:$s,insecure_ssl:"0"}}' | ghx api -X PATCH "repos/$full/hooks/$id" --input - >/dev/null
     else
       jq -n --arg s "$sec" --arg u "$HOOK_URL" '{name:"web",active:true,events:["push","pull_request"],config:{url:$u,content_type:"json",secret:$s,insecure_ssl:"0"}}' | ghx api -X POST "repos/$full/hooks" --input - >/dev/null
     fi
+    echo "  ok   $full"
   done
   unset sec; st_github_webhooks
+  [ -z "$missing" ] || die "webhook secret missing for:$missing — run: $0 apply webhook-secret, then re-run this"
 }
 
 # ==================================================================================
@@ -403,7 +462,7 @@ offboard() { # offboard <org/repo>: retire a mirrored repo (deleted, made public
 }
 
 # ==================================================================================
-OPS="app-permissions gitea-semantics gitea-org gitea-mirrors github-webhooks readonly-secrets orphan-template go-live"
+OPS="app-permissions gitea-semantics gitea-org gitea-mirrors webhook-secret github-webhooks readonly-secrets orphan-template go-live"
 fn() { echo "$1" | tr '-' '_'; }
 cmd="${1:-status}"
 case "$cmd" in
@@ -421,6 +480,7 @@ case "$cmd" in
         echo; echo "pre-merge batch done. Commit secrets/ci-budget/*.yaml if new, fix any OPEN app-permissions items in the UI, then: $0 status";;
       post-merge)
         kubectl -n tekton-pipelines get triggertemplate derio-homelab-main-sync-template >/dev/null 2>&1 || die "frank PR not merged/synced yet (renamed trigger absent)"
+        [ -n "$(k_secret tekton-pipelines derio-net-github-webhook-secret secret || true)" ] || ap_webhook_secret
         ap_github_webhooks; ap_readonly_secrets; ap_orphan_template
         echo; echo "post-merge batch done. Remaining: Test Plan rows, then go-live per org (a PR). $0 status";;
       app-permissions) echo "UI-only: GitHub → Settings → Developer settings → GitHub Apps → <App> → Permissions; then each org → Settings → GitHub Apps → review request. Verify with: bash $0 status app-permissions";;
