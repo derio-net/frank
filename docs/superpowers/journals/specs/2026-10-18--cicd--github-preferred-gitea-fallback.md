@@ -405,3 +405,82 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p5 created=2026-10-18T14:47:13+00:00 -->
 ### phase-split-2026-10-18--cicd--github-preferred-gitea-fallback-p5 · decision · ask: runner memory and runner/pc-1 observability (R18-R19) is its own ask
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-10-19T17:09:45+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: **Mirrors (R4, R5).** After the manual ops: push to a PR in one derio-net and one derio-homelab repo; the Gitea mirror shows `sync-pr-<N>` at the PR head sha; `mirror-reconcile` and `ci-delivery-check` logs list the new repos with no read errors.
+
+Evidence: 2026-10-19: ci-budget-ops status gitea-mirrors 0 open (all 9 mirrors, CI_AUTHORITY var, default branch in sync). Probe PR derio-net/herdr-vertical-tabs#17: Gitea ran Actions at the PR head and gitea-actions/* statuses appeared on GitHub. derio-homelab open PRs (homelab 36/38, omada 41/53, proxmox 109, ansible-pihole 14) mirrored as sync-pr-N by mirror-reconcile after stoa-bot got write (#889): repaired=6 plan_errors=0. ci-delivery-check no longer reports read-error (fixed by #888/#889); it still reports status-delivery mismatches on pre-existing commits.
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-2 created=2026-10-19T17:09:48+00:00 -->
+### test-plan-step-2 · owed · Test Plan step 2 owed
+
+what: **Statuses (R6).** On a repo whose authority is hand-pinned to `gitea` (`pin_authority: gitea`, org `mode: live`): the PR shows `gitea-actions/*` statuses with real durations on GitHub, its gated GitHub check jobs show `skipped`, and mutating and `macos-*` jobs still run on GitHub.
+why: No repo is hand-pinned to gitea / org mode live yet. Forwarding itself was observed in authority=github mode (probe PR: gitea-actions/* incl. 'Gitea: skipped' mapped to success), but the pinned-authority check (real durations, gated GitHub jobs skipped, macos-* still on GitHub) needs the live flip of step 4.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-2 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step2
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-3 created=2026-10-19T17:09:51+00:00 -->
+### test-plan-step-3 · owed · Test Plan step 3 owed
+
+what: **Watcher dry-run (R7, R10, R13).** All orgs in dry-run against the live billing APIs: the heartbeat shows each org's `pct`; an org over threshold produces exactly one would-flip message across at least three runs.
+why: Watcher runs every 10 min in dry-run and logs per-org verdicts (derio-net would-flip pct=97.7, derio-homelab refused pct=91.0, agentic-stoa ok pct=5.2); not yet checked that exactly one would-flip MESSAGE is sent across >=3 runs, nor why derio-homelab is refused.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-3 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step3
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-4 created=2026-10-19T17:09:54+00:00 -->
+### test-plan-step-4 · owed · Test Plan step 4 owed
+
+what: **Live flip, one repo (R8, R9, R14).** Set `pin_authority: gitea` on one repo in a live org: the watcher writes Gitea then GitHub, read-backs pass, `gh variable get CI_AUTHORITY` returns `gitea`. Remove the pin (the org is below threshold and the pin did not stamp the month): GitHub then Gitea return to `github`, and `gh variable get` returns `github`. The org's other repos and kid-laptops are untouched throughout.
+why: Live flip changes CI_AUTHORITY on real repos; needs operator go-ahead. Urgent: GitHub already refuses derio-net jobs ('recent account payments have failed or your spending limit needs to be increased', seen on probe PR) while the watcher is still dry-run.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-4 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step4
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-5 created=2026-10-19T17:09:57+00:00 -->
+### test-plan-step-5 · owed · Test Plan step 5 owed
+
+what: **Month lock (R8).** Set the Gitea org variable `CI_BUDGET_MONTH` to the previous month on an org at `gitea`: the next run returns the org's repos to `github`.
+why: Needs an org at gitea (depends on step 4) and a Gitea org variable edit; operator-gated.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-5 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step5
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-6 created=2026-10-19T17:10:00+00:00 -->
+### test-plan-step-6 · owed · Test Plan step 6 owed
+
+what: **Backstop (R12).** Replay a captured spending-limit annotation through the watcher's detector against a live repo (fixture injected via the watcher's test hook, dry-run off for a single org): the org flips, `sync-rerun-<sha12>` appears on Gitea, Gitea Actions runs at that sha, and its status lands on the GitHub commit.
+why: Needs dry-run off for a single org and a captured spending-limit annotation; one real annotation is now available (herdr-vertical-tabs#17 check runs). Operator-gated.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-6 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step6
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-7 created=2026-10-19T17:10:04+00:00 -->
+### test-plan-step-7 · owed · Test Plan step 7 owed
+
+what: **Heartbeat (R13).** Suspend the CronJob for 45 minutes: `ci-budget-heartbeat-stale` fires; resume it and it resolves.
+why: Suspending the CronJob 45 min is an operator-approved window; not done.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-7 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step7
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-8 created=2026-10-19T17:10:07+00:00 -->
+### test-plan-step-8 · owed · Test Plan step 8 owed
+
+what: **Report (R15).** `kubectl create job --from=cronjob/ci-budget-report` twice: the `CI tier review` issue appears once and is edited the second time.
+why: Creates the CI tier review GitHub issue; not run without operator approval.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-8 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step8
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-9 created=2026-10-19T17:10:11+00:00 -->
+### test-plan-step-9 · owed · Test Plan step 9 owed
+
+what: **Repo PRs (R17).** After the eleven PRs merge, run the checker against each default branch: every job is `ok`.
+why: Checker is not all-ok: read-errors fixed, but status-delivery-mismatch lines remain on pre-existing backfill commits across 9 repos plus kid-laptops; needs a fresh-commit re-check once they are superseded.
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-9 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step9
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-10 created=2026-10-19T17:10:14+00:00 -->
+### test-plan-step-10 · owed · Test Plan step 10 owed
+
+what: **Runner (R18, R19).** The runner pod runs with a 2Gi limit on pc-1; the `ci-runner-probe` line shows `runners_online ≥ 1`; scale the runner to 0 for 15 minutes and `layer-25-runner-offline` fires (then restore); query the pc-1 `/var` series in VMUI and confirm `layer-25-pc1-var-low` evaluates against real data; with real `ci-runner-probe` lines present, run the queue-wait LogsQL in VMUI and confirm it yields a numeric `oldest_waiting_s`; revoke nothing, but confirm a missing probe token produces `ci-runner-probe-error` lines and `layer-25-runner-probe-blind` evaluates against them.
+why: Verified: runner pod 2Gi limit on pc-1, ci-runner-probe runners_online=1. Not done: scale-to-0 offline alert, pc-1 /var rule on real data, queue-wait LogsQL on real probe lines, probe-error path. Queue-wait signal was real: 54 jobs / 9h stuck from vibe-kanban tag runs (cleared).
+how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-10 --state fixed --note "<evidence>"
+owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step10

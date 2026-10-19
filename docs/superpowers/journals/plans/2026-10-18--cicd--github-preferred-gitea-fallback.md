@@ -757,3 +757,16 @@ Filed at deliver as https://github.com/derio-net/frank/issues/885.
 ### xr-vibe-kanban-no-fallback-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/886] · resolves xr-vibe-kanban-no-fallback: vibe-kanban has no Gitea fallback (Blacksmith runners): review its tier
 
 Filed at deliver as https://github.com/derio-net/frank/issues/886.
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-6 created=2026-10-19T17:10:53+00:00 phase=6 -->
+### manual-phase-6 · owed · 2026-10-18--cicd--github-preferred-gitea-fallback: manual phase 6 is not ticked (phase 6)
+
+what: do manual phase 6 of 2026-10-18--cicd--github-preferred-gitea-fallback and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 6 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-10-18--cicd--github-preferred-gitea-fallback
+owed_key: plan:2026-10-18--cicd--github-preferred-gitea-fallback#p6
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-6-resolved created=2026-10-19T17:11:03+00:00 phase=6 state=open resolves=manual-phase-6 filed_as=derio-net/frank#890 -->
+### manual-phase-6-resolved · finding [filed → derio-net/frank#890] · resolves manual-phase-6: 2026-10-18--cicd--github-preferred-gitea-fallback: manual phase 6 is not ticked (phase 6)
+
+Filed at archive as derio-net/frank#890; still owed until discharged.

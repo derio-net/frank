@@ -40,9 +40,10 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-19T17:13:10+00:00'
+      note: 'ci-budget-ops status app-permissions: all DONE (2026-10-19, billing read
+        with each org''s App token; permission key fixed to actions_variables)'
     P6.T1.S2:
       state: ' '
       ticked_at: null
@@ -52,9 +53,10 @@ state:
       ticked_at: null
       note: null
     P6.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-19T17:13:14+00:00'
+      note: 'status github-webhooks (9 repos), readonly-secrets, orphan-template:
+        all DONE, 0 open (2026-10-19)'
     P6.T3.S2:
       state: ' '
       ticked_at: null
