@@ -55,6 +55,13 @@ template.
    It creates the private mirror with Actions enabled and the repo variable
    `CI_AUTHORITY=github`, then backfills branches and tags. It is idempotent and
    only touches repos missing on Gitea.
+   **Backfilled tags start workflows.** Gitea fires `on: push: tags` workflows as the
+   tags arrive, and an old tag carries the *old* workflow file, which has no forge gate.
+   `derio-net/vibe-kanban` (2026-10-19) queued eight tag runs / 54 jobs on the single
+   runner for 9 hours. Before running this op on a repo, check what its tags would
+   trigger (`git show <tag>:.github/workflows/`); if any `on: push: tags` workflow is
+   ungated, push the branches first and skip or cancel the tag runs. Gitea 1.25 has no
+   API to cancel a run (only the web UI), and a queued run cannot be deleted.
 5. **Merge the frank PR.** Then run `bash scripts/ci-budget-ops.sh apply github-webhooks`
    to add the repo webhook (push + pull_request, the org's HMAC secret).
 6. **Secrets:** if a gated job needs a read-only secret, declare it under the repo's
