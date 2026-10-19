@@ -6,6 +6,8 @@
 #   bash scripts/ci-budget-ops.sh                  # = status: read-only, every op DONE/OPEN/N/A + evidence
 #   bash scripts/ci-budget-ops.sh status [op]      # one op only
 #   bash scripts/ci-budget-ops.sh apply <op>       # implement an automatable op (idempotent, asks first)
+#   bash scripts/ci-budget-ops.sh apply pre-merge  # batch: gitea-semantics (once), gitea-org, gitea-mirrors
+#   bash scripts/ci-budget-ops.sh apply post-merge # batch: github-webhooks, readonly-secrets, orphan-template
 #   bash scripts/ci-budget-ops.sh repos            # the repo list this script derives from tiers.yaml
 #   bash scripts/ci-budget-ops.sh offboard <org/repo>  # retire a mirrored repo (see the runbook)
 #
@@ -401,6 +403,15 @@ case "$cmd" in
   apply)
     [ -n "${2:-}" ] || die "apply <op>"
     case "$2" in
+      pre-merge)
+        st_app_permissions
+        [ -s "$STATE_DIR/gitea-semantics.ok" ] || ap_gitea_semantics
+        ap_gitea_org; ap_gitea_mirrors
+        echo; echo "pre-merge batch done. Commit secrets/ci-budget/*.yaml if new, fix any OPEN app-permissions items in the UI, then: $0 status";;
+      post-merge)
+        kubectl -n tekton-pipelines get triggertemplate derio-homelab-main-sync-template >/dev/null 2>&1 || die "frank PR not merged/synced yet (renamed trigger absent)"
+        ap_github_webhooks; ap_readonly_secrets; ap_orphan_template
+        echo; echo "post-merge batch done. Remaining: Test Plan rows, then go-live per org (a PR). $0 status";;
       app-permissions) echo "UI-only: GitHub → Settings → Developer settings → GitHub Apps → <App> → Permissions; then each org → Settings → GitHub Apps → review request. Verify with: bash $0 status app-permissions";;
       go-live) echo "A git change: set orgs.<org>.mode: live in apps/ci-budget/tiers.yaml (PR). Verify with: bash $0 status go-live";;
       *) "ap_$(fn "$2")";;
