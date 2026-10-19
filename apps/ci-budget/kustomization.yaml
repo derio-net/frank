@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No top-level `namespace:` - each resource sets namespace tekton-pipelines
+# (the ClusterGenerators are cluster-scoped).
+resources:
+  - rbac.yaml
+  - clustergenerators.yaml
+  - externalsecrets.yaml
+  - cronjob.yaml
+  - cronjob-report.yaml
+# Both ConfigMaps are hash-suffixed so an edit changes the CronJob spec and
+# rolls the next run. files/ci_gate_coverage.py and files/runner-config.yaml are
+# byte copies of scripts/ci_gate_coverage.py and
+# apps/gitea-runner/manifests/files/config.yaml (kustomize's load restrictor
+# cannot reach outside this directory); scripts/tests/test_ci_budget_manifests.py
+# fails on any drift.
+configMapGenerator:
+  - name: ci-budget-config
+    namespace: tekton-pipelines
+    files:
+      - tiers.yaml
+      - files/runner-config.yaml
+  - name: ci-budget-watcher-script
+    namespace: tekton-pipelines
+    files:
+      - files/watcher.py
+      - files/forges.py
+      - files/report.py
+      - files/ci_gate_coverage.py
+      - files/requirements.txt

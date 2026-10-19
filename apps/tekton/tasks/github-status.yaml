@@ -2,8 +2,16 @@
 # via the Commit Status API.
 #
 # Mirrors apps/tekton/tasks/gitea-status.yaml in shape but targets
-# api.github.com and authenticates with the stoa-github-mirror Secret
-# (Infisical-backed PAT, Commit statuses: Read and write scope).
+# api.github.com. The token is selected by the owner of repo-full-name, because
+# each GitHub org is its own App installation and one org's token 404s on
+# another's private repos:
+#   agentic-stoa  -> GITHUB_TOKEN               (stoa-github-mirror)
+#   derio-homelab -> GITHUB_TOKEN_DERIO_HOMELAB (derio-homelab-github-mirror)
+#   derio-net     -> GITHUB_TOKEN_DERIO_NET     (derio-net-github-mirror)
+# All three Secrets are `optional: true`, so a missing one blinds only that
+# org's TaskRuns (the step fails naming the owner) and never stops another
+# org's with CreateContainerConfigError. A missing token never
+# falls back to another org's.
 #
 # Used as the mandatory final step of any pipeline that runs against a
 # GitHub-sourced commit (PR-time CI, main-sync verification). For the
@@ -55,6 +63,19 @@ spec:
             secretKeyRef:
               name: stoa-github-mirror
               key: token
+              optional: true
+        - name: GITHUB_TOKEN_DERIO_HOMELAB
+          valueFrom:
+            secretKeyRef:
+              name: derio-homelab-github-mirror
+              key: token
+              optional: true
+        - name: GITHUB_TOKEN_DERIO_NET
+          valueFrom:
+            secretKeyRef:
+              name: derio-net-github-mirror
+              key: token
+              optional: true
         - name: REPO_FULL_NAME
           value: $(params.repo-full-name)
         - name: REVISION
@@ -88,6 +109,17 @@ spec:
       command: ["/bin/sh", "-e", "-c"]
       args:
         - |
+          OWNER="${REPO_FULL_NAME%%/*}"
+          case "$OWNER" in
+            agentic-stoa)  TOKEN="${GITHUB_TOKEN:-}" ;;
+            derio-homelab) TOKEN="${GITHUB_TOKEN_DERIO_HOMELAB:-}" ;;
+            derio-net)     TOKEN="${GITHUB_TOKEN_DERIO_NET:-}" ;;
+            *) echo "ERROR: no GitHub token is configured for owner '${OWNER}'"; exit 1 ;;
+          esac
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR: the GitHub token for owner '${OWNER}' is empty or its Secret is missing"
+            exit 1
+          fi
           STATUS_URL="${GITHUB_API_URL}/repos/${REPO_FULL_NAME}/statuses/${REVISION}"
           # Escape values for safe JSON embedding
           json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
@@ -97,7 +129,7 @@ spec:
           T=$(json_escape "$TARGET_URL")
           PAYLOAD="{\"state\":\"${S}\",\"description\":\"${D}\",\"context\":\"${C}\",\"target_url\":\"${T}\"}"
           HTTP_CODE=$(curl -s -o /tmp/resp -w '%{http_code}' -X POST "$STATUS_URL" \
-            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Authorization: token $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD") || true

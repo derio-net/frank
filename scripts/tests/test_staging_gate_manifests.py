@@ -56,7 +56,11 @@ DERIO_GENERATOR = "github-app-derio"
 ARGOCD_READ_GENERATOR = "github-app-derio-argocd-read"
 # Every ClusterGenerator that existed before this plan. A new name outside
 # BASELINE | {ARGOCD_READ_GENERATOR} is a generator this plan did not intend.
-BASELINE_GENERATORS = {"github-app-derio", "github-app-derio-homelab", "github-app-stoa"}
+# github-app-derio-mirror (2026-10-18, github-preferred mirroring) is a SEPARATE,
+# repo-scoped generator for the Tekton mirror; github-app-derio stays unscoped.
+BASELINE_GENERATORS = {
+    "github-app-derio", "github-app-derio-homelab", "github-app-stoa", "github-app-derio-mirror",
+}
 MANUAL_OP_ID = "cicd-staging-gate-argocd-runs-fr-repo-key"
 
 
@@ -1410,8 +1414,9 @@ def test_webhooks_yaml_declares_the_runs_fr_repository_dispatch_delivery_path():
         if d.get("forge") == "github"
         and d.get("target") == "derio-net/runs-fr"
         and d.get("listener") == "github-listener"
+        and d.get("scope") == "direct-post"  # runs-fr also has a repo-scoped mirror entry
     ]
-    assert matches, f"no github/derio-net/runs-fr entry in {WEBHOOKS_DECL.relative_to(REPO)}"
+    assert matches, f"no github/derio-net/runs-fr direct-post entry in {WEBHOOKS_DECL.relative_to(REPO)}"
     entry = matches[0]
     # P10 review Critical #1: repository_dispatch is App-only per GitHub's
     # webhook availability matrix -- a `scope: repo` declaration for it is

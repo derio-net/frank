@@ -1,0 +1,19 @@
+{
+    "runners": [
+        {
+            "id": 1,
+            "name": "act-runner-5dff4c5956-dwpqw",
+            "status": "online",
+            "busy": false,
+            "ephemeral": false,
+            "labels": [
+                {
+                    "id": 0,
+                    "name": "ubuntu-latest",
+                    "type": "custom"
+                }
+            ]
+        }
+    ],
+    "total_count": 1
+}

@@ -42,7 +42,7 @@ EL_GITHUB = REPO / "apps/tekton/triggers/eventlistener-github.yaml"
 # there are no installations outside the owner account.
 HOMELAB_APP_ID = "4403773"
 HOMELAB_KEY_SECRET = "github-app-homelab-key"
-TRIGGER_NAME = "derio-homelab-kid-laptops-main-sync"
+TRIGGER_NAME = "derio-homelab-main-sync"
 REPO_FULL_NAME = "derio-homelab/kid-laptops"
 
 

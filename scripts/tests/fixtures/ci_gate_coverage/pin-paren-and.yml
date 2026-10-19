@@ -1,0 +1,10 @@
+name: pp
+on:
+  push:
+    branches: [main]
+jobs:
+  check:
+    if: ${{ (github.server_url == 'https://github.com') && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test

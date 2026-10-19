@@ -208,7 +208,8 @@ spec:
       template:
         ref: agentic-stoa-main-sync-template
     # ──────────────────────────────────────────────────────────────────
-    # derio-homelab/kid-laptops mirror (2026-07-26, kid-laptops#43).
+    # derio-homelab mirrors (2026-07-26 kid-laptops#43; widened 2026-10-18 to
+    # the four github-preferred repos, frank#875).
     #
     # A separate trigger rather than another entry in the agentic-stoa
     # main-sync repo list, because everything underneath differs: a different
@@ -217,11 +218,16 @@ spec:
     #
     # This is the first half of a two-hop path. It force-pushes the commit into
     # Gitea; the Gitea push webhook then fires the kid-laptops CI trigger on
-    # gitea-listener. The second hop is why a push-sync was chosen over a Gitea
+    # gitea-listener (the four github-preferred repos run Gitea Actions on the
+    # push itself). The second hop is why a push-sync was chosen over a Gitea
     # pull-mirror — mirror-sync does not reliably emit push webhooks, and a real
     # push does.
+    #
+    # kid-laptops is main-sync only (no PR trigger): it runs no PR-time CI on
+    # Frank yet. The PR trigger below therefore lists the four others, and
+    # admits same-repo PRs only: a fork PR must not write a sync-pr branch.
     # ──────────────────────────────────────────────────────────────────
-    - name: derio-homelab-kid-laptops-main-sync
+    - name: derio-homelab-main-sync
       interceptors:
         - name: github
           ref: {name: github, kind: ClusterInterceptor}
@@ -237,18 +243,111 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name == 'derio-homelab/kid-laptops'
+                body.repository.full_name in ['derio-homelab/kid-laptops', 'derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
+                - {key: repo_full_name, expression: "body.repository.full_name"}
                 - {key: sha, expression: "body.after"}
       bindings:
-        - {name: github-repo, value: "derio-homelab/kid-laptops", kind: TriggerBinding}
-        - {name: gitea-repo,  value: "derio-homelab/kid-laptops", kind: TriggerBinding}
+        - {name: github-repo, value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name), kind: TriggerBinding}
         - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
         - {name: ref-to,      value: "refs/heads/main", kind: TriggerBinding}
       template:
-        ref: derio-homelab-kid-laptops-main-sync-template
+        ref: derio-homelab-main-sync-template
+    - name: derio-homelab-pr-sync
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: derio-homelab-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel, kind: ClusterInterceptor}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name in ['derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole']
+                && body.action in ['opened', 'synchronize', 'reopened']
+                && has(body.pull_request.head.repo)
+                && body.pull_request.head.repo.full_name == body.repository.full_name
+            - name: overlays
+              value:
+                - {key: repo_full_name, expression: "body.repository.full_name"}
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: $(extensions.ref_to), kind: TriggerBinding}
+      template:
+        ref: derio-homelab-pr-sync-template
+    # ──────────────────────────────────────────────────────────────────
+    # derio-net github-preferred mirrors (2026-10-18, frank#875): willikins,
+    # herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr. Own HMAC
+    # secret, own App token, own derio-net-pull-sync Pipeline — same per-org
+    # isolation as the homelab triggers above. Public derio-net repos are
+    # deliberately absent: they never reach this listener.
+    # ──────────────────────────────────────────────────────────────────
+    - name: derio-net-main-sync
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - name: secretRef
+              value:
+                secretName: derio-net-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["push"]
+        - name: cel
+          ref: {name: cel, kind: ClusterInterceptor}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                && body.ref == 'refs/heads/main'
+            - name: overlays
+              value:
+                - {key: repo_full_name, expression: "body.repository.full_name"}
+                - {key: sha, expression: "body.after"}
+      bindings:
+        - {name: github-repo, value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: "refs/heads/main", kind: TriggerBinding}
+      template:
+        ref: derio-net-main-sync-template
+    - name: derio-net-pr-sync
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: derio-net-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel, kind: ClusterInterceptor}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                && body.action in ['opened', 'synchronize', 'reopened']
+                && has(body.pull_request.head.repo)
+                && body.pull_request.head.repo.full_name == body.repository.full_name
+            - name: overlays
+              value:
+                - {key: repo_full_name, expression: "body.repository.full_name"}
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: $(extensions.ref_to), kind: TriggerBinding}
+      template:
+        ref: derio-net-pr-sync-template
     # CNC source mirrors and CI. The image build remains in each CNC repo's
     # GitHub workflow; this listener mirrors and tests the exact SHA.
     - name: agentic-stoa-cnc-fr-pr
@@ -746,20 +845,21 @@ spec:
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---
-# Scaffolds the derio-homelab mirror PipelineRun.
+# Scaffolds the derio-homelab / derio-net mirror PipelineRuns (main and PR).
 #
-# Twin of agentic-stoa-main-sync-template, pointed at derio-homelab-pull-sync
-# (its own Pipeline — see that file's header for why the shared one could not
-# simply take a param).
+# Twins of agentic-stoa-main-sync-template, each pointed at its org's own
+# pull-sync Pipeline (derio-homelab-pull-sync, derio-net-pull-sync — see those
+# files' headers for why the shared one could not simply take a param). Main
+# and PR differ only in generateName, so a PipelineRun list says which it was.
 #
 # ssh-creds reuses stoa-bot-ssh-key: it is the Gitea *push identity*, not a
 # stoa-scoped credential, and that Gitea user is granted write on the mirror
-# repo. The name is a smell rather than a boundary violation, and is recorded
+# repos. The name is a smell rather than a boundary violation, and is recorded
 # as a named gap in the spec — worth a rename when a third consumer appears.
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: derio-homelab-kid-laptops-main-sync-template
+  name: derio-homelab-main-sync-template
   namespace: tekton-pipelines
 spec:
   params:
@@ -771,10 +871,127 @@ spec:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
-        generateName: kid-laptops-main-sync-
+        generateName: derio-homelab-main-sync-
         namespace: tekton-pipelines
       spec:
         pipelineRef: {name: derio-homelab-pull-sync}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-hdd
+                resources: {requests: {storage: 2Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: derio-homelab-pr-sync-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: derio-homelab-pr-sync-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: derio-homelab-pull-sync}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-hdd
+                resources: {requests: {storage: 2Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: derio-net-main-sync-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: derio-net-main-sync-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: derio-net-pull-sync}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-hdd
+                resources: {requests: {storage: 2Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: derio-net-pr-sync-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: derio-net-pr-sync-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: derio-net-pull-sync}
         params:
           - {name: github-repo, value: $(tt.params.github-repo)}
           - {name: gitea-repo,  value: $(tt.params.gitea-repo)}

@@ -3309,3 +3309,251 @@ data:
             annotations:
               summary: "CrowdSec ban-pipeline canary heartbeat stale: no verdict line in crowdsec-system for 20m. The canary is dead/suspended and the Hop ban pipeline is unwatched."
               runbook: "Check the canary CronJob on Hop: kubectl -n crowdsec-system get cronjob,jobs,pods -l app=crowdsec-ban-canary; unsuspend if suspended; inspect the last Job pod logs. Spec: docs/superpowers/specs/2026-06-21--obs--crowdsec-ban-pipeline-canary-design.md"
+
+      # Dead-man's switch for the ci-budget-watcher (GitHub-preferred CI with Gitea
+      # fallback). The */10 CronJob in tekton-pipelines prints one
+      # "ci-budget-watcher verdict=... org=... pct=... mode=..." line per org per
+      # run -> fluent-bit -> VictoriaLogs. If the heartbeat stops (CronJob suspended,
+      # image or secret broken) nothing watches the GitHub minutes budget and no
+      # flip or backstop happens, so this fires. `stats count()` WITHOUT a `by()`
+      # returns a guaranteed single 0-row when nothing matches -> threshold lt 1
+      # fires; a VictoriaLogs outage yields noData -> OK (blindness != death).
+      # Frank's VictoriaLogs message field is `_msg`, NOT Hop's `log` (verified live
+      # for the sibling cred-expiry rule). Window 40m = four cadences, so up to three
+      # missed runs are tolerated. The query is scoped to the watcher's own pods and
+      # container (any other pod in tekton-pipelines could print the phrase) and
+      # EXCLUDES verdict=error lines: a watcher that runs but errors every time is
+      # not alive. The sibling rule ci-budget-watcher-erroring pages on those. telegram_direct pages Telegram DIRECTLY, bypassing
+      # the LLM agent. uid is 25 chars (Grafana's limit is 40 - a longer one
+      # crash-loops Grafana).
+      # Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md
+      - orgId: 1
+        name: ci-budget-watcher
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: ci-budget-heartbeat-stale
+            title: ci-budget-watcher heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-budget-watcher verdict" AND NOT _msg:"verdict=error" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "ci-budget-watcher heartbeat stale: no verdict line in namespace tekton-pipelines for 40m. The GitHub-minutes budget is unwatched: no flip to Gitea and no spending-limit backstop will happen."
+              runbook: "kubectl -n tekton-pipelines get cronjob,jobs,pods -l app=ci-budget-watcher; unsuspend if suspended; read the last Job pod logs (init container deps = PyYAML install; watcher = verdict lines). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"
+
+          - uid: ci-budget-watcher-erroring
+            title: ci-budget-watcher is erroring
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-budget-watcher verdict=error" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [3] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "ci-budget-watcher logged more than 3 verdict=error lines in 40m: it runs but cannot do its job (billing read, token, Gitea or apply failing), so the GitHub-minutes budget is effectively unwatched."
+              runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=100 | grep -E 'error|verdict=error'; check the ci-budget-github-* / ci-budget-gitea Secrets and the App permissions (manual op cicd-ci-budget-app-permissions). Spec: docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md section 4"
+
+      # Runner health (spec 2026-10-18 section 7, R19, frank#875). The three
+      # LogsQL rules read the `ci-runner-probe` line the ci-budget-watcher prints
+      # each run (Gitea admin Actions API, GET only), scoped to the watcher
+      # container and pod, on Frank's `_msg` field. The queries were run live
+      # against VictoriaLogs (extract + stats max/min are numeric; no match gives
+      # an empty value -> NoData -> OK).
+      #  - runner-offline: max(runners_online) over two 10m probe periods < 1, so
+      #    it fires only when EVERY probe in the window saw zero runners.
+      #  - runner-queue-wait: min(oldest_waiting_s) > 900 over the same window, so
+      #    it fires only when every sample is over 15m and clears one probe after
+      #    the queue drains.
+      #  - runner-probe-blind: the watcher logs exactly one of `ci-runner-probe
+      #    ...` or `ci-runner-probe-error ...` per run (a missing token is an
+      #    error line), so persistent error lines are the whole blindness signal;
+      #    a dead watcher is ci-budget-heartbeat-stale's job.
+      # pc-1 /var is selected by name through node_uname_info (node_filesystem_*
+      # has no node label); a selector on a series that does not exist would be
+      # silent under noDataState OK. uids are well under Grafana's 40-char limit.
+      - orgId: 1
+        name: ci-runner-health
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: layer-25-runner-offline
+            title: Layer 25 Gitea Runner Offline
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-runner-probe runners_online=" | extract "runners_online=<n> " | stats max(n) as value'
+              - refId: B
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "Gitea Actions runner offline: every ci-runner-probe in the last 20m reported runners_online=0. Gitea-authoritative CI will queue with no taker."
+              runbook: "kubectl -n gitea-runner get pods -o wide; kubectl -n gitea-runner logs deploy/act-runner -c runner --tail=50 (registration state lives on the act-runner-data PVC). Spec section 7."
+          - uid: layer-25-runner-queue-wait
+            title: Layer 25 Gitea Runner Queue Wait
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"oldest_waiting_s=" | extract "oldest_waiting_s=<age> waiting=" | stats min(age) as value'
+              - refId: B
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [900] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "A servable Gitea Actions job has waited more than 15 minutes for a runner in every probe of the last 20m: the runner is offline, saturated or stuck."
+              runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=20 | grep ci-runner-probe; check the runner pod on pc-1 and DinD disk. Spec section 7."
+          - uid: layer-25-runner-probe-blind
+            title: Layer 25 Runner Probe Blind
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:watcher AND kubernetes.pod_name:ci-budget-watcher* AND _msg:"ci-runner-probe-error" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 2400, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [3] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "The ci-budget-watcher logged more than 3 ci-runner-probe-error lines in 40m: runner offline and queue-wait alerts are blind (probe token missing or the Gitea admin API failing)."
+              runbook: "kubectl -n tekton-pipelines logs -l app=ci-budget-watcher --tail=50 | grep ci-runner-probe-error; check the ci-budget-gitea-probe Secret (read:admin token, manual op cicd-derio-net-gitea-org). Spec section 7."
+          - uid: layer-25-pc1-var-low
+            title: Layer 25 pc-1 /var Free Space Low
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'min(node_filesystem_avail_bytes{mountpoint="/var"} / node_filesystem_size_bytes{mountpoint="/var"} * on(instance) group_left() node_uname_info{nodename="pc-1"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 900, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [0.15] }
+            noDataState: OK
+            execErrState: Error
+            for: 15m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "pc-1 /var has under 15% free for 15m. The Gitea runner's DinD volume and Longhorn data live there."
+              runbook: "talosctl -n 192.168.55.71 df; docker image/volume prune via a DinD restart (kubectl -n gitea-runner rollout restart deploy/act-runner); check Longhorn replicas on pc-1. Spec section 7."

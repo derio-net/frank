@@ -115,8 +115,34 @@ def test_no_status_inference_on_unmirrored_commit_or_other_org(checker):
     assert check(checker,f)['counts'][REPO]['status'] == 0
 
     assert not any(call[0] == 'gitea' for call in f.calls)
-    f = Forge(); check(checker,f,'derio-homelab/kid-laptops')
+    f = Forge(); check(checker,f,'someone-else/repo')
     assert not any(call[0] == 'gitea' for call in f.calls)
+
+
+@pytest.mark.parametrize('repo', ['derio-net/willikins', 'derio-homelab/proxmox-cluster', 'derio-homelab/kid-laptops'])
+def test_forwarded_statuses_are_checked_for_every_org_in_the_token_map(checker, repo):
+    assert set(checker.TOKEN_FILES) == {'agentic-stoa', 'derio-homelab', 'derio-net'}
+    f = Forge(); f.prs = []; f.source = [status()]
+    result = check(checker, f, repo)
+    assert ('gitea', repo, 'head') in f.calls
+    assert result['counts'][repo]['status'] == 1
+    f.dest = [status(context='gitea-actions/build')]
+    assert check(checker, f, repo)['counts'][repo]['status'] == 0
+
+
+def test_manifest_lists_and_derio_net_token_mount():
+    docs = list(yaml.safe_load_all(MANIFEST.read_text()))
+    pod = docs[1]['spec']['jobTemplate']['spec']['template']['spec']
+    env = {v['name']: v.get('value') for v in pod['containers'][0]['env']}
+    for repo in ('derio-net/willikins', 'derio-net/runs-fr', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole'):
+        assert repo in env['MAIN_REPOS'].split() and repo in env['PR_REPOS'].split()
+    assert 'derio-homelab/kid-laptops' in env['MAIN_REPOS'].split()
+    assert 'derio-homelab/kid-laptops' not in env['PR_REPOS'].split()
+    net = next(v for v in pod['volumes'] if v['name'] == 'net')
+    assert net['secret']['secretName'] == 'derio-net-github-mirror' and net['secret']['optional'] is True
+    mounts = {m['name']: m['mountPath'] for m in pod['containers'][0]['volumeMounts']}
+    assert mounts['net'] == '/tokens/net'
+    assert "'derio-net': '/tokens/net/token'" in docs[0]['data']['check.py']
 
 
 def test_status_delivery_checked_on_readable_commit_despite_branch_drift(checker):
@@ -426,9 +452,9 @@ def test_valid_full_api_sha_and_invalid_pr_sha(checker):
 
 def test_malformed_status_fails_check_and_other_repo_still_checked(checker):
     f = Forge(); f.source = [{'context':'broken'}]
-    result = checker.check(f,[REPO,'derio-homelab/kid-laptops'],[],NOW)
+    result = checker.check(f,[REPO,'someone-else/other'],[],NOW)
     assert result['errors'][REPO] == 1
-    assert result['errors']['derio-homelab/kid-laptops'] == 0
+    assert result['errors']['someone-else/other'] == 0
     assert checker.finish(result,NOW,send=lambda *a,**kw: None) == 1
 
 
@@ -477,9 +503,11 @@ def test_token_selection_and_unreadable_tokens(checker, tmp_path, monkeypatch):
     def urlopen(req, **kwargs):
         auth.append(req.get_header('Authorization')); return Response()
     monkeypatch.setattr(checker.urllib.request,'urlopen',urlopen)
-    api = checker.API({'agentic-stoa':str(stoa),'derio-homelab':str(homelab)})
+    net = tmp_path/'net'; net.write_text('net-secret')
+    api = checker.API({'agentic-stoa':str(stoa),'derio-homelab':str(homelab),'derio-net':str(net)})
     api.http('github',REPO,'/test'); api.http('github','derio-homelab/kid-laptops','/test')
-    assert auth == ['token stoa-secret','token homelab-secret']
+    api.http('github','derio-net/willikins','/test')
+    assert auth == ['token stoa-secret','token homelab-secret','token net-secret']
     homelab.unlink()
     with pytest.raises(OSError): api.http('github','derio-homelab/kid-laptops','/test')
 
@@ -515,3 +543,24 @@ def test_push_failure_and_empty_quiet_snapshot(checker):
     def failed(*args,**kw): raise OSError('private-response')
     assert checker.finish(snapshot,NOW,send=failed) == 1
     assert checker.finish(snapshot,NOW,send=lambda *a,**kw: None) == 0
+
+
+def test_pulls_ignores_fork_prs(checker):
+    def request(forge, repo, path):
+        if not path.endswith('page=1'):
+            return []
+        return [
+            {'number': 1, 'head': {'sha': API_SHA, 'repo': {'full_name': REPO}}},
+            {'number': 2, 'head': {'sha': API_SHA, 'repo': {'full_name': 'evil/hum'}}},
+            {'number': 3, 'head': {'sha': API_SHA, 'repo': None}},
+        ]
+    api = checker.API({}, request=request)
+    assert api.pulls(REPO) == [(1, API_SHA)]
+
+
+def test_every_org_token_volume_is_optional():
+    docs = list(yaml.safe_load_all(MANIFEST.read_text()))
+    vols = {v['name']: v for v in docs[1]['spec']['jobTemplate']['spec']['template']['spec']['volumes']}
+    for name in ('stoa', 'homelab', 'net'):
+        assert vols[name]['secret']['optional'] is True, name
+    assert 'optional' not in vols['gitea']['secret']

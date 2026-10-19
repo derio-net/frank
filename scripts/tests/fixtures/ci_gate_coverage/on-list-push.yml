@@ -1,0 +1,8 @@
+name: t
+on: [push]
+jobs:
+  check:
+    if: (vars.CI_AUTHORITY || 'github') == (github.server_url == 'https://github.com' && 'github' || 'gitea')
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test

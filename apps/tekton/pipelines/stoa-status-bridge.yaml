@@ -1,5 +1,8 @@
-# Forwards a Gitea commit status (written by Gitea Actions on an
-# agentic-stoa mirror) to GitHub as a commit status on the same sha.
+# Forwards a Gitea commit status (written by Gitea Actions on an agentic-stoa,
+# derio-homelab or derio-net mirror) to GitHub as a commit status on the same
+# sha. The github-status task picks the GitHub token by the repo's owner.
+# (The name predates the other two orgs; kept so PipelineRun history and the
+# idle-rule tombstones stay attached.)
 #
 # The mirror is push-synced from GitHub, so the sha on the Gitea side IS the
 # GitHub PR head sha — no mapping. State vocabulary (pending/success/error/
@@ -15,11 +18,11 @@ metadata:
   name: stoa-status-bridge
   namespace: tekton-pipelines
 spec:
-  description: Forward a Gitea Actions commit status to GitHub.
+  description: Forward a Gitea Actions commit status to GitHub, for the three mirrored orgs (agentic-stoa, derio-homelab, derio-net).
   params:
     - name: repo-full-name
       type: string
-      description: "Repo full name, identical on both forges (e.g. agentic-stoa/hum)"
+      description: "Repo full name, identical on both forges (e.g. agentic-stoa/hum); its owner selects the GitHub token"
     - name: revision
       type: string
       description: "Commit sha the status attaches to"

@@ -1,0 +1,10 @@
+name: ungated
+on:
+  pull_request:
+  push:
+    branches: [main, "sync-pr-**", "sync-rerun-**"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test

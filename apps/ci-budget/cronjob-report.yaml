@@ -1,0 +1,169 @@
+# ci-budget-report (spec 2026-10-18 section 5, R15): monthly CI tier review.
+# Reads last month's GitHub Actions usage per org and upserts ONE issue in
+# derio-net/willikins (private) titled "CI tier review <YYYY-MM>" (label ci-tiers). Report
+# only - the operator acts by editing tiers.yaml. Same image, initContainer and
+# ConfigMaps as the watcher; no Kubernetes API access, no Gitea or Telegram
+# credentials. agentic-stoa has no authority generator, so its workflow files
+# are read with a dedicated contents:read generator (github-app-agentic-stoa-ci-read);
+# the mirror token carries statuses:write and is deliberately not used here.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ci-budget-report
+  namespace: tekton-pipelines
+spec:
+  schedule: "0 6 1 * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 480
+      template:
+        metadata:
+          labels:
+            app: ci-budget-report
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: deps
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command:
+                - python3
+                - -m
+                - pip
+                - install
+                - --no-cache-dir
+                - --disable-pip-version-check
+                - --require-hashes
+                - "--only-binary=:all:"
+                - --target=/deps
+                - -r
+                - /app/requirements.txt
+              env:
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: deps
+                  mountPath: /deps
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: report
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/app/report.py"]
+              env:
+                - name: PYTHONPATH
+                  value: /deps:/app
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: TIERS_FILE
+                  value: /config/tiers.yaml
+                - name: RUNNER_CONFIG
+                  value: /config/runner-config.yaml
+                - name: GH_BILLING_TOKEN_DERIO_NET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-derio-net
+                      key: token
+                      optional: true
+                - name: GH_AUTHORITY_TOKEN_DERIO_NET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-authority-derio-net
+                      key: token
+                      optional: true
+                - name: GH_BILLING_TOKEN_DERIO_HOMELAB
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-derio-homelab
+                      key: token
+                      optional: true
+                - name: GH_AUTHORITY_TOKEN_DERIO_HOMELAB
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-authority-derio-homelab
+                      key: token
+                      optional: true
+                - name: GH_BILLING_TOKEN_AGENTIC_STOA
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-agentic-stoa
+                      key: token
+                      optional: true
+                - name: GH_AUTHORITY_TOKEN_AGENTIC_STOA
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-read-agentic-stoa
+                      key: token
+                      optional: true
+                # The issues App's bot account (App slug + "[bot]"; derio-fr-automation,
+                # App 3994132). The report only adopts an issue this account wrote.
+                - name: REPORT_BOT_LOGIN
+                  value: "derio-fr-automation[bot]"
+                - name: GH_ISSUES_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-issues-derio-willikins
+                      key: token
+                      optional: true
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 192Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: deps
+                  mountPath: /deps
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                # kustomize rewrites these to the hash-suffixed generated names.
+                name: ci-budget-watcher-script
+            - name: config
+              configMap:
+                name: ci-budget-config
+            - name: deps
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}

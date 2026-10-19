@@ -1,0 +1,11 @@
+name: or
+on:
+  pull_request:
+  push:
+    branches: [main, "sync-pr-**", "sync-rerun-**"]
+jobs:
+  check:
+    if: always() || (vars.CI_AUTHORITY || 'github') == (github.server_url == 'https://github.com' && 'github' || 'gitea')
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test
