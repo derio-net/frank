@@ -478,7 +478,8 @@ selection sorts timestamps/IDs; any context starting `tekton` is excluded.
 `skipped`/`warning` map to success with `Gitea: <state>` descriptions; other
 descriptions match verbatim or a legitimate 140-character capped representation
 (the current github-status task sends them verbatim). Target URL must also match.
-Only agentic-stoa statuses are forwarded; kid-laptops refs use its org token.
+Statuses are checked for every org in the checker's token map (agentic-stoa,
+derio-homelab, derio-net), each read with that org's GitHub token.
 
 Gitea's status API can return a relative Actions target while its webhook
 forwards the absolute link. The checker resolves relative targets using the
@@ -515,6 +516,39 @@ watchdog uses `absent()` or age >15m, covering never-started Jobs/data loss.
 No idle window can establish health; the old idle rules are retired. Verify
 the actual live script and Grafana provisioning after merge, not only ArgoCD
 Synced. Existing outcome/platform/PVC/timeout/reconciler alerts stay intact.
+
+### Stranded statuses never self-heal on a quiet repo (2026-10-19)
+
+`mirror-reconcile` repairs refs, but nothing repairs commit statuses. Gitea
+does not retry a webhook, and the bridge only sees what reaches it, so a
+missed status event is lost. `ci-delivery-check` always inspects the current
+head. On a repo whose head does not move, kind=status overdue therefore fires
+until someone pushes.
+
+The cause was rollout ordering. The derio-net and derio-homelab org status
+hooks were created at 05:13Z (the `cicd-derio-net-gitea-org` manual op, run
+pre-merge). The `gitea-status-bridge` CEL allowlist only gained those repos
+when #878 deployed, and the first bridge run came at 11:45Z. Every status
+event in between reached `gitea-listener` and was filtered out without a
+trace. kid-laptops' 04:23Z statuses predated any hook at all. That stranded
+24 statuses on five quiet heads (17 of them `Gitea: skipped` from when
+`CI_AUTHORITY` was github), and the alert fired for all five repos.
+
+When onboarding an org, widen the trigger filter before creating the hook.
+To repair, re-forward through the bridge itself, which keeps the same
+mapping and token selection:
+
+```bash
+# DIR: token files stoa, homelab, net, gitea from Secrets
+# {stoa,derio-homelab,derio-net}-github-mirror / gitea-api-token (tekton-pipelines)
+scripts/ci_status_backfill.py --tokens DIR [owner/repo ...]                 # review
+scripts/ci_status_backfill.py --tokens DIR [owner/repo ...] | kubectl create -f -
+```
+
+The script re-forwards exactly the checker's `undelivered()` set, loaded from
+the ConfigMap, using the bridge's TriggerTemplate. Stale `pending` statuses are
+skipped unless `--include-pending`. A never-served runner label, such as
+herdr's `test-macos`, would otherwise pin a permanent pending check on GitHub.
 
 ### Known residual risk
 
