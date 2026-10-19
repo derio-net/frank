@@ -25,3 +25,8 @@ All 54 jobs belong to derio-net/vibe-kanban run 7598, pre-release.yml@refs/tags/
 ### fef7c65fce7a · finding [fixed] · RC1+RC2 fixed: ci-readers team (applied live) + default-branch resolution in both CronJobs
 
 gitea-org op now creates team ci-readers (read, all repos) with tekton-bot in derio-net and derio-homelab; applied 2026-10-19, tekton-bot GET repos -> 200. ci-delivery-check and mirror-reconcile resolve GitHub default_branch (ansible-pihole=picl); read-error diagnostics carry the HTTP status. Tests: test_ci_delivery_check.py, test_ci_mirror_resilience.py (208 passed across related suites). RC3 open: 8 queued tag-push runs on vibe-kanban; Gitea 1.25 has no cancel API.
+
+<!-- fr:journal kind=review scope=debug id=76f7a2864636 created=2026-10-19T15:09:51+00:00 -->
+### 76f7a2864636 · review · Self-review only
+
+No independent reviewer dispatched; no findings raised. Related suites green (208 passed).
