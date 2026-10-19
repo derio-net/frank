@@ -463,7 +463,7 @@ offboard() { # offboard <org/repo>: retire a mirrored repo (deleted, made public
   org=${full%/*}; repo=${full#*/}
   gitea_admin_auth
   if yq -e ".orgs.\"$org\".repos.\"$repo\"" "$TIERS" >/dev/null 2>&1; then
-    echo "note: $full is still in this checkout's tiers.yaml — remove it in the frank PR too (CI guards then list every other place to drop it)."
+    echo "WARNING: $full is still in this checkout's tiers.yaml. Merge the frank PR removing it FIRST (and confirm it synced): while it is listed, the watcher rewrites CI_AUTHORITY every 10 min and undoes this. (A stale checkout also triggers this note: git pull and re-check.)"
   fi
   gh_exists=0; ghx api "repos/$full" >/dev/null 2>&1 && gh_exists=1
   confirm "Offboard $full: GitHub CI_AUTHORITY -> github FIRST (so GitHub never stays skipped), delete its GitHub webhook to $HOOK_URL, then DELETE the Gitea mirror?"
@@ -475,7 +475,7 @@ offboard() { # offboard <org/repo>: retire a mirrored repo (deleted, made public
     [ -z "$id" ] || { ghx api -X DELETE "repos/$full/hooks/$id" >/dev/null; echo "  GitHub webhook deleted"; }
   else echo "  GitHub repo gone: variable and webhook went with it"; fi
   if [ "$(gt_code "/repos/$full")" = 200 ]; then gt DELETE "/repos/$full" >/dev/null; echo "  Gitea mirror deleted (sync-pr/sync-rerun refs with it)"; fi
-  echo "done. Remaining: the tiers.yaml PR (and, if the repo still exists, the App installation's repository access)."
+  echo "done. Remaining: verify (status gitea-mirrors; no repo line in the next ci-delivery-check / mirror-reconcile runs) and, if the repo still exists, the App installation's repository access."
 }
 
 # ==================================================================================
