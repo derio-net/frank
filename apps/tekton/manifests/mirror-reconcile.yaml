@@ -99,6 +99,7 @@ data:
 
     import json
     import os
+    import re
     import sys
     import urllib.request
     from dataclasses import dataclass
@@ -114,13 +115,15 @@ data:
         have: str | None
 
 
-    def plan(*, main_repos, pr_repos, github_head, github_open_prs, commit_time, gitea_head, now, grace):
+    def plan(*, main_repos, pr_repos, github_head, github_open_prs, commit_time, gitea_head, now, grace,
+             default_branch=lambda repo: "main"):
         """Pure planning step; every I/O is an injected callable.
 
         github_head(repo) -> (sha, committed_at) | None
         github_open_prs(repo) -> [(number, head_sha), ...]
         commit_time(repo, sha) -> committed_at | None  (only asked on drift)
         gitea_head(repo, branch) -> sha | None (None = branch absent)
+        default_branch(repo) -> the GitHub default branch (ansible-pihole is `picl`, not `main`)
 
         Grace is measured from the head COMMIT's time, never from a PR's
         updated_at, which any comment or label resets and would starve the
@@ -134,9 +137,10 @@ data:
             if head is None:
                 continue
             sha, at = head
-            have = gitea_head(repo, "main")
+            branch = default_branch(repo)
+            have = gitea_head(repo, branch)
             if sha != have and now - at >= grace:
-                drifts.append(Drift(repo, "refs/heads/main", "refs/heads/main", sha, have))
+                drifts.append(Drift(repo, f"refs/heads/{branch}", f"refs/heads/{branch}", sha, have))
         for repo in pr_repos:
             for number, sha in github_open_prs(repo):
                 branch = f"sync-pr-{number}"
@@ -215,12 +219,22 @@ data:
                 raise RuntimeError(f"no GitHub token for org {repo.split('/')[0]}")
             return tok
 
+        default_branches = {}
+
+        def default_branch(repo):
+            if repo not in default_branches:
+                name = _github(f"/repos/{repo}", token(repo)).get("default_branch")
+                if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.][A-Za-z0-9_./-]*", name) or ".." in name:
+                    raise ValueError("malformed default branch")
+                default_branches[repo] = name
+            return default_branches[repo]
+
         def github_head(repo):
             try:
-                branch = _github(f"/repos/{repo}/branches/main", token(repo))
+                branch = _github(f"/repos/{repo}/branches/{default_branch(repo)}", token(repo))
                 return branch["commit"]["sha"], _ts(branch["commit"]["commit"]["committer"]["date"])
             except Exception as exc:  # one repo's failure must not stop the rest
-                errors.append(f"{repo}: GitHub main unreadable: {exc}")
+                errors.append(f"{repo}: GitHub default branch unreadable: {exc}")
                 return None
 
         def github_open_prs(repo):
@@ -250,6 +264,7 @@ data:
             github_open_prs=github_open_prs,
             commit_time=commit_time,
             gitea_head=lambda repo, branch: heads.get((repo, branch)),
+            default_branch=default_branch,
             now=datetime.now(timezone.utc),
             grace=grace,
         )

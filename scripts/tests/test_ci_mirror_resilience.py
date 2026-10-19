@@ -390,6 +390,7 @@ def test_main_wires_github_and_gitea_into_the_plan(tmp_path, monkeypatch) -> Non
     )  # agentic-stoa/b has no marker: its ls-remote failed
     old = "2026-10-11T21:59:10Z"
     responses = {
+        "/repos/agentic-stoa/a": {"default_branch": "main"},
         "/repos/agentic-stoa/a/branches/main": {"commit": {"sha": "newmain", "commit": {"committer": {"date": old}}}},
         "/repos/agentic-stoa/a/pulls?state=open&per_page=100": [
             {"number": 5, "head": {"sha": "prsha", "repo": {"full_name": "agentic-stoa/a"}}},
@@ -415,8 +416,10 @@ def test_main_records_a_github_failure_and_carries_on(tmp_path, monkeypatch) -> 
     (tmp_path / "gitea-heads.txt").write_text("agentic-stoa/a __listed__ -\nagentic-stoa/b __listed__ -\n")
 
     def fake(path, token):
-        if "/a/" in path:
-            raise OSError("HTTP 502")
+        if path.startswith("/repos/") and path.count("/") == 3:
+            if path.endswith("/a"):
+                raise OSError("HTTP 502")
+            return {"default_branch": "main"}
         return {"commit": {"sha": "s", "commit": {"committer": {"date": "2026-10-11T00:00:00Z"}}}}
 
     monkeypatch.setattr(mod, "_github", fake)
@@ -426,7 +429,7 @@ def test_main_records_a_github_failure_and_carries_on(tmp_path, monkeypatch) -> 
     monkeypatch.setenv("PR_REPOS", "")
     mod.main()
     assert (tmp_path / "plan.txt").read_text() == "agentic-stoa/b refs/heads/main refs/heads/main s -\n"
-    assert "agentic-stoa/a: GitHub main unreadable" in (tmp_path / "errors.txt").read_text()
+    assert "agentic-stoa/a: GitHub default branch unreadable" in (tmp_path / "errors.txt").read_text()
 
 
 def test_plan_output_round_trips_through_the_push_script_format() -> None:
@@ -544,3 +547,20 @@ def test_gitea_status_bridge_lists_exactly_the_mirrored_main_repos() -> None:
     assert sorted(repos) == sorted(main_env.split())
     assert "!body.context.startsWith('tekton')" in flt
     assert "startsWith('agentic-stoa/')" not in flt
+
+
+def test_plan_follows_a_non_main_default_branch() -> None:
+    asked = []
+    plan = _plan_module().plan(
+        main_repos=["derio-homelab/ansible-pihole"],
+        pr_repos=[],
+        github_head=lambda r: ("df12537", OLD),
+        github_open_prs=lambda r: [],
+        commit_time=lambda r, s: pytest.fail("main heads carry their own time"),
+        gitea_head=lambda r, branch: asked.append(branch),
+        default_branch=lambda r: "picl",
+        now=NOW,
+        grace=timedelta(minutes=10),
+    )
+    assert asked == ["picl"]
+    assert [(d.src_ref, d.dst_ref) for d in plan] == [("refs/heads/picl", "refs/heads/picl")]

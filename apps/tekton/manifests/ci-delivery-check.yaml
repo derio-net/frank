@@ -79,7 +79,7 @@ data:
                 refs = []
                 if repo in main_repos:
                     sha, at = client.head(repo)
-                    refs.append(('main', sha, at))
+                    refs.append((client.default_branch(repo), sha, at))
                 if repo in pr_repos:
                     refs.extend((f'sync-pr-{n}', sha, client.commit_time(repo, sha))
                                 for n, sha in client.pulls(repo))
@@ -114,9 +114,13 @@ data:
                             counts['status'] += 1
                             # Never log arbitrary forge text: it may contain credentials.
                             snapshot['diagnostics'].append(f'{repo} status delivery mismatch')
-            except Exception:
+            except Exception as exc:
                 snapshot['errors'][repo] = 1
-                snapshot['diagnostics'].append(f'{repo} read-error')
+                # HTTP status or exception class only, never forge text (it may carry
+                # credentials); without it a 404 (no access) and a timeout read the same.
+                cause = getattr(exc, 'code', None)
+                snapshot['diagnostics'].append(
+                    f'{repo} read-error {cause if isinstance(cause, int) else type(exc).__name__}')
         return snapshot
 
     class API:
@@ -171,8 +175,15 @@ data:
             if data['full_name'] != repo:
                 raise ValueError('wrong repository')
 
+        def default_branch(self, repo):
+            # Not every mirrored repo uses `main` (derio-homelab/ansible-pihole is `picl`).
+            name = self.get('github', repo, f'/repos/{repo}').get('default_branch')
+            if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_.][A-Za-z0-9_./-]*', name) or '..' in name:
+                raise ValueError('malformed default branch')
+            return name
+
         def head(self, repo):
-            data = self.get('github', repo, f'/repos/{repo}/branches/main')['commit']
+            data = self.get('github', repo, f'/repos/{repo}/branches/{self.default_branch(repo)}')['commit']
             return sha_value(data['sha']), timestamp(data['commit']['committer']['date'])
 
         def pulls(self, repo):
