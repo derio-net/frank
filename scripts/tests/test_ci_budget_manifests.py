@@ -15,7 +15,10 @@ APPS = {
 }
 BILLING_PERMS = {"organization_administration": "read", "metadata": "read"}
 AUTHORITY_PERMS = {
-    "variables": "write", "actions": "read", "checks": "read",
+    # GitHub's permission key for "Variables" is actions_variables (verified live
+    # 2026-10-19 on the derio-net installation); a bare "variables" key makes the
+    # installation-token request fail.
+    "actions_variables": "write", "actions": "read", "checks": "read",
     "contents": "read", "metadata": "read",
 }
 
@@ -191,7 +194,7 @@ def test_no_other_generator_grants_billing_or_variables():
             if not isinstance(d, dict) or d.get("kind") != "ClusterGenerator":
                 continue
             perms = (d["spec"]["generator"].get("githubAccessTokenSpec") or {}).get("permissions") or {}
-            if {"organization_administration", "variables"} & set(perms):
+            if {"organization_administration", "actions_variables", "variables"} & set(perms):
                 offenders.append(str(p.relative_to(REPO)))
     assert offenders == []
 
@@ -387,3 +390,20 @@ def test_lines_the_watcher_prints_satisfy_the_rule_terms():
     # an erroring run is NOT a heartbeat, and is what the erroring rule counts
     assert any(t in errors[0] for t in beat_forbid)
     assert all(t in errors[0] for t in err_req)
+
+
+def test_no_generator_uses_the_nonexistent_variables_permission_key():
+    bad = []
+    for p in (REPO / "apps").rglob("*.yaml"):
+        if "vendor" in p.parts:
+            continue
+        try:
+            docs = list(yaml.safe_load_all(p.read_text()))
+        except yaml.YAMLError:
+            continue
+        for d in docs:
+            if isinstance(d, dict) and d.get("kind") == "ClusterGenerator":
+                perms = (d["spec"]["generator"].get("githubAccessTokenSpec") or {}).get("permissions") or {}
+                if "variables" in perms:
+                    bad.append(f"{p.relative_to(REPO)}:{d['metadata']['name']}")
+    assert bad == [], "GitHub's key is actions_variables: " + ", ".join(bad)

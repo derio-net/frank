@@ -96,7 +96,7 @@ are not proof that an App installation token is accepted.
   (`administration` is the repository permission). **[PRE-MERGE]**: an
   installation token minted from each org's App reads this endpoint.
 - `POST/PATCH /repos/{owner}/{repo}/actions/variables[/{name}]`: repository
-  `Variables`: write (key `variables`).
+  `Variables`: write (key `actions_variables` — verified live 2026-10-19; a bare `variables` key does not exist).
 - Workflow runs and jobs: `actions: read`. Check-run annotations
   (`/repos/{o}/{r}/check-runs/{id}/annotations`): `checks: read`. Workflow
   files via the contents API: `contents: read`. Open PRs: `pull_requests: read`.
@@ -287,7 +287,7 @@ digest-pinned stock `python:3-alpine`, script from the configMapGenerator
 | Generator | Orgs | Permissions | Repositories |
 |---|---|---|---|
 | `github-app-<org>-ci-billing` | all three | `organization_administration: read`, `metadata: read` | none listed (org endpoint) |
-| `github-app-<org>-ci-authority` | derio-net, derio-homelab | `variables: write`, `actions: read`, `checks: read`, `contents: read`, `metadata: read` | every repo of that org in `tiers.yaml` |
+| `github-app-<org>-ci-authority` | derio-net, derio-homelab | `actions_variables: write`, `actions: read`, `checks: read`, `contents: read`, `metadata: read` | every repo of that org in `tiers.yaml` |
 
 For agentic-stoa (no `github-preferred` repo, never written) the report reads
 workflow files with a dedicated read-only generator,

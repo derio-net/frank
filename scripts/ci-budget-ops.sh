@@ -105,7 +105,7 @@ st_app_permissions() {
       done_ "$org: organization Administration permission granted"
     else open_ "$org: organization Administration:read NOT granted (App settings → Permissions, then accept in org settings)"; fi
     if [ "$org" != agentic-stoa ]; then
-      for need in variables checks actions pull_requests statuses; do
+      for need in actions_variables checks actions pull_requests statuses; do
         if [ "$(echo "$js" | jq -r ".permissions.$need // \"none\"")" = none ]; then open_ "$org: repository permission '$need' missing"; else done_ "$org: '$need' = $(echo "$js" | jq -r ".permissions.$need")"; fi
       done
       [ "$org" = derio-net ] && { [ "$(echo "$js" | jq -r '.permissions.issues // "none"')" = write ] && done_ "derio-net: issues = write (report issue in willikins)" || open_ "derio-net: issues:write missing (report issue in derio-net/willikins)"; }

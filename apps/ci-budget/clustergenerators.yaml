@@ -5,7 +5,7 @@
 #   *-ci-billing   organization_administration:read - the org billing-usage
 #                  endpoint. NO repositories (it is an org endpoint). Nothing
 #                  else may ever carry this permission.
-#   *-ci-authority variables:write + the reads the backstop and coverage gate
+#   *-ci-authority actions_variables:write + the reads the backstop and coverage gate
 #                  need, scoped to the org's tiers.yaml repos. The ONLY tokens
 #                  that can write a repository Actions variable. agentic-stoa
 #                  has no github-preferred repo and gets none.
@@ -51,7 +51,7 @@ spec:
             name: github-app-derio-key
             key: key
       permissions:
-        variables: write
+        actions_variables: write   # GitHub's key for the Variables permission
         actions: read
         checks: read
         contents: read
@@ -98,7 +98,7 @@ spec:
             name: github-app-homelab-key
             key: key
       permissions:
-        variables: write
+        actions_variables: write   # GitHub's key for the Variables permission
         actions: read
         checks: read
         contents: read
