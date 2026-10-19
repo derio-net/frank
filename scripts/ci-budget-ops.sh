@@ -215,13 +215,23 @@ ap_gitea_org() {
   unset CB_PW; st_gitea_org
 }
 write_sops_secret() { # name key value -> SOPS file in the checkout + kubectl apply
-  local name="$1" key="$2" val="$3" dir="$ROOT/secrets/ci-budget" f
+  # Plaintext lives ONLY in a 0600 temp file outside the repo, removed on any exit;
+  # the tracked path is written only after encryption succeeded.
+  local name="$1" key="$2" val="$3" dir="$ROOT/secrets/ci-budget" f tmp enc recip
   mkdir -p "$dir"; f="$dir/$name.yaml"
-  umask 077
-  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: tekton-pipelines\ntype: Opaque\nstringData:\n  %s: %s\n' "$name" "$key" "$val" > "$f"
-  (cd "$ROOT" && sops -e -i "$f")
-  sops -d "$f" | kubectl apply -f - >/dev/null
-  echo "  wrote + applied $f (SOPS-encrypted) — commit it"
+  tmp=$(mktemp "${TMPDIR:-/tmp}/ci-budget-secret.XXXXXX"); chmod 600 "$tmp"
+  enc="$f.enc.$$"
+  trap 'rm -f "$tmp" "$enc"' EXIT INT TERM
+  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: tekton-pipelines\ntype: Opaque\nstringData:\n  %s: %s\n' "$name" "$key" "$val" > "$tmp"
+  recip=$(yq -r '.creation_rules[0].age' "$ROOT/.sops.yaml")
+  [ -n "$recip" ] && [ "$recip" != null ] || die "no age recipient in $ROOT/.sops.yaml"
+  sops --encrypt --age "$recip" --encrypted-regex '^(data|stringData)$' \
+       --input-type yaml --output-type yaml "$tmp" > "$enc" || die "sops encryption failed; nothing written to $f"
+  grep -q '^sops:' "$enc" || die "encrypted output looks wrong; nothing written to $f"
+  mv "$enc" "$f"
+  kubectl apply -f "$tmp" >/dev/null   # apply from the plaintext temp: no age key needed for this step
+  rm -f "$tmp"; trap - EXIT INT TERM
+  echo "  wrote $f (SOPS-encrypted) and applied Secret tekton-pipelines/$name — commit the file"
 }
 
 # ==================================================================================
