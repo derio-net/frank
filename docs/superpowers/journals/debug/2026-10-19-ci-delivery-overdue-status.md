@@ -10,3 +10,8 @@ Alert layer-25-delivery-overdue kind=status for derio-homelab/kid-laptops (4), d
 ### 24cbd250fe6c · ruled-out · Not a live forwarding break: bridge forwards derio-* statuses now
 
 132 stoa-status-bridge PipelineRuns for derio-* repos since 11:45:30Z, all post-dating every mismatch; the 19:2x herdr probe PR also forwarded. ci-delivery-check's comparison is correct: GitHub genuinely has no gitea-actions/<ctx> status for these commits.
+
+<!-- fr:journal kind=ruled-out scope=debug id=684851cd10b3 created=2026-10-19T19:41:26+00:00 -->
+### 684851cd10b3 · ruled-out · Not a checker false positive (description/URL mapping)
+
+Every mismatch has got=None on GitHub (no status at all), so matches()/forwarded() mapping and the GITEA_WEB_URL rewrite are not involved.
