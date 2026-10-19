@@ -550,6 +550,14 @@ the ConfigMap, using the bridge's TriggerTemplate. Stale `pending` statuses are
 skipped unless `--include-pending`. A never-served runner label, such as
 herdr's `test-macos`, would otherwise pin a permanent pending check on GitHub.
 
+A job queued for a label no runner serves can never post a terminal status, so
+the backfill cannot clear it. Cancel the run instead: Gitea then posts
+`failure / Has been cancelled`, and the live bridge forwards it. Gitea 1.25 has
+no REST cancel endpoint (`/api/v1/.../actions/runs/{id}/cancel` returns 404).
+Use the web route `POST /<owner>/<repo>/actions/runs/<run_number>/cancel` with
+an admin session and the `X-Csrf-Token` taken from the run page's
+`window.config.csrfToken`; a form `_csrf` from `/user/login` is rejected.
+
 ### Known residual risk
 
 - **pc-1 is still a single point of failure for the sync pipelines
