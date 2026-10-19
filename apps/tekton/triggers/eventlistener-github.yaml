@@ -286,7 +286,8 @@ spec:
         ref: derio-homelab-pr-sync-template
     # ──────────────────────────────────────────────────────────────────
     # derio-net github-preferred mirrors (2026-10-18, frank#875): willikins,
-    # herdr-vertical-tabs, presentation-craft, vibe-kanban, runs-fr. Own HMAC
+    # presentation-craft, vibe-kanban, runs-fr (herdr-vertical-tabs offboarded
+    # 2026-10-19). Own HMAC
     # secret, own App token, own derio-net-pull-sync Pipeline — same per-org
     # isolation as the homelab triggers above. Public derio-net repos are
     # deliberately absent: they never reach this listener.
@@ -307,7 +308,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
@@ -332,7 +333,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
                 && body.action in ['opened', 'synchronize', 'reopened']
                 && has(body.pull_request.head.repo)
                 && body.pull_request.head.repo.full_name == body.repository.full_name

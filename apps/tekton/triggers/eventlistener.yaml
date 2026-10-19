@@ -83,7 +83,7 @@ spec:
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'status') &&
-                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health', 'agentic-stoa/site', 'derio-homelab/kid-laptops', 'derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole', 'derio-net/willikins', 'derio-net/herdr-vertical-tabs', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr'] &&
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health', 'agentic-stoa/site', 'derio-homelab/kid-laptops', 'derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole', 'derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr'] &&
                 !body.context.startsWith('tekton')
             - name: "overlays"
               value:

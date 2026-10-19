@@ -58,7 +58,6 @@ spec:
         metadata: read
       repositories:
         - willikins
-        - herdr-vertical-tabs
         - presentation-craft
         - vibe-kanban
         - runs-fr
