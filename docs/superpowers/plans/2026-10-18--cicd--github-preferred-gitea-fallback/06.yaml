@@ -45,9 +45,10 @@ state:
       note: 'ci-budget-ops status app-permissions: all DONE (2026-10-19, billing read
         with each org''s App token; permission key fixed to actions_variables)'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-19T17:33:18+00:00'
+      note: gitea-semantics re-proven 2026-10-19T17:31:22Z; probe repo deleted; gitea-org
+        + gitea-mirrors DONE
     P6.T2.S1:
       state: ' '
       ticked_at: null
