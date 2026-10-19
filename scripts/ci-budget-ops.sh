@@ -187,7 +187,7 @@ st_gitea_org() {
     if gt GET "/orgs/$o/teams" | jq -e 'type=="array"' >/dev/null 2>&1; then
       local owners; owners=$(gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="Owners")|.id')
       gt GET "/teams/$owners/members" | jq -r '.[].login' | grep -qx ci-budget && done_ "$o: ci-budget is an org owner" || open_ "$o: ci-budget not an org owner"
-      [ "$o" = derio-net ] && { gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1 | while read -r tid; do gt GET "/teams/$tid/members" | jq -r '.[].login'; done | grep -qx stoa-bot && done_ "derio-net: stoa-bot has write (team mirror-writers)" || open_ "derio-net: stoa-bot lacks write"; }
+      gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1 | while read -r tid; do gt GET "/teams/$tid/members" | jq -r '.[].login'; done | grep -qx stoa-bot && done_ "$o: stoa-bot has write (team mirror-writers)" || open_ "$o: stoa-bot lacks write (mirror-reconcile and the sync pushes cannot reach the mirrors)"
       gt GET "/orgs/$o/hooks" | jq -e --arg u "$LISTENER_GITEA" '[.[]|select(.config.url==$u and (.events|index("status")) and .active)]|length>0' >/dev/null \
         && done_ "$o: org status webhook → gitea-listener" || open_ "$o: org status webhook missing"
       # ci-delivery-check reads every mirror as tekton-bot; a non-member gets 404 on private repos.
@@ -201,11 +201,14 @@ st_gitea_org() {
 }
 ap_gitea_org() {
   gitea_admin_auth
-  confirm "Create/ensure Gitea org derio-net, team mirror-writers(stoa-bot), team ci-readers(tekton-bot, read) in both orgs, user ci-budget (owner of derio-net + derio-homelab), its token, a read:admin probe token, and status webhooks?"
+  confirm "Create/ensure Gitea org derio-net, team mirror-writers(stoa-bot) in both orgs, team ci-readers(tekton-bot, read) in both orgs, user ci-budget (owner of derio-net + derio-homelab), its token, a read:admin probe token, and status webhooks?"
   [ "$(gt_code /orgs/derio-net)" = 200 ] || gt POST /orgs '{"username":"derio-net","visibility":"private"}' >/dev/null
-  local tid; tid=$(gt GET /orgs/derio-net/teams | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1)
-  [ -n "$tid" ] || tid=$(gt POST /orgs/derio-net/teams '{"name":"mirror-writers","permission":"write","includes_all_repositories":true,"units":["repo.code","repo.actions"]}' | jq -r .id)
-  gt PUT "/teams/$tid/members/stoa-bot" >/dev/null
+  # stoa-bot pushes every mirror (webhook syncs and mirror-reconcile), so it needs write in BOTH orgs.
+  for o in derio-net derio-homelab; do
+    local tid; tid=$(gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="mirror-writers")|.id' | head -1)
+    [ -n "$tid" ] || tid=$(gt POST "/orgs/$o/teams" '{"name":"mirror-writers","permission":"write","includes_all_repositories":true,"units":["repo.code","repo.actions"]}' | jq -r .id)
+    gt PUT "/teams/$tid/members/stoa-bot" >/dev/null
+  done
   # Read-only access for the delivery checker (tekton-bot), one team per mirrored org.
   for o in derio-net derio-homelab; do
     local rid; rid=$(gt GET "/orgs/$o/teams" | jq -r '.[]|select(.name=="ci-readers")|.id' | head -1)
