@@ -145,6 +145,9 @@ ap_gitea_semantics() {
   wf_paths=$(printf 'on:\n  push:\n    branches: ["sync-rerun-**"]\n    paths: ["src/**"]\njobs:\n  paths-run:\n    runs-on: ubuntu-latest\n    steps: [{run: "true"}]\n')
   gt POST "/repos/$org/$repo/contents/.github/workflows/plain.yml" "$(jq -n --arg c "$(printf '%s' "$wf_plain" | base64)" '{content:$c,message:"probe",branch:"main"}')" >/dev/null
   gt POST "/repos/$org/$repo/contents/.github/workflows/paths.yml" "$(jq -n --arg c "$(printf '%s' "$wf_paths" | base64)" '{content:$c,message:"probe2",branch:"main"}')" >/dev/null
+  # The branch tip must touch src/**, or the paths filter is legitimately unmatched
+  # and the probe proves nothing (the first version of this probe had that flaw).
+  gt POST "/repos/$org/$repo/contents/src/probe.txt" "$(jq -n --arg c "$(printf 'probe\n' | base64)" '{content:$c,message:"touch src",branch:"main"}')" >/dev/null
   sleep 5
   gt POST "/repos/$org/$repo/branches" '{"new_branch_name":"sync-rerun-probe","old_branch_name":"main"}' >/dev/null
   echo "waiting up to 15 min for the runner (capacity 2, shared)…"
@@ -154,7 +157,11 @@ ap_gitea_semantics() {
     res_repo=$(echo "$js" | jq -r '[.workflow_runs[]? | select(.name=="repo-wins" and .head_branch=="main")][0].status // empty')
     res_branch=$(echo "$js" | jq -r '[.workflow_runs[]? | select(.head_branch=="sync-rerun-probe" and .name=="repo-wins")][0].status // empty')
     res_paths=$(echo "$js" | jq -r '[.workflow_runs[]? | select(.head_branch=="sync-rerun-probe" and .name=="paths-run")][0].status // empty')
-    case "$res_repo$res_branch" in *success*success*) break;; esac
+    case "$res_repo$res_branch" in
+      *success*success*)
+        [ -n "$res_paths" ] && [ "$res_paths" != waiting ] && [ "$res_paths" != running ] && break
+        settle=$(( ${settle:-0} + 1 )); [ "$settle" -ge 18 ] && break ;;   # 3 more min for the paths run to appear
+    esac
     sleep 10
   done
   local orgwins; orgwins=$(echo "$js" | jq -r '[.workflow_runs[]? | select(.name=="org-wins")][0].status // "absent"')
@@ -162,7 +169,7 @@ ap_gitea_semantics() {
   gt DELETE "/repos/$org/$repo" >/dev/null; gt DELETE "/orgs/$org/actions/variables/CI_PROBE" >/dev/null || true
   if [ "$res_repo" = success ] && [ "$res_branch" = success ]; then
     printf 'proven %s: repo variable overrides org (repo-wins=success, org-wins=%s); API-created branch fires push runs; paths-filtered workflow on new branch: %s\n' \
-      "$(date -u +%FT%TZ)" "$orgwins" "${res_paths:-NOT-STARTED — re-run of path-filtered workflows needs another mechanism before go-live}" > "$STATE_DIR/gitea-semantics.ok"
+      "$(date -u +%FT%TZ)" "$orgwins" "${res_paths:-NOT-STARTED within 3 min after the plain runs, with a tip commit touching src/** — re-run of path-filtered workflows needs another mechanism before go-live}" > "$STATE_DIR/gitea-semantics.ok"
     cat "$STATE_DIR/gitea-semantics.ok"
   else die "semantics NOT proven (see statuses above) — return to the design before merging"; fi
 }
