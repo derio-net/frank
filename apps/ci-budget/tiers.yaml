@@ -41,7 +41,7 @@ orgs:
     included_minutes: 2000
     threshold_pct: 85
     gitea_org: derio-homelab
-    mode: dry-run
+    mode: live
     repos:
       kid-laptops:          {tier: gitea-only}
       proxmox-cluster:      {tier: github-preferred}

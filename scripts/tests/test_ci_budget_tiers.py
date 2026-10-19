@@ -45,8 +45,8 @@ def _main_repos():
     raise AssertionError("MAIN_REPOS not found")
 
 
-# Orgs flipped to mode: live (spec go-live). derio-net: 2026-10-19, GitHub minutes exhausted.
-LIVE_ORGS = {"derio-net"}
+# Orgs flipped to mode: live (spec go-live). derio-net: 2026-10-19, GitHub minutes exhausted; derio-homelab: 2026-10-19, 91.6% of included minutes.
+LIVE_ORGS = {"derio-net", "derio-homelab"}
 
 
 def test_orgs_and_budget_fields():
