@@ -45,6 +45,10 @@ def _main_repos():
     raise AssertionError("MAIN_REPOS not found")
 
 
+# Orgs flipped to mode: live (spec go-live). derio-net: 2026-10-19, GitHub minutes exhausted.
+LIVE_ORGS = {"derio-net"}
+
+
 def test_orgs_and_budget_fields():
     cfg = _cfg()
     assert cfg["version"] == 1
@@ -54,7 +58,9 @@ def test_orgs_and_budget_fields():
         assert org["threshold_pct"] == 85, name
         assert org["gitea_org"], name
         assert org["mode"] in {"dry-run", "live"}, name
-        assert org["mode"] == "dry-run", f"{name} must ship as dry-run"
+        # An org goes live only by name, in the PR that flips it (go-live is per org).
+        expected = "live" if name in LIVE_ORGS else "dry-run"
+        assert org["mode"] == expected, f"{name} must be {expected}"
 
 
 def test_repo_entries_are_valid():
