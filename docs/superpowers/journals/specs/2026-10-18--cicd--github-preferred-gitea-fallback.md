@@ -489,3 +489,8 @@ owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step10
 ### 7edebd205cc1 · finding [fixed] · Test Plan evidence added after #891 (outcomes are immutable once recorded)
 
 Step 8 RAN 2026-10-19 17:27-17:29Z (recorded owed earlier): two ci-budget-report jobs -> 'issue=504 failed=0'; willikins#504 'CI tier review 2026-09' created 17:27:28Z, edited 17:28:27Z, only one exists. Step 3: verdicts every 10 min for all orgs; derio-homelab would-flip 91.4 (earlier 'refused' = stale gate gaps, cleared once the gate PRs merged); would-flip MESSAGE unverifiable: ci-budget-telegram Secret absent, notifier disabled, state.sent empty. Step 10: pc-1 /var series live (0.449), queue-wait LogsQL numeric on real probe lines. P6.T1.S2 gitea-semantics re-proven 2026-10-19T17:31:22Z (repo-wins=success, org-wins=skipped, sync-rerun push + paths-filtered run=success); probe repo deleted (404).
+
+<!-- fr:journal kind=finding scope=spec id=d6d3e42c7e59 created=2026-10-19T20:01:22+00:00 state=fixed -->
+### d6d3e42c7e59 · finding [fixed] · Go-live derio-homelab (#894)
+
+2026-10-19 20:01Z: ArgoCD op revision = merge commit 5968049c, deployed tiers.yaml mode live for derio-net and derio-homelab; first live tick verdict=flipped org=derio-homelab pct=91.6. CI_AUTHORITY=gitea on proxmox-cluster, omada-controller, homelab, ansible-pihole on BOTH forges (gh variable get + Gitea API); kid-laptops unchanged (gitea-only); four flip: keys in state.sent (messages sent once); derio-net verdict=ok, no change; agentic-stoa still dry-run (no github-preferred repos). Both orgs with github-preferred repos are now live.
