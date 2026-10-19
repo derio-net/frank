@@ -10,3 +10,8 @@
 ### 7d55964061bd · root-cause · RC1: delivery-check reads Gitea as tekton-bot, which is not a member of derio-net/derio-homelab
 
 Mirrors exist (ci-budget-ops status gitea-mirrors: 0 open). tekton-bot GET /repos/<org>/<repo> -> 404, /orgs/<org> -> 403; ci-budget (Owners) -> 200 on all 9. API.http uses one gitea token (gitea-api-token) for every org. kid-laptops only works because it was granted explicitly. The bare except in check() hides the HTTP code.
+
+<!-- fr:journal kind=root-cause scope=debug id=453e616daabd created=2026-10-19T14:48:12+00:00 -->
+### 453e616daabd · root-cause · RC2: derio-homelab/ansible-pihole default branch is picl; check + mirror-reconcile hardcode main
+
+GitHub branches/main -> 404 for ansible-pihole only (others 200); gh api default_branch=picl. ci-delivery-check head() and mirror-reconcile (lines ~137,220) use main; ci-budget-ops resolves default_branch.
