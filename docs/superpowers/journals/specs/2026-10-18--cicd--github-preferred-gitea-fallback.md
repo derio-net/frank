@@ -484,3 +484,8 @@ what: **Runner (R18, R19).** The runner pod runs with a 2Gi limit on pc-1; the `
 why: Verified: runner pod 2Gi limit on pc-1, ci-runner-probe runners_online=1. Not done: scale-to-0 offline alert, pc-1 /var rule on real data, queue-wait LogsQL on real probe lines, probe-error path. Queue-wait signal was real: 54 jobs / 9h stuck from vibe-kanban tag runs (cleared).
 how: fr journal resolve --scope spec --slug 2026-10-18--cicd--github-preferred-gitea-fallback --id test-plan-step-10 --state fixed --note "<evidence>"
 owed_key: spec:2026-10-18--cicd--github-preferred-gitea-fallback#step10
+
+<!-- fr:journal kind=finding scope=spec id=7edebd205cc1 created=2026-10-19T17:33:10+00:00 state=fixed -->
+### 7edebd205cc1 · finding [fixed] · Test Plan evidence added after #891 (outcomes are immutable once recorded)
+
+Step 8 RAN 2026-10-19 17:27-17:29Z (recorded owed earlier): two ci-budget-report jobs -> 'issue=504 failed=0'; willikins#504 'CI tier review 2026-09' created 17:27:28Z, edited 17:28:27Z, only one exists. Step 3: verdicts every 10 min for all orgs; derio-homelab would-flip 91.4 (earlier 'refused' = stale gate gaps, cleared once the gate PRs merged); would-flip MESSAGE unverifiable: ci-budget-telegram Secret absent, notifier disabled, state.sent empty. Step 10: pc-1 /var series live (0.449), queue-wait LogsQL numeric on real probe lines. P6.T1.S2 gitea-semantics re-proven 2026-10-19T17:31:22Z (repo-wins=success, org-wins=skipped, sync-rerun push + paths-filtered run=success); probe repo deleted (404).
