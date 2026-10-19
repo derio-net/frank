@@ -198,6 +198,11 @@ st_gitea_org() {
   for s in ci-budget-gitea ci-budget-gitea-probe; do
     kubectl -n tekton-pipelines get secret "$s" >/dev/null 2>&1 && done_ "Secret tekton-pipelines/$s present" || open_ "Secret tekton-pipelines/$s missing"
   done
+  # Optional for the watcher, so its absence is silent: no flip / would-flip / refusal message is ever sent.
+  # Declared as an ExternalSecret in apps/ci-budget/externalsecrets.yaml (the C2 bot), not by this script.
+  kubectl -n tekton-pipelines get secret ci-budget-telegram >/dev/null 2>&1 \
+    && done_ "Secret tekton-pipelines/ci-budget-telegram present (notifier enabled)" \
+    || open_ "Secret tekton-pipelines/ci-budget-telegram missing — the notifier is OFF (ExternalSecret ci-budget-telegram: $(kubectl -n tekton-pipelines get externalsecret ci-budget-telegram -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || echo absent))"
 }
 ap_gitea_org() {
   gitea_admin_auth

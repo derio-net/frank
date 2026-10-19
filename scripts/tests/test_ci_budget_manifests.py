@@ -162,10 +162,12 @@ def test_external_secrets_reference_their_generators():
     gens = _generators()
     for d in _kind("ExternalSecret"):
         assert d["metadata"]["namespace"] == "tekton-pipelines"
+        if d["metadata"]["name"] == "ci-budget-telegram":
+            continue  # Infisical-backed, not generator-backed (own test below)
         ref = d["spec"]["dataFrom"][0]["sourceRef"]["generatorRef"]
         assert ref["kind"] == "ClusterGenerator" and ref["name"] in gens
         assert d["spec"]["refreshInterval"] in ("30m", "45m")
-    assert len(_kind("ExternalSecret")) == 7
+    assert len(_kind("ExternalSecret")) == 8  # 7 generator tokens + ci-budget-telegram
 
 
 def test_role_limited_to_the_state_configmap():
@@ -407,3 +409,20 @@ def test_no_generator_uses_the_nonexistent_variables_permission_key():
                 if "variables" in perms:
                     bad.append(f"{p.relative_to(REPO)}:{d['metadata']['name']}")
     assert bad == [], "GitHub's key is actions_variables: " + ", ".join(bad)
+
+
+def test_telegram_notifier_secret_is_declared_not_hand_applied():
+    """R13: the notifier is silent unless ci-budget-telegram exists, and an absent
+    optional Secret looks identical to a quiet month. It is an ExternalSecret over the
+    C2 bot (same source as staging-gate-telegram), with the key names the CronJob reads."""
+    es = {d["spec"]["target"]["name"]: d for d in _kind("ExternalSecret")}
+    assert "ci-budget-telegram" in es
+    spec = es["ci-budget-telegram"]["spec"]
+    assert spec["secretStoreRef"] == {"name": "infisical", "kind": "ClusterSecretStore"}
+    got = {d["secretKey"]: d["remoteRef"]["key"] for d in spec["data"]}
+    assert got == {"TELEGRAM_TOKEN": "FRANK_C2_TELEGRAM_BOT_TOKEN",
+                   "TELEGRAM_CHATID": "FRANK_C2_TELEGRAM_CHAT_ID"}
+    main = _pod()["containers"][0]
+    read = {e["valueFrom"]["secretKeyRef"]["key"] for e in main["env"]
+            if "valueFrom" in e and e["valueFrom"]["secretKeyRef"]["name"] == "ci-budget-telegram"}
+    assert read == set(got)
