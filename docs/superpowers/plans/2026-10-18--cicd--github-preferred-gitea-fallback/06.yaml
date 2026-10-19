@@ -50,9 +50,10 @@ state:
       note: gitea-semantics re-proven 2026-10-19T17:31:22Z; probe repo deleted; gitea-org
         + gitea-mirrors DONE
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-10-19T17:33:21+00:00'
+      note: all 11 gate PRs merged by 2026-10-19 (9 github-preferred repos + cnc-frd/cnc-fru
+        release.yml)
     P6.T3.S1:
       state: x
       ticked_at: '2026-10-19T17:13:14+00:00'
