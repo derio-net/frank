@@ -15,3 +15,8 @@ Mirrors exist (ci-budget-ops status gitea-mirrors: 0 open). tekton-bot GET /repo
 ### 453e616daabd · root-cause · RC2: derio-homelab/ansible-pihole default branch is picl; check + mirror-reconcile hardcode main
 
 GitHub branches/main -> 404 for ansible-pihole only (others 200); gh api default_branch=picl. ci-delivery-check head() and mirror-reconcile (lines ~137,220) use main; ci-budget-ops resolves default_branch.
+
+<!-- fr:journal kind=root-cause scope=debug id=c35e757df2b6 created=2026-10-19T14:48:14+00:00 -->
+### c35e757df2b6 · root-cause · RC3: 54 waiting jobs are one vibe-kanban run (7598) from tag v0.0.1 created by the mirror backfill
+
+All 54 jobs belong to derio-net/vibe-kanban run 7598, pre-release.yml@refs/tags/v0.0.1, event push, created 05:39:25-40Z (apply gitea-mirrors push of all tags). The tag's OLD workflow has no github.server_url guard; current main version is workflow_dispatch-only. Runner is healthy (restarted 13:30 after dind race) and served willikins/kid-laptops tasks since, yet never took these. Not yet explained why jobs stay waiting.
