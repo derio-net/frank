@@ -30,3 +30,8 @@ ci-delivery-check's per-SHA comparison is factored into undelivered() (check() c
 ### b49dc7aac99e · review · Self-review of #895: no findings; one verification slip caught
 
 Reviewed the diff: check() refactor preserves sorted SHA iteration and grace/mapping (existing 44 delivery tests unchanged and green); backfill is print-only and derives repos, comparison and PipelineRun shape from the manifests, not copies. No code findings. Process note: the first post-backfill verification read a stale FAILED 16:30Z job because of an and/or precedence slip in the Monitor filter; re-verified on the 19:45Z (24 mismatches) vs 19:50Z (1, herdr pending) ticks.
+
+<!-- fr:journal kind=finding scope=debug id=f9ac192243c6 created=2026-10-19T20:37:19+00:00 state=fixed -->
+### f9ac192243c6 · finding [fixed] · herdr residual: cancelled the never-runnable test-macos job; Gitea's cancel status forwards live
+
+The last overdue (herdr ci / test-macos, pending 'Waiting to run' since 05:32Z) is a job queued for runner label macos-latest, which no runner serves, so it can never post a terminal status. Operator chose cancel. Gitea 1.25 has NO REST cancel endpoint (POST /api/v1/.../actions/runs/{id}/cancel -> 404); the web route POST /<owner>/<repo>/actions/runs/<run_number>/cancel works with an admin session and the X-Csrf-Token from the run page's window.config (a form _csrf from /user/login is rejected 'Invalid CSRF token'). Result: Gitea posted failure 'Has been cancelled' at 20:36:52Z, stoa-status-bridge forwarded it the same second, GitHub shows it. Four more herdr runs (7654, 7671, 7673, 7675) are held open by the same queued macOS job on closed probe PRs and rerun branches; left alone, not alerting, same defect.
