@@ -998,3 +998,29 @@ def test_main_logs_a_probe_error_when_the_probe_token_is_absent(tmp_path, capsys
     assert w.main(env=_main_env(tmp_path, {}), http=_main_http(Transport({})), now=NOW) == 0
     lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("ci-runner-probe")]
     assert lines == ["ci-runner-probe-error no probe token"]
+
+
+def test_live_sku_names_from_the_billing_api_are_weighted():
+    """SKU names observed live 2026-10-19 (derio-net billing via the App token):
+    'Actions Linux', 'Actions macOS 3-core', 'Actions storage'. The standard macOS
+    runner bills as 'macOS 3-core' and must count x10, not raise."""
+    items = [
+        {"product": "actions", "sku": "Actions Linux", "quantity": 100, "repositoryName": "a"},
+        {"product": "actions", "sku": "Actions macOS 3-core", "quantity": 10, "repositoryName": "a"},
+        {"product": "actions", "sku": "Actions storage", "quantity": 5, "repositoryName": "a"},
+    ]
+    assert w.included_minutes_used(items, exclude_repos=set()) == 200
+
+
+def test_macos_3_core_counts_as_pinned():
+    items = [
+        {"product": "actions", "sku": "Actions Linux", "quantity": 10, "repositoryName": "pref"},
+        {"product": "actions", "sku": "Actions macOS 3-core", "quantity": 1, "repositoryName": "pref"},
+    ]
+    assert w.pinned_share(items, preferred_repos={"pref"}, exclude_repos=set()) == 0.5
+
+
+def test_larger_runner_skus_still_refuse_to_guess():
+    import pytest
+    with pytest.raises(ValueError):
+        w.included_minutes_used([{"product": "actions", "sku": "Actions Linux 16-core", "quantity": 1, "repositoryName": "a"}], exclude_repos=set())

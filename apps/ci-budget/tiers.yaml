@@ -22,11 +22,9 @@
 # mode: dry-run | live, per org. Every org ships dry-run.
 version: 1
 # Allowlist of the read-only credentials gitea_secrets may reference.
-readonly_secrets:
-  - name: VK_PRIVATE_DEPLOY_KEY
-    repo: derio-net/vibe-kanban
-    kind: deploy-key
-    note: read-only deploy key (spec section 1)
+# Empty today: vibe-kanban's VK_PRIVATE_DEPLOY_KEY job ended up GitHub-pinned
+# (vibe-kanban#19, Blacksmith runners), so no fallback job needs a mirrored secret.
+readonly_secrets: []
 orgs:
   derio-net:
     included_minutes: 2000
@@ -37,7 +35,7 @@ orgs:
       willikins:            {tier: github-preferred}
       herdr-vertical-tabs:  {tier: github-preferred}
       presentation-craft:   {tier: github-preferred}
-      vibe-kanban:          {tier: github-preferred, gitea_secrets: [VK_PRIVATE_DEPLOY_KEY]}
+      vibe-kanban:          {tier: github-preferred}   # all jobs GitHub-pinned today; tier review #886
       runs-fr:              {tier: github-preferred}
   derio-homelab:
     included_minutes: 2000

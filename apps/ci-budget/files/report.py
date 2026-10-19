@@ -42,7 +42,7 @@ def repo_minutes(usage_items, exclude_repos=()) -> dict:
             continue
         rec = out.setdefault(name, {"minutes": 0.0, "macos": 0.0})
         rec["minutes"] += wt
-        if watcher._sku(item) == "actions macos":
+        if watcher._sku(item) in watcher.MACOS_SKUS:
             rec["macos"] += wt
     return out
 

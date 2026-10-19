@@ -446,3 +446,10 @@ def test_show_unlisted_prints_names_and_never_posts(tmp_path):
 def test_report_issue_lives_in_the_private_willikins_repo():
     """frank is public; the tier review goes to derio-net/willikins (private), operator decision 2026-10-19."""
     assert r.ISSUE_REPO == "derio-net/willikins"
+
+
+def test_macos_3_core_minutes_count_as_macos_in_the_report():
+    """Live SKU name (2026-10-19): the standard macOS runner bills as 'Actions macOS 3-core'."""
+    items = [{"product": "actions", "sku": "Actions macOS 3-core", "quantity": 3, "repositoryName": "x"}]
+    out = r.repo_minutes(items, exclude_repos=set())
+    assert out["x"] == {"minutes": 30.0, "macos": 30.0}

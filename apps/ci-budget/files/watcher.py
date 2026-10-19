@@ -22,7 +22,18 @@ from forges import GiteaClient, GitHubClient, HttpError, default_http  # noqa: F
 
 # ---------------------------------------------------------------- layer 1
 
-SKU_MULTIPLIER = {"actions linux": 1, "actions windows": 2, "actions macos": 10}
+# Standard (included-minutes) runner SKUs, lower-cased. Live names observed
+# 2026-10-19: "Actions Linux", "Actions macOS 3-core", "Actions storage".
+# Larger-runner SKUs ("Actions Linux 16-core", ...) are deliberately absent:
+# they are never covered by included minutes, so an unseen one raises rather
+# than being guessed into the budget.
+SKU_MULTIPLIER = {
+    "actions linux": 1,
+    "actions windows": 2,
+    "actions macos": 10,
+    "actions macos 3-core": 10,
+}
+MACOS_SKUS = {s for s in SKU_MULTIPLIER if s.startswith("actions macos")}
 BACKSTOP_WINDOW = timedelta(minutes=30)
 BACKSTOP_NEEDLE = "spending limit"
 BACKSTOP_PREFIX = "the job was not started because"
@@ -81,7 +92,7 @@ def pinned_share(usage_items, preferred_repos, exclude_repos=()) -> float:
         if wt is None:
             continue
         total += wt
-        if _repo_name(it) not in preferred_repos or _sku(it) == "actions macos":
+        if _repo_name(it) not in preferred_repos or _sku(it) in MACOS_SKUS:
             pinned += wt
     return pinned / total if total else 0.0
 

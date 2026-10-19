@@ -162,7 +162,7 @@ orgs:
       willikins:            {tier: github-preferred}
       herdr-vertical-tabs:  {tier: github-preferred}
       presentation-craft:   {tier: github-preferred}
-      vibe-kanban:          {tier: github-preferred, gitea_secrets: [VK_PRIVATE_DEPLOY_KEY]}
+      vibe-kanban:          {tier: github-preferred}   # gitea_secrets: [NAME] where a fallback job needs one
       runs-fr:              {tier: github-preferred}
   derio-homelab:
     included_minutes: 2000
