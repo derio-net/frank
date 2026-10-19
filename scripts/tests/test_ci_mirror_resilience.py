@@ -203,7 +203,7 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
                                        "hermes-brain", "hum", "second-brain", "stoa-blog")]
         + [f"derio-homelab/{r}" for r in ("proxmox-cluster", "omada-controller", "homelab",
                                           "ansible-pihole")]
-        + [f"derio-net/{r}" for r in ("willikins", "herdr-vertical-tabs", "presentation-craft",
+        + [f"derio-net/{r}" for r in ("willikins", "presentation-craft",
                                       "vibe-kanban", "runs-fr")]
     )
 

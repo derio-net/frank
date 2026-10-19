@@ -33,7 +33,6 @@ orgs:
     mode: live
     repos:
       willikins:            {tier: github-preferred}
-      herdr-vertical-tabs:  {tier: github-preferred}
       presentation-craft:   {tier: github-preferred}
       vibe-kanban:          {tier: github-preferred}   # all jobs GitHub-pinned today; tier review #886
       runs-fr:              {tier: github-preferred}

@@ -345,7 +345,7 @@ spec:
                     derio-homelab/kid-laptops derio-homelab/proxmox-cluster
                     derio-homelab/omada-controller derio-homelab/homelab
                     derio-homelab/ansible-pihole
-                    derio-net/willikins derio-net/herdr-vertical-tabs
+                    derio-net/willikins
                     derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
                 - name: PR_REPOS
                   value: >-
@@ -354,7 +354,7 @@ spec:
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
-                    derio-net/herdr-vertical-tabs derio-net/presentation-craft
+                    derio-net/presentation-craft
                     derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
               securityContext:
                 allowPrivilegeEscalation: false

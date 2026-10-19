@@ -1,7 +1,7 @@
 # GitHub App installation-token generator for the derio-net mirror (Tekton).
 #
-# The five derio-net github-preferred repos (willikins, herdr-vertical-tabs,
-# presentation-craft, vibe-kanban, runs-fr) are mirrored into Gitea so their CI
+# The four derio-net github-preferred repos (willikins, presentation-craft,
+# vibe-kanban, runs-fr; herdr-vertical-tabs offboarded 2026-10-19) are mirrored into Gitea so their CI
 # can fall back to Gitea Actions when the org's GitHub minutes run out. The sync
 # pipeline reads them from GitHub, and the status bridge writes the
 # `gitea-actions/*` statuses back, so the token needs contents:read,
@@ -9,7 +9,7 @@
 #
 # It uses the existing derio-fr-automation App (3994132, installation
 # 138773908) but is a SEPARATE generator from github-app-derio (secure-agent-pod),
-# which is left untouched: this one narrows the token to the five mirrored
+# which is left untouched: this one narrows the token to the four mirrored
 # repos and the four permissions above, so a leak of the Tekton secret reaches
 # nothing else the App can see.
 #
@@ -41,7 +41,6 @@ spec:
         metadata: read
       repositories:
         - willikins
-        - herdr-vertical-tabs
         - presentation-craft
         - vibe-kanban
         - runs-fr

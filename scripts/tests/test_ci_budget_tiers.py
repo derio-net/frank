@@ -11,7 +11,7 @@ RECONCILE = REPO_ROOT / "apps/tekton/manifests/mirror-reconcile.yaml"
 
 PREFERRED = {
     "derio-net": {
-        "willikins", "herdr-vertical-tabs", "presentation-craft",
+        "willikins", "presentation-craft",
         "vibe-kanban", "runs-fr",
     },
     "derio-homelab": {
