@@ -77,20 +77,38 @@ variable, in that order. The watcher never writes `gitea-only` repos.
 
 ## Offboarding a repo
 
-The order matters for one reason: **a repo left at `CI_AUTHORITY=gitea` on GitHub
-skips its gated jobs forever** once the watcher stops managing it. Always put
-GitHub back first.
+The order matters, and two failures pull in opposite directions:
 
-`bash scripts/ci-budget-ops.sh offboard <org/repo>` does the forge half, in this order:
+- **While the repo is still in `tiers.yaml`, the watcher owns its `CI_AUTHORITY`.**
+  Every 10 minutes it writes the org's computed authority to both forges, so an
+  `offboard` run first is undone: the variable goes back to `gitea` on the next tick.
+- **Once the watcher stops managing it, a repo left at `CI_AUTHORITY=gitea` on
+  GitHub skips its gated jobs forever.** Nothing else ever sets it back.
 
-1. GitHub repo variable `CI_AUTHORITY=github` (skipped if the repo was deleted);
-2. delete the GitHub webhook to the listener;
-3. delete the Gitea mirror (its `sync-pr`/`sync-rerun` refs go with it).
+So the frank PR goes first and `offboard` second:
 
-Then remove the repo from `tiers.yaml` in a frank PR, and let the guards list the
-other places to drop it. As in onboarding step 2, these are list edits inside
-existing objects, so they apply despite `prune: false`. If the repo still exists,
-also remove it from the App installation's repository access.
+1. **Frank PR.** Remove the repo from `tiers.yaml` and let the guards list the
+   other places to drop it (`MAIN_REPOS`/`PR_REPOS` in `mirror-reconcile` and
+   `ci-delivery-check`, the mirror and ci-authority ClusterGenerators' `repositories:`,
+   the github-listener and gitea-status-bridge CEL filters, `apps/tekton/webhooks.yaml`).
+   As in onboarding step 2, these are list edits inside existing objects, so they
+   apply despite `prune: false`.
+2. **Confirm it landed.** Hard-refresh `root`, `ci-budget` and `tekton-extras`, then
+   check `status.operationState.operation.sync.revision` against the merge SHA (it
+   lagged for #896, and `Synced` alone does not prove anything). Then check the live
+   tiers ConfigMap, CronJobs, ClusterGenerators and EventListeners no longer name the repo.
+3. **Forge half.** `bash scripts/ci-budget-ops.sh offboard <org/repo>` (absolute
+   `KUBECONFIG`, `.env` sourced from the base clone) does, in this order:
+   1. GitHub repo variable `CI_AUTHORITY=github` (skipped if the repo was deleted);
+   2. delete the GitHub webhook to the listener;
+   3. delete the Gitea mirror (its `sync-pr`/`sync-rerun` refs go with it).
+4. **Verify.** `status gitea-mirrors` reports 0 open (no orphan), and the next
+   `ci-delivery-check` and `mirror-reconcile` runs *after the sync* have no line for
+   the repo. If the repo still exists, also remove it from the App installation's
+   repository access. Only now can the GitHub repo be deleted.
+
+Between steps 1 and 3 the GitHub variable can still read `gitea`, so gated jobs
+skip for that window. Keep it short. It is harmless for a repo about to be deleted.
 
 | Situation | Notes |
 |---|---|
