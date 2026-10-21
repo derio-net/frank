@@ -1,0 +1,25 @@
+schema_version: 10
+run: 2026-10-21-feat-obs-telegram-alert-brevity
+workflow: fr-goal-light@1
+branch: feat/obs-telegram-alert-brevity
+started: '2026-10-21T16:04:09+00:00'
+cursor: brainstorm
+steps:
+  brainstorm:
+    state: pending
+  plan:
+    state: pending
+  spec-plan-review:
+    state: pending
+  plan-review:
+    state: pending
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  journal-check:
+    state: pending
+  deliver:
+    state: pending
+fr_version: 5.27.0rc3
