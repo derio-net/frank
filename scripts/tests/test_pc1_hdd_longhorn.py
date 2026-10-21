@@ -121,6 +121,15 @@ def _walk(node, found):
             _walk(v, found)
 
 
+def test_node_drain_policy_allows_stopped_last_replica():
+    # pc-1 holds the ONLY replica of every longhorn-hdd volume (and of Gitea's
+    # and act-runner's single-replica volumes). Under the chart default
+    # (block-if-contains-last-replica) its instance-manager PDB never releases,
+    # so `kubectl drain pc-1` can never finish — measured 2026-10-12, frank#824.
+    v = yaml.safe_load((REPO_ROOT / "apps/longhorn/values.yaml").read_text())
+    assert v["defaultSettings"]["nodeDrainPolicy"] == "allow-if-replica-is-stopped"
+
+
 def test_every_tekton_workspace_uses_longhorn_hdd():
     found = []
     for f in sorted((REPO_ROOT / "apps/tekton").rglob("*.y*ml")):
