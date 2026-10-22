@@ -1583,7 +1583,7 @@ rows:
     Fix line, rule link, rule-scoped silence link), without the value line, the label
     dump or the all-labels silence URL.
   origin:
-  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
   levels: {}
   status: not-implemented
   notes: ''
@@ -1593,7 +1593,7 @@ rows:
   acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
     line naming the alert and its summary.
   origin:
-  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
   levels: {}
   status: not-implemented
   notes: ''
@@ -1604,7 +1604,7 @@ rows:
     at most five alert blocks followed by a "+N more firing" line linking the Grafana
     alert list, with resolved alerts listed after it and capped the same way.
   origin:
-  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R6
   levels: {}
   status: not-implemented
   notes: ''
