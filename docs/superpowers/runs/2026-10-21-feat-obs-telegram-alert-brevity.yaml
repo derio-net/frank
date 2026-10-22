@@ -88,6 +88,7 @@ steps:
           returned: '2026-10-22T05:23:13+00:00'
           outcome: abandoned
         - dispatched: '2026-10-22T05:23:13+00:00'
+          agent: afa2a3e72690dd1a2
           harness: claude-code
           model: claude-opus-5-5
           session: 310b5e47-8853-4fd5-96fd-1735b1af5396
