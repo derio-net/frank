@@ -1601,8 +1601,8 @@ rows:
 - id: obs-telegram-group-cap
   capability: obs
   acceptance: A Telegram notification grouping more than five firing alerts shows
-    at most five alert blocks and ends with the total firing count and a link to the
-    Grafana alert list.
+    at most five alert blocks followed by a "+N more firing" line linking the Grafana
+    alert list, with resolved alerts listed after it and capped the same way.
   origin:
   - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R6
   levels: {}

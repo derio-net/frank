@@ -26,9 +26,9 @@ R3. The `Where:` line shows only identity labels, in this order when present: `n
 R4. A resolved alert renders as exactly one line: `✅ RESOLVED · <alertname> — <summary>`, with no runbook and no links.
 R5. The `Silence:` link pre-fills only the `__alert_rule_uid__` matcher, so it silences every instance of that rule.
 R6. A grouped notification renders, in this order: at most 5 firing blocks; when more than 5 are firing, one `… +N more firing — <alert list link>` line; at most 5 resolved one-liners; when more than 5 are resolved, one `… +N more resolved` line.
-R9. The template text contains no `$` character, so Grafana's provisioning env-var interpolation (which expands `$NAME` in the same file, e.g. `$FRANK_C2_TELEGRAM_BOT_TOKEN`) can never rewrite it.
 R7. The Telegram receiver keeps `parse_mode: None`; the template adds no HTML or Markdown markup.
 R8. The change is limited to the Telegram receiver. The Health Bridge and alert-agent webhooks keep their JSON payloads unchanged.
+R9. The template text contains no `$` character, so Grafana's provisioning env-var interpolation (which expands `$NAME` in the same file, e.g. `$FRANK_C2_TELEGRAM_BOT_TOKEN`) can never rewrite it.
 
 ## Design
 
