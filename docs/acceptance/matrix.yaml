@@ -1576,3 +1576,36 @@ rows:
   status: not-implemented
   notes: ''
   verify: live
+- id: obs-telegram-firing-compact
+  capability: obs
+  acceptance: A firing Grafana alert reaches the Frank C&C Telegram chat as a compact
+    block (severity and alertname header, summary, identity-only Where line, runbook
+    Fix line, rule link, rule-scoped silence link), without the value line, the label
+    dump or the all-labels silence URL.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-telegram-resolved-oneline
+  capability: obs
+  acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
+    line naming the alert and its summary.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-telegram-group-cap
+  capability: obs
+  acceptance: A Telegram notification grouping more than five firing alerts shows
+    at most five alert blocks followed by a "+N more firing" line linking the Grafana
+    alert list, with resolved alerts listed after it and capped the same way.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
