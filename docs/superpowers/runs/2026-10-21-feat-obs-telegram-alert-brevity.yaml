@@ -3,11 +3,14 @@ run: 2026-10-21-feat-obs-telegram-alert-brevity
 workflow: fr-goal-light@1
 branch: feat/obs-telegram-alert-brevity
 started: '2026-10-21T16:04:09+00:00'
-cursor: brainstorm
+cursor: plan
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-21T16:05:01+00:00'
+    state: done
+    at: '2026-10-22T04:59:49+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md
   plan:
     state: pending
   spec-plan-review:

@@ -1,0 +1,61 @@
+schema_version: 2
+run: 2026-10-21-feat-obs-telegram-alert-brevity
+captures:
+- host: h-f367d77a
+  harness: claude-code
+  mode: devcontainer
+  captured_at: '2026-10-22T04:59:50+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: 310b5e47-8853-4fd5-96fd-1735b1af5396
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 34
+        cache_write: 461222
+        cache_read: 2336249
+        output: 14313
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 1
+      other:
+        usd: null
+        turns: 9
+      paperwork:
+        usd: null
+        turns: 7
+    steps:
+      (outside run):
+        usd: null
+        turns: 2
+        input: 4
+        cache_write: 133716
+        cache_read: 188340
+        output: 769
+      brainstorm:
+        usd: null
+        turns: 14
+        input: 30
+        cache_write: 327506
+        cache_read: 2147909
+        output: 13544
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 2
+          input: 4
+          cache_write: 133716
+          cache_read: 188340
+          output: 769
+        brainstorm:
+          usd: null
+          turns: 14
+          input: 30
+          cache_write: 327506
+          cache_read: 2147909
+          output: 13544
