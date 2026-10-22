@@ -6,6 +6,75 @@ metadata:
 data:
   contact-points.yaml: |
     apiVersion: 1
+    templates:
+      - orgId: 1
+        name: frank-telegram
+        template: |
+          {{ define "frank.telegram.origin" }}{{ .GeneratorURL | reReplaceAll "/alerting/grafana/.*" "" }}{{ end }}
+          {{ define "frank.telegram.ruleuid" }}{{ .GeneratorURL | reReplaceAll ".*/alerting/grafana/" "" | reReplaceAll "/view.*" "" }}{{ end }}
+          {{ define "frank.telegram.where" -}}
+          {{ if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim (and .Labels.pod (ne .Labels.job "kube-state-metrics")) }}
+          Where:
+          {{- if .Labels.namespace }} {{ .Labels.namespace }}{{ end }}
+          {{- if or .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }}
+            {{- if .Labels.namespace }} ·{{ end }} {{ or .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }}
+          {{- end }}
+          {{- if .Labels.node }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }} ·{{ end }} {{ .Labels.node }}
+          {{- end }}
+          {{- if .Labels.persistentvolumeclaim }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node }} ·{{ end }} {{ .Labels.persistentvolumeclaim }}
+          {{- end }}
+          {{- if and .Labels.pod (ne .Labels.job "kube-state-metrics") }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim }} ·{{ end }} {{ .Labels.pod }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{ define "frank.telegram.firing" -}}
+          🔥 FIRING · {{ .Labels.severity }} · {{ .Labels.alertname }}
+          {{ .Annotations.summary }}
+          {{- template "frank.telegram.where" . }}
+          {{- if .Annotations.runbook }}
+          Fix: {{ .Annotations.runbook }}
+          {{- end }}
+          Rule: {{ .GeneratorURL }}
+          Silence: {{ template "frank.telegram.origin" . }}/alerting/silence/new?alertmanager=grafana&matcher=__alert_rule_uid__%3D{{ template "frank.telegram.ruleuid" . }}&orgId=1
+          {{- end }}
+          {{ define "frank.telegram.resolved" }}✅ RESOLVED · {{ .Labels.alertname }} — {{ .Annotations.summary }}{{ end }}
+          {{ define "frank.telegram.message" -}}
+          {{ if .Alerts.Firing -}}
+          {{ template "frank.telegram.firing" (index .Alerts.Firing 0) }}
+          {{- if gt (len .Alerts.Firing) 5 }}
+          {{- range slice .Alerts.Firing 1 5 }}
+
+          {{ template "frank.telegram.firing" . }}
+          {{- end }}
+
+          … +{{ len (slice .Alerts.Firing 5) }} more firing — {{ template "frank.telegram.origin" (index .Alerts.Firing 0) }}/alerting/list
+          {{- else }}
+          {{- range slice .Alerts.Firing 1 }}
+
+          {{ template "frank.telegram.firing" . }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if .Alerts.Resolved }}
+          {{- if .Alerts.Firing }}
+
+          {{ end }}
+          {{- template "frank.telegram.resolved" (index .Alerts.Resolved 0) }}
+          {{- if gt (len .Alerts.Resolved) 5 }}
+          {{- range slice .Alerts.Resolved 1 5 }}
+          {{ template "frank.telegram.resolved" . }}
+          {{- end }}
+          … +{{ len (slice .Alerts.Resolved 5) }} more resolved
+          {{- else }}
+          {{- range slice .Alerts.Resolved 1 }}
+          {{ template "frank.telegram.resolved" . }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
     contactPoints:
       - orgId: 1
         name: "Telegram - Willikins"
@@ -17,6 +86,15 @@ data:
               chatid: |
                 $FRANK_C2_TELEGRAM_CHAT_ID
               parse_mode: None
+              message: '{{ template "frank.telegram.message" . }}'
+              # message renders the compact `frank-telegram` template defined in
+              # `templates:` at the top of THIS file (summary + Where + Fix + Rule +
+              # a rule-uid-only Silence link; resolved = one line; 5 firing / 5
+              # resolved cap). Like every provisioning file it is read at Grafana
+              # BOOT - a merged edit needs a rollout restart of
+              # deploy/victoria-metrics-grafana. The template must hold no dollar
+              # sign: this file is env-interpolated.
+              # Guard: scripts/tests/test_telegram_alert_template.py
               # parse_mode is pinned to None (plain text) EXPLICITLY. An UNSET
               # value is NOT plain: grafana/alerting receivers/telegram/v1/config.go:84-86
               # falls back to HTML, and a live probe on 2026-10-10 showed a bare
