@@ -1,0 +1,10 @@
+schema_version: 10
+run: 2026-10-21-feat-obs-telegram-alert-brevity
+step: deliver
+outcome: done
+journal: []
+resolves: []
+emitted:
+  pr: https://github.com/derio-net/frank/pull/900
+evidence:
+  tests: /var/folders/28/d4n60x_92gbgh3rtf4vstb0h0000gn/T//full-suite.log
