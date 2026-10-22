@@ -3,7 +3,7 @@ run: 2026-10-21-feat-obs-telegram-alert-brevity
 workflow: fr-goal-light@1
 branch: feat/obs-telegram-alert-brevity
 started: '2026-10-21T16:04:09+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -100,7 +100,11 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5
   journal-check:
-    state: pending
+    state: done
+    at: '2026-10-22T05:30:53+00:00'
+    exit: 0
+    stdout: |
+      1 out-of-scope finding(s): p1-r4
   deliver:
     state: pending
 fr_version: 5.27.0rc3
