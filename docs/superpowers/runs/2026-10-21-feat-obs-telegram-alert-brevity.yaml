@@ -12,7 +12,15 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-22--obs--telegram-alert-brevity-design.md
   plan:
-    state: pending
+    state: running
+    at: '2026-10-22T04:59:52+00:00'
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-10-22T04:59:52+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 310b5e47-8853-4fd5-96fd-1735b1af5396
   spec-plan-review:
     state: pending
   plan-review:
