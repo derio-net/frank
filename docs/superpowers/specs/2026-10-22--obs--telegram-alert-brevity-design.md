@@ -100,6 +100,7 @@ stale revision" gotcha).
 
 strategy: live
 gate: tester
+gate: obs-telegram-group-cap=tester
 - obs-telegram-firing-compact: live — rendering through the real notifier into Telegram can only be shown after merge; pre-merge evidence is a Grafana `templates/test` preview render (nothing sent) against firing sample alerts, recorded in the PR
 - obs-telegram-resolved-oneline: live — same reason; pre-merge preview render of a resolved sample
 - obs-telegram-group-cap: none — verified pre-merge by a `templates/test` preview render of a 7-firing + 2-resolved group, because waiting for an organic flood post-merge is not a plan
