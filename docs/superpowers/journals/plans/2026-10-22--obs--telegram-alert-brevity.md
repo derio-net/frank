@@ -232,3 +232,8 @@ Reclassified out: the 4096 cap exists independently of this change, and the defa
 ### p1-r5-resolved · finding [fixed] · resolves p1-r5: guard tests do not pin R3 rendered order or the R6 cap value of 5 (phase 1)
 
 test_where_line_renders_tagged_values_in_r3_order checks the rendered tag order after Where:; test_caps_are_five_for_both_lists pins `gt (len L) 5`, `slice L 1 5`, `len (slice L 5)` for both lists. 14 passed. bcb9dc89.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved-2 created=2026-10-22T05:38:15+00:00 phase=1 state=open resolves=p1-r4 tracked_by=https://github.com/derio-net/frank/issues/901 -->
+### p1-r4-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/901] · resolves p1-r4: 5 verbose firing blocks can exceed Telegram 4096, truncating the overflow line and resolved section (phase 1)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/901.
