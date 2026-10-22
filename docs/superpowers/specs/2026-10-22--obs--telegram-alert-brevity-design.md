@@ -110,3 +110,9 @@ defined template, that the template never uses `.Labels.SortedPairs`, `.SilenceU
 2. `kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana`, then wait for Ready.
 3. Watch the next real firing and resolved pair arrive in the C&C chat in the compact form (R1–R5).
 </content>
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-22--obs--telegram-alert-brevity | `derio-net/frank` | `2026-10-22--obs--telegram-alert-brevity` | — |
