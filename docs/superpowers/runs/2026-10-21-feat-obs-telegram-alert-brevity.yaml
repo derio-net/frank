@@ -63,7 +63,7 @@ steps:
     - review-phase
     units:
       phase/1/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-22T05:08:11+00:00'
           agent: afb542d44c60c3232
@@ -73,6 +73,11 @@ steps:
           tier: standard
           bound: sonnet
           session: 310b5e47-8853-4fd5-96fd-1735b1af5396
+          returned: '2026-10-22T05:22:34+00:00'
+          outcome: done
+        evidence:
+          tests: scripts/tmp/telegram-preview/full-suite.log@fcf385136763;tree=cf090f1dc70e5204ec2729c7d2566869815e24d027096280ade96c616470ccb4
+          visual: none
   journal-check:
     state: pending
   deliver:
