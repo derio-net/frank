@@ -25,7 +25,8 @@ R2. The firing block never prints the `Value:` line, the full label set, or Graf
 R3. The `Where:` line shows only identity labels, in this order when present: `namespace`, the workload (`workload`, else `deployment`, `statefulset`, `daemonset`, `cronjob`), `node`, `persistentvolumeclaim`, and `pod` only when the alert's `job` is not `kube-state-metrics` (on kube-state-metrics series the `pod` label names the exporter, not the subject).
 R4. A resolved alert renders as exactly one line: `✅ RESOLVED · <alertname> — <summary>`, with no runbook and no links.
 R5. The `Silence:` link pre-fills only the `__alert_rule_uid__` matcher, so it silences every instance of that rule.
-R6. A grouped notification renders at most 5 firing blocks. When more are firing, it ends with one line giving the total firing count and a link to the Grafana alert list. Resolved one-liners follow the firing blocks and are capped at 5 the same way.
+R6. A grouped notification renders, in this order: at most 5 firing blocks; when more than 5 are firing, one `… +N more firing — <alert list link>` line; at most 5 resolved one-liners; when more than 5 are resolved, one `… +N more resolved` line.
+R9. The template text contains no `$` character, so Grafana's provisioning env-var interpolation (which expands `$NAME` in the same file, e.g. `$FRANK_C2_TELEGRAM_BOT_TOKEN`) can never rewrite it.
 R7. The Telegram receiver keeps `parse_mode: None`; the template adds no HTML or Markdown markup.
 R8. The change is limited to the Telegram receiver. The Health Bridge and alert-agent webhooks keep their JSON payloads unchanged.
 
@@ -60,17 +61,21 @@ contactPoints:
 
 ### Template shape
 
-- `frank.telegram.message` ranges over `.Alerts.Firing` (index-guarded at 5), then over
-  `.Alerts.Resolved` (also capped at 5).
+- `frank.telegram.message` caps each list with Go text/template's builtin `slice`, not with an
+  index variable (R9 forbids `$i`): when `gt (len .Alerts.Firing) 5` it ranges over
+  `slice .Alerts.Firing 0 5`, and the overflow count is `len (slice .Alerts.Firing 5)`. The
+  builtin needs no arithmetic function from Grafana's FuncMap. `.Alerts.Resolved` gets the same treatment.
 - `frank.telegram.firing` renders one block (R1, R3, R5). The Rule link is the alert's
-  `.GeneratorURL`. The rule UID for the Silence link is pulled out of that URL with
-  `reReplaceAll` (`/alerting/grafana/<uid>/view`), because Grafana strips `__`-prefixed private
-  labels from the template's `.Labels`. The silence link is
-  `<.ExternalURL>/alerting/silence/new?alertmanager=grafana&matcher=__alert_rule_uid__%3D<uid>&orgId=1`.
+  `.GeneratorURL`. Grafana strips `__`-prefixed private labels from the template's `.Labels`,
+  so the rule UID for the Silence link comes from that URL instead, via two
+  backreference-free `reReplaceAll` calls: drop everything through `/alerting/grafana/`, then
+  drop `/view` and everything after it. The silence link is the GeneratorURL's origin plus
+  `/alerting/silence/new?alertmanager=grafana&matcher=__alert_rule_uid__%3D<uid>&orgId=1`,
+  where the origin is the GeneratorURL with `/alerting/grafana/` and everything after it
+  dropped. No link uses `.ExternalURL`, which avoids a possible `//` from a trailing slash.
 - `frank.telegram.resolved` renders the R4 one-liner.
-- The overflow line (R6) prints `.Alerts.Firing | len` as the total: Grafana's template
-  function set has no arithmetic for "+N more", so the line reads
-  `… <N> firing in total — <ExternalURL>/alerting/list`. This carries the same information.
+- The firing overflow link (R6) is the first firing alert's GeneratorURL origin plus
+  `/alerting/list`.
 - Whitespace is trimmed with `{{-`/`-}}`, so blocks are separated by exactly one blank line
   and no line has trailing spaces.
 
@@ -101,15 +106,19 @@ gate: tester
 
 Offline, pytest guards in `scripts/tests/` assert that the receiver's `message` references a
 defined template, that the template never uses `.Labels.SortedPairs`, `.SilenceURL` or
-`.ValueString`, and that `parse_mode: None` survives.
+`.ValueString`, that it contains no `$` (R9), and that `parse_mode: None` survives.
 
 ## Test Plan (post-merge — operator-driven)
 
 1. Confirm the live ConfigMap carries the template:
    `kubectl -n monitoring get cm grafana-alerting-contact-points -o jsonpath='{.data.contact-points\.yaml}' | grep frank.telegram.message`
-2. `kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana`, then wait for Ready.
-3. Watch the next real firing and resolved pair arrive in the C&C chat in the compact form (R1–R5).
-</content>
+2. `kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana`, then wait for Ready
+   and check the boot log for provisioning errors:
+   `kubectl -n monitoring logs deploy/victoria-metrics-grafana -c grafana | grep -iE 'provisioning.*(error|fail)'` → empty.
+3. Read back what Grafana actually loaded and compare it to the ConfigMap text:
+   `GET /api/v1/provisioning/templates/frank-telegram` (admin creds) must equal the `template:`
+   block byte for byte (a mismatch means provisioning rewrote it).
+4. Watch the next real firing and resolved pair arrive in the C&C chat in the compact form (R1–R5).
 
 ## Implementation Plans
 

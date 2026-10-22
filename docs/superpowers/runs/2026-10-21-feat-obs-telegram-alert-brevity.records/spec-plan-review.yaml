@@ -1,0 +1,46 @@
+schema_version: 10
+run: 2026-10-21-feat-obs-telegram-alert-brevity
+step: spec-plan-review
+outcome: done
+journal:
+  - kind: finding
+    id: spr-1
+    review_scope: in
+    title: '"No arithmetic, so no +N more" is a false premise — Go text/template builtin `slice` yields the remainder'
+    body: "target: spec. Spec Template-shape overflow bullet, decision group-cap-5 gloss, plan P1.T4.S1 runbook text all claimed no arithmetic was possible; text/template's builtin `slice` (Go 1.13+) gives `len (slice .Alerts.Firing 5)`."
+  - kind: finding
+    id: spr-2
+    review_scope: in
+    title: R6 contradicts itself on overflow-line placement and leaves resolved overflow undefined
+    body: "target: spec. R6 'ends with' vs 'resolved follow firing'; matrix row obs-telegram-group-cap echoed 'ends with'; plan T3 set (3) followed the other reading."
+  - kind: finding
+    id: spr-3
+    review_scope: in
+    title: Pre-merge render bypasses provisioning, so `$` env interpolation and load errors go unchecked
+    body: "target: plan. contact-points-cm.yaml:16-18 is env-interpolated ($FRANK_C2_TELEGRAM_*); planned template used $i and a $1 backreference; templates/test sees raw text only; no post-restart readback planned."
+  - kind: finding
+    id: spr-4
+    review_scope: in
+    title: '`{{ .ExternalURL }}/alerting/list` may render a double slash'
+    body: "target: plan. Grafana may normalise AppURL with a trailing slash; nothing checked for `//alerting`."
+  - kind: review
+    id: spec-plan-review-1
+    title: "independent spec+plan review: 4 findings (spr-1..spr-4)"
+    body: "Dispatched fr-spec-reviewer checked all 5 operator decisions against R1-R8, R1-R8 coverage in plan 01.yaml (red→green→render→refactor, no placeholders, three rows linked), and file:line reality for contact-points-cm.yaml:3-49, victoria-metrics values.yaml:156-159/227, test_telegram_parse_mode_explicit.py:13-37, grafana.md:29-31/485-504, alert-rules-cm.yaml (65 summary/58 runbook), matrix.yaml:1579-1609. Findings spr-1..spr-4, all in scope."
+resolves:
+  - id: spr-1
+    state: fixed
+    body: "R6 now renders '+N more firing'/'+N more resolved' via builtin `slice` (spec Template shape, plan P1.T2.S1); the no-arithmetic claim removed from spec and P1.T4.S1. This restores the operator's original 'Cap at 5 + +N more' choice exactly; the group-cap-5 decision's 'total instead' gloss is superseded by this resolution."
+  - id: spr-2
+    state: fixed
+    body: "R6 rewritten with explicit order (firing blocks, +N more firing line with alert-list link, resolved one-liners, +N more resolved line); matrix row obs-telegram-group-cap reworded to match; plan P1.T3.S2 asserts the order and adds a 7-resolved set (4)."
+  - id: spr-3
+    state: fixed
+    body: "New R9: the template contains no `$` at all (slice instead of range vars, backreference-free reReplaceAll chains), guarded by plan P1.T1.S1 (g). Spec Test Plan gains a boot-log provisioning-error check and a GET /api/v1/provisioning/templates/frank-telegram byte-for-byte readback; runbook note in P1.T4.S1 records both."
+  - id: spr-4
+    state: fixed
+    body: "No link uses .ExternalURL any more: silence and alert-list links derive their origin from .GeneratorURL; P1.T1.S1 asserts no .ExternalURL and P1.T3.S2 checks no `//alerting` in rendered links."
+acceptance: []
+evidence:
+  review: spec-plan-review-1
+  reviewer: ad8548f9def281382
