@@ -56,10 +56,21 @@ steps:
       \ or out \nof order (it follows R9)), so phase sizing was not checked — fix\
       \ it and re-run \nself-review.\n"
   implement:
-    state: pending
+    state: running
+    at: '2026-10-22T05:08:11+00:00'
     members:
     - implement-phase
     - review-phase
+    units:
+      phase/1/implement-phase:
+        state: running
+        attempts:
+        - dispatched: '2026-10-22T05:08:11+00:00'
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          tier: standard
+          bound: sonnet
+          session: 310b5e47-8853-4fd5-96fd-1735b1af5396
   journal-check:
     state: pending
   deliver:
