@@ -118,3 +118,16 @@ row_kinds:
 run_gate: tester
 run_kind: live
 ```
+
+<!-- fr:journal kind=decision scope=spec id=exit-change-1 created=2026-10-22T05:38:19+00:00 -->
+### exit-change-1 · decision · exit change: row obs-telegram-group-cap -> gate tester
+
+proven pre-merge by the Grafana templates/test preview render (sets 3 and 4, recorded in the PR); the provisioned template only reaches Telegram after merge plus a Grafana restart
+
+before: kinds ['live', 'none'], gates ['tester']
+after: kinds ['live', 'none'], gates ['tester']
+
+```yaml
+answered_by: none
+lowered: []
+```
