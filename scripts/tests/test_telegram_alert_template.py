@@ -90,7 +90,7 @@ def test_template_carries_the_links_caps_and_headers():
         "slice",
         "more firing",
         "more resolved",
-        "🔥 FIRING · ",
+        "🔥 FIRING",
         "✅ RESOLVED · ",
     ):
         assert needle in text, f"template must contain {needle!r}"
@@ -109,14 +109,59 @@ IDENTITY_ORDER = (
 )
 
 
-def test_identity_labels_appear_in_r3_order():
+def test_identity_labels_are_all_referenced():
     text = _template_text()
-    positions = []
     for label in IDENTITY_ORDER:
-        m = re.search(r"\.Labels\." + label + r"\b", text)
-        assert m, f"R3: template must reference .Labels.{label}"
-        positions.append(m.start())
-    assert positions == sorted(positions), f"R3: identity labels must appear in order {IDENTITY_ORDER}"
+        assert re.search(r"\.Labels\." + label + r"\b", text), f"R3: template must reference .Labels.{label}"
+
+
+# The Where: line prefixes each value with a short plain-text tag so
+# "n8n-01 · n8n-01" reads as namespace and workload (review p1-r3).
+WHERE_TAGS = (" ns ", " workload ", " node ", " pvc ", " pod ")
+
+
+def test_where_line_renders_tagged_values_in_r3_order():
+    # Order is checked on the RENDERED tags (literal text after "Where:"), not
+    # on the first .Labels mention, which is the guard expression (review p1-r5).
+    text = _template_text()
+    where = text[text.index("Where:"):]
+    where = where[: where.index('{{ define "frank.telegram.firing"')]
+    literal = ACTION.sub("|", where)
+    positions = []
+    for tag in WHERE_TAGS:
+        i = literal.find(tag.strip() + " ")
+        assert i >= 0, f"R3: Where: line must render the {tag.strip()!r} tag"
+        positions.append(i)
+    assert positions == sorted(positions), f"R3: Where: tags must render in order {WHERE_TAGS}"
+
+
+def test_caps_are_five_for_both_lists():
+    # R6: pin the cap value itself, not just the presence of `slice` (review p1-r5).
+    text = _template_text()
+    for lst in (".Alerts.Firing", ".Alerts.Resolved"):
+        assert f"gt (len {lst}) 5" in text
+        assert f"slice {lst} 1 5" in text
+        assert f"len (slice {lst} 5)" in text
+
+
+def test_missing_severity_or_summary_never_prints_no_value():
+    # review p1-r1: a bare {{ .Labels.severity }} / {{ .Annotations.summary }}
+    # renders Go's "<no value>" on a test notification or a summary-less rule.
+    text = _template_text()
+    assert "{{ .Labels.severity }}" not in text
+    assert "{{ .Annotations.summary }}" not in text
+    assert "with .Labels.severity" in text
+    assert "with .Annotations.summary" in text
+
+
+def test_links_are_built_only_from_a_rule_shaped_generator_url():
+    # review p1-r2: uid/origin surgery on a non-rule URL (or an empty one, as in
+    # a contact-point test notification) produced a garbage Silence link.
+    text = _template_text()
+    assert text.count('match "/alerting/grafana/[^/?]+/view"') >= 2  # block links + overflow link
+    # Grafana appends ?orgId=1 even to an EMPTY generatorURL, so "non-empty" is not
+    # "a link": the raw-URL fallback must require an absolute URL (render set 5).
+    assert 'else if match "^https?://" .GeneratorURL' in text
 
 
 def _is_ksm_guard(action):

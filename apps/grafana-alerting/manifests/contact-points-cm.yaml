@@ -35,32 +35,40 @@ data:
                  on KSM series the pod label names the exporter, not the subject. */ -}}
           {{ if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim (and .Labels.pod (ne .Labels.job "kube-state-metrics")) }}
           Where:
-          {{- if .Labels.namespace }} {{ .Labels.namespace }}{{ end }}
+          {{- if .Labels.namespace }} ns {{ .Labels.namespace }}{{ end }}
           {{- if or .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }}
-            {{- if .Labels.namespace }} ·{{ end }} {{ or .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }}
+            {{- if .Labels.namespace }} ·{{ end }} workload {{ or .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }}
           {{- end }}
           {{- if .Labels.node }}
-            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }} ·{{ end }} {{ .Labels.node }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob }} ·{{ end }} node {{ .Labels.node }}
           {{- end }}
           {{- if .Labels.persistentvolumeclaim }}
-            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node }} ·{{ end }} {{ .Labels.persistentvolumeclaim }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node }} ·{{ end }} pvc {{ .Labels.persistentvolumeclaim }}
           {{- end }}
           {{- if and .Labels.pod (ne .Labels.job "kube-state-metrics") }}
-            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim }} ·{{ end }} {{ .Labels.pod }}
+            {{- if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim }} ·{{ end }} pod {{ .Labels.pod }}
           {{- end }}
           {{- end }}
           {{- end }}
           {{ define "frank.telegram.firing" -}}
-          🔥 FIRING · {{ .Labels.severity }} · {{ .Labels.alertname }}
-          {{ .Annotations.summary }}
+          {{- /* with-guards: a test notification or a summary-less rule must not print Go's no-value marker */ -}}
+          🔥 FIRING{{ with .Labels.severity }} · {{ . }}{{ end }} · {{ .Labels.alertname }}
+          {{- with .Annotations.summary }}
+          {{ . }}
+          {{- end }}
           {{- template "frank.telegram.where" . }}
           {{- if .Annotations.runbook }}
           Fix: {{ .Annotations.runbook }}
           {{- end }}
+          {{- /* uid/origin surgery only on a rule-shaped URL; anything else gets the raw link, an empty one none */ -}}
+          {{- if match "/alerting/grafana/[^/?]+/view" .GeneratorURL }}
           Rule: {{ .GeneratorURL }}
           Silence: {{ template "frank.telegram.origin" . }}/alerting/silence/new?alertmanager=grafana&matcher=__alert_rule_uid__%3D{{ template "frank.telegram.ruleuid" . }}&orgId=1
+          {{- else if match "^https?://" .GeneratorURL }}
+          Rule: {{ .GeneratorURL }}
           {{- end }}
-          {{ define "frank.telegram.resolved" }}✅ RESOLVED · {{ .Labels.alertname }} — {{ .Annotations.summary }}{{ end }}
+          {{- end }}
+          {{ define "frank.telegram.resolved" }}✅ RESOLVED · {{ .Labels.alertname }}{{ with .Annotations.summary }} — {{ . }}{{ end }}{{ end }}
           {{ define "frank.telegram.message" -}}
           {{- /* R6: at most 5 firing blocks, then an overflow line; then at most 5
                  resolved one-liners, then a count. The first item of each list is
@@ -75,7 +83,7 @@ data:
           {{ template "frank.telegram.firing" . }}
           {{- end }}
 
-          … +{{ len (slice .Alerts.Firing 5) }} more firing — {{ template "frank.telegram.origin" (index .Alerts.Firing 0) }}/alerting/list
+          … +{{ len (slice .Alerts.Firing 5) }} more firing{{ with index .Alerts.Firing 0 }}{{ if match "/alerting/grafana/[^/?]+/view" .GeneratorURL }} — {{ template "frank.telegram.origin" . }}/alerting/list{{ end }}{{ end }}
           {{- else }}
           {{- range slice .Alerts.Firing 1 }}
 
