@@ -10,9 +10,29 @@ data:
       - orgId: 1
         name: frank-telegram
         template: |
-          {{ define "frank.telegram.origin" }}{{ .GeneratorURL | reReplaceAll "/alerting/grafana/.*" "" }}{{ end }}
-          {{ define "frank.telegram.ruleuid" }}{{ .GeneratorURL | reReplaceAll ".*/alerting/grafana/" "" | reReplaceAll "/view.*" "" }}{{ end }}
+          {{- /*
+            Compact Telegram message (spec 2026-10-22--obs--telegram-alert-brevity).
+            NO dollar sign anywhere in this text, comments included: Grafana
+            env-interpolates the whole provisioning file, so a dollar-prefixed
+            name would be rewritten at boot. Hence no range variables, no root
+            reference and no regex backreferences - counts come from the builtin
+            slice, URL surgery from backreference-free reReplaceAll chains.
+            Guard: scripts/tests/test_telegram_alert_template.py
+          */ -}}
+          {{ define "frank.telegram.origin" -}}
+            {{- /* scheme://host of the GeneratorURL (not Grafana's external URL field: a trailing slash there doubles the slash) */ -}}
+            {{ .GeneratorURL | reReplaceAll "/alerting/grafana/.*" "" }}
+          {{- end }}
+          {{ define "frank.telegram.ruleuid" -}}
+            {{- /* Grafana strips private double-underscore labels from .Labels, so the
+                   rule uid is cut out of .../alerting/grafana/UID/view?orgId=1 instead */ -}}
+            {{ .GeneratorURL | reReplaceAll ".*/alerting/grafana/" "" | reReplaceAll "/view.*" "" }}
+          {{- end }}
           {{ define "frank.telegram.where" -}}
+          {{- /* Identity labels only (R3), joined by a middle dot. Each item prints its
+                 separator only when an EARLIER item was present - no variables to
+                 remember it in. pod is shown only when job is not kube-state-metrics:
+                 on KSM series the pod label names the exporter, not the subject. */ -}}
           {{ if or .Labels.namespace .Labels.workload .Labels.deployment .Labels.statefulset .Labels.daemonset .Labels.cronjob .Labels.node .Labels.persistentvolumeclaim (and .Labels.pod (ne .Labels.job "kube-state-metrics")) }}
           Where:
           {{- if .Labels.namespace }} {{ .Labels.namespace }}{{ end }}
@@ -42,6 +62,11 @@ data:
           {{- end }}
           {{ define "frank.telegram.resolved" }}✅ RESOLVED · {{ .Labels.alertname }} — {{ .Annotations.summary }}{{ end }}
           {{ define "frank.telegram.message" -}}
+          {{- /* R6: at most 5 firing blocks, then an overflow line; then at most 5
+                 resolved one-liners, then a count. The first item of each list is
+                 rendered on its own and the rest (slice 1 5, or slice 1) carry a
+                 leading separator - with no index variable that is the only way to
+                 put separators BETWEEN items. Overflow count = len (slice LIST 5). */ -}}
           {{ if .Alerts.Firing -}}
           {{ template "frank.telegram.firing" (index .Alerts.Firing 0) }}
           {{- if gt (len .Alerts.Firing) 5 }}
