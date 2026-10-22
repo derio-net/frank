@@ -3,7 +3,7 @@ run: 2026-10-21-feat-obs-telegram-alert-brevity
 workflow: fr-goal-light@1
 branch: feat/obs-telegram-alert-brevity
 started: '2026-10-21T16:04:09+00:00'
-cursor: spec-plan-review
+cursor: plan-review
 steps:
   brainstorm:
     state: done
@@ -28,17 +28,25 @@ steps:
         evidence:
           single-phase: phase 1
   spec-plan-review:
-    state: running
-    at: '2026-10-22T05:01:41+00:00'
+    state: done
+    at: '2026-10-22T05:08:06+00:00'
     units:
       step/spec-plan-review:
         attempts:
         - dispatched: '2026-10-22T05:01:41+00:00'
+          agent: ad8548f9def281382
           agent_type: super-fr:fr-spec-reviewer
           harness: claude-code
+          model: claude-opus-5-5
           tier: hard
           bound: opus
           session: 310b5e47-8853-4fd5-96fd-1735b1af5396
+          returned: '2026-10-22T05:08:05+00:00'
+          outcome: done
+        evidence:
+          review: spec-plan-review-1
+          reviewer: ad8548f9def281382
+          findings: spr-1,spr-2,spr-3,spr-4
   plan-review:
     state: pending
   implement:
