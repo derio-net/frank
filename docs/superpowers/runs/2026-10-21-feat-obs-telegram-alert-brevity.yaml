@@ -28,7 +28,17 @@ steps:
         evidence:
           single-phase: phase 1
   spec-plan-review:
-    state: pending
+    state: running
+    at: '2026-10-22T05:01:41+00:00'
+    units:
+      step/spec-plan-review:
+        attempts:
+        - dispatched: '2026-10-22T05:01:41+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: 310b5e47-8853-4fd5-96fd-1735b1af5396
   plan-review:
     state: pending
   implement:
