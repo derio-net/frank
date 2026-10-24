@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-08-27-alert-agent-oom-overload
 
 <!-- fr:journal kind=repro scope=debug id=55baf647fe4a created=2026-08-27T17:04:15 -->

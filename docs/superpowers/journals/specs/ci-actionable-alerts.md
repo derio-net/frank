@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: ci-actionable-alerts
 
 <!-- fr:journal kind=discovery scope=spec id=1fcd892f71ea created=2026-10-14T15:57:38+00:00 input=true -->

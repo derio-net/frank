@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: crowdsec-canary-alert-triage
 
 <!-- fr:journal kind=repro scope=debug id=5882a308d013 created=2026-07-24T22:25:15 -->

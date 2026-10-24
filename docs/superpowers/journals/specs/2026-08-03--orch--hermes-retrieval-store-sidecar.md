@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-08-03--orch--hermes-retrieval-store-sidecar
 
 <!-- fr:journal kind=decision scope=spec id=d1-scope created=2026-08-03T16:44:19 -->

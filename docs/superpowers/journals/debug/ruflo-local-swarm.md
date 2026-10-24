@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: ruflo-local-swarm
 
 <!-- fr:journal kind=repro scope=debug id=b5c01f9d8940 created=2026-07-25T04:54:39 -->

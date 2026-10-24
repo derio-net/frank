@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-10-04--orch--paperclip-fresh-start
 
 <!-- fr:journal kind=discovery scope=spec id=brief created=2026-10-04T04:18:27+00:00 input=true -->
