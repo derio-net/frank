@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=2 -->
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-07-23-alert-agent-busy-fallback
 
 <!-- fr:journal kind=repro scope=debug id=7df9a6538c60 created=2026-07-23T22:27:08 -->
