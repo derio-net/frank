@@ -159,9 +159,9 @@ def test_bridge_pipeline_forwards_via_github_status():
 
     assert {p["name"] for p in spec["params"]} == BRIDGE_PARAMS
 
-    tasks = spec["tasks"]
-    assert len(tasks) == 1
-    forward = tasks[0]
+    tasks = {t["name"]: t for t in spec["tasks"]}
+    assert set(tasks) == {"current-state", "forward"}
+    forward = tasks["forward"]
     assert forward["taskRef"]["name"] == "github-status"
 
     params = {p["name"]: p["value"] for p in forward["params"]}
@@ -170,3 +170,76 @@ def test_bridge_pipeline_forwards_via_github_status():
     assert params["revision"] == "$(params.revision)"
     assert params["state"] == "$(params.state)"
     assert params["repo-full-name"] == "$(params.repo-full-name)"
+
+
+# ── Ordering guard ────────────────────────────────────────────────────────
+# One PipelineRun per Gitea status event, and nothing orders them. For a
+# skipped job Gitea emits `pending` then the terminal state ~2s apart; on
+# 2026-10-23 (derio-homelab/homelab PR #40, f227d20) the pending run was
+# created at 20:18:45 and the skipped->success run at 20:18:47, both finished
+# at 20:18:52, and the stale `pending` POSTed LAST. GitHub treats the newest
+# status as current, so the check read pending forever and
+# layer-25-delivery-overdue (kind=status) fired.
+
+
+def _bridge_tasks():
+    docs = [d for d in yaml.safe_load_all(BRIDGE_PIPELINE.read_text()) if d]
+    return {t["name"]: t for t in docs[0]["spec"]["tasks"]}
+
+
+def _guard():
+    import types
+
+    script = _bridge_tasks()["current-state"]["taskSpec"]["steps"][0]["script"]
+    module = types.ModuleType("bridge_guard")
+    exec(compile(script, str(BRIDGE_PIPELINE), "exec"), module.__dict__)
+    return module
+
+
+def _combined(*statuses):
+    return lambda: {"statuses": [{"context": c, "status": s} for c, s in statuses]}
+
+
+CTX = "acceptance-report / matrix (push)"
+
+
+def test_forward_is_gated_on_the_guard():
+    tasks = _bridge_tasks()
+    forward = tasks["forward"]
+    assert forward.get("runAfter") == ["current-state"]
+    assert {"input": "$(tasks.current-state.results.superseded)",
+            "operator": "notin", "values": ["true"]} in forward.get("when", [])
+    # The guard must run for EVERY event: a task consuming a result of a
+    # SKIPPED task is itself skipped, so a `when: state in [pending]` on the
+    # guard would silently stop every terminal status from being forwarded.
+    assert "when" not in tasks["current-state"]
+
+
+def test_stale_pending_is_dropped_once_gitea_has_moved_on():
+    # The 2026-10-23 incident: Gitea already holds the terminal state.
+    assert _guard().superseded("pending", CTX, _combined((CTX, "skipped"))) is True
+    assert _guard().superseded("pending", CTX, _combined((CTX, "success"))) is True
+
+
+def test_current_pending_is_forwarded():
+    # Normal queueing and re-runs: pending IS Gitea's current state.
+    assert _guard().superseded("pending", CTX, _combined((CTX, "pending"))) is False
+    # Another context's terminal state says nothing about this one.
+    assert _guard().superseded("pending", CTX, _combined(("other (push)", "success"))) is False
+
+
+def test_terminal_states_are_never_suppressed():
+    def boom():
+        raise AssertionError("terminal events must not read Gitea")
+
+    for state in ("success", "failure", "error"):
+        assert _guard().superseded(state, CTX, boom) is False
+
+
+def test_guard_fails_open():
+    # A Gitea read error must not swallow a status: forward as before.
+    def unreachable():
+        raise OSError("gitea down")
+
+    assert _guard().superseded("pending", CTX, unreachable) is False
+    assert _guard().superseded("pending", CTX, lambda: {"message": "not found"}) is False

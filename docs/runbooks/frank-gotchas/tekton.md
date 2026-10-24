@@ -51,6 +51,20 @@ Fixed 2026-07-22 by narrowing the vocabulary in the `gitea-status-bridge` CEL ov
 
 Note the bridge does **not** backfill: Gitea never re-sends a status for a job that already finished, so statuses stranded before the fix must be overwritten once by hand.
 
+## Status bridge: events are forwarded in POD order, not EVENT order (2026-10-23)
+
+Every Gitea `status` webhook becomes its own `stoa-status-bridge` PipelineRun, and nothing orders them. For a skipped job Gitea emits `pending` and the terminal state about two seconds apart, which is well inside pod-startup jitter. On derio-homelab/homelab PR #40 (`f227d20`), `stoa-status-bridge-h68tx` (`pending`) was created at 20:18:45 and `-pcsrh` (`skipped`→`success`) at 20:18:47. **Both completed at 20:18:52, and the pending POST landed last.** GitHub gave both the same `created_at` (20:18:50Z). The current status is the higher id, here the stale `pending`. The check read pending forever, and `layer-25-delivery-overdue` (kind=status) fired from the next `ci-delivery-check` run on. The checker was right; this is not a false positive.
+
+Tell it apart from a lost delivery: GitHub **has** the terminal status, but on the same second as a pending with a higher id:
+
+```bash
+gh api "repos/<owner>/<repo>/commits/<sha>/statuses" --jq '.[]|[.id,.created_at,.context,.state,.description]|@tsv'
+kubectl -n tekton-pipelines get pipelinerun -l triggers.tekton.dev/trigger=gitea-status-bridge -o json \
+  | jq -r '.items[]|select(any(.spec.params[];.name=="revision" and .value=="<sha>"))|[.metadata.name,.metadata.creationTimestamp,.status.completionTime,(.spec.params[]|select(.name=="state").value)]|@tsv'
+```
+
+Fix: the bridge now runs a `current-state` guard ahead of `forward`. For a `pending` event it reads Gitea's combined status (`/commits/<sha>/status`, one entry per context, state under `status`). If that context has already moved past pending, it drops the event, because the terminal event's own run carries the truth. Terminal states are never suppressed, and a re-run still forwards its pending (pending is current again). A failed Gitea read forwards as before. The guard deliberately has no `when`: a task that consumes a **skipped** task's result is skipped too, so gating the guard on state would silently stop every terminal status. Residual window: a pending run that reads Gitea before the terminal status is written can still lose the race, but only if the terminal run then starts a pod and POSTs inside the guard's read→POST gap. Statuses stranded before the fix (or by that residual) are repaired with `scripts/ci_status_backfill.py`. Guard: `scripts/tests/test_stoa_status_bridge.py`.
+
 ## `CI_AUTHORITY` is two variables, one per forge
 
 The parallel-running guard on the stoa mirrors is a job-level condition:

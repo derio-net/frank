@@ -40,7 +40,110 @@ spec:
       default: ""
       description: "Gitea Actions run URL — lands as the status link on GitHub"
   tasks:
+    # Ordering guard. Each Gitea status event is its own PipelineRun and
+    # nothing orders them, so the POSTs land in pod-startup order, not event
+    # order. For a skipped job Gitea emits `pending` then the terminal state
+    # ~2s apart; on 2026-10-23 (derio-homelab/homelab PR #40) the pending
+    # run POSTed last and, because a commit status has no lifecycle, the
+    # check read pending forever. A `pending` whose context Gitea has
+    # already moved past is stale: the terminal event's own run carries the
+    # truth, so drop it. Terminal states are never suppressed, and any read
+    # failure forwards as before (fail-open).
+    #
+    # No `when` here on purpose: a task consuming a result of a SKIPPED task
+    # is itself skipped, so gating this on state would stop every terminal
+    # status from being forwarded.
+    - name: current-state
+      params:
+        - {name: repo-full-name, value: $(params.repo-full-name)}
+        - {name: revision, value: $(params.revision)}
+        - {name: state, value: $(params.state)}
+        - {name: context, value: $(params.context)}
+      taskSpec:
+        metadata: {}
+        spec: null
+        params:
+          - {name: repo-full-name, type: string}
+          - {name: revision, type: string}
+          - {name: state, type: string}
+          - {name: context, type: string}
+        results:
+          - name: superseded
+            description: '"true" when this is a pending event Gitea has already moved past'
+        steps:
+          - name: check
+            image: python:3.13-slim
+            env:
+              - name: GITEA_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: gitea-api-token
+                    key: token
+                    optional: true
+              - {name: REPO_FULL_NAME, value: $(params.repo-full-name)}
+              - {name: REVISION, value: $(params.revision)}
+              - {name: STATE, value: $(params.state)}
+              - {name: CONTEXT, value: $(params.context)}
+              - {name: RESULT_PATH, value: $(results.superseded.path)}
+              - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            computeResources:
+              requests:
+                cpu: 20m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+            script: |
+              #!/usr/bin/env python3
+              import json
+              import os
+              import urllib.parse
+              import urllib.request
+
+              def superseded(state, context, fetch):
+                  """True only for a pending event whose context is no longer
+                  pending on Gitea. Gitea's combined status holds the latest
+                  status per context, under `status` (not `state`)."""
+                  if state != 'pending':
+                      return False
+                  try:
+                      statuses = fetch().get('statuses') or []
+                      current = next((s.get('status') for s in statuses
+                                      if s.get('context') == context), None)
+                  except Exception as exc:
+                      print(f'gitea read failed ({type(exc).__name__}); forwarding')
+                      return False
+                  return current not in (None, 'pending')
+
+              def fetch():
+                  repo = os.environ['REPO_FULL_NAME']
+                  sha = urllib.parse.quote(os.environ['REVISION'], safe='')
+                  req = urllib.request.Request(
+                      f'http://gitea-http.gitea.svc:3000/api/v1/repos/{repo}/commits/{sha}/status',
+                      headers={'Authorization': 'token ' + os.environ.get('GITEA_TOKEN', '').strip(),
+                               'Accept': 'application/json'})
+                  with urllib.request.urlopen(req, timeout=10) as response:
+                      return json.load(response)
+
+              if __name__ == '__main__':
+                  stale = superseded(os.environ['STATE'], os.environ['CONTEXT'], fetch)
+                  if stale:
+                      print('pending is stale: Gitea has moved past it; not forwarding')
+                  with open(os.environ['RESULT_PATH'], 'w') as out:
+                      out.write('true' if stale else 'false')
     - name: forward
+      runAfter: [current-state]
+      when:
+        - input: $(tasks.current-state.results.superseded)
+          operator: notin
+          values: ["true"]
       taskRef:
         kind: Task
         name: github-status
