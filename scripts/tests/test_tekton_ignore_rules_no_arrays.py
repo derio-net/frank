@@ -160,6 +160,12 @@ def test_pipeline_and_task_manifests_carry_explicit_defaults():
                 task_spec = task["taskSpec"]
                 assert "metadata" in task_spec, (f, task["name"])
                 assert "spec" in task_spec, (f, task["name"])
+                # Inline results default `type: string` exactly like a Task's;
+                # `tasks` is one atomic list for ArgoCD, so a single missing
+                # default pins the whole Pipeline OutOfSync (stoa-status-bridge,
+                # 2026-10-24, right after #904 added its first inline result).
+                for result in task_spec.get("results", []):
+                    assert "type" in result, (f, task["name"], result)
                 if "stepTemplate" in task_spec:
                     assert "computeResources" in task_spec["stepTemplate"], (
                         f, task["name"], "stepTemplate"
