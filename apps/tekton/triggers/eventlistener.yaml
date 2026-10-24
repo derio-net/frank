@@ -23,11 +23,16 @@ spec:
             # PipelineRuns — the second being this generic gitea-ci pipeline,
             # which fails. The failing run carries the generic name, so it reads
             # as an unrelated CI problem rather than a routing bug.
+            # derio-net/ (2026-10-18): defence in depth — its mirrors run Gitea
+            # Actions, and no push hook delivers derio-net repos to this
+            # listener, but if one were ever added this must not start a
+            # generic gitea-ci run for them.
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'push') &&
                 !body.repository.full_name.startsWith('agentic-stoa/') &&
-                !body.repository.full_name.startsWith('derio-homelab/')
+                !body.repository.full_name.startsWith('derio-homelab/') &&
+                !body.repository.full_name.startsWith('derio-net/')
             - name: "overlays"
               value:
                 - key: branch_name
@@ -52,7 +57,13 @@ spec:
     # dual-status writes (context tekton/*) are excluded: GitHub already
     # gets those directly; forwarding would double-post every CI result.
     # Requires the org-level Gitea webhook (Status event) — manual op
-    # cicd-stoa-gitea-org-actions-config.
+    # cicd-stoa-gitea-org-actions-config (agentic-stoa) and
+    # cicd-derio-net-gitea-org (derio-net, derio-homelab). Three orgs since
+    # 2026-10-18: github-status picks the GitHub token by repo owner.
+    # The filter is an EXPLICIT repo list (== mirror-reconcile MAIN_REPOS,
+    # guarded by test_ci_mirror_resilience.py), not an org prefix: an org-wide
+    # Gitea hook also delivers repos that are not mirrored (e.g. derio-homelab
+    # repos with no GitHub twin), and forwarding those would 404 on GitHub.
     # Notes: statuses attach to shas, not branches — mirror-main runs also
     # forward (intentional: GitHub main commits get gitea-actions/* statuses
     # too). description/target_url are omitempty in Gitea's payload, hence
@@ -72,7 +83,7 @@ spec:
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'status') &&
-                body.repository.full_name.startsWith('agentic-stoa/') &&
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health', 'agentic-stoa/site', 'derio-homelab/kid-laptops', 'derio-homelab/proxmox-cluster', 'derio-homelab/omada-controller', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole', 'derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr'] &&
                 !body.context.startsWith('tekton')
             - name: "overlays"
               value:
@@ -202,16 +213,35 @@ spec:
     # to the new pipeline param shape (github-repo, gitea-repo, sha, ref-to).
     # Frank's own gitea-push trigger (above, with the !startsWith filter)
     # stays here unchanged.
+  # Two replicas on different hosts, never pinned. These pods are stateless and
+  # are the ONLY ingress for their webhooks: a single replica pinned to pc-1
+  # 502'd three GitHub pushes while pc-1 drained on 2026-10-12, and GitHub
+  # never retries a failed delivery. Paired with a PodDisruptionBudget in
+  # apps/tekton/manifests/eventlistener-pdb.yaml so a drain keeps one serving.
+  # amd64 keeps them off the low-memory Pis. Guard:
+  # scripts/tests/test_ci_mirror_resilience.py.
   resources:
     kubernetesResource:
+      replicas: 2
       spec:
         template:
           metadata:
             creationTimestamp: null
           spec:
             containers: null
-            nodeSelector:
-              kubernetes.io/hostname: pc-1
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - {key: kubernetes.io/arch, operator: In, values: [amd64]}
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+                labelSelector:
+                  matchLabels:
+                    eventlistener: gitea-listener
 # Per-repo agentic-stoa TriggerTemplates (hum-ci-template, content-factory-ci-
 # template) were removed 2026-05-13 (rework Phase 4); replacement github-aware
 # versions ship in eventlistener-github.yaml. See the NOTE in the gitea-listener

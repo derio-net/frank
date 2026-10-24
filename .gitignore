@@ -85,3 +85,6 @@ blog/themes/
 # Throwaway one-shot operational scripts (OIDC secret-set helpers, etc.)
 # scripts/tmp is the runbook-referenced throwaway convention; never committed.
 scripts/tmp/
+
+# Host-visible local validation evidence, never committed.
+.fr-scratch/

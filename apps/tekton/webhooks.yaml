@@ -79,6 +79,37 @@ webhooks:
       this org have a webhook?" answers yes while push delivery is absent.
 
   - forge: gitea
+    scope: org
+    target: derio-net
+    listener: gitea-listener
+    events: [status]
+    serves: [gitea-status-bridge]
+    note: >-
+      Org-level and status-ONLY, like the agentic-stoa one: forwards Gitea
+      Actions statuses on the derio-net mirrors to GitHub as
+      gitea-actions/<context> on the same sha, written with the derio-net
+      token. The org and its mirror repos are created by manual-op
+      cicd-derio-net-gitea-org (plan
+      2026-10-18--cicd--github-preferred-gitea-fallback); this hook is created
+      there too. No push hook: the mirrors run Gitea Actions on the push itself,
+      and the generic gitea-push trigger excludes derio-net/ regardless.
+
+  - forge: gitea
+    scope: org
+    target: derio-homelab
+    listener: gitea-listener
+    events: [status]
+    serves: [gitea-status-bridge]
+    note: >-
+      Org-level and status-ONLY: forwards Gitea Actions statuses on the four
+      github-preferred homelab mirrors and kid-laptops to GitHub, written with
+      the derio-homelab token. kid-laptops' Gitea Actions statuses are
+      forwarded by design: it is gitea-only, so its Gitea results belong on
+      GitHub (Tekton's own tekton* contexts are still filtered out). The existing kid-laptops repo hook (push) is a
+      different path and stays. Created by manual-op
+      cicd-derio-net-gitea-org alongside the derio-net one.
+
+  - forge: gitea
     scope: repo
     target: agentic-stoa/site
     listener: gitea-listener
@@ -137,7 +168,7 @@ webhooks:
     target: derio-homelab/kid-laptops
     listener: github-listener
     events: [push]
-    serves: [derio-homelab-kid-laptops-main-sync]
+    serves: [derio-homelab-main-sync]
     note: >-
       push only, not pull_request: kid-laptops runs no PR-time CI on Frank yet
       (the molecule stage is gated off until KubeVirt lands, so a PR mirror
@@ -145,6 +176,91 @@ webhooks:
       (derio-homelab-github-webhook-secret), not the agentic-stoa one — sharing
       it would couple two unrelated orgs' webhook authenticity to one value.
       Created post-merge by manual-op cicd-kid-laptops-github-webhook.
+
+  # github-preferred repos (2026-10-18, frank#875): mirrored so CI can fall back
+  # to Gitea Actions. Repo-scoped, never org-scoped, so the org's public repos
+  # (super-fr ran ~41k minutes in October) never reach the listener. Each uses
+  # its org's OWN HMAC secret. Created post-merge by manual-op
+  # cicd-github-preferred-gitea-mirrors.
+  - forge: github
+    scope: repo
+    target: derio-homelab/proxmox-cluster
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-homelab-main-sync, derio-homelab-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-homelab/omada-controller
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-homelab-main-sync, derio-homelab-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-homelab/homelab
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-homelab-main-sync, derio-homelab-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-homelab/ansible-pihole
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-homelab-main-sync, derio-homelab-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-net/willikins
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-net-main-sync, derio-net-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-net/presentation-craft
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-net-main-sync, derio-net-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-net/vibe-kanban
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-net-main-sync, derio-net-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
+
+  - forge: github
+    scope: repo
+    target: derio-net/runs-fr
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-net-main-sync, derio-net-pr-sync]
+    note: >-
+      Mirror webhook for the github-preferred tier. Created post-merge by
+      manual-op cicd-github-preferred-gitea-mirrors.
 
   - forge: github
     scope: repo

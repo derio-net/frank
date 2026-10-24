@@ -1,0 +1,8 @@
+name: callee
+on:
+  workflow_call:
+jobs:
+  inner:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: true

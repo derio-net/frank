@@ -1,0 +1,188 @@
+# ci-budget-watcher (spec 2026-10-18 section 4): reads each org's GitHub
+# billing usage, moves github-preferred repos to Gitea when the included
+# minutes run low, and heartbeats to stdout (-> VictoriaLogs; the Grafana rule
+# ci-budget-heartbeat-stale pages if the heartbeat stops).
+#
+# Stock digest-pinned python (no custom image). PyYAML is installed by an
+# initContainer from a hash-pinned requirement into an emptyDir, because the
+# root filesystem is read-only. The script, the gate-coverage checker and the
+# tier config ship via configMapGenerator (hash-suffixed names), so any edit
+# rolls the next run. Every org ships in dry-run (tiers.yaml).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ci-budget-watcher
+  namespace: tekton-pipelines
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 480
+      template:
+        metadata:
+          labels:
+            app: ci-budget-watcher
+        spec:
+          restartPolicy: Never
+          serviceAccountName: ci-budget-watcher
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: deps
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command:
+                - python3
+                - -m
+                - pip
+                - install
+                - --no-cache-dir
+                - --disable-pip-version-check
+                - --require-hashes
+                - "--only-binary=:all:"
+                - --target=/deps
+                - -r
+                - /app/requirements.txt
+              env:
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: deps
+                  mountPath: /deps
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: watcher
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/app/watcher.py"]
+              env:
+                - name: PYTHONPATH
+                  value: /deps:/app
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: TIERS_FILE
+                  value: /config/tiers.yaml
+                - name: RUNNER_CONFIG
+                  value: /config/runner-config.yaml
+                - name: NAMESPACE
+                  value: tekton-pipelines
+                - name: GITEA_API
+                  value: http://gitea-http.gitea.svc:3000/api/v1
+                - name: GH_BILLING_TOKEN_DERIO_NET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-derio-net
+                      key: token
+                      optional: true
+                - name: GH_AUTHORITY_TOKEN_DERIO_NET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-authority-derio-net
+                      key: token
+                      optional: true
+                - name: GH_BILLING_TOKEN_DERIO_HOMELAB
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-derio-homelab
+                      key: token
+                      optional: true
+                - name: GH_AUTHORITY_TOKEN_DERIO_HOMELAB
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-authority-derio-homelab
+                      key: token
+                      optional: true
+                - name: GH_BILLING_TOKEN_AGENTIC_STOA
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-github-billing-agentic-stoa
+                      key: token
+                      optional: true
+                # Gitea bot (org-owner on derio-net / derio-homelab): repo/org
+                # variable and branch writes. Optional so the CronJob is healthy
+                # (every org reports verdict=error) before the manual-op secret.
+                - name: GITEA_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-gitea
+                      key: token
+                      optional: true
+                # read:admin only; reserved for the runner probes (spec section 7).
+                - name: GITEA_PROBE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-gitea-probe
+                      key: token
+                      optional: true
+                # Telegram is optional: absent => heartbeat-only (crowdsec-canary shape).
+                - name: TELEGRAM_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-telegram
+                      key: TELEGRAM_TOKEN
+                      optional: true
+                - name: TELEGRAM_CHATID
+                  valueFrom:
+                    secretKeyRef:
+                      name: ci-budget-telegram
+                      key: TELEGRAM_CHATID
+                      optional: true
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 192Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: deps
+                  mountPath: /deps
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                # kustomize rewrites these to the hash-suffixed generated names.
+                name: ci-budget-watcher-script
+            - name: config
+              configMap:
+                name: ci-budget-config
+            - name: deps
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}

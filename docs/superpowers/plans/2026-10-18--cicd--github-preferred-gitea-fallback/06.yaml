@@ -1,0 +1,69 @@
+schema_version: 2
+phase:
+  number: 6
+  title: '[manual] Pre-merge gates, cross-repo workflow PRs, provisioning and go-live'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  tracking_issue: null
+  acceptance:
+  - workflows-carry-forge-gates
+tasks:
+- number: 1
+  title: Pre-merge gates
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Run manual-op cicd-ci-budget-app-permissions (App permissions, re-approvals, installation widening, then a live billing read with each org's App installation token). If any org refuses an installation token, stop and return to the operator.
+  - id: P6.T1.S2
+    text: |-
+      Run manual-op cicd-gitea-variable-semantics (a repo variable overrides the org one; an API-created branch fires a push-triggered run, including a paths-filtered one). Then run cicd-derio-net-gitea-org and cicd-github-preferred-gitea-mirrors (Gitea side only; the GitHub repo webhooks wait for merge).
+- number: 2
+  title: Cross-repo workflow PRs (R17)
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      One PR per repo in spec §6's table (the nine github-preferred repos and cnc-frd/cnc-fru release.yml), each made in its own isolation workspace in that repo, applying the gate convention, passing scripts/ci_gate_coverage.py against its own branch, and citing the spec.
+- number: 3
+  title: Provisioning and go-live (post-merge)
+  steps:
+  - id: P6.T3.S1
+    text: |-
+      After merge: add the nine GitHub repo webhooks (last command of cicd-github-preferred-gitea-mirrors), run cicd-gitea-readonly-secrets and cicd-kid-laptops-template-orphan-delete.
+  - id: P6.T3.S2
+    text: |-
+      After the repo PRs merge and the spec Test Plan rows pass, run cicd-ci-budget-go-live per org.
+state:
+  steps:
+    P6.T1.S1:
+      state: x
+      ticked_at: '2026-10-19T17:13:10+00:00'
+      note: 'ci-budget-ops status app-permissions: all DONE (2026-10-19, billing read
+        with each org''s App token; permission key fixed to actions_variables)'
+    P6.T1.S2:
+      state: x
+      ticked_at: '2026-10-19T17:33:18+00:00'
+      note: gitea-semantics re-proven 2026-10-19T17:31:22Z; probe repo deleted; gitea-org
+        + gitea-mirrors DONE
+    P6.T2.S1:
+      state: x
+      ticked_at: '2026-10-19T17:33:21+00:00'
+      note: all 11 gate PRs merged by 2026-10-19 (9 github-preferred repos + cnc-frd/cnc-fru
+        release.yml)
+    P6.T3.S1:
+      state: x
+      ticked_at: '2026-10-19T17:13:14+00:00'
+      note: 'status github-webhooks (9 repos), readonly-secrets, orphan-template:
+        all DONE, 0 open (2026-10-19)'
+    P6.T3.S2:
+      state: x
+      ticked_at: '2026-10-19T20:01:55+00:00'
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

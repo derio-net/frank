@@ -1,0 +1,384 @@
+# Read-only real-work expectations; independent of Tekton/PVC availability.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ci-delivery-check-scripts
+  namespace: tekton-pipelines
+data:
+  check.py: |
+    """Compare real mirror refs and status deliveries, never forge writes."""
+    import json
+    import os
+    import re
+    import sys
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    # One GitHub App installation per org. The orgs listed here are exactly
+    # those whose forwarded statuses are verified; the Gitea API token is added
+    # in main() and is not an org.
+    TOKEN_FILES = {'agentic-stoa': '/tokens/stoa/token', 'derio-homelab': '/tokens/homelab/token',
+                   'derio-net': '/tokens/net/token'}
+
+    def timestamp(value):
+        at = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if at.tzinfo is None:
+            raise ValueError('timestamp without timezone')
+        return at
+
+    def sha_value(value):
+        # These GitHub/Gitea API contracts return full SHA-1 object IDs, not
+        # abbreviated git revisions or arbitrary nonempty branch identifiers.
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9a-fA-F]{40}', value):
+            raise ValueError('malformed SHA')
+        return value
+
+    def latest(statuses, case_insensitive=False):
+        result = {}
+        for s in statuses:
+            key = (timestamp(s['created_at']), int(s['id']))
+            context = s['context']
+            if not isinstance(context, str) or not context or s['state'] not in (
+                'pending', 'success', 'error', 'failure', 'skipped', 'warning'
+            ):
+                raise ValueError('malformed status')
+            for field in ('description', 'target_url'):
+                if s.get(field) is not None and not isinstance(s[field], str):
+                    raise ValueError('malformed status text')
+            if case_insensitive:
+                context = context.lower()
+            if context not in result or key > result[context][0]:
+                result[context] = (key, s)
+        return {context: s for context, (_, s) in result.items()}
+
+    def forwarded(s):
+        special = s['state'] in ('skipped', 'warning')
+        description = 'Gitea: ' + s['state'] if special else (s.get('description') or '')
+        return ('success' if special else s['state'], description, s.get('target_url') or '')
+
+    def matches(actual, expected):
+        # github-status passes the mapped description verbatim today. Accept
+        # both that mapping and GitHub's legitimate 140-character representation,
+        # but never ignore stale state, target URL, or a differing prefix.
+        state, description, url = expected
+        return actual in (expected, (state, description[:140], url))
+
+    def undelivered(client, repo, shas, now):
+        """(sha, gitea status, expected GitHub tuple) for each eligible status
+        older than the grace window that GitHub does not carry as forwarded.
+        scripts/ci_status_backfill.py re-forwards exactly this set."""
+        missing = []
+        # A drifted branch does not imply the source commit is absent:
+        # it can be retained by another ref or an earlier mirror push.
+        for sha in sorted(shas):
+            if not client.commit_exists(repo, sha):
+                continue
+            source = latest(client.statuses('gitea', repo, sha))
+            # Preserve Gitea's exact contexts/filter, then collapse the
+            # eligible events onto GitHub's case-insensitive identity.
+            eligible = latest([s for context, s in source.items()
+                               if not context.startswith('tekton')],
+                              case_insensitive=True).values()
+            if not eligible:
+                continue  # path-filtered CI may intentionally do nothing
+            destination = latest(client.statuses('github', repo, sha), case_insensitive=True)
+            for s in eligible:
+                if now - timestamp(s['created_at']) < timedelta(minutes=10):
+                    continue
+                got = destination.get(('gitea-actions/' + s['context']).lower())
+                actual = None if got is None else (
+                    got['state'], got.get('description') or '', got.get('target_url') or '')
+                if not matches(actual, forwarded(s)):
+                    missing.append((sha, s, forwarded(s)))
+        return missing
+
+    def check(client, main_repos, pr_repos, now):
+        snapshot = {'counts': {}, 'errors': {}, 'diagnostics': []}
+        for repo in sorted(set(main_repos + pr_repos)):
+            if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo):
+                raise ValueError('invalid configured repo')
+            counts = snapshot['counts'][repo] = {'mirror': 0, 'status': 0}
+            snapshot['errors'][repo] = 0
+            try:
+                client.repo(repo)  # prove access before interpreting branch 404
+                refs = []
+                if repo in main_repos:
+                    sha, at = client.head(repo)
+                    refs.append((client.default_branch(repo), sha, at))
+                if repo in pr_repos:
+                    refs.extend((f'sync-pr-{n}', sha, client.commit_time(repo, sha))
+                                for n, sha in client.pulls(repo))
+                for ref, sha, at in refs:
+                    have = client.branch(repo, ref)
+                    if have != sha and now - at >= timedelta(minutes=30):
+                        counts['mirror'] += 1
+                        snapshot['diagnostics'].append(f'{repo} mirror {ref}')
+                if repo.split('/')[0] not in TOKEN_FILES:
+                    continue  # forwarding is checked for every org in the token map
+                for _ in undelivered(client, repo, {sha for _, sha, _ in refs}, now):
+                    counts['status'] += 1
+                    # Never log arbitrary forge text: it may contain credentials.
+                    snapshot['diagnostics'].append(f'{repo} status delivery mismatch')
+            except Exception as exc:
+                snapshot['errors'][repo] = 1
+                # HTTP status or exception class only, never forge text (it may carry
+                # credentials); without it a 404 (no access) and a timeout read the same.
+                cause = getattr(exc, 'code', None)
+                snapshot['diagnostics'].append(
+                    f'{repo} read-error {cause if isinstance(cause, int) else type(exc).__name__}')
+        return snapshot
+
+    class API:
+        def __init__(self, token_files, request=None):
+            self.token_files = token_files
+            self.request = request or self.http
+            self.gitea_web_url = os.environ.get('GITEA_WEB_URL', '')
+            self.deadline = time.monotonic() + 210
+            self.cache = {}
+
+        def http(self, forge, repo, path):
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('read deadline')
+            key = 'gitea' if forge == 'gitea' else repo.split('/')[0]
+            token = Path(self.token_files[key]).read_text().strip()
+            if not token:
+                raise ValueError('empty token')
+            base = 'http://gitea-http.gitea.svc:3000/api/v1' if forge == 'gitea' else 'https://api.github.com'
+            req = urllib.request.Request(base + path, headers={
+                'Authorization': 'token ' + token, 'Accept': 'application/json',
+                'User-Agent': 'frank-ci-delivery-check'})
+            with urllib.request.urlopen(req, timeout=min(10, remaining)) as response:
+                return json.load(response)
+
+        def get(self, forge, repo, path):
+            if time.monotonic() >= self.deadline:
+                raise TimeoutError('read deadline')
+            key = (forge, repo, path)
+            if key not in self.cache:
+                self.cache[key] = self.request(forge, repo, path)
+            return self.cache[key]
+
+        def pages(self, forge, repo, path):
+            results = []
+            separator = '&' if '?' in path else '?'
+            # Continue until an EMPTY page, not a short one: server-side Gitea
+            # page-size caps may be lower than the requested limit. Exhaustion
+            # is an error, never a partially successful read.
+            for page in range(1, 21):
+                data = self.get(forge, repo, path + separator +
+                                f'per_page=100&limit=100&page={page}')
+                if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+                    raise ValueError('malformed page')
+                if not data:
+                    return results
+                results.extend(data)
+            raise ValueError('pagination exhausted')
+
+        def repo(self, repo):
+            data = self.get('gitea', repo, f'/repos/{repo}')
+            if data['full_name'] != repo:
+                raise ValueError('wrong repository')
+
+        def default_branch(self, repo):
+            # Not every mirrored repo uses `main` (derio-homelab/ansible-pihole is `picl`).
+            name = self.get('github', repo, f'/repos/{repo}').get('default_branch')
+            if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_.][A-Za-z0-9_./-]*', name) or '..' in name:
+                raise ValueError('malformed default branch')
+            return name
+
+        def head(self, repo):
+            data = self.get('github', repo, f'/repos/{repo}/branches/{self.default_branch(repo)}')['commit']
+            return sha_value(data['sha']), timestamp(data['commit']['committer']['date'])
+
+        def pulls(self, repo):
+            data = self.pages('github', repo, f'/repos/{repo}/pulls?state=open')
+            result = []
+            for p in data:
+                if type(p['number']) is not int or p['number'] <= 0:
+                    raise ValueError('malformed PR number')
+                sha = sha_value(p['head']['sha'])
+                # Same-repo PRs only, matching the mirror trigger and the
+                # reconciler: a fork PR never gets a sync-pr branch.
+                head_repo = p['head'].get('repo')
+                if not head_repo or head_repo.get('full_name') != repo:
+                    continue
+                result.append((p['number'], sha))
+            return result
+
+        def commit_time(self, repo, sha):
+            data = self.get('github', repo, f'/repos/{repo}/commits/{sha}')
+            return timestamp(data['commit']['committer']['date'])
+
+        def branch(self, repo, ref):
+            self.repo(repo)
+            try:
+                return sha_value(self.get('gitea', repo, f'/repos/{repo}/branches/{ref}')['commit']['id'])
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    return None
+                raise
+
+        def commit_exists(self, repo, sha):
+            self.repo(repo)  # a repository/auth 404 must not mean commit absent
+            try:
+                data = self.get('gitea', repo, f'/repos/{repo}/git/commits/{sha}')
+                if sha_value(data['sha']) != sha:
+                    raise ValueError('wrong commit')
+                return True
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    return False
+                raise
+
+        def statuses(self, forge, repo, sha):
+            data = self.pages(forge, repo, f'/repos/{repo}/commits/{sha}/statuses')
+            if forge != 'gitea':
+                return data
+            # Authorized live read: Gitea commit-status lists expose `status`,
+            # unlike GitHub lists and Gitea webhook events (`state`). Normalize
+            # only at this boundary, without mutating the cached raw response.
+            normalized = []
+            for item in data:
+                state = item.get('status')
+                if not isinstance(state, str) or state not in (
+                    'pending', 'success', 'error', 'failure', 'skipped', 'warning'
+                ):
+                    raise ValueError('malformed Gitea status')
+                # Gitea's API returns relative Actions links, while its status
+                # webhook delivers absolute links based on server.ROOT_URL.
+                # Use that web root, not the in-cluster API service address.
+                target = item.get('target_url')
+                if isinstance(target, str) and target and not urllib.parse.urlsplit(target).scheme:
+                    root = urllib.parse.urlsplit(self.gitea_web_url)
+                    if root.scheme not in ('http', 'https') or not root.netloc:
+                        raise ValueError('missing or invalid Gitea web root')
+                    target = urllib.parse.urljoin(self.gitea_web_url, target)
+                normalized.append({**item, 'state': state, 'target_url': target})
+            return normalized
+
+    def render(snapshot, now):
+        lines = ['# TYPE ci_delivery_overdue gauge', '# TYPE ci_delivery_read_error gauge',
+                 '# TYPE ci_delivery_last_check_timestamp_seconds gauge']
+        for repo, counts in snapshot['counts'].items():
+            for kind in ('mirror', 'status'):
+                lines.append(f'ci_delivery_overdue{{repo="{repo}",kind="{kind}"}} {counts[kind]}')
+            lines.append(f'ci_delivery_read_error{{repo="{repo}"}} {snapshot["errors"][repo]}')
+        # Completed means the snapshot was built, not that all reads succeeded.
+        # Explicit error gauges distinguish a fresh partial check from health.
+        lines.append(f'ci_delivery_last_check_timestamp_seconds {int(now.timestamp())}')
+        return '\n'.join(lines) + '\n'
+
+    def publish(snapshot, now, send=None):
+        req = urllib.request.Request(
+            'http://pushgateway.monitoring.svc:9091/metrics/job/ci-delivery-check',
+            method='PUT', data=render(snapshot, now).encode(),
+            headers={'Content-Type': 'text/plain; version=0.0.4'})
+        response = (send or urllib.request.urlopen)(req, timeout=10)
+        if response is not None:
+            response.close()
+
+    def finish(snapshot, now, send=None):
+        for diagnostic in snapshot['diagnostics'][:50]:
+            print(diagnostic, file=sys.stderr)
+        try:
+            publish(snapshot, now, send)
+        except Exception:
+            print('ci-delivery-check publish-error', file=sys.stderr)
+            return 1
+        return int(any(snapshot['errors'].values()))
+
+    def main():
+        client = API({**TOKEN_FILES, 'gitea': '/tokens/gitea/token'})
+        snapshot = check(client, os.environ['MAIN_REPOS'].split(), os.environ['PR_REPOS'].split(),
+                         datetime.now(timezone.utc))
+        return finish(snapshot, datetime.now(timezone.utc))
+
+    if __name__ == '__main__':
+        sys.exit(main())
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ci-delivery-check
+  namespace: tekton-pipelines
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 270
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: check
+              image: python:3.13-slim
+              command: [python3, /scripts/check.py]
+              env:
+                - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+                # Match Gitea server.ROOT_URL; webhook status links use this root.
+                - name: GITEA_WEB_URL
+                  value: "http://192.168.55.209:3000/"
+                - name: MAIN_REPOS
+                  value: >-
+                    agentic-stoa/hum agentic-stoa/content-factory agentic-stoa/stoa-blog
+                    agentic-stoa/companies agentic-stoa/cnc-fr agentic-stoa/cnc-frd
+                    agentic-stoa/cnc-fru agentic-stoa/second-brain agentic-stoa/hermes-brain
+                    agentic-stoa/flexible-health agentic-stoa/site
+                    derio-homelab/kid-laptops derio-homelab/proxmox-cluster
+                    derio-homelab/omada-controller derio-homelab/homelab
+                    derio-homelab/ansible-pihole
+                    derio-net/willikins
+                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
+                - name: PR_REPOS
+                  value: >-
+                    agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
+                    agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
+                    agentic-stoa/second-brain agentic-stoa/stoa-blog
+                    derio-homelab/ansible-pihole derio-homelab/homelab
+                    derio-homelab/omada-controller derio-homelab/proxmox-cluster
+                    derio-net/presentation-craft
+                    derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 200m, memory: 256Mi}
+              volumeMounts:
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+                - {name: stoa, mountPath: /tokens/stoa, readOnly: true}
+                - {name: homelab, mountPath: /tokens/homelab, readOnly: true}
+                - {name: net, mountPath: /tokens/net, readOnly: true}
+                - {name: gitea, mountPath: /tokens/gitea, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: scripts
+              configMap: {name: ci-delivery-check-scripts}
+            - name: stoa
+              secret: {secretName: stoa-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
+            - name: homelab
+              secret: {secretName: derio-homelab-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
+            - name: net
+              secret: {secretName: derio-net-github-mirror, optional: true, defaultMode: 0440, items: [{key: token, path: token}]}
+            - name: gitea
+              secret: {secretName: gitea-api-token, defaultMode: 0440, items: [{key: token, path: token}]}
+            - {name: tmp, emptyDir: {sizeLimit: 16Mi}}

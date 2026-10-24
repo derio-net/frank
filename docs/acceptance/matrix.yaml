@@ -9,12 +9,15 @@
 #   origin:     list of "repo:path[#anchor]" refs (spec §, design doc)
 #   levels:     unit/api/int/ui → list of "repo:path[#Lline]" test refs
 #               ([] = level does not verify this row)
-#   status:     ci | scheduled | skipped | not-implemented | failing
+#   status:     ci | scheduled | unwired | walk-owed | walked | manual
+#               | not-implemented | failing
 #     ci               automated on every PR — cannot drift silently
 #     scheduled        automated on cron/path triggers
-#     skipped          verification exists but does not run in CI (proven
-#                      live once / manual walk) → CI warning, backfill owed
-#     not-implemented  no test or surface exists yet → CI warning
+#     unwired          a test exists but does not run in CI → debt, CI warning
+#     walk-owed        a live or post-merge walk is owed → debt, CI warning
+#     walked           proven live, dated by its latest passing walk
+#     manual           a process that is never automatable
+#     not-implemented  no test or surface exists yet → debt, CI warning
 #     failing          known red → `fr acceptance check` exits 2, CI FAILS
 #   notes:      evidence detail, drift context
 #
@@ -23,7 +26,7 @@
 # Add rows with `fr acceptance add` (schema-validated append). Keep `rows:`
 # as the LAST top-level key — `add` appends to the end of this file.
 
-schema_version: 4
+schema_version: 5
 org: derio-net
 repo: frank
 rows:
@@ -43,7 +46,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-11 — ConfigPatch 404-gpu1-usb-25g-nic applied; gpu-1 Ready on 192.168.55.31
     via enp0s20f0u7 MAC 6c:1f:f7:c6:e0:da.
 - id: gpu1-usb-25g-detected
@@ -53,7 +56,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-11 — Talos detected r8152 USB adapter enp0s20f0u7 with MAC 6c:1f:f7:c6:e0:da;
     missing rtl8156b firmware patch logged but link works.
 - id: gpu1-usb-25g-firmware-present
@@ -64,7 +67,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live manual proof 2026-07-16 — siderolabs/realtek-firmware (v20260309) applied to 402-gpu1-nvidia-extensions.yaml
     via omnictl; Omni recomputed schematic 54e23848, reinstalled + rebooted gpu-1 (~76s NotReady). Post-boot:
     extension present, ZERO rtl_nic firmware-load failures in dmesg (both rtl8156b USB and rtl8125b onboard
@@ -86,7 +89,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-11 — gpu-1 allocatable nvidia.com/gpu is 1; pinned workloads are Running
     or Completed after the network move.
 - id: net-all-hosts-declarative-dns
@@ -98,7 +101,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_cluster_wide_nameservers.py
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-12: 102-cluster-nameservers applied via omnictl to all 7 Frank nodes (non-disruptive);
     talosctl get resolvers on gpu-1/mini-1/2/3/pc-1/raspi-1/2 all show 192.168.10.11 + 192.168.10.12 from
     the config layer. Unit guard scripts/tests/test_cluster_wide_nameservers.py passing (local guard,
@@ -110,7 +113,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-12: gpu-1 (static USB-adapter host) rebooted via talosctl reboot — DOWN 16:51
     -> Ready 16:53 (~2min, no time-sync boot-hang); resolvers 192.168.10.11/12 from the config layer;
     siderolink reconnected; GPU workloads rescheduled Running. The exact incident scenario now boots clean.'
@@ -121,7 +124,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-12: after console-drift cleanup, talosctl -n 192.168.55.31 get addresses
     shows a single 192.168.55.31/24 on enp0s20f0u7 (no .150), and it persisted across the gpu-1 reboot-survival
     test.'
@@ -149,7 +152,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-13: ran the frank-alert-triage skill against the live firing set — 2 cert-canaries
     muted, Layer 11 by-design (frank-ops#11), zero mutation; verdict table matched the manual triage.
     classify.py unit-tested across 8 decision-tree branches. github_issue is implemented as an orthogonal
@@ -161,7 +164,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-13: the Hacker News anchor was removed from SKILL.md and the orchestration.py
     surge/digest prompts (verified live in the rolled pod); a live surge reply attributed the traffic
     to a Chrome/120 stale-UA crawler from evidence, with no Hacker News. Prompt-content unit tests enforce
@@ -173,7 +176,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-13: drove session_send then render_payload end-to-end in the deployed pod
     — the agent''s rich dict result renders as a compact plain-text table (aligned as_of/gpu_mode/alerts_firing/edge_traffic_level
     rows), raw-JSON=false. Fixed mechanically in render_payload (#634) after instruction-only attempts
@@ -186,7 +189,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-13: a focused DM turn returned status=ok within the bounded DM_TIMEOUT_S=150
     (no timeout fallback). An overrun is mechanically backstopped by a deterministic frank-facts surge-compute
     snapshot, and a transport error can no longer silently drop the reply (#633). Bridge unit tests cover
@@ -198,7 +201,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-19 — all 3 secrets present inside the cnc-staging vCluster ns cnc-staging
     with correct keys (cnc-secrets/CNCD_SECRETS_MASTER_KEY, cnc-runner-auth/token, cnc-ghcr-pull/.dockerconfigjson)
     via fromHost.secrets after operator populated Infisical (prod env) + forced-sync/restart. No CI (host
@@ -210,7 +213,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-19 — cnc-ghcr-pull synced into the cnc-staging vCluster (ns cnc-staging)
     RETAINED type kubernetes.io/dockerconfigjson (the primary risk); key .dockerconfigjson present. Verified
     via the vCluster kubeconfig. No CI (live vCluster required).
@@ -221,7 +224,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Statically guarded by scripts/tests/test_cnc_staging_host_secrets.py::test_prod_overlay_still_includes_the_three_externalsecrets
     (prod overlay still renders all 3 ExternalSecrets; cnc-base byte-unchanged — the staging change is
     a staging-scoped $patch:delete). Local guard (frank does not CI-run scripts/tests/); prod runtime
@@ -233,7 +236,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-20 — all 10 private repos on Gitea; second-brain/hermes-brain/flexible-health
     AND the cnc trio (discovered absent, never provisioned since June) created + sha-verified backfilled
     via scripts/tmp/phase5-gitea-actions.sh.
@@ -244,7 +247,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-20 — smoke PR second-brain#12 sync-pr-12; tests/unittest SUCCESS on act-runner;
     14+ tasks executed across second-brain/hermes-brain/cnc-frd. Schedule-tick observation still pending.
 - id: stoa-ci-github-status-writeback
@@ -254,7 +257,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-20 — gitea-actions/* statuses on GitHub sha 24f4291c (pending then success/failure
     transitions) via stoa-status-bridge, 6 PipelineRuns Succeeded. Required frank#664 (EL apply freeze)
     first.
@@ -278,7 +281,7 @@ rows:
   levels:
     unit:
     - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
-  status: skipped
+  status: unwired
   notes: Unit-proven by render_report tests (aligned table, ragged-key union columns, first-seen order)
     over the captured live /edge_traffic fixture. Local guard — frank does not CI-run apps/*/tests; live-observed
     post-merge (report-tables-live-observed).
@@ -290,7 +293,7 @@ rows:
   levels:
     unit:
     - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
-  status: skipped
+  status: unwired
   notes: Unit-proven — 11-row fixture renders 10 rows + "+1 more", each shown value whole; scalar-list
     entries appear whole (the 200-char json-truncation defect is gone). Local guard (no CI run); live-observed
     post-merge.
@@ -303,7 +306,7 @@ rows:
   levels:
     unit:
     - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
-  status: skipped
+  status: unwired
   notes: Unit-proven — every value html.escaped (only <pre> tags are literal angle brackets); send_reply
     retries once as plain text on a canned 400, data preserved. Local guard (no CI run); the escape path
     is exercised end-to-end live post-merge.
@@ -314,7 +317,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-22 (PR 668 merged, ArgoCD synced fb6e41c, pod rolled onto bridge-cm with render_report/send_reply/_split_for_telegram
     present). Drove a realistic /edge_traffic payload through the DEPLOYED render_payload then send_reply,
     producing aligned monospace column tables, a ragged COUNTRY column with blank cells, a value with
@@ -330,7 +333,7 @@ rows:
   levels:
     unit:
     - frank:apps/alert-agent/handlers/tests/test_cred_expiry.py
-  status: skipped
+  status: unwired
   notes: Unit-proven — evaluate_expiry tier boundaries (8→ok, 7→notice, 3→soon, 1→urgent, 0/-5→expired),
     should_warn iff tier!=ok, escalating plain-text wording; run_cred_check sends the warning via tg_send
     on threshold. Local guard (frank does not CI-run apps/*/tests); delivery observed live post-merge
@@ -344,7 +347,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_cred_expiry_alert_rule.py
-  status: skipped
+  status: unwired
   notes: Rule shape unit-pinned — VictoriaLogs stats query on the _msg field (NOT Hop's log field; verified
     live), lt 1 + noDataState OK, telegram_direct, 30h window, for 2h. Query validated server-side against
     live VictoriaLogs (returns 0 pre-deploy). Local guard; end-to-end firing observed live post-merge.
@@ -357,7 +360,7 @@ rows:
   levels:
     unit:
     - frank:apps/alert-agent/handlers/tests/test_cred_expiry.py
-  status: skipped
+  status: unwired
   notes: Unit-proven — missing/unparseable/field-less/bool/Infinity/NaN/out-of-range-epoch + non-FileNotFound
     read + invalid-UTF-8 all yield tier=error + a warning + a heartbeat; evaluate_expiry is total (never
     raises) and run_cred_check always heartbeats even on an unexpected error. Local guard; no CI run.
@@ -368,7 +371,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-22 (after PR 671 plus the PR 673 nested-field fix rolled). Heartbeat run against
     the REAL cred gave days_left=27 tier=ok; seeded to VictoriaLogs (dead-man query value=1). Forced 2-days-out
     cred via CRED_PATH delivered a real Telegram warning (tier=urgent). Grafana rule alert-agent-cred-expiry-heartbeat-stale
@@ -380,7 +383,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-07-23 — secure-agent-pod kali container (image secure-agent-kali:c7a80f6)
     reports talosctl client Tag: v1.12.6, matching the cluster (all 7 nodes Talos v1.12.6). The three-minor
     skew (was v1.9.5, outside Talos''s supported +/-1) is closed. The audit script''s cluster anchor also
@@ -392,7 +395,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-07-23 — all rebuilt shells Running on c7a80f6: alert-agent (3 multi-agent-shell
     containers, s6-rc started clean, no crashloop-bail), n8n-01 (multi-agent-shell sidecar), secure-agent-pod
     (kali + vk-local 2/2), paperclip (paperclip-shell 2/2), ruflo (ruflo-server + ruflo-shell 2/2), hermes-agent-shell
@@ -406,7 +409,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-07-23, with a topology correction the live check surfaced. The DEPLOYED consumer
     of the bumped image is the hermes-agent-shell-ssh sidecar (built FROM docker v2026.7.20): its running
     container reports "Hermes Agent v0.19.0 (2026.7.20)" — the bump reached the pod. TWO nuances the spec''s
@@ -423,7 +426,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-07-23 — ruflo Running on ruflo-server:c7a80f6, readiness 1/1, /api/v2/feature-flags
     returns valid JSON. Both local patches confirmed present in the RUNNING build: the GridFS shim (Readable.from
     / new Writable) compiled into /app/build/server/chunks/database-*.js, and the wasm allow-line in urlSafety-*.js.
@@ -437,7 +440,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: VERIFIED LIVE 2026-07-23 — scripts/version_audit.py (agent-images main c7a80f6) run against the
     live cluster reports every bumped pin ok, and its talosctl anchor resolves to the cluster's v1.12.6
     (not GitHub latest v1.13.7), reading osImage "Talos (v1.12.6)". omnictl reports unknown (server version
@@ -450,7 +453,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-24 post-PR#687 roll — kubectl exec in all four containers (kali, vk-local,
     hermes, ssh) printed FR_ISOLATION_TARGET=worktree. Guard test scripts/tests/test_fr_isolation_target_env.py
     pins the manifests in CI-less local runs.
@@ -461,7 +464,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live manual proof 2026-07-24 — env -i bash -lc printed worktree on kali (environ-loop shim, s6
     PID 1, post-#687 roll) and on hermes ssh (static-export shim, PR#689 + rollout restart; /proc/1/environ
     is proctitle junk there since sshd is PID 1). Guard test pins both shims.
@@ -472,7 +475,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--obs--metrics-api-server-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Served by metrics-server (metrics.k8s.io). Live proof 2026-07-25 (PR #699 merged, root App-of-Apps
     synced to f530f0dd, metrics-server app Synced): kubectl top nodes returned all 7 nodes with live CPU/mem
     incl. both arm64 raspis (raspi-1 483m/12%/1663Mi, raspi-2 603m/15%/1861Mi, gpu-1 4785m/14%, mini-1/2/3,
@@ -486,7 +489,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--obs--metrics-api-server-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-25: a throwaway CPU HPA on monitoring/blackbox-exporter (idle, 10m CPU request)
     reported TARGETS resolving from <unknown> to a real 40%/80% percentage once the HPA controller queried
     the Metrics API, proving resource metrics feed the HPA control loop; HPA then deleted (no standing
@@ -498,7 +501,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-26 - https://www.derio.net returns HTTP/2 200 over valid TLS serving the built
     page (867 bytes of Astro output, external stylesheet applied), from image ghcr.io/agentic-stoa/site:<sha>
     rather than the old 12-byte respond-literal. Image is a single-arch amd64/linux manifest matching
@@ -511,7 +514,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-26 - observed end to end TWICE, the second time fully unattended. A page-content
     change pushed to the site repo main produced GitHub webhook 202, then agentic-stoa-main-sync, then
     the Gitea mirror at the same sha, then Gitea Actions green, then the GHCR image, then a site-promotion
@@ -527,7 +530,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-26 - both www.derio.net and blog.derio.net return HSTS (max-age=31536000,
     includeSubDomains, deliberately NO preload), nosniff, Referrer-Policy, Permissions-Policy and the
     CSP, with the Server header stripped. Analytics unbroken and the CSP proven ENFORCED rather than merely
@@ -543,7 +546,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-26 - probe_success for the www instance exists in the feature_health group
     and the layer-17-edge-down matcher returns exactly the two edge instances (blog and www), excluding
     the neighbouring frank.derio.net probes. The KNOWN LIMIT recorded when this row was written is now
@@ -560,7 +563,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: Live proof 2026-07-26 - VictoriaLogs returned 77 hits for the www.derio.net request host scoped
     to kubernetes.host hop-1 (the vhost new log directive); a real browser fired the GoatCounter beacon
     at counter.derio.net with path /; and CrowdSec caddy-logs cs_node_hits_ok_total rose by 11 across
@@ -573,7 +576,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-27 — push to GitHub main, mirror PipelineRun kid-laptops-main-sync-z4gh6
     Succeeded, and the Gitea mirror head matched GitHub at the identical SHA (5b895328edcf, later a72a3badc84a).
     Skipped rather than ci: the delivery path is forge webhook state with no IaC, so a webhook deleted
@@ -587,7 +590,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-27 — five real pushes produced exactly one PipelineRun each in kid-laptops-ci
     and ZERO generic gitea-ci runs. The ''exactly one'' half guarded a real defect: the generic gitea-push
     trigger''s agentic-stoa-only exclusion would also have matched derio-homelab, adding a second failing
@@ -600,7 +603,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-07-27 — PipelineRun kid-laptops-ci-fqs2h, 51s: clone, lint, syntax and unit-tests
     all Succeeded against the pushed commit (a72a3badc84a). Deliberately narrower than kid-laptops'' own
     every-push-runs-ci-pipeline row: molecule-base and molecule-teardown are Skipped on the enable-molecule
@@ -638,7 +641,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-08-03 — services remain reachable on *.cluster.derio.net now that the legacy frank
     fallback is gone. Spot-checked argocd.cluster.derio.net -> 200, with the *.cluster.derio.net wildcard
     intact for litellm/harbor/auth/grafana. The homelab master dashboard was repointed and redeployed: 15
@@ -662,7 +665,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'Live manual proof of the dual-issuer overlap. 2026-08-01: an old-issuer k8s-agent token retained
     from before the cutover kept authenticating under authenticator A while newly minted tokens carried
     iss=auth.cluster.derio.net, both normalizing to authentik:ak-Kubernetes Agent Access-client_credentials.
@@ -681,7 +684,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-08-03 — the DNS half this row was waiting on is done. derio-homelab/ansible-pihole#1
     removed the frank.derio.net wildcard A (192.168.55.220); #2 removed the mini-1/2/3.frank.derio.net CNAMEs
     and the commented future-extension block after confirming nothing in any repo referenced them. Both
@@ -703,7 +706,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_frank_domain_retirement.py
-  status: skipped
+  status: unwired
   notes: 'VERIFIED LIVE 2026-08-03 — omni.frank.derio.net survived the wildcard removal because an explicit CNAME
     outlives the wildcard it sat under: it resolves to omni.frank.lan -> 192.168.10.30 on BOTH the LAN and the
     mesh resolver. Omni UI returns 200 with a genuine Let''s Encrypt certificate (CN=omni.frank.derio.net,
@@ -719,7 +722,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--edge--litellm-mesh-dns-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'PROVEN LIVE 2026-08-02, after manual-op edge-headscale-litellm-mesh-dns-restart. DNS, read on
     a mesh node with all three controls so the homelab wildcard could not fake it: gitea-ssh.cluster.derio.net
     -> 192.168.55.209 (positive control: MagicDNS answering and outranking the wildcard), nope-xyz.cluster.derio.net
@@ -762,7 +765,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'MET 2026-08-03 live: POST /v3/rerank returns {results:[{index,relevance_score}]}; scores well
     separated (0.0395 relevant vs 1.6e-5 irrelevant, ~2400x), not the degenerate 1e-9..1e-12 pattern.
     Both servables AVAILABLE via GET /v1/config. CI guards the manifest SHAPE (scripts/tests/test_ovms_retrieval_manifests.py),
@@ -774,7 +777,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'MET 2026-08-03 by live measurement (manual, not automatable in CI). iGPU rerank of 20 candidates:
     p50 77.3ms, p95 87.1ms, max 91.1ms, N=30 after warm-up. CPU control arm on the same node, same weights:
     p50 1612.9ms, p95 1702.6ms -> iGPU 20.9x faster. Caveat recorded: single-item embedding is only 1.1x
@@ -786,7 +789,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'MET 2026-08-03 live: POST /v3/embeddings returns 1024-dimensional vectors, dimension read from
     the response. Single p50 28.4ms, batch-32 p50 93.2ms, throughput 35.2/343.5 items per s. CI guards
     the manifest shape only; the serving behaviour is live proof.'
@@ -797,7 +800,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-08-02--infer--igpu-embedding-rerank-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for an operator-measured row), superseding the 2026-08-03 PARTIAL, whose etcd half was unmeasurable because Frank did not scrape etcd. Two soaks of 7500 rerank requests were generated on mini-1 against ovms-retrieval (POST /v3/rerank, 20 candidates, the bench script''s payload). Each was measured over its last 240s against a 60s idle baseline taken just before. Soak 1 (16 workers): 16.59 req/s over 452s, all 200, p50 787ms / p99 2613ms. Soak 2 (48 workers): 16.49 req/s over 455s, all 200, p50 2227ms / p99 10843ms. More workers only lengthened the queue, so throughput is SERVER-bound at ~16.5/s, not a loader artefact. etcd: 0 leader changes on all three members in both baselines and both load windows; etcd_server_has_leader min 1 throughout; WAL fsync p99 on mini-1 (the loaded node) 2.0->3.4 and 2.0->3.5 ms, peers flat near 2.0 ms (alert threshold 50 ms). apiserver p99 (WATCH/CONNECT excluded), cluster: 23.5->23.8 and 22.2->24.0 ms; mini-1 (.21): 23.9->24.1 and 22.3->24.2 ms. mini-2 (.22) read ~40-42 ms in both load windows but 43.8 ms in an idle sample too, so that is not attributable to the load. mini-1 stayed Ready with no Memory/Disk/PID pressure; ovms working set max 2299 MiB of 10 GiB; the pool watchdog read busy and did not restart the pod. NOT LIKE-FOR-LIKE with 2026-08-03, and that gap is now RESOLVED as not-a-regression (frank#810), not left open: the ~16.5/s is simply 1/latency on a SERIALISED server, and the ~31/s it was compared against was never this shape. The exporter pins concurrency to one stream - export_model.py --num_streams defaults to 1 and this build never passes it, so the served graph.pbtxt carries plugin_config NUM_STREAMS 1 - which is why 16 and 48 workers both land on the sequential rate instead of scaling. Re-measured 2026-09-20 in-container against this same 20-candidate payload (2365 bytes, 12 sequential calls): 189ms cold, then warm min 59 / p50 60 / max 63 ms = 16.6/s sequential, matching both soaks; 4 parallel calls took 240ms, i.e. 4x60, no overlap at all. The 2026-08-03 figure came from a SEQUENTIAL curl loop at ~31/s = ~32ms per request, while the same day on the same server the 20-candidate bench measured p50 77.3ms (row infer-igpu-rerank-latency-measured). A sequential loop cannot beat its own per-request latency, so that run provably did not send 20 candidates, and its payload shape was never recorded - the comparison was invalid on arithmetic grounds before anything about the guard entered it. The guard from #793/#794 is EXONERATED twice over: on the one shape measured both before and after it the server is faster (60 vs 77.3 ms), and it cannot have changed concurrency, because the rerank export invocation is byte-identical across MODELS_REV 1 and 2 at the same pinned exporter ref (v2026.2.1), so NUM_STREAMS has been 1 since the first export. Raising --num_streams is therefore the only throughput lever, and it is UNMEASURED: it would multiply the concurrent pinned-buffer sets described in the igpu-dra runbook against the 16Gi ceiling and the watchdog thresholds, so it needs the batch-curve treatment before it is touched.'
 - id: gpu-igpu-claim-documented
   capability: GPU documentation
@@ -880,7 +883,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_hermes_gbrain_sidecar.py
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-08-15 (post-merge, ArgoCD at 0fbbe549, pod hermes-agent-shell-859d56d94b-phjz6 4/4 Running):
     Test Plan row 2 — `select extversion from pg_extension where extname=''vector''` inside the gbrain container
     returns 0.8.6. Row 3 — `df -h /opt/gbrain` shows its own Longhorn volume (pvc-a10dd99b, 9.8G) distinct from
@@ -898,7 +901,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_hermes_gbrain_sidecar.py
-  status: skipped
+  status: unwired
   notes: 'Live proof 2026-08-15 (post-merge). Row 1 — Hindsight''s PVC still reports 5Gi and its container is
     ready with 0 restarts; gbrain is a separate 10Gi PVC. Row 3 — distinct Longhorn volumes (pvc-a10dd99b vs
     pvc-cf287075), distinct mounts. Row 5 — seeded a vector row + hnsw index, forced a CHECKPOINT, DELETED the pod;
@@ -918,7 +921,7 @@ rows:
   # agent-images ssh image, so nothing in THIS repo verifies it statically.
   # The only proof is Test Plan rows 6-8 against a live pod, in a LOGIN shell.
   levels: {}
-  status: skipped
+  status: unwired
   notes: >-
     Live manual proof 2026-09-04 — all three clauses of the acceptance now hold, so this closes. Row 6: `ssh hermes
     'bash -lc "bun --version"'` -> 1.3.14 over a LOGIN shell, which genuinely exercises the /etc/profile.d PATH shim
@@ -946,7 +949,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
-  status: skipped
+  status: unwired
   notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for an operator-measured row). up{job="kube-etcd"} = 1 on 192.168.55.21/22/23:2381, and etcd_server_has_leader (3 series), etcd_disk_wal_fsync_duration_seconds_bucket (45) and etcd_mvcc_db_total_size_in_bytes (3) are present in VMSingle. The scrape is apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml (#804). #762''s first version, a static Endpoints object from kubeEtcd.endpoints, deployed nothing: ArgoCD resource.exclusions exclude Endpoints, so the app read Synced/Healthy with an ExcludedResourceWarning and zero targets. The :2381 listener comes from the Omni ConfigPatch, which only took effect after a drained rolling reboot of the three minis, because Talos does not restart etcd for an extraArgs change. CI half: scripts/tests/test_etcd_scrape.py asserts listener port vs scrape target ports, targets vs the machine table, kubeEtcd.enabled false, and no ArgoCD-excluded kind in the scrape path (plus a repo-wide excluded-kind tripwire); mutation-checked.'
 - id: obs-etcd-quorum-loss-pages
   capability: Control-plane observability
@@ -966,7 +969,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_etcd_scrape.py
-  status: skipped
+  status: unwired
   notes: 'MET on a REAL blindness event (operator decision: stands in for the planned deliberate scrape pause, P5.T2.S2). After #762 merged the scrape had zero targets. layer-2-etcd-scrape-absent went pending 2026-09-13T21:29:50Z and fired 21:44:50Z, exactly its for: 15m. health-bridge opened frank-ops#126 and set frank-ops#2 dead at 21:45:30Z, with no Telegram page (health_bridge_only). When the VMStaticScrape fix went live the rule resolved, and health-bridge auto-closed frank-ops#126 at 2026-09-14T16:00:19Z (frank-ops#2 healthy). CI half: test_absent_watchdog_selects_the_job_the_scrape_declares derives the job name from the VMStaticScrape jobName rather than a constant; mutation-checked.'
 - id: pipelinerun-outcomes-visible
   capability: CI/CD observability
@@ -977,7 +980,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
-  status: skipped
+  status: unwired
   notes: 'Live manual proof 2026-09-14 (post-merge, #797). vmagent target health=up job=tekton-pipelines-controller
     ns=tekton-pipelines, lastError empty. VMSingle stores 66 tekton metric names including
     tekton_pipelines_controller_pipelinerun_duration_seconds_count with a pipeline label, queried live
@@ -996,7 +999,7 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
-  status: skipped
+  status: unwired
   notes: 'Live manual proof 2026-09-14 (post-merge, #797 + #801). Synthetic end-to-end: three failing runs
     of a throwaway pipeline produced counters failed=3 with NO success series at all — the genuine-absence
     case the `unless` exists for, and the one `and success == 0` would silently drop. ngalert.sender.router
@@ -1027,7 +1030,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-09-13--orch--paperclip-litellm-agents-docs-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: 'RETIRED 2026-10-04: the Paperclip fresh start (specs/2026-10-04--orch--paperclip-fresh-start-design.md)
     removed the LiteLLM-routed opencode_local/hermes_local agents and the paperclip-shell
     they were operated from; operating/18-paperclip now marks those sections historical.
@@ -1040,7 +1043,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: >-
     MET 2026-09-14 live, post-merge (Test Plan rows 5 and 8). 50 documents at 500 tokens each returned 200 in
     2.32s against the deployed guard, and the container restart count was 0 before and 0 after rows 5 to 7 —
@@ -1053,7 +1056,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: >-
     MET 2026-09-14 live, post-merge (Test Plan rows 6 and 7), and the status code is BETTER than this spec
     predicted. 65 documents (the cap plus one) returned HTTP 400 in 7 milliseconds with the body "Number of
@@ -1071,7 +1074,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-09-11--infer--ovms-rerank-batch-guard-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: >-
     MET 2026-09-14 live, post-merge (Test Plan row 10) — and the measurement CHANGED the shipped
     configuration, which is the point of the row. The curve was run on a freshly restarted pod, the qualifier
@@ -1229,7 +1232,7 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-09-19--infer--ovms-pool-watchdog-activity-signal-design.md
   levels: {}
-  status: skipped
+  status: unwired
   notes: >-
     MET 2026-10-05 live (Test Plan row 7), but only after the merge was forced to apply. The
     grafana-alerting Application had been Synced to the pre-merge commit for 15 days and the live
@@ -1283,7 +1286,7 @@ rows:
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R1
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R2
   levels: {}
-  status: skipped
+  status: walk-owed
   notes: 'VERIFIED LIVE 2026-10-11/12 — the strict SMART gate ran on all three drives
     and is posted per drive on frank#824. Only sdb (naa.50014ee2ae0311c3) passed:
     overall PASSED, extended self-test completed without error, raw 5/197/198 all 0.
@@ -1302,7 +1305,7 @@ rows:
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R3
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R4
   levels: {}
-  status: skipped
+  status: walk-owed
   notes: 'VERIFIED LIVE 2026-10-12 — 402-pc1-hdd-volumes.yaml (a WWID-selected Talos
     UserVolumeConfig) applied via Omni at 05:53Z; pc-1 was then drained and rebooted
     and came back with u-hdd-ae0311c3 ready on /dev/sdb1 (1.0 TB, xfs at
@@ -1322,7 +1325,7 @@ rows:
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R5
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R6
   levels: {}
-  status: skipped
+  status: walk-owed
   notes: 'VERIFIED LIVE 2026-10-12 16:30Z — live setting allow-empty-disk-selector-volume
     reads false. A full sweep of every Longhorn replica on the cluster found ZERO
     replicas of a volume without the hdd selector on an /var/mnt/hdd-* or gpu-local
@@ -1339,7 +1342,7 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-11--stor--pc1-hdd-longhorn-design.md#R7
   levels: {}
-  status: skipped
+  status: walk-owed
   notes: 'VERIFIED LIVE 2026-10-12 16:30Z — all 25 longhorn-hdd PVCs on the cluster
     are real Tekton workspaces in tekton-pipelines (newest created 12:39Z), each with
     its single replica on /var/mnt/hdd-ae0311c3/. The SSD half holds too:
@@ -1349,3 +1352,260 @@ rows:
     was closed unmerged. The triggers'' storageClassName is CI-guarded; where the
     replicas land is only observable live.'
   verify: live
+- id: ci-quiet-no-idle-alert
+  capability: Actionable CI notifications
+  acceptance: Quiet repositories do not generate Layer 25 pipeline idle notifications
+    while existing CI fault notifications remain available.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R1
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+  status: walked
+  notes: '2026-10-14 post-merge PR869: Grafana rollout complete; authenticated provisioning
+    API proves both idle UIDs absent and all nine current Layer25 rules present. Evidence:
+    docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
+  verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:34Z'
+    evidence: 'Grafana authenticated API after restart: no retired idle UIDs; all
+      six retained fault and three delivery UIDs present.'
+- id: ci-real-work-delivery
+  capability: Actionable CI notifications
+  acceptance: Overdue expected mirror refs or forwarded Gitea statuses produce a delivery
+    warning and matching outcomes clear it without synthetic CI work.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R5
+  levels:
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walked
+  notes: '2026-10-14: PR872 d3574040 explicitly synced to tekton-extras. Live script
+    hash matches merged fix; scheduled Job ci-delivery-check-29866820 completed 20:20:27Z
+    with correct web root and empty logs. All 24 overdue and 12 read-error gauges
+    zero; fresh scraped timestamp 20:20:24Z. All three Grafana delivery rules inactive/healthy
+    at 20:23:30Z; idle UIDs absent and all nine CI rules retained. 94 affected tests
+    passed, including failure/recovery fixtures. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md#recovery-after-pr-872.'
+  verify: live
+  issues:
+  - derio-net/frank#870
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: fail
+    at: '2026-10-14T19:42:46Z'
+    evidence: 'FAIL: healthy delivered statuses stay overdue because target URL comparison
+      does not resolve relative Gitea URLs.'
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T20:24:56Z'
+    evidence: 'PASS: corrected scheduled deployment cleared all 22 equivalent-URL
+      false positives; all monitored delivery counts zero, no read errors, fresh telemetry;
+      Grafana overdue rule recovered and both health rules remain inactive/healthy.
+      No synthetic CI or forge writes.'
+- id: ci-delivery-checker-visible
+  capability: Actionable CI notifications
+  acceptance: Unreadable forge data or missing/stale delivery checker results produce
+    a checker health warning instead of reporting healthy delivery.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-14--cicd--actionable-alerts-design.md#R6
+  levels:
+    unit:
+    - frank:scripts/tests/test_pipelinerun_outcome_alerting.py
+    api:
+    - frank:scripts/tests/test_ci_delivery_check.py
+  status: walked
+  notes: '2026-10-14: scheduled checker Jobs succeeded; 37 scraped metric series include
+    fresh timestamp and 12 zero read-error gauges. Three health/delivery rules loaded
+    in Grafana. Offline failure/stale/absent/recovery fixtures pass within 79 affected
+    tests. No destructive live failure injection. Evidence: docs/investigations/2026-10-14--cicd--delivery-url-closeout.md.'
+  verify: live
+  walks:
+  - strategy: live
+    harness: opencode
+    model: openai/gpt-6.1-sol
+    outcome: pass
+    at: '2026-10-14T19:42:41Z'
+    evidence: Scheduled runs, mounted Secrets, fresh scraped snapshot, Grafana provisioned
+      rules and offline fault fixtures verified; live outage injection not performed.
+- id: tier-config-declares-repo-tiers
+  capability: CI forge tiers
+  acceptance: Each private repo's forge tier (github-only, gitea-only, github-preferred)
+    and its Gitea-mirrored read-only secrets are declared in one config in git, and
+    only check jobs are eligible to fall back.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
+  levels:
+    unit:
+    - frank:scripts/tests/test_ci_budget_tiers.py
+  status: ci
+  notes: Implemented in phase 1 (apps/ci-budget/tiers.yaml); schema, read-only-secret
+    allowlist and MAIN_REPOS equality guarded in CI.
+  verify: none
+- id: ci-fallback-mirrors-derio-orgs
+  capability: CI forge tiers
+  acceptance: Every push and pull request to a github-preferred repo in derio-net
+    or derio-homelab is mirrored to Frank's Gitea, including PR heads, and missed
+    syncs are repaired.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-fallback-status-reaches-github
+  capability: CI forge tiers
+  acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
+    the matching GitHub commit as gitea-actions statuses.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-tier-monthly-report
+  capability: CI forge tiers
+  acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
+    tier changes, updated in place if regenerated.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: gate-coverage-checker-flags-gaps
+  capability: CI forge tiers
+  acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
+    forge gate, or would queue forever on Gitea, are reported.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
+  levels:
+    unit:
+    - frank:scripts/tests/test_ci_gate_coverage.py
+  status: ci
+  notes: Implemented in phase 1 (scripts/ci_gate_coverage.py); 36 fixtures with exact
+    verdict sets run in CI; 11 cross-repo PRs validated against it.
+  verify: none
+- id: workflows-carry-forge-gates
+  capability: CI forge tiers
+  acceptance: The nine github-preferred repos and the cnc-frd/cnc-fru release workflows
+    pass the gate-coverage check.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-flips-at-threshold
+  capability: CI budget fallback
+  acceptance: When an org reaches 85% of its included GitHub minutes, its github-preferred
+    repos move to Gitea for the rest of the month and return to GitHub at the monthly
+    reset, never leaving a window where neither forge runs.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-backstop-spending-limit
+  capability: CI budget fallback
+  acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
+    ten minutes and its pull request is re-run on Gitea.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-budget-notifies-and-heartbeat
+  capability: CI budget fallback
+  acceptance: The operator is told on Telegram about every authority change, would-change
+    and refusal, and is paged if the budget watcher stops running.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: ci-authority-readable-on-github
+  capability: CI budget fallback
+  acceptance: The current CI authority of every github-preferred repo can be read
+    from GitHub alone.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: runner-memory-and-placement
+  capability: CI runner
+  acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
+    memory limit.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
+  levels:
+    unit:
+    - frank:scripts/tests/test_gitea_runner_capacity.py
+  status: ci
+  notes: 'Phase 5: runner limit 2Gi, pc-1 nodeSelector and capacity 2 guarded in CI.'
+  verify: none
+- id: runner-health-alerts
+  capability: CI runner
+  acceptance: An alert fires when the Gitea runner is offline, when jobs wait too
+    long for it, or when pc-1 /var runs low.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-telegram-firing-compact
+  capability: obs
+  acceptance: A firing Grafana alert reaches the Frank C&C Telegram chat as a compact
+    block (severity and alertname header, summary, identity-only Where line, runbook
+    Fix line, rule link, rule-scoped silence link), without the value line, the label
+    dump or the all-labels silence URL.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-telegram-resolved-oneline
+  capability: obs
+  acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
+    line naming the alert and its summary.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: obs-telegram-group-cap
+  capability: obs
+  acceptance: A Telegram notification grouping more than five firing alerts shows
+    at most five alert blocks followed by a "+N more firing" line linking the Grafana
+    alert list, with resolved alerts listed after it and capped the same way.
+  origin:
+  - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none

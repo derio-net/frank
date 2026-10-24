@@ -1,0 +1,187 @@
+# ci-budget-watcher GitHub App installation tokens (spec 2026-10-18 section 4).
+#
+# Two kinds per org, each on the org's EXISTING App (permissions are added to the
+# App by manual op cicd-ci-budget-app-permissions):
+#   *-ci-billing   organization_administration:read - the org billing-usage
+#                  endpoint. NO repositories (it is an org endpoint). Nothing
+#                  else may ever carry this permission.
+#   *-ci-authority actions_variables:write + the reads the backstop and coverage gate
+#                  need, scoped to the org's tiers.yaml repos. The ONLY tokens
+#                  that can write a repository Actions variable. agentic-stoa
+#                  has no github-preferred repo and gets none.
+# The mirror, status and push tokens never carry either permission
+# (scripts/tests/test_ci_budget_manifests.py).
+#
+# ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret's
+# namespace (tekton-pipelines) and IGNORES secretRef.namespace - deliberately no
+# namespace field below.
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-net-ci-billing
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+      permissions:
+        organization_administration: read
+        metadata: read
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-net-ci-authority
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+      permissions:
+        actions_variables: write   # GitHub's key for the Variables permission
+        actions: read
+        checks: read
+        contents: read
+        metadata: read
+      repositories:
+        - willikins
+        - presentation-craft
+        - vibe-kanban
+        - runs-fr
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-homelab-ci-billing
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "4403773"
+      installID: "149345112"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-homelab-key
+            key: key
+      permissions:
+        organization_administration: read
+        metadata: read
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-homelab-ci-authority
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "4403773"
+      installID: "149345112"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-homelab-key
+            key: key
+      permissions:
+        actions_variables: write   # GitHub's key for the Variables permission
+        actions: read
+        checks: read
+        contents: read
+        metadata: read
+      repositories:
+        - kid-laptops
+        - proxmox-cluster
+        - omada-controller
+        - homelab
+        - ansible-pihole
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-agentic-stoa-ci-billing
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994156"
+      installID: "138773982"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-stoa-key
+            key: key
+      permissions:
+        organization_administration: read
+        metadata: read
+---
+# Issues write on derio-net/willikins only (private repo): the monthly tier-review report
+# (ci-budget-report) upserts its issue with this token. Added to the derio-net
+# App by manual op cicd-ci-budget-app-permissions.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-willikins-issues
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+      permissions:
+        issues: write
+        metadata: read
+      repositories:
+        - willikins
+---
+# Read-only workflow-file access for the monthly report on agentic-stoa (the org
+# has no ci-authority generator). contents + metadata read ONLY - never reuse
+# stoa-github-mirror here, it carries statuses:write.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-agentic-stoa-ci-read
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994156"
+      installID: "138773982"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-stoa-key
+            key: key
+      permissions:
+        contents: read
+        metadata: read
+      repositories:
+        - hum
+        - content-factory
+        - stoa-blog
+        - companies
+        - cnc-fr
+        - cnc-frd
+        - cnc-fru
+        - second-brain
+        - hermes-brain
+        - flexible-health
+        - site

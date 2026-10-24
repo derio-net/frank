@@ -1,0 +1,27 @@
+# Keep one replica of each webhook EventListener serving through a node drain.
+# Each listener runs two replicas spread across hosts (see the `resources`
+# block on each EventListener). Without a budget, a drain may evict both at
+# once, and every webhook GitHub or Gitea sends in that window is lost:
+# neither forge retries a failed delivery. 2026-10-12 outage; guard
+# scripts/tests/test_ci_mirror_resilience.py.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: el-github-listener
+  namespace: tekton-pipelines
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      eventlistener: github-listener
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: el-gitea-listener
+  namespace: tekton-pipelines
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      eventlistener: gitea-listener

@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-09-19--infer--ovms-pool-watchdog-activity-signal-design
 
 <!-- fr:journal kind=decision scope=spec id=d1 created=2026-09-19T23:57:28 -->

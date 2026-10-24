@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-09-14-etcd-scrape-vmstaticscrape
 
 <!-- fr:journal kind=repro scope=debug id=repro-zero-etcd-targets-after-762 created=2026-09-14T17:52:24 -->

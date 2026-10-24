@@ -51,6 +51,20 @@ Fixed 2026-07-22 by narrowing the vocabulary in the `gitea-status-bridge` CEL ov
 
 Note the bridge does **not** backfill: Gitea never re-sends a status for a job that already finished, so statuses stranded before the fix must be overwritten once by hand.
 
+## Status bridge: events are forwarded in POD order, not EVENT order (2026-10-23)
+
+Every Gitea `status` webhook becomes its own `stoa-status-bridge` PipelineRun, and nothing orders them. For a skipped job Gitea emits `pending` and the terminal state about two seconds apart, which is well inside pod-startup jitter. On derio-homelab/homelab PR #40 (`f227d20`), `stoa-status-bridge-h68tx` (`pending`) was created at 20:18:45 and `-pcsrh` (`skipped`→`success`) at 20:18:47. **Both completed at 20:18:52, and the pending POST landed last.** GitHub gave both the same `created_at` (20:18:50Z). The current status is the higher id, here the stale `pending`. The check read pending forever, and `layer-25-delivery-overdue` (kind=status) fired from the next `ci-delivery-check` run on. The checker was right; this is not a false positive.
+
+Tell it apart from a lost delivery: GitHub **has** the terminal status, but on the same second as a pending with a higher id:
+
+```bash
+gh api "repos/<owner>/<repo>/commits/<sha>/statuses" --jq '.[]|[.id,.created_at,.context,.state,.description]|@tsv'
+kubectl -n tekton-pipelines get pipelinerun -l triggers.tekton.dev/trigger=gitea-status-bridge -o json \
+  | jq -r '.items[]|select(any(.spec.params[];.name=="revision" and .value=="<sha>"))|[.metadata.name,.metadata.creationTimestamp,.status.completionTime,(.spec.params[]|select(.name=="state").value)]|@tsv'
+```
+
+Fix: the bridge now runs a `current-state` guard ahead of `forward`. For a `pending` event it reads Gitea's combined status (`/commits/<sha>/status`, one entry per context, state under `status`). If that context has already moved past pending, it drops the event, because the terminal event's own run carries the truth. Terminal states are never suppressed, and a re-run still forwards its pending (pending is current again). A failed Gitea read forwards as before. The guard deliberately has no `when`: a task that consumes a **skipped** task's result is skipped too, so gating the guard on state would silently stop every terminal status. Residual window: a pending run that reads Gitea before the terminal status is written can still lose the race, but only if the terminal run then starts a pod and POSTs inside the guard's read→POST gap. Statuses stranded before the fix (or by that residual) are repaired with `scripts/ci_status_backfill.py`. Guard: `scripts/tests/test_stoa_status_bridge.py`.
+
 ## `CI_AUTHORITY` is two variables, one per forge
 
 The parallel-running guard on the stoa mirrors is a job-level condition:
@@ -415,6 +429,179 @@ reported as an unrelated Ansible connection failure.
 the *same commit* that also collide on `$(uid)`, and a stray VMI is greppable
 back to a commit.
 
+## The mirror is fire-and-forget at both ends (2026-10-12)
+
+### What happened
+
+agentic-stoa/second-brain PR #124 (head `ab45e07`) and five commits on its
+`main` got no `gitea-actions/*` statuses, while the runner was healthy and later
+commits were green. Gitea had never received those commits, so no Actions run
+existed to report. Two independent losses:
+
+| Window (UTC) | Lost by | Mechanism |
+|---|---|---|
+| 2026-10-11 21:22 -> 2026-10-12 04:21 | 11 `github-pull-sync` runs, `PipelineRunTimeout` | #836 merged at 21:19:47Z, ahead of its pre-merge manual ops, and moved every Tekton workspace to `longhorn-hdd`. No Longhorn disk carried the `hdd` tag yet, so each PVC failed (`specified disk tag hdd does not exist`), the pod never started, and the run timed out after 1h with **no step log at all** |
+| 2026-10-12 06:49 -> 06:51 | 3 GitHub webhook deliveries, HTTP 502 | `el-github-listener` and `el-gitea-listener` were single replicas pinned to pc-1 (since May, "to keep the cicd surface concentrated"), and pc-1 was draining. GitHub never retries a failed delivery |
+
+### Why nobody noticed
+
+- `layer-25-pipeline-failing` fires only for a pipeline with **zero successes
+  in 24h**. `github-pull-sync` had succeeded that afternoon, so the rule was
+  structurally blind. A backtest at 23:30Z returns nothing.
+- The tempting replacement, "≥2 failures unless a success in the last hour",
+  is wrong too. It fired for 165 minutes on 2026-10-11 08:30Z from ONE
+  failure, because that `failed` series appeared fresh and the next hour had no
+  runs at all.
+- Nothing re-checks GitHub against Gitea, so a lost event leaves no trace
+  anywhere except the missing status.
+
+### Fix
+
+- EventListeners: `replicas: 2`, a hostname `topologySpreadConstraint`, amd64
+  only, a PDB `minAvailable: 1` each
+  (`apps/tekton/manifests/eventlistener-pdb.yaml`).
+- `mirror-reconcile` CronJob (`apps/tekton/manifests/mirror-reconcile.yaml`),
+  every 15 min. It lists Gitea heads over SSH as stoa-bot, plans against the
+  GitHub API (main for the main-sync repos; each open PR's head for every PR
+  trigger that writes `sync-pr-<N>`), and pushes drift older than 10 min with
+  `--force-with-lease=<ref>:<observed>`. The empty form means "must not exist",
+  so it never overwrites a head a webhook sync pushed meanwhile. It uses
+  emptyDir only and has no node pin: it is the repair path for exactly the
+  storage/node failures above. Result line: `mirror-reconcile result drift=…
+  repaired=… failed=…`. `repaired > 0` means the webhook path dropped something.
+- Alerts (feature-health, layer-25-pipeline-outcomes). #855 shipped the
+  outage-shaped pair in parallel: `layer-25-ci-workspace-pvc-pending` (a PVC
+  Pending for more than 15m) and `layer-25-pipelinerun-timeout` (a run that
+  failed after more than 30m). This change adds only what those two cannot see:
+  `layer-25-mirror-sync-failing` (≥3 *fast* failures, inside the `le="1800"`
+  bucket and so the exact complement of the timeout rule, AND ≥50% of
+  `*-pull-sync` runs in 2h, `for: 30m`). It stayed quiet through the 10-11
+  outage, which was all timeouts, and fired from 2026-10-13 17:55Z on a
+  real fault nothing else paged: Gitea rejecting every kid-laptops push
+  (frank#849). Plus `layer-25-mirror-reconcile-stale` (no reconcile success in
+  about an hour).
+
+### Real-work delivery monitoring (2026-10-14)
+
+`ci-delivery-check` runs every five minutes without service-account access,
+PVCs, forge writes, or synthetic CI. Token files come from the existing mirror
+and Gitea Secrets. It checks main and open `sync-pr-N` refs (30m from source
+commit time), then statuses on exact mirrored SHAs (10m from newest status
+creation time). Empty eligible Gitea statuses is healthy. Latest per-context
+selection sorts timestamps/IDs; any context starting `tekton` is excluded.
+`skipped`/`warning` map to success with `Gitea: <state>` descriptions; other
+descriptions match verbatim or a legitimate 140-character capped representation
+(the current github-status task sends them verbatim). Target URL must also match.
+Statuses are checked for every org in the checker's token map (agentic-stoa,
+derio-homelab, derio-net), each read with that org's GitHub token.
+
+Gitea's status API can return a relative Actions target while its webhook
+forwards the absolute link. The checker resolves relative targets using the
+CronJob's `GITEA_WEB_URL`, which must match Gitea `server.ROOT_URL` in
+`apps/gitea/values.yaml`. Using the in-cluster API service address produces
+false overdue warnings even when delivery succeeds (frank#870). Empty links
+stay empty; different destinations still warn. A missing or unusable web root
+is a read error when relative links need resolution.
+
+Read-only diagnostics with selected cluster-admin access:
+
+```bash
+kubectl -n tekton-pipelines get cronjob ci-delivery-check
+kubectl -n tekton-pipelines get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n tekton-pipelines logs job/<latest-ci-delivery-check-job>
+gh api repos/<org>/<repo>/branches/main --jq .commit.sha
+gh api --paginate 'repos/<org>/<repo>/pulls?state=open&per_page=100' --jq '.[] | [.number,.head.sha]'
+gh api --paginate repos/<org>/<repo>/commits/<sha>/statuses
+```
+
+Read authenticated Gitea `/api/v1/repos/<org>/<repo>` first, then
+`/branches/main` or `/branches/sync-pr-N` (`commit.id`) and
+`/commits/<sha>/statuses?limit=100&page=N` until an empty page. Never print
+tokens or Authorization headers. A repository/auth 404 is a read error, not a
+missing branch. Dev isolation has no credentials for these private reads.
+
+Query `ci_delivery_overdue{job="ci-delivery-check"}` and
+`ci_delivery_read_error{job="ci-delivery-check"}` in VictoriaMetrics: healthy
+repos have zeros. `ci_delivery_last_check_timestamp_seconds` must be fresh.
+Full PUT replacement drops closed-PR findings; a partial check carries explicit
+errors and fails the Job. Push failure also fails and leaves the timestamp
+watchdog to detect staleness. All three delivery alerts hold for 10m; the
+watchdog uses `absent()` or age >15m, covering never-started Jobs/data loss.
+No idle window can establish health; the old idle rules are retired. Verify
+the actual live script and Grafana provisioning after merge, not only ArgoCD
+Synced. Existing outcome/platform/PVC/timeout/reconciler alerts stay intact.
+
+### Stranded statuses never self-heal on a quiet repo (2026-10-19)
+
+`mirror-reconcile` repairs refs, but nothing repairs commit statuses. Gitea
+does not retry a webhook, and the bridge only sees what reaches it, so a
+missed status event is lost. `ci-delivery-check` always inspects the current
+head. On a repo whose head does not move, kind=status overdue therefore fires
+until someone pushes.
+
+The cause was rollout ordering. The derio-net and derio-homelab org status
+hooks were created at 05:13Z (the `cicd-derio-net-gitea-org` manual op, run
+pre-merge). The `gitea-status-bridge` CEL allowlist only gained those repos
+when #878 deployed, and the first bridge run came at 11:45Z. Every status
+event in between reached `gitea-listener` and was filtered out without a
+trace. kid-laptops' 04:23Z statuses predated any hook at all. That stranded
+24 statuses on five quiet heads (17 of them `Gitea: skipped` from when
+`CI_AUTHORITY` was github), and the alert fired for all five repos.
+
+When onboarding an org, widen the trigger filter before creating the hook.
+To repair, re-forward through the bridge itself, which keeps the same
+mapping and token selection:
+
+```bash
+# DIR: token files stoa, homelab, net, gitea from Secrets
+# {stoa,derio-homelab,derio-net}-github-mirror / gitea-api-token (tekton-pipelines)
+scripts/ci_status_backfill.py --tokens DIR [owner/repo ...]                 # review
+scripts/ci_status_backfill.py --tokens DIR [owner/repo ...] | kubectl create -f -
+```
+
+The script re-forwards exactly the checker's `undelivered()` set, loaded from
+the ConfigMap, using the bridge's TriggerTemplate. Stale `pending` statuses are
+skipped unless `--include-pending`. A never-served runner label, such as
+herdr's `test-macos`, would otherwise pin a permanent pending check on GitHub.
+
+A job queued for a label no runner serves can never post a terminal status, so
+the backfill cannot clear it. Cancel the run instead: Gitea then posts
+`failure / Has been cancelled`, and the live bridge forwards it. Gitea 1.25 has
+no REST cancel endpoint (`/api/v1/.../actions/runs/{id}/cancel` returns 404).
+Use the web route `POST /<owner>/<repo>/actions/runs/<run_number>/cancel` with
+an admin session and the `X-Csrf-Token` taken from the run page's
+`window.config.csrfToken`; a form `_csrf` from `/user/login` is rejected.
+
+### Known residual risk
+
+- **pc-1 is still a single point of failure for the sync pipelines
+  themselves.** The listeners now survive a pc-1 drain, but every
+  TriggerTemplate still pins its PipelineRuns to pc-1, and `longhorn-hdd` exists
+  only there. During a drain, webhooks are accepted, but their syncs sit Pending
+  and time out. `mirror-reconcile` is then the only path, at ~25 min latency.
+- **A repair re-fires Gitea Actions, not Tekton CI.** hum/content-factory/
+  stoa-blog test pipelines and cnc-ci's `test` task run only from the PR
+  webhook, so redeliver it for those. kid-laptops (`derio-homelab-pull-sync`)
+  is not reconciled at all.
+- **PR grace is measured from the head commit's time**, not the PR's
+  `updated_at`, which review chatter would reset forever. An old commit
+  pushed late is therefore repaired at once. That is harmless: if the webhook
+  sync has already pushed the same sha, the reconciler's push is a no-op
+  (git reports it up to date before checking the lease).
+
+`github-pull-sync` itself still pushes with plain `--force`. A run stuck
+Pending that binds late can push an OLDER sha over a newer head (out-of-order
+webhook runs could always do this). The next reconcile repairs it, but CI
+will have run once on the old sha.
+
+### Recovery recipe
+
+```bash
+kubectl -n tekton-pipelines create job --from=cronjob/mirror-reconcile mirror-reconcile-manual-$(date +%s)
+# or, for one PR: redeliver its pull_request webhook. Read the delivery id as a
+# STRING; it exceeds float64 and jq rounds it to an id that does not exist.
+```
+
 ## A conflicting PR gets NO `pull_request` run — and it looks like a pass (2026-10-12, frank#800)
 
 GitHub runs `pull_request` workflows against the synthetic merge commit at
@@ -447,3 +634,13 @@ to fix this. Draft state was never the cause, and that trigger does nothing for
 a conflicting PR. Making `tripwires` a required check on the ruleset would
 show the gap as "Expected". That is an operator decision, because it also
 blocks merges whenever CI is unavailable.
+
+### A Gitea mirror with zero-byte loose objects rejects every push — and "delete the empties and re-push" does not repair it
+
+`derio-homelab-pull-sync` failed on every run from 2026-10-13 16:50Z (`Layer 25 Pipeline Failing`, 8 failures and no successes in 24h). The step log reads `remote: error: object file …/derio-homelab/kid-laptops.git/objects/xx/… is empty`, `pack has N unresolved deltas`, `! [remote rejected] main (unpacker error)`. Gitea's bare copy held **13 zero-byte loose objects, all mtime 2026-08-01 10:42Z** (one write burst; the unclean-stop signature), in this one repo only. They sat silent for ten weeks because nothing fetched or pushed objects that depended on them; the first new push did. Tracked in frank#849.
+
+- **Why the obvious repair fails.** Gitea's `main` pointed at `b6da197b…`, itself one of the 13. Deleting the empties leaves `refs/heads/main` pointing at a missing commit (`fsck`: `invalid sha1 pointer`), and a re-push is still rejected: the client assumes the remote already has those objects and never re-sends them. Measured on a copy of the real 5.1 MB repo.
+- **What works.** Delete the empties, then pack exactly those objects from a current GitHub clone and `unpack-objects` them into the bare repo. `scripts/gitea-repair-empty-objects.sh --repo <owner/name> --source <clone> [--apply]` does that: dry-run by default, refuses before changing anything if the source cannot supply an object, verifies each object and a clean `git fsck` afterwards, and is a no-op on a clean repo. On the real data the push then fast-forwards `main` and `fsck` prints nothing.
+- **Detect it before a push does.** `find /data/git/gitea-repositories -path '*/objects/*' -type f -empty` inside the gitea pod (BusyBox `find`: use `-size 0`, and `ls --full-time` rather than `--time-style`). Cluster-wide, only this repo was affected on 2026-10-13.
+- **Cause (unverified).** An unclean stop of Gitea or pc-1 during a write; Gitea's volume is a 1-replica Longhorn volume on pc-1. The 2026-08-01 timeline has not been checked.
+- **Scope.** `mirror-reconcile` (#851) covers `derio-homelab/kid-laptops` as well as the agentic-stoa repos (added after #859), each read with its own org's GitHub App token (`GITHUB_TOKEN_DERIO_HOMELAB` from `derio-homelab-github-mirror`; one App's token 404s on the other org's private repos). It shipped covering agentic-stoa only and its guard passed anyway, because the guard derived the expected repos from the `agentic-stoa-main-sync` trigger alone — a coverage test built from one instance of a class cannot see its siblings. The guard now unions every `*-main-sync` trigger. Reconciling a ref does not repair a corrupt Gitea repo: the push hits the same unpacker error. Tests: `scripts/tests/test_gitea_repair_empty_objects.py` pins both halves: the naive fix fails, the script's fix works.

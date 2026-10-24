@@ -808,6 +808,15 @@ FIFTEEN_MINUTE_EXEMPTIONS: dict[str, str] = {
         "here and is documented provisional in the spec pending a baseline; "
         "the window is only there to reject spikes."
     ),
+    "layer-25-pc1-var-low": (
+        "Free space on the pc-1 /var filesystem moves over hours as the runner's "
+        "DinD layers and Longhorn data grow, so detection latency is irrelevant, "
+        "and a DinD image pull or build briefly dips free space well below its "
+        "steady state before the job cleans up. 15m (the spec 2026-10-18 "
+        "section 7 value) rejects that transient and calls only a sustained "
+        "shortage. It queries no DaemonSet; the window is chosen for filesystem "
+        "churn, not for node drains."
+    ),
     "layer-2-etcd-db-quota": (
         "The etcd backend database grows over hours and days, never in "
         "seconds, so detection latency is irrelevant to this signal — at 80 "

@@ -1,0 +1,58 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Monthly tier-review report
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - ci-tier-monthly-report
+  tier: standard
+  files:
+  - apps/ci-budget/**
+  - scripts/tests/test_ci_budget_*.py
+  - scripts/tests/fixtures/ci_budget/**
+  - docs/superpowers/plans/**
+  estimate_lines: 500
+tasks:
+- number: 1
+  title: Report builder (red → green → refactor)
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Write scripts/tests/test_ci_budget_report.py against apps/ci-budget/files/report.py: per-repo previous-month minutes from usage fixtures (macOS ×10); fallback-eligible vs pinned share; proposals per spec §5 (a github-preferred repo ≥50% of included → gitea-only; a billed repo absent from tiers → github-preferred, or github-only if all its minutes are macOS; a now-public tiered repo → remove; an org over threshold → ranked consumers); the gate-coverage section; title `CI tier review <YYYY-MM>` and label ci-tiers; upsert — an existing issue with that title is edited, not duplicated. Run: FAILS.
+  - id: P4.T1.S2
+    text: |-
+      Implement report.py reusing watcher.py's usage functions and clients. Run: passes.
+  - id: P4.T1.S3
+    text: |-
+      Refactor the GitHub/Gitea client code shared by watcher.py and report.py into apps/ci-budget/files/forges.py (also in configMapGenerator). Run all ci-budget tests: pass.
+- number: 2
+  title: CronJob and token
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Extend test_ci_budget_manifests.py for CronJob ci-budget-report (0 6 1 * *, same image/initContainer pattern, stoa-github-mirror mounted for stoa workflow files) and ClusterGenerator github-app-derio-frank-issues (derio-net App, repositories [frank], issues write + metadata read) with its ExternalSecret. Run: FAILS. Add the manifests. Run: passes.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-10-18T16:07:45+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-10-18T16:07:45+00:00'
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: '2026-10-18T16:07:45+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-10-18T16:07:45+00:00'
+      note: null
+  completion:
+    at: '2026-10-18T16:07:45+00:00'
+    note: null
+    observed_prs: []

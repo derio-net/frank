@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-08-02-grafana-alert-flood
 
 <!-- fr:journal kind=repro scope=debug id=8ac6d2fcd83c created=2026-08-02T20:33:01 -->

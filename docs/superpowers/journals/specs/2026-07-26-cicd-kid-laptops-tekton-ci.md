@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-07-26-cicd-kid-laptops-tekton-ci
 
 <!-- fr:journal kind=decision scope=spec id=d1-kubevirt-spec-only created=2026-07-26T17:05:14 -->

@@ -1,0 +1,37 @@
+<!-- fr:journal-schema=2 -->
+# Journal: 2026-10-19-ci-delivery-overdue-status
+
+<!-- fr:journal kind=repro scope=debug id=65c358b96785 created=2026-10-19T19:39:34+00:00 -->
+### 65c358b96785 · repro · L25 delivery-overdue (status) fires for 5 repos: Gitea statuses from 04:20-05:56Z never reached GitHub
+
+Alert layer-25-delivery-overdue kind=status for derio-homelab/kid-laptops (4), derio-net/herdr-vertical-tabs (1), presentation-craft (2), runs-fr (5), vibe-kanban (12). Reproduced by running the live check.py API class locally with the job's own tokens and printing per-context expected vs actual: every mismatch is a Gitea status created ~04:20-05:56Z 2026-10-19 on the CURRENT default-branch head with NO gitea-actions/<ctx> status on GitHub at all (got=None), not a wrong state. Includes a permanent 'pending / Waiting to run' for herdr 'ci / test-macos (push)'.
+
+<!-- fr:journal kind=ruled-out scope=debug id=24cbd250fe6c created=2026-10-19T19:41:23+00:00 -->
+### 24cbd250fe6c · ruled-out · Not a live forwarding break: bridge forwards derio-* statuses now
+
+132 stoa-status-bridge PipelineRuns for derio-* repos since 11:45:30Z, all post-dating every mismatch; the 19:2x herdr probe PR also forwarded. ci-delivery-check's comparison is correct: GitHub genuinely has no gitea-actions/<ctx> status for these commits.
+
+<!-- fr:journal kind=ruled-out scope=debug id=684851cd10b3 created=2026-10-19T19:41:26+00:00 -->
+### 684851cd10b3 · ruled-out · Not a checker false positive (description/URL mapping)
+
+Every mismatch has got=None on GitHub (no status at all), so matches()/forwarded() mapping and the GITEA_WEB_URL rewrite are not involved.
+
+<!-- fr:journal kind=root-cause scope=debug id=8b25faf88089 created=2026-10-19T19:41:29+00:00 -->
+### 8b25faf88089 · root-cause · Rollout-ordering gap stranded 24 statuses on still-current heads; fire-and-forget means nothing re-delivers them
+
+The derio-net/derio-homelab org status hooks were created 05:13:25Z (manual op, pre-merge); kid-laptops' 04:23Z molecule statuses predate any hook. The gitea-status-bridge CEL allowlist only gained the derio-* repos in #878 (merged 11:24Z; first derio bridge run 11:45:30Z), so every status event 05:13Z->11:45Z reached gitea-listener and was FILTERED. Gitea webhooks are not retried and nothing reconciles commit statuses, so the 24 statuses (04:23-05:56Z) on the five repos' default-branch heads stay undelivered. The heads have not moved since, so ci-delivery-check re-reads the same stranded statuses every 5 min and the alert cannot self-clear until each repo gets a new commit. 17 of 24 are 'Gitea: skipped' (CI_AUTHORITY was github then); the rest are kid-laptops molecule/acceptance failures and one permanent-pending herdr test-macos.
+
+<!-- fr:journal kind=finding scope=debug id=7470ff74b336 created=2026-10-19T19:50:19+00:00 state=fixed -->
+### 7470ff74b336 · finding [fixed] · Backfill tool re-forwards the checker's undelivered set through the bridge; 23 stranded statuses repaired live
+
+ci-delivery-check's per-SHA comparison is factored into undelivered() (check() counts it, behaviour unchanged: 146 delivery/bridge tests green). scripts/ci_status_backfill.py loads undelivered() from the ConfigMap and renders stoa-status-bridge PipelineRuns from the bridge's own TriggerTemplate; prints only, the operator pipes to kubectl create; stale pending skipped unless --include-pending. Pinned by scripts/tests/test_ci_status_backfill.py (written first, red on missing module). Live (operator-approved): dry run = exactly the 24 found by hand (23 + herdr test-macos pending skipped); 23 PipelineRuns Succeeded; re-run reports 0 undelivered. herdr keeps 1 overdue (the permanent-pending macOS status) pending the open unservable-label decision. Gotcha + tekton.md updated (trigger-first onboarding; stale 'only agentic-stoa forwarded' line corrected).
+
+<!-- fr:journal kind=review scope=debug id=b49dc7aac99e created=2026-10-19T19:51:54+00:00 -->
+### b49dc7aac99e · review · Self-review of #895: no findings; one verification slip caught
+
+Reviewed the diff: check() refactor preserves sorted SHA iteration and grace/mapping (existing 44 delivery tests unchanged and green); backfill is print-only and derives repos, comparison and PipelineRun shape from the manifests, not copies. No code findings. Process note: the first post-backfill verification read a stale FAILED 16:30Z job because of an and/or precedence slip in the Monitor filter; re-verified on the 19:45Z (24 mismatches) vs 19:50Z (1, herdr pending) ticks.
+
+<!-- fr:journal kind=finding scope=debug id=f9ac192243c6 created=2026-10-19T20:37:19+00:00 state=fixed -->
+### f9ac192243c6 · finding [fixed] · herdr residual: cancelled the never-runnable test-macos job; Gitea's cancel status forwards live
+
+The last overdue (herdr ci / test-macos, pending 'Waiting to run' since 05:32Z) is a job queued for runner label macos-latest, which no runner serves, so it can never post a terminal status. Operator chose cancel. Gitea 1.25 has NO REST cancel endpoint (POST /api/v1/.../actions/runs/{id}/cancel -> 404); the web route POST /<owner>/<repo>/actions/runs/<run_number>/cancel works with an admin session and the X-Csrf-Token from the run page's window.config (a form _csrf from /user/login is rejected 'Invalid CSRF token'). Result: Gitea posted failure 'Has been cancelled' at 20:36:52Z, stoa-status-bridge forwarded it the same second, GitHub shows it. Four more herdr runs (7654, 7671, 7673, 7675) are held open by the same queued macOS job on closed probe PRs and rerun branches; left alone, not alerting, same defect.

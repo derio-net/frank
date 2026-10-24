@@ -390,11 +390,19 @@ And a smaller one, cheap to act on: **any step you perform in a web UI is a step
 
 pc-1 carries three idle data HDDs (two WD 1 TB Green, one WD 500 GB Blue, all 2008-09 vintage) that Longhorn never saw; its only Longhorn disk was the 62 GB `EPHEMERAL` partition on the boot SSD, already over-committed. They are now an isolated `hdd` tier:
 
-- Talos `UserVolumeConfig`s select each drive by **WWID** (never `/dev/sdX`, which drifts; the drives report no serial) and mount it at `/var/mnt/hdd-<wwid8>` (`patches/phase03-longhorn/402-pc1-hdd-volumes.yaml`).
+- Talos `UserVolumeConfig`s select each drive by **WWID** (never `/dev/sdX`, which drifts; Talos reports no serial for these drives) and mount it at `/var/mnt/hdd-<wwid8>` (`patches/phase03-longhorn/402-pc1-hdd-volumes.yaml`).
 - Each mount is a Longhorn disk on `pc-1` tagged `hdd` (`longhorn-node-disks-pc-1.yaml`, applied by a documented manual operation — ArgoCD never owns the `nodes.longhorn.io` CR). A drive is only admitted after a strict SMART gate.
 - The gate earned its keep on the first run. All three drives reported SMART overall `PASSED`, but the attribute table told a different story: one 1 TB drive had a reallocated sector, and the 500 GB drive had 305 pending and 68 offline-uncorrectable sectors. Both are excluded and left untouched, so the tier is a single 1 TB drive (frank#824). "Overall health: PASSED" is a threshold check against the vendor's failure line, not a statement that the disk is fine: read attributes 5, 197 and 198 yourself.
 - `longhorn-hdd` is a single-replica class with `diskSelector: hdd`. Only pc-1 has such disks and node anti-affinity is hard, so one replica is all it can have: re-creatable CI scratch only. Every Tekton per-run workspace uses it.
-- The setting `allowEmptyDiskSelectorVolume` is now `false`. Measured before the flip: gpu-1's `gpu-local` SSDs held ~1.1 TiB of general replicas while its NVMe default disk had 0 Gi scheduled — a disk tag attracts but never excludes while that setting is `true`, and Longhorn prefers the disk with the most free space. It governs new placement only; existing replicas stay.
+- The setting `allowEmptyDiskSelectorVolume` is now `false`. Measured before the flip: gpu-1's `gpu-local` SSDs held ~1.1 TiB of general replicas while its NVMe default disk had 0 Gi scheduled — a disk tag attracts but never excludes while that setting is `true`, and Longhorn prefers the disk with the most free space. It governs new placement only; existing replicas stay. A test volume on the default class, created right after the flip, landed on gpu-1's NVMe, mini-2 and mini-3, with nothing on the HDD or the `gpu-local` SSDs.
+
+### What the rollout taught
+
+Two things went wrong. Both were ordering problems, not configuration problems.
+
+**The merge outran the manual steps.** The plan put four operator steps *before* the merge: SMART, the `sdd` inspection, the Talos apply, and adding the Longhorn disk unschedulable. The PR merged first. ArgoCD then did exactly what it was told: it created `longhorn-hdd` and pointed every CI workspace at it. No `hdd` disk existed yet, so every new workspace PVC failed with `specified disk tag hdd does not exist`. CI stalled for about 8.5 hours, the length of a strict SMART long test plus the apply, and 23 PipelineRuns timed out. The safety invariant held throughout: the setting flip had landed, so the default pool never touched an HDD. The availability invariant did not. A declarative change that depends on hardware state is only safe to merge once that state exists.
+
+**pc-1 could not be drained.** Longhorn's default `node-drain-policy`, `block-if-contains-last-replica`, refuses to release a node while it holds the last replica of any volume, even a detached one. A single-replica tier confined to one node holds the last replica of everything on it, by construction. The first reboot test timed out after 15 minutes and left pc-1 cordoned, with Gitea, Zot and CI down for about 82 minutes. The setting is now `allow-if-replica-is-stopped`. It still refuses while a sole replica is in use, and lets the drain finish once the eviction has stopped it. After the policy change the drain took 21 seconds, and the reboot proved the WWID-bound mount comes back by itself.
 
 ## References
 

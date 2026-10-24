@@ -1,0 +1,46 @@
+# GitHub App installation-token generator for the derio-net mirror (Tekton).
+#
+# The four derio-net github-preferred repos (willikins, presentation-craft,
+# vibe-kanban, runs-fr; herdr-vertical-tabs offboarded 2026-10-19) are mirrored into Gitea so their CI
+# can fall back to Gitea Actions when the org's GitHub minutes run out. The sync
+# pipeline reads them from GitHub, and the status bridge writes the
+# `gitea-actions/*` statuses back, so the token needs contents:read,
+# pull_requests:read (open PR heads for mirror-reconcile) and statuses:write.
+#
+# It uses the existing derio-fr-automation App (3994132, installation
+# 138773908) but is a SEPARATE generator from github-app-derio (secure-agent-pod),
+# which is left untouched: this one narrows the token to the four mirrored
+# repos and the four permissions above, so a leak of the Tekton secret reaches
+# nothing else the App can see.
+#
+# NOTE: ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret's
+# namespace (tekton-pipelines) and IGNORES secretRef.namespace — deliberately no
+# namespace field below. github-app-derio-key must therefore exist in
+# tekton-pipelines (it already does, for frank-gitops-push). Getting this wrong
+# leaves the ExternalSecret in SecretSyncedError while ArgoCD stays green.
+# Guarded by scripts/tests/test_github_preferred_mirrors.py.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-mirror
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+      permissions:
+        contents: read
+        pull_requests: read
+        statuses: write
+        metadata: read
+      repositories:
+        - willikins
+        - presentation-craft
+        - vibe-kanban
+        - runs-fr

@@ -1,0 +1,67 @@
+# CI budget tier config (spec 2026-10-18--cicd--github-preferred-gitea-fallback, section 1).
+#
+# Tiers, per repo:
+#   github-only       - never moved; always runs on GitHub.
+#   gitea-only        - runs on Frank's Gitea Actions only (authority stays gitea).
+#   github-preferred  - runs on GitHub until the org's minutes pass threshold_pct,
+#                       then the watcher flips CI_AUTHORITY to gitea for the rest
+#                       of the UTC month.
+# Public repos are ALWAYS github-only (free minutes) and must not be listed here
+# as anything else.
+# Optional per repo:
+#   pin_authority: github|gitea - operator override that wins over the computed
+#       authority (live single-repo test, manual holds). A pin never stamps the
+#       month in the watcher state.
+#   gitea_secrets: [NAME, ...] - secrets the fallback runs need. Each entry is
+#       provisioned as a Gitea repository secret on that repo only (never an
+#       org secret, so no other repo in the org can read it). They MUST be
+#       read-only credentials and each must be declared in readonly_secrets
+#       below (names matching PAT|WRITE|ADMIN|PUSH are rejected by the guard).
+# third_party: true (optional, per org) - the org's repos are not ours to name in a
+#   public issue; the monthly report prints usage totals and counts only.
+# mode: dry-run | live, per org. Every org ships dry-run.
+version: 1
+# Allowlist of the read-only credentials gitea_secrets may reference.
+# Empty today: vibe-kanban's VK_PRIVATE_DEPLOY_KEY job ended up GitHub-pinned
+# (vibe-kanban#19, Blacksmith runners), so no fallback job needs a mirrored secret.
+readonly_secrets: []
+orgs:
+  derio-net:
+    included_minutes: 2000
+    threshold_pct: 85
+    gitea_org: derio-net
+    mode: live
+    repos:
+      willikins:            {tier: github-preferred}
+      presentation-craft:   {tier: github-preferred}
+      vibe-kanban:          {tier: github-preferred}   # all jobs GitHub-pinned today; tier review #886
+      runs-fr:              {tier: github-preferred}
+  derio-homelab:
+    included_minutes: 2000
+    threshold_pct: 85
+    gitea_org: derio-homelab
+    mode: live
+    repos:
+      kid-laptops:          {tier: gitea-only}
+      proxmox-cluster:      {tier: github-preferred}
+      omada-controller:     {tier: github-preferred}
+      homelab:              {tier: github-preferred}
+      ansible-pihole:       {tier: github-preferred}
+  agentic-stoa:
+    included_minutes: 2000
+    threshold_pct: 85
+    gitea_org: agentic-stoa
+    mode: dry-run            # no github-preferred repos: nothing to write
+    third_party: true        # the monthly report posts counts only, never repo names
+    repos:                   # every currently mirrored agentic-stoa repo
+      hum:             {tier: gitea-only}
+      content-factory: {tier: gitea-only}
+      stoa-blog:       {tier: gitea-only}
+      companies:       {tier: gitea-only}
+      cnc-fr:          {tier: gitea-only}
+      cnc-frd:         {tier: gitea-only}
+      cnc-fru:         {tier: gitea-only}
+      second-brain:    {tier: gitea-only}
+      hermes-brain:    {tier: gitea-only}
+      flexible-health: {tier: gitea-only}
+      site:            {tier: gitea-only}

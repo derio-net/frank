@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-07-24--agents--fr-isolation-target-env
 
 <!-- fr:journal kind=decision scope=spec id=qa-ssh-coverage created=2026-07-24T16:46:10 -->

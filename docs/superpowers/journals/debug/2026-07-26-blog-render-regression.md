@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-07-26-blog-render-regression
 
 <!-- fr:journal kind=repro scope=debug id=repro-banner created=2026-07-26T14:21:02 -->

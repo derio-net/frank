@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ci-budget
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/ci-budget
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: tekton-pipelines
+  syncPolicy:
+    automated:
+      selfHeal: true
+      # prune: true is required because the tier config ships via Kustomize
+      # configMapGenerator (hash-suffixed names): each edit orphans the old
+      # ConfigMap and without prune the app would show OutOfSync forever.
+      # The only stateful object, the ci-budget-state ConfigMap, is created at
+      # runtime by the watcher and is never in git, so pruning cannot reap it.
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

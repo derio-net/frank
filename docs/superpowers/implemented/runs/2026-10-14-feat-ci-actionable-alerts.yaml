@@ -1,0 +1,114 @@
+schema_version: 10
+run: 2026-10-14-feat-ci-actionable-alerts
+workflow: fr-goal-light@1
+branch: feat/ci-actionable-alerts
+started: '2026-10-14T15:55:28+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-10-14T17:29:37+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-14--cicd--actionable-alerts-design.md
+  plan:
+    state: done
+    at: '2026-10-14T17:31:30+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-10-14--cicd--actionable-alerts
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-10-14T17:29:46+00:00'
+          harness: opencode
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T17:31:30+00:00'
+          outcome: done
+        evidence:
+          single-phase: phase 1
+  spec-plan-review:
+    state: done
+    at: '2026-10-14T17:33:47+00:00'
+    units:
+      step/spec-plan-review:
+        attempts:
+        - dispatched: '2026-10-14T17:31:32+00:00'
+          agent: ses_ec487a302ffewjhp5S4sjN8EhK
+          agent_type: super-fr:fr-spec-reviewer
+          harness: opencode
+          tier: hard
+          bound: openai/gpt-6.1-sol
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T17:33:46+00:00'
+          outcome: done
+        evidence:
+          review: spec-plan-review
+          reviewer: ses_ec487a302ffewjhp5S4sjN8EhK
+          findings: none
+  plan-review:
+    state: done
+    at: '2026-10-14T17:33:50+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
+  implement:
+    state: done
+    at: '2026-10-14T18:42:22+00:00'
+    members:
+    - implement-phase
+    - review-phase
+    units:
+      phase/1/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-14T17:33:50+00:00'
+          agent: ses_ec4854550fferORqwvlSR6PWwb
+          agent_type: fr-phase-executor-standard
+          harness: opencode
+          tier: standard
+          bound: openai/gpt-6.1-sol
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T17:57:48+00:00'
+          outcome: done
+        evidence:
+          tests: .fr-scratch/ci-delivery-suite.log@a2c04a93f7f9;tree=117f88ea992c141928960d26d9703846a2041b6204f7c2d1335fee66752eb837
+          visual: none
+      phase/1/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-10-14T17:57:49+00:00'
+          harness: opencode
+          model: openai/gpt-6.1-sol
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T18:42:22+00:00'
+          outcome: done
+        evidence:
+          review: p1-independent-review
+          reviewer: ses_ec46f8ac4ffegfAdTQyIor969B
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3,p1-r4
+  journal-check:
+    state: done
+    at: '2026-10-14T18:42:27+00:00'
+    exit: 0
+    stdout: ''
+  deliver:
+    state: done
+    at: '2026-10-14T18:50:21+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/869
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-10-14T18:42:28+00:00'
+          harness: opencode
+          session: ses_ec4e43bfeffe09eYfhvNPbeuI3
+          returned: '2026-10-14T18:50:10+00:00'
+          outcome: done
+        evidence:
+          tests: .fr-scratch/deliver-suite.log@bb3337cb1b12
+          walk: none
+          proportionality: 1ee419e5f113be37d350ecbdbea24f86ead694ad:595ffc2877c4d534859c119a748902896dc6ff521b8d0a05477757360f985e23
+          visual: none
+driver: standalone
+fr_version: 5.27.0rc3

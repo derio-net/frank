@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-06-15--cicd--staging-vcluster-gate
 
 <!-- fr:journal kind=decision scope=spec id=d-promote-last-green created=2026-09-14T22:09:45 -->

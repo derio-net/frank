@@ -1,0 +1,15 @@
+name: gs
+on:
+  pull_request:
+  push:
+    branches: [main, "sync-pr-**", "sync-rerun-**"]
+jobs:
+  check:
+    if: (vars.CI_AUTHORITY || 'github') == (github.server_url == 'https://github.com' && 'github' || 'gitea')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.list({})

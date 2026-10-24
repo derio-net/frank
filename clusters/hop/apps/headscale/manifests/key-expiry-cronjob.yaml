@@ -36,9 +36,16 @@ spec:
               env:
                 - name: API_URL
                   value: http://headscale.headscale-system.svc:8080/api/v1/apikey
-                # Keep these aligned with the two deliberately separate consumer keys.
+                # One prefix per deliberately separate consumer key:
+                #   8HpmMnl, lTe41sn - Headplane's Secret and the operator's .env_hop
+                #     key (both 1y, rotated 2026-07-29, expire 2027-07-29).
+                #   yGvokhX - derio-homelab/kid-laptops laptop-silence watcher
+                #     (Gitea secret HEADSCALE_API_KEY). Read-only use of
+                #     GET /api/v1/node, but full-power: Headscale 0.25.1 cannot
+                #     scope API keys. 90-day key, expires 2027-01-16; rotate before
+                #     then, or replace with a devices:core:read OAuth client (frank#876).
                 - name: EXPECTED_PREFIXES
-                  value: "8HpmMnl,lTe41sn"
+                  value: "8HpmMnl,lTe41sn,yGvokhX"
                 - name: WARN_DAYS
                   value: "30"
                 - name: API_KEY

@@ -1,0 +1,10 @@
+name: pot
+on:
+  push:
+    branches: [main]
+jobs:
+  check:
+    if: github.server_url == 'https://github.com' || true
+    runs-on: ubuntu-latest
+    steps:
+      - run: make test

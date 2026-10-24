@@ -1,3 +1,4 @@
+<!-- fr:journal-schema=3 -->
 # Journal: 2026-10-13-ci-fails-silently
 
 <!-- fr:journal kind=repro scope=debug id=07d555715485 created=2026-10-13T17:10:26+00:00 -->
