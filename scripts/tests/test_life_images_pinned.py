@@ -61,3 +61,52 @@ def test_kustomize_falls_back_to_kubectl(monkeypatch):
     assert r.kustomize_cmd() == ["kubectl", "kustomize"]
     monkeypatch.setattr(r.shutil, "which", lambda name: "/bin/x")
     assert r.kustomize_cmd() == ["kustomize", "build"]
+
+
+# --- p1-r4: exemptions are explicit, visible, and narrow -------------------------------
+
+
+def test_disabled_skip_only_for_known_operator_components():
+    from render_all_images import rendered_images
+
+    doc = (
+        "spec:\n"
+        "  vgpuManager: {enabled: false, image: vgpu-manager}\n"
+        "  somethingElse: {enabled: false, image: 'ghcr.io/x/y:latest'}\n"
+    )
+    exempt: list[str] = []
+    images = rendered_images(doc, exempt)
+    assert "ghcr.io/x/y:latest" in images and "vgpu-manager" not in images
+    assert any(e.startswith("disabled-component vgpuManager") for e in exempt)
+
+
+def test_images_embedded_in_strings_are_audited():
+    doc = (
+        "kind: ConfigMap\n"
+        "data:\n"
+        "  script: |\n"
+        "    docker run --rm ghcr.io/x/tool:latest --help\n"
+        "    curl https://github.com/org/repo:foo\n"
+        "  env: ghcr.io/team/app\n"
+    )
+    assert find_unpinned(doc) == ["ghcr.io/x/tool:latest", "ghcr.io/team/app"]
+
+
+def test_unresolved_and_hook_exemptions_are_recorded():
+    from render_all_images import rendered_images
+
+    doc = (
+        "kind: Pod\nmetadata: {name: t, annotations: {helm.sh/hook: test}}\n"
+        "spec: {containers: [{image: busybox}]}\n---\n"
+        "kind: Pod\nspec: {containers: [{image: '$(params.x)'}]}\n"
+    )
+    exempt: list[str] = []
+    rendered_images(doc, exempt)
+    assert "helm-test-hook Pod/t" in exempt
+    assert "unresolved $(params.x)" in exempt
+
+
+def test_committed_exemptions_file_is_non_silent():
+    lines = (FIX / "audit-exemptions.txt").read_text().splitlines()
+    kinds = {line.split(" ", 1)[0] for line in lines if line and not line.startswith("#")}
+    assert {"helm-test-hook", "disabled-component"} <= kinds

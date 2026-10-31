@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,29 +30,86 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "scripts/tests/fixtures/life/rendered-images.txt"
+EXEMPTIONS = ROOT / "scripts/tests/fixtures/life/audit-exemptions.txt"
 ROOT_CHARTS = [ROOT / "apps/root", ROOT / "clusters/hop/apps/root"]
 
 
-def iter_images(node):
-    """Yield every string value of an `image` key anywhere in a parsed document.
+# NVIDIA ClusterPolicy components that are shipped but switched off with `enabled: false`.
+# ONLY these keys are skipped when disabled; any other disabled-looking block is audited.
+OPERATOR_COMPONENT_KEYS = frozenset({
+    "vgpuManager", "vgpuDeviceManager", "kataManager", "ccManager", "sandboxDevicePlugin",
+    "vfioManager", "gds", "gdrcopy", "migManager", "dcgm", "dcgmExporter", "nodeStatusExporter",
+    "sandboxWorkloads", "cdi",
+})
 
-    Operator CRs (NVIDIA ClusterPolicy) split an image across sibling keys:
-    `{repository, image, version}`; those are joined into one reference.
+# A registry-qualified image reference embedded in a larger string (ConfigMap script, args,
+# env value). Requires a dotted registry host so URLs/paths do not match; the lookbehind
+# keeps `https://host/path` and `a/b.c/d` out.
+KNOWN_REGISTRIES = frozenset({
+    "docker.io", "registry-1.docker.io", "ghcr.io", "quay.io", "gcr.io", "mirror.gcr.io",
+    "registry.k8s.io", "nvcr.io", "public.ecr.aws", "docker.litellm.ai", "k8s.gcr.io",
+})
+EMBEDDED_REF = re.compile(
+    r"(?<![\w/:.@-])((?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?/[A-Za-z0-9._/-]+"
+    r"(?::[A-Za-z0-9._-]+)?(?:@sha256:[a-f0-9]{64})?)"
+)
+
+
+# Strings that look like image refs but are not deployed images. Each carries its reason and
+# is written to audit-exemptions.txt on every run.
+STATIC_EXEMPT = {
+    "gcr.io/tekton-releases/catalog/upstream/": "Tekton bundle-resolver docs text in vendored release.yaml",
+    "gcr.io/tekton-releases/catalog/upstream/git-clone": "Tekton bundle-resolver docs text in vendored release.yaml",
+    "ghcr.io/agentic-stoa/site": "shell variable base in site-promotion script; tag appended at run time",
+    "ghcr.io/derio-net/runs-fr": "staging-gate contract; the gated sha tag is substituted at run time",
+    "nvcr.io/nvidia": "repository prefix field joined with image+version by the NVIDIA operator",
+    "nvcr.io/nvidia/cloud-native": "repository prefix field joined with image+version by the NVIDIA operator",
+    "nvcr.io/nvidia/driver": "repository prefix field joined with image+version by the NVIDIA operator",
+    "nvcr.io/nvidia/k8s": "repository prefix field joined with image+version by the NVIDIA operator",
+}
+
+
+def embedded_refs(text: str) -> list[str]:
+    """Registry-qualified refs inside a free-text string; untagged ones only on known registries."""
+    refs = []
+    for ref in EMBEDDED_REF.findall(text):
+        tagged = "@sha256:" in ref or ":" in ref.rsplit("/", 1)[-1]
+        if tagged or ref.split("/", 1)[0] in KNOWN_REGISTRIES:
+            refs.append(ref)
+    return refs
+
+
+def iter_images(node, exempt: list[str] | None = None):
+    """Yield every container image reference in a parsed document.
+
+    Sources: `image:` string values, NVIDIA-style `{repository, image, version}` triples
+    (joined), and registry-qualified refs embedded in any other string value.
+    Exemptions are appended to `exempt` so they are never silent.
     """
     if isinstance(node, dict):
-        if node.get("enabled") is False:
-            return  # a disabled operator component deploys nothing
         for key, value in node.items():
-            if key == "image" and isinstance(value, str):
+            if key in OPERATOR_COMPONENT_KEYS and isinstance(value, dict) and value.get("enabled") is False:
+                if exempt is not None:
+                    exempt.append(f"disabled-component {key} (enabled: false)")
+                continue
+            if key.endswith("_image") and isinstance(value, str) and isinstance(
+                node.get(f"{key}_version"), str
+            ):  # operator CR style: postgres_image + postgres_image_version
+                yield f"{value}:{node[f'{key}_version']}"
+            elif key.endswith("_image_version") and isinstance(value, str):
+                continue
+            elif key == "image" and isinstance(value, str):
                 repo, ver = node.get("repository"), node.get("version")
                 if isinstance(repo, str) and isinstance(ver, str):
                     value = f"{repo}/{value}:{ver}"
                 yield value
             else:
-                yield from iter_images(value)
+                yield from iter_images(value, exempt)
     elif isinstance(node, list):
         for item in node:
-            yield from iter_images(item)
+            yield from iter_images(item, exempt)
+    elif isinstance(node, str):
+        yield from embedded_refs(node)
 
 
 def _is_test_hook(doc) -> bool:
@@ -64,12 +122,22 @@ def _is_test_hook(doc) -> bool:
     return isinstance(hook, str) and any(h.strip().startswith("test") for h in hook.split(","))
 
 
-def rendered_images(rendered_yaml: str) -> list[str]:
+def rendered_images(rendered_yaml: str, exempt: list[str] | None = None) -> list[str]:
     images: list[str] = []
     for doc in yaml.safe_load_all(rendered_yaml):
         if _is_test_hook(doc):
+            if exempt is not None:
+                name = (doc.get("metadata") or {}).get("name", "?")
+                exempt.append(f"helm-test-hook {doc.get('kind', '?')}/{name}")
             continue
-        images.extend(iter_images(doc))
+        for image in iter_images(doc, exempt):
+            if image in STATIC_EXEMPT:
+                if exempt is not None:
+                    exempt.append(f"static-exempt {image} :: {STATIC_EXEMPT[image]}")
+                continue
+            if is_ignored(image) and exempt is not None and image.strip():
+                exempt.append(f"unresolved {image}")
+            images.append(image)
     return images
 
 
@@ -181,9 +249,10 @@ def render_source(app: dict, source: dict, tmp: Path) -> str:
     )
 
 
-def collect() -> tuple[set[str], list[str]]:
+def collect() -> tuple[set[str], list[str], set[str]]:
     images: set[str] = set()
     skipped: list[str] = []
+    exempt: set[str] = set()
     for app in applications():
         sources = app["spec"].get("sources") or [app["spec"]["source"]]
         for source in sources:
@@ -192,20 +261,27 @@ def collect() -> tuple[set[str], list[str]]:
             with tempfile.TemporaryDirectory() as td:
                 try:
                     out = render_source(app, source, Path(td))
-                    images.update(i for i in rendered_images(out) if not is_ignored(i))
+                    found: list[str] = []
+                    images.update(i for i in rendered_images(out, found) if not is_ignored(i))
+                    exempt.update(found)
                 except Exception as exc:  # noqa: BLE001 - recorded, never silent
                     skipped.append(f"{app['metadata']['name']}: {exc}")
-    return images, skipped
+    return images, skipped, exempt
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    images, skipped = collect()
+    images, skipped, exempt = collect()
     bad = sorted(i for i in images if is_unpinned(i))
     if not args.check:
         lines = [f"# skipped: {s}" for s in sorted(skipped)] + sorted(images)
+        EXEMPTIONS.write_text(
+            "# Everything the image audit deliberately did NOT judge. Regenerated by\n"
+            "# scripts/render_all_images.py; review changes here like code.\n"
+            + "\n".join(sorted(exempt)) + "\n"
+        )
         SNAPSHOT.write_text("\n".join(lines) + "\n")
         print(f"wrote {len(images)} images, {len(skipped)} skipped -> {SNAPSHOT}")
     for s in skipped:
