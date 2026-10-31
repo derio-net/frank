@@ -35,3 +35,23 @@ Review of agent-images#171: the env-based selection (UPGRADE_*_MINOR) only runs 
 ### p5-scrub-exact-values-first · discovery · Redact known secret values first; regexes are the second layer (phase 5)
 
 Three rounds of console scrubber findings (adjacent tokens, end anchors, delimiters inside values, next-line YAML values, unterminated quotes) show regex-only redaction keeps missing shapes. Frank's life_scrub.py should mirror the console: exact-value redaction of known/injected secrets (plus base64/URL-encoded forms and each line of multi-line values) first, regex patterns second; fixtures for next-line YAML values and unterminated quotes.
+
+<!-- fr:journal kind=discovery scope=plan id=p1-omni-version created=2026-10-31T19:23:32+00:00 phase=1 -->
+### p1-omni-version · discovery · Omni backend is v1.5.0 (measured) (phase 1)
+
+omnictl get clusters reports frank talos 1.12.6 / k8s 1.35.3; omnictl warned its client 1.8.1 differs from backend 1.5.0, which is the running Omni version, now pinned as OMNI_VERSION=v1.5.0. Side effect: the Omni CLI key had expired and omnictl re-registered a PGP key (~/.talos/keys) on first use. Hop measured via kubectl: talos 1.12.5 / k8s 1.34.1, as the spec stated.
+
+<!-- fr:journal kind=discovery scope=plan id=p1-audit-scope created=2026-10-31T19:23:32+00:00 phase=1 -->
+### p1-audit-scope · discovery · Image audit: scope decisions and one real finding (phase 1)
+
+All 114 rendered images across 127 sources (0 apps skipped; OCI repoURLs without a scheme are treated as oci://) are pinned. The audit ignores Helm test hooks (helm.sh/hook test, never applied by Argo CD) and disabled operator components (enabled: false, e.g. gpu-operator vgpuManager), and joins NVIDIA-style repository/image/version triples. The one real unpinned image was litellm's bitnami postgresql (chart default :latest): pinned by digest in apps/litellm/values.yaml to the running image (PostgreSQL 18.4, no pod roll expected).
+
+<!-- fr:journal kind=discovery scope=plan id=p1-operator-images created=2026-10-31T19:23:32+00:00 phase=1 -->
+### p1-operator-images · discovery · Operator-chosen images are invisible to the render audit (phase 1)
+
+AWX's postgres pod runs quay.io/sclorg/postgresql-15-c9s:latest, chosen by the AWX operator (awx.yaml sets no postgres_image). It is not in any rendered manifest so the audit cannot see it. The operator composes image:version so a digest cannot be set via postgres_image_version; pinning needs postgres_image_version set to a tag. Left for the classification phase; operator-created workloads (CNPG, AWX) need a runtime audit.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p1-t2 created=2026-10-31T19:23:32+00:00 phase=1 -->
+### no-refactor-p1-t2 · discovery · no-refactor-because P1.T2 (phase 1)
+
+declarative YAML files and a template value only; nothing to clean
