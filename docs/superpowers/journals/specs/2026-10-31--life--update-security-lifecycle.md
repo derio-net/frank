@@ -267,3 +267,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-31--life--update-security-lifecycle-p4 created=2026-10-31T18:52:22+00:00 -->
 ### phase-split-2026-10-31--life--update-security-lifecycle-p4 · decision · ask: R13/R14/R10/R11 — deploying and exposing the console, runs-fr and the console repo's CI delivery path
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-31--life--update-security-lifecycle-p5 created=2026-10-31T18:52:25+00:00 -->
+### phase-split-2026-10-31--life--update-security-lifecycle-p5 · decision · ask: R20-R23/R25/R29 — the disposable-session security boundary (namespace, egress, scoped RBAC, briefs, scrubbing)
