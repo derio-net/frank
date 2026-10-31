@@ -1,0 +1,177 @@
+{
+ "schema_version": 10,
+ "run": "2026-10-31-feat-update-security-lifecycle",
+ "step": "spec-review",
+ "outcome": "done",
+ "journal": [
+  {
+   "kind": "finding",
+   "id": "s1",
+   "review_scope": "in",
+   "title": "Security fixes for stateful/Rollouts apps vs always-session",
+   "body": "Independent spec review finding s1."
+  },
+  {
+   "kind": "finding",
+   "id": "s2",
+   "review_scope": "in",
+   "title": "Console write surface GitHub-only vs multi-forge",
+   "body": "Independent spec review finding s2."
+  },
+  {
+   "kind": "finding",
+   "id": "s3",
+   "review_scope": "in",
+   "title": "Renovate auto-merge could bypass the R28 CI hold",
+   "body": "Independent spec review finding s3."
+  },
+  {
+   "kind": "finding",
+   "id": "s4",
+   "review_scope": "in",
+   "title": "R16 done-definition did not fit OS steps; git trailed cluster",
+   "body": "Independent spec review finding s4."
+  },
+  {
+   "kind": "finding",
+   "id": "s5",
+   "review_scope": "in",
+   "title": "Idle timeout could kill a mid-upgrade session; PVC mention",
+   "body": "Independent spec review finding s5."
+  },
+  {
+   "kind": "finding",
+   "id": "s6",
+   "review_scope": "in",
+   "title": "talosctl rollback on Omni-managed Frank",
+   "body": "Independent spec review finding s6."
+  },
+  {
+   "kind": "finding",
+   "id": "s7",
+   "review_scope": "in",
+   "title": "Hop combined patch file not in git",
+   "body": "Independent spec review finding s7."
+  },
+  {
+   "kind": "finding",
+   "id": "s8",
+   "review_scope": "in",
+   "title": "No Frank-side route to Hop's tailnet",
+   "body": "Independent spec review finding s8."
+  },
+  {
+   "kind": "finding",
+   "id": "s9",
+   "review_scope": "in",
+   "title": "Session talosctl/kubectl pins vs upgrade target",
+   "body": "Independent spec review finding s9."
+  },
+  {
+   "kind": "finding",
+   "id": "s10",
+   "review_scope": "in",
+   "title": "Path names inconsistent",
+   "body": "Independent spec review finding s10."
+  },
+  {
+   "kind": "finding",
+   "id": "s11",
+   "review_scope": "in",
+   "title": "R12 alarm/report state had no Grafana design",
+   "body": "Independent spec review finding s11."
+  },
+  {
+   "kind": "finding",
+   "id": "s12",
+   "review_scope": "in",
+   "title": "Trivy metric cardinality vs scrape cap",
+   "body": "Independent spec review finding s12."
+  },
+  {
+   "kind": "finding",
+   "id": "s13",
+   "review_scope": "in",
+   "title": "Omni version source inaccurate",
+   "body": "Independent spec review finding s13."
+  },
+  {
+   "kind": "review",
+   "id": "spec-review",
+   "title": "independent spec review: 13 findings, all in scope, all fixed",
+   "body": "Reviewer: super-fr:fr-spec-reviewer (fresh context, read-only). All 13 findings fixed in the spec; no operator decision required."
+  }
+ ],
+ "resolves": [
+  {
+   "id": "s1",
+   "state": "fixed",
+   "body": "R9 + Needs-action: security items act through their own path; session-path apps get a queue-jumping Start session."
+  },
+  {
+   "id": "s2",
+   "state": "fixed",
+   "body": "Acting lists GitHub and Gitea actions plus a Gitea Actions token; never-ran recovery redelivers the GitHub push webhook instead of a cluster-side re-sync."
+  },
+  {
+   "id": "s3",
+   "state": "fixed",
+   "body": "Console is the only merger; Renovate automerge false; branch protection alternative documented as rejected."
+  },
+  {
+   "id": "s4",
+   "state": "fixed",
+   "body": "R16 gains an OS-step verification; R22 + new OS steps section: version declared in git before applying, gap displayed as declared/applying."
+  },
+  {
+   "id": "s5",
+   "state": "fixed",
+   "body": "Idle clock paused during running steps; max lifetime warns; PVC dropped (emptyDir only)."
+  },
+  {
+   "id": "s6",
+   "state": "fixed",
+   "body": "Frank rollback = revert declared version via Omni; talosctl rollback only on Hop (R19, Part 4)."
+  },
+  {
+   "id": "s7",
+   "state": "fixed",
+   "body": "versions/hop.yaml stands alone; version steps via talosctl upgrade/upgrade-k8s; bringing the patch into git is out of scope."
+  },
+  {
+   "id": "s8",
+   "state": "fixed",
+   "body": "Userspace Tailscale sidecar with tagged ephemeral pre-auth key and Headscale ACL limited to Hop APIs."
+  },
+  {
+   "id": "s9",
+   "state": "fixed",
+   "body": "Both pinned per upgrade step; session image Renovate-tracked."
+  },
+  {
+   "id": "s10",
+   "state": "fixed",
+   "body": "Single vocabulary: auto-merge, batch-approve, session, operator-runbook."
+  },
+  {
+   "id": "s11",
+   "state": "fixed",
+   "body": "Console exports state metrics scraped into VictoriaMetrics."
+  },
+  {
+   "id": "s12",
+   "state": "fixed",
+   "body": "Per-CVE metrics off; plan measures scrape size; console reads VulnerabilityReports for detail."
+  },
+  {
+   "id": "s13",
+   "state": "fixed",
+   "body": "Pin OMNI_VERSION in existing omni/omni/omni.env.template; Renovate manager points there."
+  }
+ ],
+ "acceptance": [],
+ "evidence": {
+  "review": "spec-review",
+  "reviewer": "super-fr:fr-spec-reviewer"
+ }
+}
