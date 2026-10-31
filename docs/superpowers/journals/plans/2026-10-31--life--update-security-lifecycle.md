@@ -55,3 +55,6 @@ AWX's postgres pod runs quay.io/sclorg/postgresql-15-c9s:latest, chosen by the A
 ### no-refactor-p1-t2 · discovery · no-refactor-because P1.T2 (phase 1)
 
 declarative YAML files and a template value only; nothing to clean
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1 created=2026-10-31T19:26:26+00:00 phase=1 state=open review_scope=in -->
+### p1-r1 · finding [open] (reviewer: in scope) · test_life_images_pinned only reads the committed snapshot; a new :latest in any manifest keeps all tests green (phase 1)
