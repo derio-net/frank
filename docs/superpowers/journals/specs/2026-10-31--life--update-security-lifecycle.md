@@ -258,3 +258,6 @@ row_kinds:
 run_gate: devops
 run_kind: live
 ```
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-31--life--update-security-lifecycle-p2 created=2026-10-31T18:52:15+00:00 -->
+### phase-split-2026-10-31--life--update-security-lifecycle-p2 · decision · ask: R4/R5/R17 — detecting updates, classifying every dependency and declaring smoke tests is its own reviewable ask
