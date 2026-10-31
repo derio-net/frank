@@ -100,7 +100,7 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7
       phase/2/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-10-31T19:41:27+00:00'
           agent: a084fab2e748251d9
@@ -110,6 +110,11 @@ steps:
           tier: standard
           bound: sonnet
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-10-31T20:00:30+00:00'
+          outcome: done
+        evidence:
+          tests: phase2-tests.log@e44ff99c026a;tree=03e8b960a852444873e92f773d197e4523ca452eef001f6c3ff9325d223daad8
+          visual: none
   journal-check:
     state: pending
   deliver:

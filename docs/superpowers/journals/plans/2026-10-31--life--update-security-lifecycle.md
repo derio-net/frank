@@ -141,3 +141,48 @@ Literal OMNI_IMG_TAG plus OMNI_VERSION anchor; test asserts both equal and exact
 ### p1-r7-resolved · finding [out-of-scope] · resolves p1-r7: operator-created workloads (AWX sclorg postgresql-15-c9s:latest) are invisible to a render audit (phase 1)
 
 Not caused by this change: operator-created workloads were invisible before it. The AWX instance was pinned via its CR in this phase; the general gap belongs to the console's live inventory (R1), not the git render audit.
+
+<!-- fr:journal kind=decision scope=plan id=p2-smoke-layout created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-smoke-layout · decision · Smoke declarations live at smoke/<cluster>/<app>.yaml (phase 2)
+
+Two Application names exist on both clusters (argocd, fluent-bit), so a flat smoke/<app>.yaml is ambiguous. The cluster is the directory and also a field; a test fails on any orphan or missing file. Checks are in-cluster Service URLs (the verifier runs inside the cluster); Hop public services check their PUBLIC URL, headplane and landing are mesh-only and say so.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-facts-fixture created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-facts-fixture · discovery · Stateful and Rollout detection is a generated fixture plus an offline re-check (phase 2)
+
+scripts/tests/fixtures/life/app-facts.yaml (life_policy.py --emit-facts) records per app: stateful, rollout, charts, images, repo paths. Detection counts PersistentVolumeClaim, workload kinds carrying volumeClaimTemplates or a persistentVolumeClaim volume, and operator CRs (AWX, VMSingle, VLSingle). Tekton TriggerTemplates that merely mention a claim shape are not state. Longhorn is stateful by identity. A test re-detects git-resident sources offline so a stale fixture fails. 35 apps are stateful; the only Rollout app is litellm-extras. Regenerate with RENDER_CACHE set (about 3 min cold).
+
+<!-- fr:journal kind=discovery scope=plan id=p2-renovate-matchers created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-renovate-matchers · discovery · Renovate rules match by repo path and chart name, resolved by policy order (phase 2)
+
+Renovate cannot match an Application by name, so each policy rule is translated to matchFileNames (the app's manifests path, values files and root template) plus matchPackageNames (its charts). Later rules override earlier ones, so defaults come first, then per-app session rules, with groupName reset to null and labels replaced (path:<x>). A chart shared by apps of different paths (postgresql) takes the strictest. All 16 variants set automerge false and approval true only for session/operator-runbook. A test proves no stateful or Rollout app path appears in an auto-merge or batch rule.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-renovate-validator-skipped created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-renovate-validator-skipped · discovery · renovate-config-validator not installed locally, test skipped (phase 2)
+
+The validator is an npm binary; the test skips with a reason when it is not on PATH (no global npm install allowed here). CI or the console phase should run it for real.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-renovate-placeholders created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-renovate-placeholders · discovery · Renovate GitHub App ids and PEM are placeholders until the manual phase (phase 2)
+
+clustergenerator.yaml carries appID/installID PENDING-MANUAL-PHASE so the generator fails loudly rather than minting a wrong token; the PEM Secret github-app-renovate-key must be applied in namespace renovate (ESO resolves secretRef in the consumer namespace). The token secretKeyRef is optional so the sync never blocks. Phase 7 must fill both ids and apply the PEM. The renovate/renovate:44.198.3 image was verified on Docker Hub and the audit snapshot regenerated.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-smoke-unverified-secrets created=2026-10-31T20:00:28+00:00 phase=2 -->
+### p2-smoke-unverified-secrets · discovery · Two functional smoke checks name secrets that were not read from a cluster (phase 2)
+
+litellm chat uses litellm-api-keys/LITELLM_MASTER_KEY (from the ExternalSecret) and the Grafana dashboards check assumes the chart-default admin secret victoria-metrics-grafana (admin-user/admin-password). The litellm check also depends on the GPU timeshare slot. Confirm both against the live cluster when the verifier is built.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t1 created=2026-10-31T20:00:28+00:00 phase=2 -->
+### no-refactor-p2-t1 · discovery · no-refactor-because P2.T1 (phase 2)
+
+update-policy.yaml and life_policy.py were written once; the shared enumeration is extracted in P2.T4.S3
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t2 created=2026-10-31T20:00:28+00:00 phase=2 -->
+### no-refactor-p2-t2 · discovery · no-refactor-because P2.T2 (phase 2)
+
+renovate.json5 is generated from the policy, so there is no hand-written duplicate to tidy
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t3 created=2026-10-31T20:00:28+00:00 phase=2 -->
+### no-refactor-p2-t3 · discovery · no-refactor-because P2.T3 (phase 2)
+
+five small declarative manifests, nothing to clean
