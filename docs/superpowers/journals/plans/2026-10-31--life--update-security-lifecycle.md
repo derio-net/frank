@@ -219,3 +219,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r8 created=2026-10-31T20:08:00+00:00 phase=2 state=open review_scope=in -->
 ### p2-r8 · finding [open] (reviewer: in scope) · Stateful/rollout facts not re-checked for remote-chart apps; charts-session test only checks images; no facts-drift job (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9 created=2026-10-31T20:08:09+00:00 phase=2 state=open review_scope=in -->
+### p2-r9 · finding [open] (reviewer: in scope) · renovate image pinned by tag not digest and default patch policy lets it auto-update itself (phase 2)
