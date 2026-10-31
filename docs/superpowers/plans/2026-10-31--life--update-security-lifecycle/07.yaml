@@ -23,6 +23,9 @@ tasks:
   - id: P7.T1.S3
     text: |-
       Assign the two new Authentik proxy providers (updates, sessions) to the embedded outpost (frank-argocd.md Django ORM step). `kubectl -n headscale-system rollout restart deploy/headscale` after the ACL ConfigMap lands (gate on live CM content).
+  - id: P7.T1.S4
+    text: |-
+      Create a GitHub repository ruleset on derio-net/frank targeting branches renovate/** and cluster-update/**: restrict creations, updates and deletions so only the Renovate App and the console App are bypass actors; require signed commits on those branches. Verify by attempting a push to renovate/test from a personal account (must be refused), then delete the test branch if it exists.
 - number: 2
   title: Merge order (operator)
   steps:
@@ -52,6 +55,10 @@ state:
       ticked_at: null
       note: null
     P7.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S4:
       state: ' '
       ticked_at: null
       note: null
