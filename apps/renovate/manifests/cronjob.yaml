@@ -40,6 +40,11 @@ spec:
                   value: "false"
                 - name: RENOVATE_REQUIRE_CONFIG
                   value: required
+                # GitHub App bot identity: <app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>.
+                # Placeholders until the App exists (phase 7). Needs a LIVE check that commits are
+                # attributed to the App and signed off as expected.
+                - name: RENOVATE_GIT_AUTHOR
+                  value: "PENDING-MANUAL-PHASE[bot] <PENDING-MANUAL-PHASE+PENDING-MANUAL-PHASE[bot]@users.noreply.github.com>"
                 - name: RENOVATE_BASE_DIR
                   value: /tmp/renovate
                 - name: RENOVATE_TOKEN

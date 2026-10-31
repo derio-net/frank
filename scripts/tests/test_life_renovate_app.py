@@ -95,3 +95,13 @@ def test_token_outlives_the_job_that_uses_it():
     refresh = int(es["spec"]["refreshInterval"].rstrip("m")) * 60
     deadline = cj["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
     assert deadline + refresh < 3600, (deadline, refresh)
+
+
+def test_git_author_is_the_app_bot_identity_form():
+    (cj,) = of("CronJob")
+    env = {e["name"]: e for e in cj["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]["env"]}
+    author = env["RENOVATE_GIT_AUTHOR"]["value"]
+    # <app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>
+    import re
+    assert re.fullmatch(r"(\S+)\[bot\] <(\S+)\+\1\[bot\]@users\.noreply\.github\.com>", author), author
+    assert ("PENDING" in author) is _placeholders(), "placeholders are filled together with the App ids"
