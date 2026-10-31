@@ -53,7 +53,7 @@ steps:
       self-review passed
   implement:
     state: running
-    at: '2026-10-31T18:53:40+00:00'
+    at: '2026-10-31T18:54:20+00:00'
     members:
     - implement-phase
     - review-phase
@@ -64,6 +64,14 @@ steps:
         state: running
         attempts:
         - dispatched: '2026-10-31T18:53:40+00:00'
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          tier: standard
+          bound: sonnet
+          session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-10-31T18:54:20+00:00'
+          outcome: abandoned
+        - dispatched: '2026-10-31T18:54:20+00:00'
           agent_type: super-fr:fr-phase-executor
           harness: claude-code
           tier: standard
