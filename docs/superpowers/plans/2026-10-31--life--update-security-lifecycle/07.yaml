@@ -26,6 +26,9 @@ tasks:
 - number: 2
   title: Merge order (operator)
   steps:
+  - id: P7.T2.S0
+    text: |-
+      Before merging frank: delete the completed Jobs whose pod template this PR changes (plan journal entry p1-job-immutability, e.g. vk-remote postgres-init and cnc-prod snapshot-job) so ArgoCD can sync the new template; expect the restarts in p1-restart-list and verify each live image afterwards with kubectl (status.containerStatuses imageID), not ArgoCD Synced.
   - id: P7.T2.S1
     text: |-
       Merge in this order: agent-images (session image published, GHCR public) → cluster-update-fr (v0.1.0 tag, GHCR package set public on first publish) → this frank PR. Confirm each image exists and is public before the next merge.
