@@ -104,7 +104,7 @@ R19. Every update path states how it is undone before it is approved: a one-clic
 R20. "Start session" launches a disposable pod for that upgrade alone, built on a derio-net/agent-images base, with credentials scoped to that upgrade injected; the operator attaches from the console in the browser and logs the agent in interactively.
 R21. An upgrade session may act on the clusters (`omnictl`, `talosctl`, `kubectl`) only with credentials scoped to its upgrade type, runs non-root with all capabilities dropped in its own namespace, and can reach only the endpoints that upgrade needs.
 R22. A session starts with a brief — the target, its place in the upgrade sequence, release notes, migration count, the rollback path and the relevant gotchas — and ends only after the R16 verification passes; for OS steps the new version is declared in git before it is applied.
-R23. A session pod and its credentials are deleted when the operator ends it or after an idle timeout that never fires while an upgrade step is running, and its outcome and transcript (scrubbed) are kept in History.
+R23. A session pod and its credentials are deleted when the operator ends it, after an idle timeout that never fires while an upgrade step is running, or unconditionally at a hard ceiling (also mid-step, with an alarm) so no session can hold credentials indefinitely; its outcome and transcript (scrubbed) are kept in History.
 R24. The OS tracks for Frank and Hop are shown as ordered sequences respecting the Talos–Kubernetes support window, each step approved separately; Omni is shown with its running and latest version and a link to its operator-run upgrade runbook.
 R25. No credential appears in logs, session transcripts, PR bodies, Telegram messages or the console, and CI fails on a token-shaped string in any of them.
 R26. A failed update, killed pod or abandoned session ends in a named state shown in the console ("failed at step X, rolled back", "needs you"), with its leftover pods, branches and volumes removed.
@@ -395,7 +395,11 @@ check is the guarantee, not the button.
 2 h idle / 8 h max). The idle clock runs only from a safe point: while a step is
 in progress (a Talos rollout, an upgrade-k8s, a snapshot, a canary analysis) it
 is paused, and the maximum lifetime warns the operator instead of killing a
-running step. On end, the pod and its Secrets are deleted (the session has no
+running step. A **hard ceiling** (e.g. 2× the maximum lifetime) and a per-step
+time cap end the session even mid-step and alarm in `#security`: a steered agent
+that reports a step as running forever must not keep its credentials (security
+review c1s-r1 — fencing untrusted text is advice to the model, not a control).
+On end, the pod and its Secrets are deleted (the session has no
 PVC — only `emptyDir`); the scrubbed transcript and outcome go to History.
 
 ### Part 4 — OS tracks
