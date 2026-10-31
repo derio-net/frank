@@ -73,7 +73,7 @@ def test_stateful_and_rollout_apps_are_session_for_all_update_types():
             assert life_policy.resolve({"app": app}, ut) == "session", (app, ut)
 
 
-def test_stateful_apps_images_and_charts_are_session_too():
+def test_stateful_apps_images_are_session_too():
     for app, facts in FACTS["apps"].items():
         if not (facts["stateful"] or facts["rollout"]):
             continue
@@ -99,3 +99,29 @@ def test_the_tools_that_update_the_cluster_never_update_themselves_unattended():
     cfg = life_policy.renovate_config()
     pinned = [r for r in cfg["packageRules"] if "renovate/renovate" in r.get("matchPackageNames", [])]
     assert pinned and all(r["labels"] == ["path:session"] for r in pinned)
+
+
+def test_stateful_apps_charts_are_session_too():
+    for app, facts in FACTS["apps"].items():
+        if not (facts["stateful"] or facts["rollout"]):
+            continue
+        for chart in facts["charts"]:
+            for ut in UPDATE_TYPES:
+                assert life_policy.resolve({"chart": chart}, ut) == "session", (app, chart, ut)
+
+
+def test_facts_have_not_drifted_from_a_full_render():
+    """Regenerates the facts (remote charts included) and compares: a stale fixture fails.
+
+    Needs the network for remote charts. CI sets CI=true and must run it; locally an
+    unreachable chart repository skips with the reason instead.
+    """
+    import os
+
+    try:
+        fresh = life_policy.collect_facts()
+    except Exception as exc:  # noqa: BLE001 - network/tooling failure, not drift
+        if os.environ.get("CI") == "true":
+            raise
+        pytest.skip(f"cannot render remote charts here: {exc}")
+    assert fresh == FACTS["apps"], "app-facts.yaml is stale: run scripts/life_policy.py --emit-facts"
