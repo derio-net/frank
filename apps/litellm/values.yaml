@@ -277,6 +277,11 @@ db:
   deployStandalone: true
 
 postgresql:
+  # Pinned by digest to the image running on 2026-10-31 (PostgreSQL 18.4). The
+  # chart default is the floating `latest` tag; the tag is kept for readability and
+  # the digest is what makes it immutable (spec R2, life layer).
+  image:
+    digest: sha256:db2312d9b243afa8c3b3f5496e478d17d0dff9791d06f3b93b9567abd86ae92f
   auth:
     username: litellm
     database: litellm
