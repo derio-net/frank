@@ -93,7 +93,7 @@ R10. A dedicated Telegram chat (not the existing alert chat) receives an immedia
 R11. The same chat receives one daily report summarising what needs action, with a link to the console; on days with nothing new it is a single short line.
 R12. A Grafana dashboard shows versions-behind and vulnerability counts over time per cluster, and the alarm and report state is visible there.
 R13. A web console at `updates.cluster.derio.net`, behind Authentik, opens on a "Needs action" page grouped as Security, Suggested batch, Auto-merge countdowns and Guided upgrades, with Inventory and History tabs.
-R14. The console never changes a cluster itself: its buttons merge or approve PRs, tick Renovate approvals, open issues, or start an upgrade session.
+R14. The console never changes a cluster itself: its buttons act only on the forges (merge or approve PRs, tick Renovate approvals, open issues, re-forward CI statuses, re-run CI jobs) or start an upgrade session.
 R15. History records every update — manual, batched, automatic or session — with who or what approved it, the PR, the rollout result and the verification result.
 R16. An update counts as done only when ArgoCD has applied its merge commit (checked against `operationState`, not the Synced status) and the service's smoke test passes; until then it is shown as "rolled out, unverified", and a failing check shows it as failed.
 R17. Every application on both clusters has a smoke test declared in git that exercises the real service, and CI fails if one is missing.
@@ -107,6 +107,8 @@ R24. The OS tracks for Frank and Hop are shown as ordered sequences respecting t
 R25. No credential appears in logs, session transcripts, PR bodies, Telegram messages or the console, and CI fails on a token-shaped string in any of them.
 R26. A failed update, killed pod or abandoned session ends in a named state shown in the console ("failed at step X, rolled back", "needs you"), with its leftover pods, branches and volumes removed.
 R27. At handover every dependency is classified, and at least one real update has completed through each of auto-merge, batch, security approval and agent session, plus one OS step on each cluster. Upgrading Omni itself is not part of handover.
+R28. An update held for missing or failed CI shows why (status lost, never ran, or ran and failed) and offers the matching recovery from the console; a retry that fails again marks the update failed rather than retrying forever.
+R29. Starting a session is safe to repeat: a second "Start session" for the same upgrade attaches to the running session instead of creating another, and two sessions that would change the same cluster's OS, or the same application, cannot run at once.
 
 ## Design
 
@@ -180,7 +182,37 @@ Frank** (Hop's 4 GB node cannot host the operator): a Frank job lists Hop's
 running images through a read-only Hop kubeconfig and scans them with Trivy
 in client/server mode. Both feed the same store the console reads.
 
-**Alarm and report (R10, R11, R12).** A dedicated Telegram chat. The console
+**Telegram destination (operator's decision).** A new Telegram **group named
+`derio.net`** with Topics enabled, holding a **`#security` topic**. A new bot,
+**Frank Updater** (`@frank_updater_bot`), separate from `@agent_zero_cc_bot`,
+is a member and posts there by `message_thread_id`. The group is meant to grow:
+the operator will invite other bots later, so the bot must post only to its own
+topic. Creating the group, the topic and the bot needs the operator's Telegram
+account, so it is a manual operation:
+
+```yaml
+# manual-operation
+id: life-telegram-derio-net-group
+layer: life
+app: cluster-update-fr
+plan: <filled by fr-plan>
+when: "[PRE-MERGE] before the alarm/report phase merges"
+why_manual: "BotFather and group creation need the operator's Telegram account"
+commands:
+  - "BotFather: /newbot -> name 'Frank Updater', username 'frank_updater_bot'; copy the token"
+  - "Telegram: create group 'derio.net'; Settings -> Topics: on; create topic 'security'"
+  - "Add @frank_updater_bot to the group"
+  - "Read chat id (negative, -100...) and the topic's message_thread_id (getUpdates after posting in the topic)"
+  - "Store in Infisical: FRANK_UPDATER_TELEGRAM_BOT_TOKEN, FRANK_UPDATER_TELEGRAM_CHAT_ID, FRANK_UPDATER_TELEGRAM_SECURITY_THREAD_ID"
+verify: "a test message sent with the stored values appears in derio.net -> #security, and nowhere else"
+status: pending
+```
+
+Supergroup chat ids are negative; use the webhook-style send (the
+`service.telegram` positive-id gotcha does not apply to a direct Bot API call,
+but keep the id as a string).
+
+**Alarm and report (R10, R11, R12).** The `#security` topic above. The console
 backend owns alarm state (one record per vulnerability × component) so
 re-alarm happens only on a state change; Grafana alert rules exist for the
 dashboard and as a dead-man's switch on the scanner and the report job, not as
@@ -223,11 +255,30 @@ read-only kubeconfig (bootstrap secret) that may read pods, ArgoCD
 Applications and Rollouts. Hop smoke tests for public services check the
 public endpoint; mesh-only services are checked over the tailnet.
 
-**CI signal across forges.** Merges happen on GitHub; required-check statuses
-arrive from Gitea through the status bridge, which can drop events. If an
-auto-merge or batch PR has no CI status within a timeout, the item becomes
-`held — no CI signal` under Needs action; it never merges without a signal and
-never stalls silently.
+**CI signal across forges (R28).** Merges happen on GitHub; required-check
+statuses arrive from Gitea through the status bridge, which can drop events. If
+an auto-merge or batch PR has no conclusive CI status within a timeout, or its
+CI failed, the item becomes `held — CI` under Needs action; it never merges
+without a passing signal and never stalls silently.
+
+The console **diagnoses** a held item before offering a fix, because the three
+causes in `docs/runbooks/frank-gotchas/tekton.md` need different remedies:
+
+| Diagnosis | Evidence the console checks | "Retry CI" does |
+|---|---|---|
+| Ran, status lost | Gitea has a terminal status for the head SHA; GitHub does not | re-forward the status to GitHub (the `ci_status_backfill.py` logic, posted with the console's GitHub App token) |
+| Never ran | no Gitea run for the head SHA; check `mergeable` first | if conflicting: ask Renovate to rebase (checkbox); else trigger a mirror re-sync of the branch |
+| Ran and failed | Gitea run concluded `failure` | re-run the failed jobs through the Gitea API |
+
+The diagnosis and the action taken are shown on the item and kept in History.
+Re-running a genuine failure does not hide it: after **one** retry that fails
+again, the item is marked `failed — CI` and needs the operator. Auto-merge
+items get that one retry automatically for the *ran-and-failed* case only;
+everything else waits for the button. These are forge actions (GitHub, Gitea),
+not cluster writes, so R14 still holds. The builder verifies that the running
+Gitea version exposes a job re-run API; if not, the fallback is to re-request
+the run through Renovate (rebase checkbox), **never** an empty commit — path
+filters make an empty commit trigger nothing (tekton gotcha).
 
 **Acting (R14).** Buttons act on GitHub only — merge a PR, tick a Renovate
 approval, open a revert PR, open an issue — or start an upgrade session
@@ -289,6 +340,15 @@ loaded by nothing). It ends by opening the PR that records the new version and
 running the R16 verification; the console then checks the running version
 independently.
 
+**Starting twice (R29).** A session's identity is the upgrade id, never a
+random suffix (`$(uid)` is random, not unique — tekton gotcha): the pod name and
+its Secrets derive deterministically from it, so a second "Start session" finds
+the existing pod (create-if-absent) and attaches to it. On top of that, a
+**lock per target** — one per cluster OS, one per application — refuses a
+second session that would change the same thing, naming the session that holds
+it. The button is disabled while a start is in flight, but the server-side
+check is the guarantee, not the button.
+
 **Lifecycle.** Idle timeout and a maximum lifetime (builder's numbers; suggest
 2 h idle / 8 h max). On end, the pod, its Secrets and PVCs are deleted; the
 scrubbed transcript and outcome go to History.
@@ -314,7 +374,7 @@ scrubbed transcript and outcome go to History.
 | Repo | Gets |
 |---|---|
 | `derio-net/frank` | Renovate, Trivy, policy, smoke tests, versions, Omni runbook, Grafana, apps for console/runs-fr/sessions, manual ops, blog posts |
-| new `derio-net/update-console` | the console (name is the builder's call) |
+| new `derio-net/cluster-update-fr` | the console |
 | `derio-net/agent-images` | the upgrade-session image |
 | `derio-net/runs-fr` | only if the attach contract needs changes |
 
@@ -347,7 +407,10 @@ theirs alone (creating the Telegram chat, SOPS bootstrap secrets, OS steps).
 These were decided by the designer, not the operator; check them:
 
 - New layer `life` (#22, "Update Lifecycle") rather than folding into `auto`.
-- Console is a new repo, written in Go like `runs-fr` and `health-bridge`.
+- Console is written in Go like `runs-fr` and `health-bridge` (the repo name,
+  `derio-net/cluster-update-fr`, is the operator's).
+- Both the security alarms and the daily report post to the `#security` topic;
+  a separate topic for the daily report can be added later.
 - Renovate runs as a CronJob on Frank with a new scoped GitHub App.
 - Hop is scanned from Frank rather than running Trivy Operator on Hop.
 - Alarm state lives in the console backend; Grafana alerts are dead-man's
@@ -357,9 +420,6 @@ These were decided by the designer, not the operator; check them:
 - Frank versions are declared versions-only, not as an Omni cluster template.
 - Hop is read over the tailnet with a read-only kubeconfig.
 - A missing CI status holds an item visibly rather than merging or stalling.
-- The dedicated Telegram chat uses a **new bot** (separate token from
-  `@agent_zero_cc_bot`), so the two channels can be rotated and muted
-  independently.
 
 ## Left to the builder
 
