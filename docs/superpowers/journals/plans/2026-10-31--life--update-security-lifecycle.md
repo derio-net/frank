@@ -252,3 +252,8 @@ Console creates no RoleBindings (removes an escalation path). Frank binds, in ea
 ### p3-hop-scan-format · discovery · Hop scan result line format consumed by the console (phase 3)
 
 The console reads hop scan results from VictoriaLogs lines 'hop-scan result {json}' (one JSON object per image). Match exactly in apps/hop-scan; the console needs VICTORIALOGS_URL.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-session-merge-and-exfil-boundary created=2026-10-31T21:04:39+00:00 phase=5 -->
+### p5-session-merge-and-exfil-boundary · discovery · Session GitHub token must not bypass the console as merger; egress bounds exfiltration (phase 5)
+
+Console security review c1s-r12 (frank-side): (1) the session GitHub App token must be scoped to contents:write on branches + pull_requests:write only, and main must be protected by a ruleset requiring a PR (bypass: operator and the console App only), so a steered session can open a PR but never push to main; (2) session egress per type is the exfiltration boundary: GitHub API only (not gist/raw uploads — restrict to api.github.com and the git endpoints of derio-net/frank), model provider endpoints, and the type's cluster endpoints; no general internet. Phase 5 tests assert both; phase 7 applies the main ruleset.
