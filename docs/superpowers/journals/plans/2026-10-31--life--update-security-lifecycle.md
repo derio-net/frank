@@ -30,3 +30,8 @@ Second console finding: stopping the value class at #, comma or } under-redacts 
 ### p5-session-selection-explicit · discovery · Session pod must run use-versions explicitly; never set command: (phase 5)
 
 Review of agent-images#171: the env-based selection (UPGRADE_*_MINOR) only runs via the image ENTRYPOINT; a pod spec 'command:' replaces it and the env is silently ignored, and with nothing selected neither talosctl nor kubectl is on PATH. Frank's session pod template must use 'args:' not 'command:', AND every brief template must start with an explicit 'use-versions --talos <minor> --kubernetes <minor>' and a 'use-versions --list' check.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-scrub-exact-values-first created=2026-10-31T19:19:48+00:00 phase=5 -->
+### p5-scrub-exact-values-first · discovery · Redact known secret values first; regexes are the second layer (phase 5)
+
+Three rounds of console scrubber findings (adjacent tokens, end anchors, delimiters inside values, next-line YAML values, unterminated quotes) show regex-only redaction keeps missing shapes. Frank's life_scrub.py should mirror the console: exact-value redaction of known/injected secrets (plus base64/URL-encoded forms and each line of multi-line values) first, regex patterns second; fixtures for next-line YAML values and unterminated quotes.
