@@ -341,12 +341,15 @@ Kubernetes minors show a one-way warning.
 
 **Pod (R20, R21, R23).** "Start session" creates, in a dedicated namespace
 (e.g. `upgrade-sessions`), a pod labelled `fr.run/id=<upgrade-id>` from an image
-built in agent-images (base: `infra-shell`, which already pins `talosctl` to the
-cluster version; add `omnictl` and the agent CLIs). Talos allows only ±1
-minor of client skew and infra-shell's kubectl is unpinned, so `talosctl` and
-`kubectl` are pinned **per upgrade step** to the step's target (selected at
-session start), and the session image itself is a Renovate-tracked
-dependency. Hardening: non-root,
+built in agent-images: `upgrade-session`, based on `agent-base` — **not**
+`infra-shell`, whose s6/sshd init cannot run on a read-only root FS
+(agent-images#171). It ships `omnictl`, the agent CLIs, and every talosctl and
+kubectl minor in the upgrade window side by side. Talos allows only ±1 minor of
+client skew, so `talosctl` and `kubectl` are selected **per upgrade step**
+(`use-versions --talos X --kubernetes Y`, run explicitly by the brief — a pod
+`command:` would bypass the entrypoint's env-based selection), and the session
+image itself is a Renovate-tracked dependency whose window pins are audited
+against the newest patch of their own minor. Hardening: non-root,
 `capabilities.drop: [ALL]`, read-only root FS with writable `emptyDir` home, no
 service-account token unless the upgrade needs one, a CiliumNetworkPolicy
 allowing egress only to that upgrade's endpoints (Omni, Talos API, GitHub,
