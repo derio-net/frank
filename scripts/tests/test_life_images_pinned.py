@@ -89,7 +89,7 @@ def test_images_embedded_in_strings_are_audited():
         "    curl https://github.com/org/repo:foo\n"
         "  env: ghcr.io/team/app\n"
     )
-    assert find_unpinned(doc) == ["ghcr.io/x/tool:latest", "ghcr.io/team/app"]
+    assert find_unpinned(doc) == ["ghcr.io/team/app", "ghcr.io/x/tool:latest"]
 
 
 def test_unresolved_and_hook_exemptions_are_recorded():
