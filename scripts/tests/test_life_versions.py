@@ -29,7 +29,16 @@ def test_hop_versions():
     _check("hop", "talosctl")
 
 
-def test_omni_version_pinned():
+def _env(name):
     text = (ROOT / "omni/omni/omni.env.template").read_text()
-    m = re.search(r"^OMNI_VERSION=(.*)$", text, re.M)
-    assert m and re.fullmatch(r"v\d+\.\d+\.\d+", m.group(1).strip())
+    m = re.search(rf"^{name}=(.*)$", text, re.M)
+    return m.group(1).strip() if m else None
+
+
+def test_omni_version_pinned_and_effective():
+    """compose.yaml consumes OMNI_IMG_TAG; the template may be copied to .env with no
+    shell expansion, so the effective tag must be a literal, equal to the Renovate anchor."""
+    version, tag = _env("OMNI_VERSION"), _env("OMNI_IMG_TAG")
+    assert version and re.fullmatch(r"v\d+\.\d+\.\d+", version)
+    assert tag == version, "OMNI_IMG_TAG must be the literal pinned tag, not ${...}"
+    assert "${OMNI_IMG_TAG}" in (ROOT / "omni/omni/compose.yaml").read_text()
