@@ -425,6 +425,24 @@ PVC — only `emptyDir`); the scrubbed transcript and outcome go to History.
 strategy: live
 gate: devops
 
+- life-inventory-complete: live — declared vs running needs the live clusters and Omni; CI checks only the declarations
+- life-every-version-pinned: live — CI proves git is pinned; only the live clusters prove nothing runs an unpinned image
+- life-every-dep-has-path: live — CI proves classification; detection needs Renovate running against the real repo
+- life-automerge-and-batch: live — countdown, hold and one-click batch only exist on the deployed console against real PRs
+- life-vulns-jump-queue: live — needs Trivy scanning real running images on both clusters
+- life-telegram-quiet-alarm: live — delivery to the derio.net #security topic needs the live bot and group
+- life-grafana-trend: live — panels need real metrics flowing into VictoriaMetrics
+- life-console-acts-via-forges: live — Authentik forward-auth and the forge actions need the deployed console
+- life-done-means-verified: live — operationState and smoke checks can only be observed after a real rollout
+- life-rollback-and-rollouts: live — rollback and Rollouts handling need a real update and a real Rollout
+- life-disposable-session: live — pod launch, attach via runs-fr and cleanup need the live cluster
+- life-os-tracks: live — an OS step changes real nodes; the sequence logic is unit-tested pre-merge
+- life-no-credential-leak: live — CI scrubs fixtures and repo files; live logs, transcripts and PR bodies exist only after real runs
+- life-clean-failure-state: live — needs a real failed update or killed session to converge
+- life-working-at-handover: live — handover is by definition real updates through every path
+- life-ci-recovery: live — needs a real held PR and the live Gitea/GitHub bridge
+- life-session-idempotent: live — lock and attach-on-repeat need the deployed console and session namespace; unit-tested in the console repo
+
 Pre-merge: offline CI tests in `scripts/tests/` (classification, smoke
 coverage, pinning, Renovate config, token scrub) and the console's own unit
 tests plus a run in the staging vCluster (`staging-gate`, `runs-fr-staging`).
