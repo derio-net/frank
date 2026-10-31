@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import life_policy  # noqa: E402
 import render_all_images  # noqa: E402
 
+pytestmark = pytest.mark.slow
 PATHS = {"auto-merge", "batch-approve", "session", "operator-runbook"}
 UPDATE_TYPES = ("patch", "minor", "major")
 FIX = ROOT / "scripts/tests/fixtures/life"

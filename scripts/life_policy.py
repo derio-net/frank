@@ -203,7 +203,16 @@ def collect_facts() -> dict:
     return facts
 
 
+@functools.lru_cache(maxsize=None)
+def _detect_offline() -> tuple:
+    return tuple(_detect_offline_uncached().items())
+
+
 def detect_offline() -> dict[str, tuple[bool, bool]]:
+    return dict(_detect_offline())
+
+
+def _detect_offline_uncached() -> dict[str, tuple[bool, bool]]:
     """Re-detect stateful/rollout for git-resident (non-remote-chart) sources; no network."""
     import render_all_images as r
 

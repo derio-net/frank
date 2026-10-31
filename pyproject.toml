@@ -29,3 +29,6 @@ dev = [
 # explicit testpaths it walks from the repo root into blog/public and the
 # vendored .venv.
 testpaths = ["scripts/tests"]
+markers = [
+    "slow: renders every Argo CD Application with helm/kustomize (minutes); CI still runs them, select locally with -m 'not slow'",
+]

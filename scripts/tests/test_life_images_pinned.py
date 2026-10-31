@@ -1,4 +1,6 @@
 import sys
+
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -152,6 +154,7 @@ def _snapshot_images():
     return {line for line in lines if line and not line.startswith("#")}
 
 
+@pytest.mark.slow
 def test_git_resident_sources_render_pinned_offline():
     import render_all_images as r
 
@@ -161,6 +164,7 @@ def test_git_resident_sources_render_pinned_offline():
     assert sorted(i for i in images if r.is_unpinned(i)) == []
 
 
+@pytest.mark.slow
 def test_offline_images_are_in_the_snapshot_so_a_stale_snapshot_fails():
     import render_all_images as r
 
@@ -168,6 +172,7 @@ def test_offline_images_are_in_the_snapshot_so_a_stale_snapshot_fails():
     assert sorted(images - _snapshot_images()) == [], "regenerate: scripts/render_all_images.py"
 
 
+@pytest.mark.slow
 def test_offline_audit_goes_red_on_a_floating_image(tmp_path, monkeypatch):
     """Scratch copy of a manifest dir with `image: foo:latest` must be caught."""
     import render_all_images as r

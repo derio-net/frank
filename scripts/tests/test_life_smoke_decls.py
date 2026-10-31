@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import life_policy  # noqa: E402
 
 SMOKE = ROOT / "smoke"
+pytestmark = pytest.mark.slow
 KINDS = {"http", "tcp", "exec-probe", "functional"}
 
 
