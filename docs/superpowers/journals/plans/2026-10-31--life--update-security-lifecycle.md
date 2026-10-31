@@ -210,3 +210,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r5 created=2026-10-31T20:07:36+00:00 phase=2 state=open review_scope=in -->
 ### p2-r5 · finding [open] (reviewer: in scope) · ExternalSecret refresh 45m vs 1h token and 3000s deadline lets the token expire mid-run (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6 created=2026-10-31T20:07:49+00:00 phase=2 state=open review_scope=in -->
+### p2-r6 · finding [open] (reviewer: in scope) · Validator test skipped when absent; fileMatch (renamed managerFilePatterns) and groupName:null unverified (phase 2)
