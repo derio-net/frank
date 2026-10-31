@@ -70,3 +70,6 @@ declarative YAML files and a template value only; nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p1-r5 created=2026-10-31T19:26:34+00:00 phase=1 state=open review_scope=in -->
 ### p1-r5 · finding [open] (reviewer: in scope) · OMNI_VERSION pin may not reach OMNI_IMG_TAG depending on how the template is consumed; undocumented and untested (phase 1)
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6 created=2026-10-31T19:26:36+00:00 phase=1 state=open review_scope=in -->
+### p1-r6 · finding [open] (reviewer: in scope) · --check does not fail when sources are skipped (e.g. kustomize missing), giving a false green (phase 1)
