@@ -43,3 +43,21 @@ def test_snapshot_lists_no_unpinned_images():
     images = [line for line in lines if line and not line.startswith("#")]
     assert images, "snapshot is empty"
     assert [i for i in images if not is_ignored(i) and is_unpinned(i)] == []
+
+
+def test_check_fails_when_any_source_is_skipped():
+    from render_all_images import exit_code
+
+    assert exit_code(check=True, unpinned=[], skipped=["x: boom"]) == 1
+    assert exit_code(check=True, unpinned=["a:latest"], skipped=[]) == 1
+    assert exit_code(check=True, unpinned=[], skipped=[]) == 0
+    assert exit_code(check=False, unpinned=["a:latest"], skipped=["x"]) == 0
+
+
+def test_kustomize_falls_back_to_kubectl(monkeypatch):
+    import render_all_images as r
+
+    monkeypatch.setattr(r.shutil, "which", lambda name: "/bin/x" if name == "kubectl" else None)
+    assert r.kustomize_cmd() == ["kubectl", "kustomize"]
+    monkeypatch.setattr(r.shutil, "which", lambda name: "/bin/x")
+    assert r.kustomize_cmd() == ["kustomize", "build"]

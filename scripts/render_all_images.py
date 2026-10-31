@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -142,6 +143,16 @@ def _value_args(source: dict, tmp: Path) -> list[str]:
     return args
 
 
+def kustomize_cmd() -> list[str]:
+    """`kustomize build` when installed, else the kubectl-embedded copy."""
+    return ["kustomize", "build"] if shutil.which("kustomize") else ["kubectl", "kustomize"]
+
+
+def exit_code(check: bool, unpinned: list[str], skipped: list[str]) -> int:
+    """--check fails on any unpinned image AND on any source that could not be audited."""
+    return 1 if check and (unpinned or skipped) else 0
+
+
 def render_source(app: dict, source: dict, tmp: Path) -> str:
     name = (source.get("helm") or {}).get("releaseName") or app["metadata"]["name"]
     ns = app["spec"]["destination"].get("namespace", "default")
@@ -163,7 +174,7 @@ def render_source(app: dict, source: dict, tmp: Path) -> str:
     if (path / "Chart.yaml").exists():
         return _run(base + [str(path)] + common + _value_args(source, tmp))
     if (path / "kustomization.yaml").exists() or (path / "kustomization.yml").exists():
-        return _run(["kustomize", "build", str(path)])
+        return _run(kustomize_cmd() + [str(path)])
     pattern = "**/*.y*ml" if (source.get("directory") or {}).get("recurse") else "*.y*ml"
     return "\n---\n".join(
         p.read_text() for p in sorted(path.glob(pattern)) if p.suffix in (".yaml", ".yml")
@@ -201,7 +212,7 @@ def main() -> int:
         print(f"skipped: {s}", file=sys.stderr)
     for i in bad:
         print(f"UNPINNED: {i}")
-    return 1 if args.check and bad else 0
+    return exit_code(args.check, bad, skipped)
 
 
 if __name__ == "__main__":
