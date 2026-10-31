@@ -232,3 +232,8 @@ Console security review: PR titles/bodies and release notes flowed verbatim into
 ### p4-console-trust-config · discovery · Console needs the trusted bot logins and branch prefixes in its config (phase 4)
 
 Console only accepts PRs authored by the configured Renovate App bot (or its own App bot for batches), from the base repo, on configured branch prefixes (renovate/, cluster-update/). Frank's console config (configMapGenerator) must declare renovate_bot_login, console_bot_login and the branch prefixes; they are filled from the Apps the operator creates in phase 7 (placeholders until then, console treats placeholders as 'trust nothing').
+
+<!-- fr:journal kind=discovery scope=plan id=p4-console-ingress-lockdown created=2026-10-31T20:24:51+00:00 phase=4 -->
+### p4-console-ingress-lockdown · discovery · Only Traefik may reach the console and runs-fr UI ports; console verifies Authentik's JWT (phase 4)
+
+Console security review: a bare trusted header is spoofable by anything that reaches the pod directly. Frank side for phase 4: (1) CiliumNetworkPolicy on cluster-update-fr and runs-fr allowing ingress to the UI port ONLY from Traefik pods (traefik namespace + label), metrics port only from vmagent; (2) the Authentik proxy provider sends the JWT header the console verifies (config: authentik issuer/JWKS URL, audience, operator group name) — add the provider property mapping if needed; (3) runs-fr has no JWT verification, so its NetworkPolicy is the primary guard and it must ALSO sit behind forward-auth restricted to the operator group (Authentik policy binding on the provider); (4) tests asserting both NetworkPolicies exist and name the right ports.
