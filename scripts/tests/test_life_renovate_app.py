@@ -86,3 +86,12 @@ def _placeholders():
 def test_cronjob_is_suspended_exactly_while_the_app_ids_are_placeholders():
     (cj,) = of("CronJob")
     assert cj["spec"].get("suspend", False) is _placeholders()
+
+
+def test_token_outlives_the_job_that_uses_it():
+    """The installation token lives 3600s; the ExternalSecret may be up to refreshInterval stale."""
+    (es,) = of("ExternalSecret")
+    (cj,) = of("CronJob")
+    refresh = int(es["spec"]["refreshInterval"].rstrip("m")) * 60
+    deadline = cj["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
+    assert deadline + refresh < 3600, (deadline, refresh)
