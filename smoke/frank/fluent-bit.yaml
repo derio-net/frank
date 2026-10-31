@@ -3,13 +3,6 @@ app: fluent-bit
 cluster: frank
 checks:
 - kind: http
-  target: http://fluent-bit.monitoring.svc.cluster.local:2020/
+  target: http://fluent-bit.monitoring.svc.cluster.local:2020/api/v1/health
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200

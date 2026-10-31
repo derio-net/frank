@@ -8,6 +8,11 @@ apps:
     - apps/alert-agent/**
     - apps/root/templates/alert-agent.yaml
     rollout: false
+    services:
+    - name: alert-agent
+      namespace: alert-agent
+      ports:
+      - 8080
     stateful: true
   frank/argo-rollouts:
     charts:
@@ -18,6 +23,7 @@ apps:
     - apps/argo-rollouts/values.yaml
     - apps/root/templates/argo-rollouts.yaml
     rollout: false
+    services: []
     stateful: false
   frank/argo-rollouts-extras:
     charts: []
@@ -26,6 +32,7 @@ apps:
     - apps/argo-rollouts-extras/manifests/**
     - apps/root/templates/argo-rollouts-extras.yaml
     rollout: false
+    services: []
     stateful: false
   frank/argocd:
     charts:
@@ -37,6 +44,24 @@ apps:
     - apps/argocd/values.yaml
     - apps/root/templates/argocd.yaml
     rollout: false
+    services:
+    - name: argocd-applicationset-controller
+      namespace: argocd
+      ports:
+      - 7000
+    - name: argocd-redis
+      namespace: argocd
+      ports:
+      - 6379
+    - name: argocd-repo-server
+      namespace: argocd
+      ports:
+      - 8081
+    - name: argocd-server
+      namespace: argocd
+      ports:
+      - 80
+      - 443
     stateful: false
   frank/argocd-extras:
     charts: []
@@ -45,6 +70,7 @@ apps:
     - apps/argocd-extras/manifests/**
     - apps/root/templates/argocd-extras.yaml
     rollout: false
+    services: []
     stateful: false
   frank/argocd-notifications:
     charts: []
@@ -53,6 +79,7 @@ apps:
     - apps/argocd-notifications/manifests/**
     - apps/root/templates/argocd-notifications.yaml
     rollout: false
+    services: []
     stateful: false
   frank/authentik:
     charts:
@@ -64,6 +91,24 @@ apps:
     - apps/authentik/values.yaml
     - apps/root/templates/authentik.yaml
     rollout: false
+    services:
+    - name: authentik-postgresql
+      namespace: authentik
+      ports:
+      - 5432
+    - name: authentik-postgresql-hl
+      namespace: authentik
+      ports:
+      - 5432
+    - name: authentik-server
+      namespace: authentik
+      ports:
+      - 80
+      - 443
+    - name: authentik-server-metrics
+      namespace: authentik
+      ports:
+      - 9300
     stateful: true
   frank/authentik-extras:
     charts: []
@@ -72,6 +117,12 @@ apps:
     - apps/authentik-extras/manifests/**
     - apps/root/templates/authentik-extras.yaml
     rollout: false
+    services:
+    - name: authentik-server-lb
+      namespace: authentik
+      ports:
+      - 9000
+      - 9443
     stateful: false
   frank/awx:
     charts:
@@ -86,6 +137,11 @@ apps:
     - apps/awx/values.yaml
     - apps/root/templates/awx.yaml
     rollout: false
+    services:
+    - name: awx-operator-controller-manager-metrics-service
+      namespace: awx
+      ports:
+      - 8443
     stateful: true
   frank/blackbox-exporter:
     charts: []
@@ -95,6 +151,11 @@ apps:
     - apps/blackbox-exporter/manifests/**
     - apps/root/templates/blackbox-exporter.yaml
     rollout: false
+    services:
+    - name: blackbox-exporter
+      namespace: monitoring
+      ports:
+      - 9115
     stateful: false
   frank/cert-manager:
     charts:
@@ -109,6 +170,20 @@ apps:
     - apps/cert-manager/values.yaml
     - apps/root/templates/cert-manager.yaml
     rollout: false
+    services:
+    - name: cert-manager
+      namespace: cert-manager
+      ports:
+      - 9402
+    - name: cert-manager-cainjector
+      namespace: cert-manager
+      ports:
+      - 9402
+    - name: cert-manager-webhook
+      namespace: cert-manager
+      ports:
+      - 443
+      - 9402
     stateful: false
   frank/ci-budget:
     charts: []
@@ -118,6 +193,7 @@ apps:
     - apps/ci-budget/**
     - apps/root/templates/ci-budget.yaml
     rollout: false
+    services: []
     stateful: false
   frank/cilium:
     charts:
@@ -133,6 +209,23 @@ apps:
     - apps/cilium/values.yaml
     - apps/root/templates/cilium.yaml
     rollout: false
+    services:
+    - name: cilium-envoy
+      namespace: kube-system
+      ports:
+      - 9964
+    - name: hubble-peer
+      namespace: kube-system
+      ports:
+      - 443
+    - name: hubble-relay
+      namespace: kube-system
+      ports:
+      - 80
+    - name: hubble-ui
+      namespace: kube-system
+      ports:
+      - 80
     stateful: false
   frank/cilium-config:
     charts: []
@@ -141,6 +234,11 @@ apps:
     - apps/cilium/manifests/**
     - apps/root/templates/cilium-config.yaml
     rollout: false
+    services:
+    - name: hubble-ui-lb
+      namespace: kube-system
+      ports:
+      - 80
     stateful: false
   frank/cnc-prod:
     charts: []
@@ -153,6 +251,19 @@ apps:
     - apps/cnc-prod/manifests/**
     - apps/root/templates/cnc-prod.yaml
     rollout: false
+    services:
+    - name: cnc-fru
+      namespace: cnc
+      ports:
+      - 80
+    - name: cnc-node
+      namespace: cnc
+      ports:
+      - 8765
+    - name: cncd
+      namespace: cnc
+      ports:
+      - 8080
     stateful: true
   frank/cnc-prod-db:
     charts:
@@ -163,6 +274,15 @@ apps:
     - apps/cnc-prod-db/values.yaml
     - apps/root/templates/cnc-prod-db.yaml
     rollout: false
+    services:
+    - name: cnc-prod-db-postgresql
+      namespace: cnc
+      ports:
+      - 5432
+    - name: cnc-prod-db-postgresql-hl
+      namespace: cnc
+      ports:
+      - 5432
     stateful: true
   frank/cnc-staging:
     charts: []
@@ -174,6 +294,19 @@ apps:
     - apps/cnc-staging/manifests/**
     - apps/root/templates/cnc-staging.yaml
     rollout: false
+    services:
+    - name: cnc-fru
+      namespace: cnc-staging
+      ports:
+      - 80
+    - name: cnc-node
+      namespace: cnc-staging
+      ports:
+      - 8765
+    - name: cncd
+      namespace: cnc-staging
+      ports:
+      - 8080
     stateful: true
   frank/cnc-staging-db:
     charts:
@@ -184,6 +317,15 @@ apps:
     - apps/cnc-staging-db/values.yaml
     - apps/root/templates/cnc-staging-db.yaml
     rollout: false
+    services:
+    - name: cnc-staging-db-postgresql
+      namespace: cnc-staging
+      ports:
+      - 5432
+    - name: cnc-staging-db-postgresql-hl
+      namespace: cnc-staging
+      ports:
+      - 5432
     stateful: true
   frank/cnc-staging-host:
     charts: []
@@ -192,6 +334,7 @@ apps:
     - apps/cnc-staging-host/manifests/**
     - apps/root/templates/cnc-staging-host.yaml
     rollout: false
+    services: []
     stateful: false
   frank/cnc-staging-vcluster:
     charts:
@@ -204,6 +347,16 @@ apps:
     - apps/vclusters/cnc-staging/values.yaml
     - apps/vclusters/template/values.yaml
     rollout: false
+    services:
+    - name: cnc-staging
+      namespace: cnc-staging-vcluster
+      ports:
+      - 443
+      - 10250
+    - name: cnc-staging-headless
+      namespace: cnc-staging-vcluster
+      ports:
+      - 443
     stateful: true
   frank/comfyui:
     charts: []
@@ -213,6 +366,15 @@ apps:
     - apps/comfyui/manifests/**
     - apps/root/templates/comfyui.yaml
     rollout: false
+    services:
+    - name: comfyui
+      namespace: comfyui
+      ports:
+      - 8188
+    - name: comfyui-lb
+      namespace: comfyui
+      ports:
+      - 8188
     stateful: true
   frank/external-secrets:
     charts:
@@ -223,6 +385,11 @@ apps:
     - apps/external-secrets/values.yaml
     - apps/root/templates/external-secrets.yaml
     rollout: false
+    services:
+    - name: external-secrets-webhook
+      namespace: external-secrets
+      ports:
+      - 443
     stateful: false
   frank/fluent-bit:
     charts:
@@ -233,6 +400,11 @@ apps:
     - apps/fluent-bit/values.yaml
     - apps/root/templates/fluent-bit.yaml
     rollout: false
+    services:
+    - name: fluent-bit
+      namespace: monitoring
+      ports:
+      - 2020
     stateful: false
   frank/gitea:
     charts:
@@ -243,6 +415,15 @@ apps:
     - apps/gitea/values.yaml
     - apps/root/templates/gitea.yaml
     rollout: false
+    services:
+    - name: gitea-http
+      namespace: gitea
+      ports:
+      - 3000
+    - name: gitea-ssh
+      namespace: gitea
+      ports:
+      - 2222
     stateful: true
   frank/gitea-extras:
     charts: []
@@ -251,6 +432,7 @@ apps:
     - apps/gitea/manifests/**
     - apps/root/templates/gitea-extras.yaml
     rollout: false
+    services: []
     stateful: false
   frank/gitea-runner:
     charts: []
@@ -261,6 +443,7 @@ apps:
     - apps/gitea-runner/manifests/**
     - apps/root/templates/gitea-runner.yaml
     rollout: false
+    services: []
     stateful: true
   frank/goatcounter:
     charts: []
@@ -270,6 +453,11 @@ apps:
     - apps/goatcounter/manifests/**
     - apps/root/templates/goatcounter.yaml
     rollout: false
+    services:
+    - name: goatcounter
+      namespace: goatcounter-system
+      ports:
+      - 8080
     stateful: true
   frank/gpu-operator:
     charts:
@@ -290,6 +478,7 @@ apps:
     - apps/gpu-operator/values.yaml
     - apps/root/templates/gpu-operator.yaml
     rollout: false
+    services: []
     stateful: false
   frank/gpu-operator-extras:
     charts: []
@@ -299,6 +488,7 @@ apps:
     - apps/gpu-operator-extras/manifests/**
     - apps/root/templates/gpu-operator-extras.yaml
     rollout: false
+    services: []
     stateful: false
   frank/gpu-switcher:
     charts: []
@@ -308,6 +498,11 @@ apps:
     - apps/gpu-switcher/manifests/**
     - apps/root/templates/gpu-switcher.yaml
     rollout: false
+    services:
+    - name: gpu-switcher
+      namespace: gpu-switcher
+      ports:
+      - 8080
     stateful: false
   frank/grafana-alerting:
     charts: []
@@ -316,6 +511,7 @@ apps:
     - apps/grafana-alerting/manifests/**
     - apps/root/templates/grafana-alerting.yaml
     rollout: false
+    services: []
     stateful: false
   frank/health-bridge:
     charts: []
@@ -325,6 +521,11 @@ apps:
     - apps/health-bridge/manifests/**
     - apps/root/templates/health-bridge.yaml
     rollout: false
+    services:
+    - name: health-bridge
+      namespace: monitoring
+      ports:
+      - 8080
     stateful: false
   frank/hermes-agent-shell:
     charts: []
@@ -337,6 +538,32 @@ apps:
     - apps/hermes-agent-shell/manifests/**
     - apps/root/templates/hermes-agent-shell.yaml
     rollout: false
+    services:
+    - name: hermes-agent-shell
+      namespace: hermes-agent-shell
+      ports:
+      - 22
+      - 60032
+      - 60033
+      - 60034
+      - 60035
+      - 60036
+      - 60037
+      - 60038
+      - 60039
+      - 60040
+      - 60041
+      - 60042
+      - 60043
+      - 60044
+      - 60045
+      - 60046
+      - 60047
+    - name: hermes-agent-shell-dashboard
+      namespace: hermes-agent-shell
+      ports:
+      - 8642
+      - 9119
     stateful: true
   frank/homepage:
     charts: []
@@ -346,6 +573,11 @@ apps:
     - apps/homepage/manifests/**
     - apps/root/templates/homepage.yaml
     rollout: false
+    services:
+    - name: homepage
+      namespace: homepage
+      ports:
+      - 3000
     stateful: false
   frank/infisical:
     charts:
@@ -356,6 +588,11 @@ apps:
     - apps/infisical/values.yaml
     - apps/root/templates/infisical.yaml
     rollout: false
+    services:
+    - name: infisical-infisical-standalone-infisical
+      namespace: infisical
+      ports:
+      - 8080
     stateful: false
   frank/infisical-extras:
     charts: []
@@ -364,6 +601,7 @@ apps:
     - apps/infisical/manifests/**
     - apps/root/templates/infisical-extras.yaml
     rollout: false
+    services: []
     stateful: false
   frank/infisical-postgresql:
     charts:
@@ -374,6 +612,15 @@ apps:
     - apps/infisical-postgresql/values.yaml
     - apps/root/templates/infisical-postgresql.yaml
     rollout: false
+    services:
+    - name: postgresql
+      namespace: infisical
+      ports:
+      - 5432
+    - name: postgresql-hl
+      namespace: infisical
+      ports:
+      - 5432
     stateful: true
   frank/infisical-redis:
     charts:
@@ -384,6 +631,15 @@ apps:
     - apps/infisical-redis/values.yaml
     - apps/root/templates/infisical-redis.yaml
     rollout: false
+    services:
+    - name: redis-headless
+      namespace: infisical
+      ports:
+      - 6379
+    - name: redis-master
+      namespace: infisical
+      ports:
+      - 6379
     stateful: true
   frank/intel-gpu-driver:
     charts: []
@@ -394,6 +650,7 @@ apps:
     - apps/intel-gpu-driver/chart/**
     - apps/root/templates/intel-gpu-driver.yaml
     rollout: false
+    services: []
     stateful: false
   frank/litellm:
     charts:
@@ -405,6 +662,19 @@ apps:
     - apps/litellm/values.yaml
     - apps/root/templates/litellm.yaml
     rollout: false
+    services:
+    - name: litellm
+      namespace: litellm
+      ports:
+      - 4000
+    - name: litellm-postgresql
+      namespace: litellm
+      ports:
+      - 5432
+    - name: litellm-postgresql-hl
+      namespace: litellm
+      ports:
+      - 5432
     stateful: true
   frank/litellm-extras:
     charts: []
@@ -413,6 +683,7 @@ apps:
     - apps/litellm/manifests/**
     - apps/root/templates/litellm-extras.yaml
     rollout: true
+    services: []
     stateful: false
   frank/longhorn:
     charts:
@@ -435,6 +706,23 @@ apps:
     - apps/longhorn/values.yaml
     - apps/root/templates/longhorn.yaml
     rollout: false
+    services:
+    - name: longhorn-admission-webhook
+      namespace: longhorn-system
+      ports:
+      - 9502
+    - name: longhorn-backend
+      namespace: longhorn-system
+      ports:
+      - 9500
+    - name: longhorn-frontend
+      namespace: longhorn-system
+      ports:
+      - 80
+    - name: longhorn-recovery-backend
+      namespace: longhorn-system
+      ports:
+      - 9503
     stateful: true
   frank/longhorn-extras:
     charts: []
@@ -443,6 +731,11 @@ apps:
     - apps/longhorn/manifests/**
     - apps/root/templates/longhorn-extras.yaml
     rollout: false
+    services:
+    - name: longhorn-ui-lb
+      namespace: longhorn-system
+      ports:
+      - 80
     stateful: true
   frank/metrics-server:
     charts:
@@ -453,6 +746,11 @@ apps:
     - apps/metrics-server/values.yaml
     - apps/root/templates/metrics-server.yaml
     rollout: false
+    services:
+    - name: metrics-server
+      namespace: kube-system
+      ports:
+      - 443
     stateful: false
   frank/n8n-01:
     charts: []
@@ -463,6 +761,11 @@ apps:
     - apps/n8n-01/manifests/**
     - apps/root/templates/n8n-01.yaml
     rollout: false
+    services:
+    - name: n8n-01
+      namespace: n8n-01
+      ports:
+      - 5678
     stateful: true
   frank/n8n-01-postgresql:
     charts:
@@ -473,6 +776,15 @@ apps:
     - apps/n8n-01-postgresql/values.yaml
     - apps/root/templates/n8n-01-postgresql.yaml
     rollout: false
+    services:
+    - name: n8n-01-postgresql
+      namespace: n8n-01
+      ports:
+      - 5432
+    - name: n8n-01-postgresql-hl
+      namespace: n8n-01
+      ports:
+      - 5432
     stateful: true
   frank/ollama:
     charts:
@@ -483,6 +795,11 @@ apps:
     - apps/ollama/values.yaml
     - apps/root/templates/ollama.yaml
     rollout: false
+    services:
+    - name: ollama
+      namespace: ollama
+      ports:
+      - 11434
     stateful: true
   frank/openrgb:
     charts: []
@@ -492,6 +809,7 @@ apps:
     - apps/openrgb/manifests/**
     - apps/root/templates/openrgb.yaml
     rollout: false
+    services: []
     stateful: false
   frank/ovms-retrieval:
     charts: []
@@ -503,6 +821,11 @@ apps:
     - apps/ovms-retrieval/manifests/**
     - apps/root/templates/ovms-retrieval.yaml
     rollout: false
+    services:
+    - name: ovms-retrieval
+      namespace: retrieval
+      ports:
+      - 8000
     stateful: true
   frank/paperclip:
     charts: []
@@ -512,6 +835,11 @@ apps:
     - apps/paperclip/manifests/**
     - apps/root/templates/paperclip.yaml
     rollout: false
+    services:
+    - name: paperclip-lb
+      namespace: paperclip-system
+      ports:
+      - 3100
     stateful: true
   frank/paperclip-db:
     charts:
@@ -523,6 +851,19 @@ apps:
     - apps/paperclip-db/values.yaml
     - apps/root/templates/paperclip-db.yaml
     rollout: false
+    services:
+    - name: paperclip-db-postgresql
+      namespace: paperclip-system
+      ports:
+      - 5432
+    - name: paperclip-db-postgresql-hl
+      namespace: paperclip-system
+      ports:
+      - 5432
+    - name: paperclip-db-postgresql-metrics
+      namespace: paperclip-system
+      ports:
+      - 9187
     stateful: true
   frank/pushgateway:
     charts: []
@@ -532,6 +873,11 @@ apps:
     - apps/pushgateway/manifests/**
     - apps/root/templates/pushgateway.yaml
     rollout: false
+    services:
+    - name: pushgateway
+      namespace: monitoring
+      ports:
+      - 9091
     stateful: false
   frank/renovate:
     charts: []
@@ -541,6 +887,7 @@ apps:
     - apps/renovate/manifests/**
     - apps/root/templates/renovate.yaml
     rollout: false
+    services: []
     stateful: false
   frank/runs-fr-staging:
     charts: []
@@ -550,6 +897,7 @@ apps:
     - apps/staging-gate/runs-fr/staging-values.yaml
     - charts/runs-fr/**
     rollout: false
+    services: []
     stateful: false
   frank/secure-agent-pod:
     charts: []
@@ -560,6 +908,34 @@ apps:
     - apps/root/templates/secure-agent-pod.yaml
     - apps/secure-agent-pod/manifests/**
     rollout: false
+    services:
+    - name: secure-agent-mosh
+      namespace: secure-agent-pod
+      ports:
+      - 60000
+      - 60001
+      - 60002
+      - 60003
+      - 60004
+      - 60005
+      - 60006
+      - 60007
+      - 60008
+      - 60009
+      - 60010
+      - 60011
+      - 60012
+      - 60013
+      - 60014
+      - 60015
+    - name: secure-agent-ssh
+      namespace: secure-agent-pod
+      ports:
+      - 22
+    - name: secure-agent-vibekanban
+      namespace: secure-agent-pod
+      ports:
+      - 8081
     stateful: true
   frank/staging-gate:
     charts: []
@@ -572,6 +948,7 @@ apps:
     - apps/root/templates/staging-gate.yaml
     - apps/staging-gate/tekton/**
     rollout: false
+    services: []
     stateful: false
   frank/stoa-live-mirror-sync:
     charts: []
@@ -580,6 +957,7 @@ apps:
     - apps/root/templates/stoa-live-mirror-sync.yaml
     - stoa/ci/tekton/live-mirror-sync/**
     rollout: false
+    services: []
     stateful: false
   frank/tekton-dashboard:
     charts: []
@@ -589,6 +967,11 @@ apps:
     - apps/root/templates/tekton-dashboard.yaml
     - apps/tekton/vendor/dashboard/**
     rollout: false
+    services:
+    - name: tekton-dashboard
+      namespace: tekton-pipelines
+      ports:
+      - 9097
     stateful: false
   frank/tekton-extras:
     charts: []
@@ -622,6 +1005,56 @@ apps:
     - apps/root/templates/tekton-extras.yaml
     - apps/tekton/**
     rollout: false
+    services:
+    - name: el-github-listener-lb
+      namespace: tekton-pipelines
+      ports:
+      - 8080
+    - name: tekton-dashboard
+      namespace: tekton-pipelines
+      ports:
+      - 9097
+    - name: tekton-dashboard-lb
+      namespace: tekton-pipelines
+      ports:
+      - 9097
+    - name: tekton-events-controller
+      namespace: tekton-pipelines
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-controller
+      namespace: tekton-pipelines
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-remote-resolvers
+      namespace: tekton-pipelines-resolvers
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-webhook
+      namespace: tekton-pipelines
+      ports:
+      - 443
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-triggers-controller
+      namespace: tekton-pipelines
+      ports:
+      - 9000
+    - name: tekton-triggers-core-interceptors
+      namespace: tekton-pipelines
+      ports:
+      - 8443
+    - name: tekton-triggers-webhook
+      namespace: tekton-pipelines
+      ports:
+      - 443
     stateful: false
   frank/tekton-pipelines:
     charts: []
@@ -640,6 +1073,32 @@ apps:
     - apps/root/templates/tekton-pipelines.yaml
     - apps/tekton/vendor/pipelines/**
     rollout: false
+    services:
+    - name: tekton-events-controller
+      namespace: tekton-pipelines
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-controller
+      namespace: tekton-pipelines
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-remote-resolvers
+      namespace: tekton-pipelines-resolvers
+      ports:
+      - 8008
+      - 8080
+      - 9090
+    - name: tekton-pipelines-webhook
+      namespace: tekton-pipelines
+      ports:
+      - 443
+      - 8008
+      - 8080
+      - 9090
     stateful: false
   frank/tekton-triggers:
     charts: []
@@ -652,6 +1111,19 @@ apps:
     - apps/root/templates/tekton-triggers.yaml
     - apps/tekton/vendor/triggers/**
     rollout: false
+    services:
+    - name: tekton-triggers-controller
+      namespace: tekton-pipelines
+      ports:
+      - 9000
+    - name: tekton-triggers-core-interceptors
+      namespace: tekton-pipelines
+      ports:
+      - 8443
+    - name: tekton-triggers-webhook
+      namespace: tekton-pipelines
+      ports:
+      - 443
     stateful: false
   frank/traefik:
     charts:
@@ -662,6 +1134,12 @@ apps:
     - apps/root/templates/traefik.yaml
     - apps/traefik/values.yaml
     rollout: false
+    services:
+    - name: traefik
+      namespace: traefik-system
+      ports:
+      - 80
+      - 443
     stateful: true
   frank/traefik-extras:
     charts: []
@@ -670,6 +1148,7 @@ apps:
     - apps/root/templates/traefik-extras.yaml
     - apps/traefik/manifests/**
     rollout: false
+    services: []
     stateful: false
   frank/vcluster-staging:
     charts:
@@ -682,6 +1161,16 @@ apps:
     - apps/vclusters/staging/values.yaml
     - apps/vclusters/template/values.yaml
     rollout: false
+    services:
+    - name: staging
+      namespace: vcluster-staging
+      ports:
+      - 443
+      - 10250
+    - name: staging-headless
+      namespace: vcluster-staging
+      ports:
+      - 443
     stateful: true
   frank/victoria-logs:
     charts:
@@ -692,6 +1181,15 @@ apps:
     - apps/root/templates/victoria-logs.yaml
     - apps/victoria-logs/values.yaml
     rollout: false
+    services:
+    - name: victoria-logs-lb
+      namespace: monitoring
+      ports:
+      - 9428
+    - name: victoria-logs-victoria-logs-single-server
+      namespace: monitoring
+      ports:
+      - 9428
     stateful: true
   frank/victoria-metrics:
     charts:
@@ -709,6 +1207,32 @@ apps:
     - apps/victoria-metrics/manifests/**
     - apps/victoria-metrics/values.yaml
     rollout: false
+    services:
+    - name: victoria-metrics-grafana
+      namespace: monitoring
+      ports:
+      - 80
+    - name: victoria-metrics-kube-state-metrics
+      namespace: monitoring
+      ports:
+      - 8080
+    - name: victoria-metrics-prometheus-node-exporter
+      namespace: monitoring
+      ports:
+      - 9100
+    - name: victoria-metrics-victoria-metrics-k8s-stack-core-dns
+      namespace: kube-system
+      ports:
+      - 9153
+    - name: victoria-metrics-victoria-metrics-k8s-stack-kube-scheduler
+      namespace: kube-system
+      ports:
+      - 10259
+    - name: victoria-metrics-victoria-metrics-operator
+      namespace: monitoring
+      ports:
+      - 8080
+      - 9443
     stateful: true
   frank/vk-remote:
     charts: []
@@ -720,6 +1244,20 @@ apps:
     - apps/root/templates/vk-remote.yaml
     - apps/vk-remote/manifests/**
     rollout: false
+    services:
+    - name: electric
+      namespace: agents
+      ports:
+      - 3000
+    - name: postgres-vk
+      namespace: agents
+      ports:
+      - 5432
+    - name: vk-remote
+      namespace: agents
+      ports:
+      - 8081
+      - 8082
     stateful: true
   frank/zot:
     charts:
@@ -730,6 +1268,11 @@ apps:
     - apps/root/templates/zot.yaml
     - apps/zot/values.yaml
     rollout: false
+    services:
+    - name: zot
+      namespace: zot
+      ports:
+      - 5000
     stateful: true
   frank/zot-extras:
     charts: []
@@ -738,6 +1281,7 @@ apps:
     - apps/root/templates/zot-extras.yaml
     - apps/zot/manifests/**
     rollout: false
+    services: []
     stateful: false
   hop/argocd:
     charts:
@@ -749,6 +1293,24 @@ apps:
     - clusters/hop/apps/argocd/values.yaml
     - clusters/hop/apps/root/templates/argocd.yaml
     rollout: false
+    services:
+    - name: argocd-applicationset-controller
+      namespace: argocd
+      ports:
+      - 7000
+    - name: argocd-redis
+      namespace: argocd
+      ports:
+      - 6379
+    - name: argocd-repo-server
+      namespace: argocd
+      ports:
+      - 8081
+    - name: argocd-server
+      namespace: argocd
+      ports:
+      - 80
+      - 443
     stateful: false
   hop/blog:
     charts: []
@@ -758,6 +1320,11 @@ apps:
     - clusters/hop/apps/blog/manifests/**
     - clusters/hop/apps/root/templates/blog.yaml
     rollout: false
+    services:
+    - name: blog
+      namespace: blog-system
+      ports:
+      - 8080
     stateful: false
   hop/caddy:
     charts: []
@@ -767,6 +1334,7 @@ apps:
     - clusters/hop/apps/caddy/manifests/**
     - clusters/hop/apps/root/templates/caddy.yaml
     rollout: false
+    services: []
     stateful: true
   hop/crowdsec:
     charts:
@@ -777,6 +1345,16 @@ apps:
     - clusters/hop/apps/crowdsec/values.yaml
     - clusters/hop/apps/root/templates/crowdsec.yaml
     rollout: false
+    services:
+    - name: crowdsec-agent-service
+      namespace: crowdsec-system
+      ports:
+      - 6060
+    - name: crowdsec-service
+      namespace: crowdsec-system
+      ports:
+      - 6060
+      - 8080
     stateful: true
   hop/crowdsec-canary:
     charts: []
@@ -786,6 +1364,7 @@ apps:
     - clusters/hop/apps/crowdsec-canary/manifests/**
     - clusters/hop/apps/root/templates/crowdsec-canary.yaml
     rollout: false
+    services: []
     stateful: true
   hop/falco:
     charts:
@@ -799,6 +1378,12 @@ apps:
     - clusters/hop/apps/falco/values.yaml
     - clusters/hop/apps/root/templates/falco.yaml
     rollout: false
+    services:
+    - name: falco-falcosidekick
+      namespace: falco-system
+      ports:
+      - 2801
+      - 2810
     stateful: false
   hop/fluent-bit:
     charts:
@@ -809,6 +1394,11 @@ apps:
     - clusters/hop/apps/fluent-bit/values.yaml
     - clusters/hop/apps/root/templates/fluent-bit.yaml
     rollout: false
+    services:
+    - name: fluent-bit
+      namespace: monitoring
+      ports:
+      - 2020
     stateful: false
   hop/headplane:
     charts: []
@@ -818,6 +1408,11 @@ apps:
     - clusters/hop/apps/headplane/manifests/**
     - clusters/hop/apps/root/templates/headplane.yaml
     rollout: false
+    services:
+    - name: headplane
+      namespace: headscale-system
+      ports:
+      - 3000
     stateful: false
   hop/headscale:
     charts: []
@@ -830,6 +1425,12 @@ apps:
     - clusters/hop/apps/headscale/manifests/**
     - clusters/hop/apps/root/templates/headscale.yaml
     rollout: false
+    services:
+    - name: headscale
+      namespace: headscale-system
+      ports:
+      - 8080
+      - 50443
     stateful: true
   hop/landing:
     charts: []
@@ -839,6 +1440,11 @@ apps:
     - clusters/hop/apps/landing/manifests/**
     - clusters/hop/apps/root/templates/landing.yaml
     rollout: false
+    services:
+    - name: landing
+      namespace: landing-system
+      ports:
+      - 8080
     stateful: false
   hop/storage:
     charts: []
@@ -847,6 +1453,7 @@ apps:
     - clusters/hop/apps/root/templates/storage.yaml
     - clusters/hop/apps/storage/manifests/**
     rollout: false
+    services: []
     stateful: false
   hop/www:
     charts: []
@@ -856,4 +1463,9 @@ apps:
     - clusters/hop/apps/root/templates/www.yaml
     - clusters/hop/apps/www/manifests/**
     rollout: false
+    services:
+    - name: www
+      namespace: www-system
+      ports:
+      - 8080
     stateful: false

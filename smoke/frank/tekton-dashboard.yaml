@@ -3,13 +3,6 @@ app: tekton-dashboard
 cluster: frank
 checks:
 - kind: http
-  target: http://tekton-dashboard.tekton-pipelines.svc.cluster.local:9097/
+  target: http://tekton-dashboard.tekton-pipelines.svc.cluster.local:9097/readiness
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200

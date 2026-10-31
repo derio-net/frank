@@ -3,13 +3,6 @@ app: falco
 cluster: hop
 checks:
 - kind: http
-  target: http://falco-falcosidekick.falco-system.svc.cluster.local:2801/
+  target: http://falco-falcosidekick.falco-system.svc.cluster.local:2801/ping
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200

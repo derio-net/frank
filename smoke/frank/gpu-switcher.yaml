@@ -2,14 +2,8 @@
 app: gpu-switcher
 cluster: frank
 checks:
-- kind: http
-  target: http://gpu-switcher.gpu-switcher.svc.cluster.local:8080/
+- kind: tcp
+  target: gpu-switcher.gpu-switcher.svc.cluster.local:8080
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

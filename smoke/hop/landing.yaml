@@ -5,9 +5,6 @@ checks:
 - kind: http
   target: https://entry.hop.derio.net/
   expect:
-    status:
-    - 200
-    - 401
-    - 403
+    status: 200
   public: false
-  note: 'mesh-only: reachable from the tailnet'
+  note: 'mesh-only vhost: answers 200 on the tailnet and 403 elsewhere, so the verifier needs the Hop tailnet sidecar'

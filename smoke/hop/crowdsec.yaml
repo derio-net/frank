@@ -3,13 +3,6 @@ app: crowdsec
 cluster: hop
 checks:
 - kind: http
-  target: http://crowdsec-agent-service.None.svc.cluster.local:6060/
+  target: http://crowdsec-agent-service.crowdsec-system.svc.cluster.local:6060/metrics
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200

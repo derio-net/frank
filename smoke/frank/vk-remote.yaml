@@ -2,14 +2,8 @@
 app: vk-remote
 cluster: frank
 checks:
-- kind: http
-  target: http://vk-remote.agents.svc.cluster.local:8081/
+- kind: tcp
+  target: vk-remote.agents.svc.cluster.local:8081
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

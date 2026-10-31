@@ -2,14 +2,8 @@
 app: paperclip
 cluster: frank
 checks:
-- kind: http
-  target: http://paperclip-lb.paperclip-system.svc.cluster.local:3100/
+- kind: tcp
+  target: paperclip-lb.paperclip-system.svc.cluster.local:3100
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

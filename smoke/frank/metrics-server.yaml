@@ -2,14 +2,8 @@
 app: metrics-server
 cluster: frank
 checks:
-- kind: http
-  target: https://metrics-server.kube-system.svc.cluster.local:443/
+- kind: tcp
+  target: metrics-server.kube-system.svc.cluster.local:443
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

@@ -2,14 +2,8 @@
 app: cnc-prod
 cluster: frank
 checks:
-- kind: http
-  target: http://cnc-fru.cnc.svc.cluster.local:80/
+- kind: tcp
+  target: cnc-fru.cnc.svc.cluster.local:80
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

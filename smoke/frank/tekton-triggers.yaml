@@ -2,14 +2,8 @@
 app: tekton-triggers
 cluster: frank
 checks:
-- kind: http
-  target: http://tekton-triggers-controller.tekton-pipelines.svc.cluster.local:9000/
+- kind: tcp
+  target: tekton-triggers-controller.tekton-pipelines.svc.cluster.local:9000
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

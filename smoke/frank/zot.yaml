@@ -2,9 +2,8 @@
 app: zot
 cluster: frank
 checks:
-- kind: http
-  target: http://zot.None.svc.cluster.local:5000/v2/
+- kind: tcp
+  target: zot.zot.svc.cluster.local:5000
   expect:
-    status:
-    - 200
-    - 401
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

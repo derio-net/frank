@@ -5,14 +5,7 @@ checks:
 - kind: http
   target: http://comfyui.comfyui.svc.cluster.local:8188/
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200
 - kind: functional
   name: object_info lists nodes
   target: http://comfyui.comfyui.svc.cluster.local:8188/object_info

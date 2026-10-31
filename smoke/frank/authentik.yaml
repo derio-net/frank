@@ -3,13 +3,8 @@ app: authentik
 cluster: frank
 checks:
 - kind: http
-  target: http://authentik-server.authentik.svc.cluster.local:80/
+  target: http://authentik-server.authentik.svc.cluster.local:80/-/health/ready/
   expect:
     status:
     - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    - 204

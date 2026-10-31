@@ -3,6 +3,6 @@ app: infisical
 cluster: frank
 checks:
 - kind: http
-  target: http://infisical-infisical-standalone-infisical.None.svc.cluster.local:8080/api/status
+  target: http://infisical-infisical-standalone-infisical.infisical.svc.cluster.local:8080/api/status
   expect:
     status: 200

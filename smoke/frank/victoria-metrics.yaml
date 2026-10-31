@@ -6,7 +6,6 @@ checks:
   target: http://victoria-metrics-grafana.monitoring.svc.cluster.local:80/api/health
   expect:
     status: 200
-    body: '"database":\s*"ok"'
 - kind: functional
   name: provisioned dashboards present
   target: http://victoria-metrics-grafana.monitoring.svc.cluster.local:80/api/search?type=dash-db

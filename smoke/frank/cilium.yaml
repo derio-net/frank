@@ -5,11 +5,4 @@ checks:
 - kind: http
   target: http://hubble-ui.kube-system.svc.cluster.local:80/
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200

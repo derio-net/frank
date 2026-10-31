@@ -2,14 +2,8 @@
 app: awx
 cluster: frank
 checks:
-- kind: http
-  target: http://awx-operator-controller-manager-metrics-service.None.svc.cluster.local:8443/
+- kind: tcp
+  target: awx-operator-controller-manager-metrics-service.awx.svc.cluster.local:8443
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

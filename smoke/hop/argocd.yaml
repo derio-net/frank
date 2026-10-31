@@ -3,6 +3,6 @@ app: argocd
 cluster: hop
 checks:
 - kind: http
-  target: http://argocd-applicationset-controller.argocd.svc.cluster.local:7000/healthz
+  target: http://argocd-server.argocd.svc.cluster.local:80/healthz
   expect:
     status: 200

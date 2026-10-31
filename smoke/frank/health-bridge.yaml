@@ -3,8 +3,6 @@ app: health-bridge
 cluster: frank
 checks:
 - kind: http
-  target: http://health-bridge.monitoring.svc.cluster.local:8080/healthz
+  target: http://health-bridge.monitoring.svc.cluster.local:8080/readyz
   expect:
-    status:
-    - 200
-    - 404
+    status: 200

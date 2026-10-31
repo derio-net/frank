@@ -168,6 +168,8 @@ def collect_facts() -> dict:
         stateful = rollout = False
         images: set[str] = set()
         charts: set[str] = set()
+        services: list[dict] = []
+        dest_ns = spec["destination"].get("namespace", "default")
         for s in spec.get("sources") or [spec["source"]]:
             if "ref" in s and "chart" not in s and "path" not in s:
                 continue
@@ -178,9 +180,15 @@ def collect_facts() -> dict:
             st, ro = doc_flags(out)
             stateful, rollout = stateful or st, rollout or ro
             images.update(i for i in r.rendered_images(out, []) if not r.is_ignored(i))
+            for d in yaml.safe_load_all(out):
+                if isinstance(d, dict) and d.get("kind") == "Service":
+                    services.append({"name": d["metadata"]["name"],
+                                     "namespace": d["metadata"].get("namespace") or dest_ns,
+                                     "ports": sorted({p.get("port") for p in d["spec"].get("ports", [])})})
         facts[entry["key"]] = {
             "stateful": stateful or entry["key"] in STATEFUL_BY_IDENTITY, "rollout": rollout,
             "charts": sorted(charts), "images": sorted(images),
+            "services": sorted(services, key=lambda x: (x["name"], x["namespace"])),
             "paths": app_paths(entry, templates.get(entry["key"])),
         }
     return facts

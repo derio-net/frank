@@ -3,8 +3,11 @@ app: caddy
 cluster: hop
 checks:
 - kind: http
-  target: https://www.derio.net/
-  expect:
-    status: 200
+  target: https://blog.derio.net/
   public: true
-  note: security headers come from Caddy, not the backend
+  expect:
+    status: 301
+    headers:
+      strict-transport-security: max-age=\d+
+      content-security-policy: default-src
+  note: 'a different vhost than hop/www, so this proves Caddy itself: the redirect plus the security headers it must add to every response'

@@ -3,16 +3,9 @@ app: litellm
 cluster: frank
 checks:
 - kind: http
-  target: http://litellm.None.svc.cluster.local:4000/
+  target: http://litellm.litellm.svc.cluster.local:4000/health/readiness
   expect:
-    status:
-    - 200
-    - 301
-    - 302
-    - 303
-    - 307
-    - 401
-    - 403
+    status: 200
 - kind: functional
   name: chat-completion on a local alias
   target: POST http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions

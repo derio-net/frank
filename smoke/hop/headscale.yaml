@@ -6,6 +6,7 @@ checks:
   target: https://headscale.hop.derio.net/health
   expect:
     status: 200
+    body: pass
   public: true
 - kind: tcp
   target: headscale.headscale-system.svc.cluster.local:8080

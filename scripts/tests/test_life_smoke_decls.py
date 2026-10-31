@@ -77,3 +77,17 @@ def test_hop_public_services_check_their_public_url():
         assert any(u.startswith("https://") and u.split("/")[2].endswith("derio.net") for u in urls), app
     for app in ("blog", "www", "headscale"):
         assert any(c.get("public") for c in load("hop", app)["checks"]), app
+
+
+def test_in_cluster_targets_are_well_formed_and_name_a_rendered_service():
+    import re
+
+    facts = life_policy.load_facts()
+    services = {(s["name"], s["namespace"]) for f in facts.values() for s in f["services"]}
+    for cluster, app in _apps():
+        for c in load(cluster, app)["checks"]:
+            t = c["target"]
+            assert not re.search(r"None|\{\{|\$", t), t
+            m = re.search(r"(?:https?://)?([\w.-]+)\.([\w-]+)\.svc\.cluster\.local", t)
+            if m:
+                assert (m.group(1), m.group(2)) in services, f"{app}: {t} names no rendered Service"

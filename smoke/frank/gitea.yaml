@@ -6,3 +6,4 @@ checks:
   target: http://gitea-http.gitea.svc.cluster.local:3000/api/healthz
   expect:
     status: 200
+    body: '"status":\s*"pass"'
