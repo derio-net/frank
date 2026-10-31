@@ -195,3 +195,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r3 created=2026-10-31T20:06:16+00:00 phase=2 state=open review_scope=in -->
 ### p2-r3 · finding [open] (reviewer: in scope) · hop/caddy smoke duplicates the www check; its security-headers note is not asserted (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4 created=2026-10-31T20:06:24+00:00 phase=2 state=open review_scope=in -->
+### p2-r4 · finding [open] (reviewer: in scope) · Renovate CronJob fails hourly while App ids are placeholders; suspend until the manual phase (phase 2)
