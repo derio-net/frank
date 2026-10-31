@@ -201,3 +201,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r10 created=2026-10-31T20:06:58+00:00 phase=2 state=open review_scope=in -->
 ### p2-r10 · finding [open] (reviewer: in scope) · No RENOVATE_GIT_AUTHOR for an App installation token (verify live) (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r11 created=2026-10-31T20:07:07+00:00 phase=2 state=open review_scope=in -->
+### p2-r11 · finding [open] (reviewer: in scope) · Slow rendering tests re-render per module; no slow marker or shared cache (phase 2)
