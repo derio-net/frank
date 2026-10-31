@@ -9,7 +9,7 @@ summary: "The motivation behind Frank, the Talos Cluster — learning enterprise
 weight: 2
 reader_goal: "Decide whether this cluster architecture suits your own homelab goals and map its two-layer management model"
 diataxis: explanation
-last_updated: 2026-08-01
+last_updated: 2026-10-31
 description: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building interesting projects on your own hardware."
 ---
 
@@ -26,7 +26,7 @@ What started as "throw Kubernetes on some boxes" became a four-zone design, driv
 ```mermaid
 flowchart LR
   subgraph M[Zone A — Management]
-    omni[raspi-omni<br/>Omni + Authentik + Traefik]
+    omni[gondor VM<br/>Sidero Omni]
   end
   subgraph C[Zone B — Core HA]
     n1[mini-1<br/>CP + Worker]
@@ -51,9 +51,11 @@ flowchart LR
   omni -->|machine config| r2
 ```
 
-**Zone A** was a single Raspberry Pi 5 living outside the cluster. It carried three jobs: Sidero Omni (machine lifecycle), a Docker Traefik acting as the public edge for every `*.frank.derio.net` name, and the Let's Encrypt minter for that zone. It did not run Authentik. {{< abbr "SSO" >}} has always been an in-cluster ArgoCD app; the Pi only fronted its hostname. That distinction sounds pedantic until something dies, at which point "hosts the name" and "runs the service" fail in completely different ways.
+**Zone A** started as a single Raspberry Pi 5 living outside the cluster. It carried three jobs: Sidero Omni (machine lifecycle), a Docker Traefik acting as the public edge for every `*.frank.derio.net` name, and the Let's Encrypt minter for that zone. It did not run Authentik. {{< abbr "SSO" >}} has always been an in-cluster ArgoCD app; the Pi only fronted its hostname. That distinction sounds pedantic until something dies, at which point "hosts the name" and "runs the service" fail in completely different ways.
 
-Which is not hypothetical. On 2026-06-20 [the Pi failed outright](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md), taking all three jobs with it. The cluster carried on: control plane and workers boot independently of Omni, every workload stayed `Ready`, and the LAN service IPs kept answering. Nothing paged either, because the health monitoring is in-cluster and the cluster was genuinely fine. What went was `kubectl` and `talosctl`, because the stored kubeconfig points at Omni's proxy and no break-glass credential for the real apiserver had ever been saved. Omni answers at its old hostname again, but the runbook's durable plan (an Ansible-managed Proxmox host with HA and a UPS, explicitly "not another Pi") is still open, and the `*.frank` names are being served by the in-cluster Traefik as a stopgap. Read the current arrangement as interim.
+Which is not hypothetical. On 2026-06-20 [the Pi failed outright](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md), taking all three jobs with it. The cluster carried on: control plane and workers boot independently of Omni, every workload stayed `Ready`, and the LAN service IPs kept answering. Nothing paged either, because the health monitoring is in-cluster and the cluster was genuinely fine. What went was `kubectl` and `talosctl`, because the stored kubeconfig points at Omni's proxy and no break-glass credential for the real apiserver had ever been saved.
+
+Zone A is no longer a Pi. Omni now runs as a single VM on `gondor`, the Proxmox HA cluster the runbook had named as the destination, and does nothing else: there is no reverse proxy in front of it, and the certificate for `omni.frank.derio.net` is renewed by a systemd timer on the VM rather than by a Traefik. The `*.frank.derio.net` names were retired in August 2026. Every one except `omni.frank.derio.net` now returns `NXDOMAIN`, and the services they once fronted are reached through the in-cluster Traefik at `*.cluster.derio.net`.
 
 **Zone B** is three identical Intel NUCs (Ultra 5, 64GB, 1TB NVMe). They form the {{< abbr "HA" >}} control plane. Because Talos lets control planes run workloads, these also host Longhorn storage and most cluster services. Identical hardware means predictable capacity. No surprises.
 
@@ -142,7 +144,7 @@ The series assumes you are building alongside. Each post ends with a running clu
 
 | What Happened | Why It Was Wrong | How We Fixed It | Evidence |
 |---------------|-----------------|-----------------|----------|
-| **Management was a single un-redundant board** — Omni, the public `*.frank` edge, and the zone's cert minter all on one Raspberry Pi 5 | Putting management outside the cluster was right; putting three roles on one un-HA'd board was a separate decision that nobody made deliberately. When it died there was no second copy of any of the three | `*.frank` names re-fronted onto the in-cluster Traefik; Omni's durable rehoming onto an HA Proxmox host is still open | [`frank-gotchas/omni.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md) |
+| **Management was a single un-redundant board** — Omni, the public `*.frank` edge, and the zone's cert minter all on one Raspberry Pi 5 | Putting management outside the cluster was right; putting three roles on one un-HA'd board was a separate decision that nobody made deliberately. When it died there was no second copy of any of the three | Omni rebuilt on the `gondor` Proxmox VM with no reverse proxy; the `*.frank` names were re-fronted onto the in-cluster Traefik as a stopgap, then retired in August 2026 | [`frank-gotchas/omni.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md) |
 | **No break-glass credential existed** — the only kubeconfig and talosconfig routed through Omni's proxy | The real apiserver on `192.168.55.21:6443` and the Talos API on `:50000` both stayed up and reachable on the LAN throughout the outage. They were unusable purely for want of a credential, and Omni, which mints them, was the dead thing | Not fixed. Recorded, so the next person does not discover it the same way | [`frank-gotchas/omni.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/omni.md) |
 | **Helm values for Cilium, Longhorn and the GPU Operator were left under `patches/`** — the pre-ArgoCD install method, never deleted when ArgoCD took over | Four Layer 2 files in the Layer 1 tree, still tracked, quietly contradicting the boundary this post is about. One of them documents an install command with a stale chart version and a stale directory path | Named in the verify section above rather than swept up | `patches/phase0{2,3,4}-*/`, `patches/README.md` |
 | **Management was described as running Authentik** — it never did; the Pi fronted `auth.frank.derio.net`, while the identity provider itself has been an in-cluster ArgoCD app since Layer 13 | "Hosts the name" and "runs the service" fail in different ways, so conflating them makes an outage harder to reason about at exactly the wrong moment | Zone A's description corrected above | `apps/authentik/`, commit `8e5da3f3` |
