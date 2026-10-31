@@ -16,7 +16,9 @@ The operator found out by *looking at Omni* that Frank runs Talos 1.12.6 and
 Kubernetes 1.35.3 while upstream is at 1.14.5 / 1.37.2. Nothing told them. Hop
 is further behind (Kubernetes 1.34.1), and Omni itself (v1.5 vs v1.13.1) is
 tracked by nothing at all. Today there is no Renovate, no version file, no
-vulnerability scanning, and 11 of 67 container images run `:latest` or no tag.
+vulnerability scanning. Raw manifests carry 63 distinct image references with only
+one untagged (`apps/staging-gate/registry/runs-fr.yaml`); images set through Helm
+values (`repository` + `tag`, chart defaults) have never been audited.
 
 The goal is that the clusters **tell the operator** what is out of date or
 vulnerable, **offer the right way to update each thing**, and **prove** every
@@ -138,8 +140,11 @@ may span several repos (see *Repos*).
 **Version declarations (R2, R3).** Every running version gets a declared home
 in git:
 
-- Images and charts: pin the 11 `:latest`/untagged images; charts are already
-  pinned through `targetRevision`.
+- Images and charts: audit the **rendered** manifests of every Application
+  (`helm template` / `kustomize build`, so chart-default images count) and pin
+  every `:latest` or untagged image found; charts are already pinned through
+  `targetRevision`. (An early count of "11 of 67" in this design's brainstorm
+  was a grep artefact; raw manifests have one untagged reference.)
 - **Frank OS:** add a **versions-only** declaration (e.g. `versions/frank.yaml`)
   for the Talos and Kubernetes versions — none exists today; they live only in
   Omni's database. It is NOT an Omni cluster template: a template sync owns
@@ -411,7 +416,7 @@ PVC — only `emptyDir`); the scrubbed transcript and outcome go to History.
 | Repo | Gets |
 |---|---|
 | `derio-net/frank` | Renovate, Trivy, policy, smoke tests, versions, Omni runbook, Grafana, apps for console/runs-fr/sessions, manual ops, blog posts |
-| new `derio-net/cluster-update-fr` | the console |
+| new `derio-net/cluster-update-fr` (**public**, operator decision — must never hold secrets or third-party details) | the console |
 | `derio-net/agent-images` | the upgrade-session image |
 | `derio-net/runs-fr` | only if the attach contract needs changes |
 
