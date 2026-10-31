@@ -1,0 +1,15 @@
+# Smoke declaration for frank/awx (spec R16/R17). The verifier runs these after every rollout.
+app: awx
+cluster: frank
+checks:
+- kind: http
+  target: http://awx-operator-controller-manager-metrics-service.None.svc.cluster.local:8443/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

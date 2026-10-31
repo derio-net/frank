@@ -1,0 +1,22 @@
+# Smoke declaration for frank/comfyui (spec R16/R17). The verifier runs these after every rollout.
+app: comfyui
+cluster: frank
+checks:
+- kind: http
+  target: http://comfyui.comfyui.svc.cluster.local:8188/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403
+- kind: functional
+  name: object_info lists nodes
+  target: http://comfyui.comfyui.svc.cluster.local:8188/object_info
+  expect:
+    status: 200
+    json_min_keys: 1
+  note: 'probe /object_info, not pod existence: a custom node can IMPORT FAIL with the pod Ready'

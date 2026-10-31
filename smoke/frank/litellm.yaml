@@ -1,0 +1,34 @@
+# Smoke declaration for frank/litellm (spec R16/R17). The verifier runs these after every rollout.
+app: litellm
+cluster: frank
+checks:
+- kind: http
+  target: http://litellm.None.svc.cluster.local:4000/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403
+- kind: functional
+  name: chat-completion on a local alias
+  target: POST http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions
+  request:
+    model: gemma-12b-nothin
+    messages:
+    - role: user
+      content: 'Reply with the single word: ok'
+    max_tokens: 8
+  auth:
+    bearer_secret:
+      namespace: litellm
+      name: litellm-api-keys
+      key: LITELLM_MASTER_KEY
+  expect:
+    status: 200
+    json_path: choices[0].message
+    non_empty: true
+  note: local Ollama alias only (no paid key); needs the GPU timeshare slot, so a failure while another workload holds gpu-1 is reported as skipped-not-failed by the verifier

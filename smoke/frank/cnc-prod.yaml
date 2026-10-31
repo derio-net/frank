@@ -1,0 +1,15 @@
+# Smoke declaration for frank/cnc-prod (spec R16/R17). The verifier runs these after every rollout.
+app: cnc-prod
+cluster: frank
+checks:
+- kind: http
+  target: http://cnc-fru.cnc.svc.cluster.local:80/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

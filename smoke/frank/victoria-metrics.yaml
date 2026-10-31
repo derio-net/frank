@@ -1,0 +1,21 @@
+# Smoke declaration for frank/victoria-metrics (spec R16/R17). The verifier runs these after every rollout.
+app: victoria-metrics
+cluster: frank
+checks:
+- kind: http
+  target: http://victoria-metrics-grafana.monitoring.svc.cluster.local:80/api/health
+  expect:
+    status: 200
+    body: '"database":\s*"ok"'
+- kind: functional
+  name: provisioned dashboards present
+  target: http://victoria-metrics-grafana.monitoring.svc.cluster.local:80/api/search?type=dash-db
+  auth:
+    basic_secret:
+      namespace: monitoring
+      name: victoria-metrics-grafana
+      user_key: admin-user
+      password_key: admin-password
+  expect:
+    status: 200
+    json_min_length: 1

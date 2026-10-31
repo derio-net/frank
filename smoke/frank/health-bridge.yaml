@@ -1,0 +1,10 @@
+# Smoke declaration for frank/health-bridge (spec R16/R17). The verifier runs these after every rollout.
+app: health-bridge
+cluster: frank
+checks:
+- kind: http
+  target: http://health-bridge.monitoring.svc.cluster.local:8080/healthz
+  expect:
+    status:
+    - 200
+    - 404

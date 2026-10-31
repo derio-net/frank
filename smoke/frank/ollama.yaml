@@ -1,0 +1,8 @@
+# Smoke declaration for frank/ollama (spec R16/R17). The verifier runs these after every rollout.
+app: ollama
+cluster: frank
+checks:
+- kind: http
+  target: http://ollama.ollama.svc.cluster.local:11434/
+  expect:
+    status: 200

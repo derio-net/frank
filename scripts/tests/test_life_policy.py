@@ -16,20 +16,9 @@ FIX = ROOT / "scripts/tests/fixtures/life"
 POLICY = yaml.safe_load((ROOT / "update-policy.yaml").read_text())
 
 
-import functools  # noqa: E402
-
-
-@functools.lru_cache(maxsize=None)
 def _apps():
-    """(cluster, name) for every Application in both root charts."""
-    out = []
-    for cluster, chart in (("frank", "apps/root"), ("hop", "clusters/hop/apps/root")):
-        import subprocess
-        rendered = subprocess.run(["helm", "template", "root", chart], cwd=ROOT,
-                                  capture_output=True, text=True, check=True).stdout
-        out += [(cluster, d["metadata"]["name"]) for d in yaml.safe_load_all(rendered)
-                if d and d.get("kind") == "Application"]
-    return out
+    """(cluster, name) for every Application in both root charts (shared enumeration)."""
+    return [tuple(k.split("/")) for k in life_policy.app_keys()]
 
 
 FACTS = yaml.safe_load((FIX / "app-facts.yaml").read_text())

@@ -1,0 +1,8 @@
+# Smoke declaration for frank/cnc-prod-db (spec R16/R17). The verifier runs these after every rollout.
+app: cnc-prod-db
+cluster: frank
+checks:
+- kind: tcp
+  target: cnc-prod-db-postgresql.cnc.svc.cluster.local:5432
+  expect:
+    open: true

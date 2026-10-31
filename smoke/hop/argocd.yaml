@@ -1,0 +1,8 @@
+# Smoke declaration for hop/argocd (spec R16/R17). The verifier runs these after every rollout.
+app: argocd
+cluster: hop
+checks:
+- kind: http
+  target: http://argocd-applicationset-controller.argocd.svc.cluster.local:7000/healthz
+  expect:
+    status: 200

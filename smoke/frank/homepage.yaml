@@ -1,0 +1,15 @@
+# Smoke declaration for frank/homepage (spec R16/R17). The verifier runs these after every rollout.
+app: homepage
+cluster: frank
+checks:
+- kind: http
+  target: http://homepage.homepage.svc.cluster.local:3000/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

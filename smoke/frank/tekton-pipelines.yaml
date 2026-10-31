@@ -1,0 +1,15 @@
+# Smoke declaration for frank/tekton-pipelines (spec R16/R17). The verifier runs these after every rollout.
+app: tekton-pipelines
+cluster: frank
+checks:
+- kind: http
+  target: http://tekton-pipelines-controller.tekton-pipelines.svc.cluster.local:9090/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

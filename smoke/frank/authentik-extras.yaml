@@ -1,0 +1,15 @@
+# Smoke declaration for frank/authentik-extras (spec R16/R17). The verifier runs these after every rollout.
+app: authentik-extras
+cluster: frank
+checks:
+- kind: http
+  target: http://authentik-server-lb.authentik.svc.cluster.local:9000/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

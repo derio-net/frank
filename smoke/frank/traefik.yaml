@@ -1,0 +1,16 @@
+# Smoke declaration for frank/traefik (spec R16/R17). The verifier runs these after every rollout.
+app: traefik
+cluster: frank
+checks:
+- kind: http
+  target: http://traefik.traefik-system.svc.cluster.local:80/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403
+    - 404

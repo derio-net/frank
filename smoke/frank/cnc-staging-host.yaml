@@ -1,0 +1,11 @@
+# Smoke declaration for frank/cnc-staging-host (spec R16/R17). The verifier runs these after every rollout.
+app: cnc-staging-host
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/cnc-staging-host
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application: no workload of its own; proves the objects were applied and are healthy'

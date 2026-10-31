@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import functools
 import json
 import re
 import sys
@@ -46,7 +47,8 @@ BATCH_GROUP = "routine-updates"
 
 
 # --------------------------------------------------------------------- enumeration
-def applications() -> list[dict]:
+@functools.lru_cache(maxsize=None)
+def applications() -> tuple[dict, ...]:
     """Every Application in both root charts: {cluster, name, spec, key}."""
     import render_all_images as r
 
@@ -57,7 +59,7 @@ def applications() -> list[dict]:
             if d and d.get("kind") == "Application":
                 out.append({"cluster": cluster, "name": d["metadata"]["name"],
                             "key": f"{cluster}/{d['metadata']['name']}", "app": d})
-    return out
+    return tuple(out)
 
 
 def app_keys() -> list[str]:

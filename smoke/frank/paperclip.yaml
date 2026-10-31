@@ -1,0 +1,15 @@
+# Smoke declaration for frank/paperclip (spec R16/R17). The verifier runs these after every rollout.
+app: paperclip
+cluster: frank
+checks:
+- kind: http
+  target: http://paperclip-lb.paperclip-system.svc.cluster.local:3100/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

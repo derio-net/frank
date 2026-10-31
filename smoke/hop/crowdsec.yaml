@@ -1,0 +1,15 @@
+# Smoke declaration for hop/crowdsec (spec R16/R17). The verifier runs these after every rollout.
+app: crowdsec
+cluster: hop
+checks:
+- kind: http
+  target: http://crowdsec-agent-service.None.svc.cluster.local:6060/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403

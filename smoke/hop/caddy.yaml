@@ -1,0 +1,10 @@
+# Smoke declaration for hop/caddy (spec R16/R17). The verifier runs these after every rollout.
+app: caddy
+cluster: hop
+checks:
+- kind: http
+  target: https://www.derio.net/
+  expect:
+    status: 200
+  public: true
+  note: security headers come from Caddy, not the backend

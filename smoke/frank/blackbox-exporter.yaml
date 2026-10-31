@@ -1,0 +1,15 @@
+# Smoke declaration for frank/blackbox-exporter (spec R16/R17). The verifier runs these after every rollout.
+app: blackbox-exporter
+cluster: frank
+checks:
+- kind: http
+  target: http://blackbox-exporter.monitoring.svc.cluster.local:9115/
+  expect:
+    status:
+    - 200
+    - 301
+    - 302
+    - 303
+    - 307
+    - 401
+    - 403
