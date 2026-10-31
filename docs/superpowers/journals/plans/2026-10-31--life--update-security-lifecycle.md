@@ -25,3 +25,8 @@ Image ghcr.io/derio-net/upgrade-session:<sha>, built FROM agent-base (NOT infra-
 ### p5-scrub-delimiters-inside-secrets · discovery · Scrubber must not stop a secret value at # , or } inside it (phase 5)
 
 Second console finding: stopping the value class at #, comma or } under-redacts secrets that contain them. Quoted values: capture to the matching quote. Unquoted: capture non-space, strip a trailing , or } in code; # is a comment only after whitespace. Fixtures with those chars early in the value, quoted and unquoted. Prefer over-redaction.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-session-selection-explicit created=2026-10-31T19:17:35+00:00 phase=5 -->
+### p5-session-selection-explicit · discovery · Session pod must run use-versions explicitly; never set command: (phase 5)
+
+Review of agent-images#171: the env-based selection (UPGRADE_*_MINOR) only runs via the image ENTRYPOINT; a pod spec 'command:' replaces it and the env is silently ignored, and with nothing selected neither talosctl nor kubectl is on PATH. Frank's session pod template must use 'args:' not 'command:', AND every brief template must start with an explicit 'use-versions --talos <minor> --kubernetes <minor>' and a 'use-versions --list' check.
