@@ -142,3 +142,43 @@ def test_pin_exceptions_are_justified_and_live():
     for entry in entries:
         assert len(entry["reason"].strip()) > 20, entry
         assert entry["image"] in snapshot, f"stale exception {entry['image']}"
+
+
+# --- p1-r1: R2 is enforced offline against git, not only against the snapshot ----------
+
+
+def _snapshot_images():
+    lines = (FIX / "rendered-images.txt").read_text().splitlines()
+    return {line for line in lines if line and not line.startswith("#")}
+
+
+def test_git_resident_sources_render_pinned_offline():
+    import render_all_images as r
+
+    images, skipped, _ = r.collect_offline()
+    assert skipped == [], skipped
+    assert images, "no git-resident images rendered"
+    assert sorted(i for i in images if r.is_unpinned(i)) == []
+
+
+def test_offline_images_are_in_the_snapshot_so_a_stale_snapshot_fails():
+    import render_all_images as r
+
+    images, _, _ = r.collect_offline()
+    assert sorted(images - _snapshot_images()) == [], "regenerate: scripts/render_all_images.py"
+
+
+def test_offline_audit_goes_red_on_a_floating_image(tmp_path, monkeypatch):
+    """Scratch copy of a manifest dir with `image: foo:latest` must be caught."""
+    import render_all_images as r
+
+    scratch = tmp_path / "m"
+    scratch.mkdir()
+    (scratch / "d.yaml").write_text(
+        "kind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n"
+        "        - {name: a, image: 'foo:latest'}\n"
+    )
+    monkeypatch.setattr(r, "ROOT", tmp_path)
+    app = {"metadata": {"name": "x"}, "spec": {"destination": {"namespace": "x"}}}
+    out = r.render_source(app, {"path": "m"}, tmp_path)
+    assert r.find_unpinned(out) == ["foo:latest"]

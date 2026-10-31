@@ -274,7 +274,12 @@ def render_source(app: dict, source: dict, tmp: Path) -> str:
     )
 
 
-def collect() -> tuple[set[str], list[str], set[str]]:
+def collect_offline() -> tuple[set[str], list[str], set[str]]:
+    """Audit only git-resident sources (manifest paths, local charts, kustomize): no network."""
+    return collect(offline=True)
+
+
+def collect(offline: bool = False) -> tuple[set[str], list[str], set[str]]:
     images: set[str] = set()
     skipped: list[str] = []
     exempt: set[str] = set()
@@ -283,6 +288,8 @@ def collect() -> tuple[set[str], list[str], set[str]]:
         for source in sources:
             if "ref" in source and "chart" not in source and "path" not in source:
                 continue
+            if offline and "chart" in source:
+                continue  # remote chart: needs the network, covered by the committed snapshot
             with tempfile.TemporaryDirectory() as td:
                 try:
                     out = render_source(app, source, Path(td))
