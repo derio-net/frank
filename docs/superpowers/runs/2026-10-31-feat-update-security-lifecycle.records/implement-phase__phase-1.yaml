@@ -1,0 +1,15 @@
+schema_version: 10
+run: 2026-10-31-feat-update-security-lifecycle
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T2.S1, P1.T2.S2, P1.T3.S1, P1.T3.S2, P1.T3.S3]
+refactor:
+  P1.T2: "declarative YAML files and a template value only; nothing to clean"
+journal:
+  - {kind: discovery, id: p1-omni-version, phase: 1, title: "Omni backend is v1.5.0 (measured)", body: "omnictl get clusters reports frank talos 1.12.6 / k8s 1.35.3; omnictl warned its client 1.8.1 differs from backend 1.5.0, which is the running Omni version, now pinned as OMNI_VERSION=v1.5.0. Side effect: the Omni CLI key had expired and omnictl re-registered a PGP key (~/.talos/keys) on first use. Hop measured via kubectl: talos 1.12.5 / k8s 1.34.1, as the spec stated."}
+  - {kind: discovery, id: p1-audit-scope, phase: 1, title: "Image audit: scope decisions and one real finding", body: "All 114 rendered images across 127 sources (0 apps skipped; OCI repoURLs without a scheme are treated as oci://) are pinned. The audit ignores Helm test hooks (helm.sh/hook test, never applied by Argo CD) and disabled operator components (enabled: false, e.g. gpu-operator vgpuManager), and joins NVIDIA-style repository/image/version triples. The one real unpinned image was litellm's bitnami postgresql (chart default :latest): pinned by digest in apps/litellm/values.yaml to the running image (PostgreSQL 18.4, no pod roll expected)."}
+  - {kind: discovery, id: p1-operator-images, phase: 1, title: "Operator-chosen images are invisible to the render audit", body: "AWX's postgres pod runs quay.io/sclorg/postgresql-15-c9s:latest, chosen by the AWX operator (awx.yaml sets no postgres_image). It is not in any rendered manifest so the audit cannot see it. The operator composes image:version so a digest cannot be set via postgres_image_version; pinning needs postgres_image_version set to a tag. Left for the classification phase; operator-created workloads (CNPG, AWX) need a runtime audit."}
+resolves: []
+evidence:
+  tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/6e5115b5-7008-498c-9028-3ac060fab4bd/scratchpad/phase1-tests.log
