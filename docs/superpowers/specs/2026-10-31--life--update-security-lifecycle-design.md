@@ -315,9 +315,18 @@ session (Part 3). Credentials: a GitHub App token able to merge PRs and write
 statuses on `derio-net/frank`, and a Gitea token limited to Actions on the
 mirrored repo. Access is restricted to the operator's Authentik group.
 
-**OS steps (R16, R22).** Git leads the cluster: the session first opens and
-merges the PR changing `versions/<cluster>.yaml`, then applies the step, then
-verifies. Between merge and verification the inventory shows the item as
+**Session PRs are merged by the console, on the operator's click.** A session
+may open PRs (branch prefix `cluster-update/session-<upgrade-id>-`, its App
+token can push branches and open PRs but never push to `main` — phase 7 ruleset)
+and never merges them. It asks the console to merge through the step API; the
+console runs the same trust check (session App bot as author, its own prefix,
+verified commits, files limited to that session's scope) and shows a
+"Merge session PR" action that the operator clicks. This keeps "the console is
+the only merger" true for every path (review c1c-r1).
+
+**OS steps (R16, R22).** Git leads the cluster: the session first opens the PR
+changing `versions/<cluster>.yaml`, the operator merges it from the console, then
+the session applies the step and verifies. Between merge and verification the inventory shows the item as
 `declared, applying` — a known, displayed gap, never a silent one.
 
 **Verification and state (R15, R16, R26). The console tracks each update
@@ -378,8 +387,8 @@ in the pod's `emptyDir` and dies with it.
 
 **Brief and finish (R22).** The session starts with a generated brief file and
 an agent instruction file (`CLAUDE.md`/`AGENTS.md` — gotchas: `SKILL.md` is
-loaded by nothing). It ends by opening the PR that records the new version and
-running the R16 verification; the console then checks the running version
+loaded by nothing). It ends by opening the PR that records the new version (merged by the console
+on the operator's click) and running the R16 verification; the console then checks the running version
 independently.
 
 **Starting twice (R29).** A session's identity is the upgrade id, never a
