@@ -91,3 +91,8 @@ Running: litellm-postgresql STS (:latest -> verified multi-arch index digest, sa
 ### p1-audit-rules · discovery · Audit rules: exact versions, exemptions visible, R2 enforced offline (phase 1)
 
 Exact tag = >=3 numeric parts, 8+ digit date stamp, commit hash or digest; allowlist scripts/tests/fixtures/life/pin-exceptions.yaml (postgres major.minor, own immutable tags openrgb:1.0rc2 and ovms-retrieval-models:2). Exemptions (helm test hooks, named disabled operator components, unresolved params, static non-image strings) are written to audit-exemptions.txt. R2 is also checked offline against git-resident sources so a stale snapshot fails. --check fails on skipped sources. Omni pin made effective via literal OMNI_IMG_TAG. AWX CR pins postgres and redis. Operator-created images elsewhere (CNPG etc.) remain a known gap for the console live inventory.
+
+<!-- fr:journal kind=discovery scope=plan id=p1-job-immutability created=2026-10-31T19:40:18+00:00 phase=1 -->
+### p1-job-immutability · discovery · Jobs whose completed instances must be deleted before ArgoCD can sync the new template (phase 1)
+
+A Job pod template is immutable. vk-remote postgres-init Job (PostSync hook, hook-delete-policy BeforeHookCreation - self-clearing if Argo runs the hook) and cnc-prod snapshot-job (PreSync hook, BeforeHookCreation,HookSucceeded - self-clearing; one instance is currently Pending/running). If either is ever found as a non-hook completed Job, delete it before sync. No other Job in git-resident manifests changed image in this phase. The trailing manual phase carries the check: kubectl get jobs -A and delete completed instances of these two before the first post-merge sync.
