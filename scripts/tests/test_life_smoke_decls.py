@@ -108,3 +108,9 @@ def test_http_checks_expect_one_status_and_never_accept_auth_walls():
             seen[app] = c["target"]
     assert seen["argocd"].startswith("http://argocd-server."), "not the applicationset-controller"
     assert seen["authentik"].endswith("/-/health/ready/")
+
+
+def test_hop_caddy_asserts_its_security_headers_and_does_not_duplicate_www():
+    (c,) = load("hop", "caddy")["checks"]
+    assert set(c["expect"]["headers"]) == {"strict-transport-security", "content-security-policy"}
+    assert c["target"] != next(x for x in load("hop", "www")["checks"])["target"]
