@@ -3,7 +3,7 @@ run: 2026-10-31-feat-update-security-lifecycle
 workflow: fr-goal@1
 branch: feat/update-security-lifecycle
 started: '2026-10-31T06:56:42+00:00'
-cursor: spec-review
+cursor: plan
 steps:
   brainstorm:
     state: done
@@ -12,17 +12,25 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md
   spec-review:
-    state: running
-    at: '2026-10-31T18:23:02+00:00'
+    state: done
+    at: '2026-10-31T18:28:12+00:00'
     units:
       step/spec-review:
         attempts:
         - dispatched: '2026-10-31T18:23:02+00:00'
+          agent: af47911857b031ade
           agent_type: super-fr:fr-spec-reviewer
           harness: claude-code
+          model: claude-opus-5-5
           tier: hard
           bound: opus
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-10-31T18:28:12+00:00'
+          outcome: done
+        evidence:
+          review: spec-review
+          reviewer: af47911857b031ade
+          findings: s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13
   plan:
     state: pending
   plan-review:
