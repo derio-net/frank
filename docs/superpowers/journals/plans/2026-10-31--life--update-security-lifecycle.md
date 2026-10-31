@@ -216,3 +216,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r7 created=2026-10-31T20:07:55+00:00 phase=2 state=open review_scope=in -->
 ### p2-r7 · finding [open] (reviewer: in scope) · No test proves the generated Renovate config (last-match) agrees with resolve() (first-match); automerge not scanned recursively (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8 created=2026-10-31T20:08:00+00:00 phase=2 state=open review_scope=in -->
+### p2-r8 · finding [open] (reviewer: in scope) · Stateful/rollout facts not re-checked for remote-chart apps; charts-session test only checks images; no facts-drift job (phase 2)
