@@ -247,3 +247,8 @@ Ports: 8080 UI (ingress from Traefik ONLY, requires X-authentik-jwt forwarded), 
 ### p5-session-rbac-static · discovery · Session RBAC is static per app namespace, not console-created RoleBindings (phase 5)
 
 Console creates no RoleBindings (removes an escalation path). Frank binds, in each stateful app namespace, a Role allowing create on Longhorn snapshots (snapshots.longhorn.io / volumesnapshots) to SA upgrade-session-stateful in upgrade-sessions; and in each Rollouts app namespace a Role allowing patch on rollouts/status to SA upgrade-session-rollouts. No delete verbs. Generated from update-policy facts so new stateful apps get bindings automatically; test the set equals the stateful/Rollouts app set. Credential files mount at SESSION_SECRET_DIR; pods call SESSION_API_URL (console :8081); briefs at docs/upgrade-briefs/<type>.md plus AGENTS.md. P4.T1.S1's RoleBinding-template exception and P5.T1.S1 text are superseded by this.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-hop-scan-format created=2026-10-31T20:38:33+00:00 phase=3 -->
+### p3-hop-scan-format · discovery · Hop scan result line format consumed by the console (phase 3)
+
+The console reads hop scan results from VictoriaLogs lines 'hop-scan result {json}' (one JSON object per image). Match exactly in apps/hop-scan; the console needs VICTORIALOGS_URL.
