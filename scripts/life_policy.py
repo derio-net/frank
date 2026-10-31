@@ -75,7 +75,16 @@ def load_facts() -> dict:
     return yaml.safe_load(FACTS_FILE.read_text())["apps"]
 
 
+def image_repo(image: str) -> str:
+    """registry/path of an image reference without its tag or digest."""
+    ref = image.split("@")[0]
+    head, _, last = ref.rpartition("/")
+    return f"{head}/{last.split(':')[0]}" if head else last.split(":")[0]
+
+
 def _matches(rule: dict, kind: str, value: str, update: str) -> bool:
+    if kind == "image":
+        value = image_repo(value)
     pat = rule["match"].get(kind)
     if pat is None or not fnmatch.fnmatchcase(value, pat):
         return False

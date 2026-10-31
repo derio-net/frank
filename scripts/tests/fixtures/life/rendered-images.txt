@@ -132,7 +132,7 @@ registry-1.docker.io/bitnami/postgresql@sha256:db2312d9b243afa8c3b3f5496e478d17d
 registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.18.0
 registry.k8s.io/metrics-server/metrics-server:v0.8.1
 registry.k8s.io/nfd/node-feature-discovery:v0.18.2
-renovate/renovate:44.198.3
+renovate/renovate:44.198.3@sha256:bf344aa39d5b592ec728e1db5c3e1d940a5093a89a4598073efcb18d592d121c
 tailscale/tailscale:v1.82.5
 victoriametrics/operator:v0.68.2
 victoriametrics/victoria-logs:v1.47.0

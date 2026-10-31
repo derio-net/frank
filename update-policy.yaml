@@ -218,3 +218,15 @@ rules:
     dep: omni
   path: operator-runbook
   reason: Omni is upgraded by the operator from the laptop; the console tracks only
+- match:
+    image: renovate/renovate
+  path: session
+  reason: the tool that opens update PRs never updates itself unattended
+- match:
+    image: ghcr.io/derio-net/cluster-update-fr
+  path: session
+  reason: the update console never updates itself unattended
+- match:
+    image: ghcr.io/derio-net/upgrade-session
+  path: session
+  reason: the session image runs the upgrades, so it is itself upgraded in a session

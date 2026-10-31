@@ -86,3 +86,14 @@ def test_facts_match_git_resident_rendering():
         f = FACTS["apps"][app]
         assert (not stateful) or f["stateful"], app
         assert (not rollout) or f["rollout"], app
+
+
+def test_the_tools_that_update_the_cluster_never_update_themselves_unattended():
+    for image in ("renovate/renovate:44.198.3@sha256:" + "0" * 64,
+                  "ghcr.io/derio-net/cluster-update-fr:1.2.3",
+                  "ghcr.io/derio-net/upgrade-session:1.2.3"):
+        for ut in UPDATE_TYPES:
+            assert life_policy.resolve({"image": image}, ut) == "session", (image, ut)
+    cfg = life_policy.renovate_config()
+    pinned = [r for r in cfg["packageRules"] if "renovate/renovate" in r.get("matchPackageNames", [])]
+    assert pinned and all(r["labels"] == ["path:session"] for r in pinned)

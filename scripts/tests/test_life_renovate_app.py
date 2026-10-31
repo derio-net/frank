@@ -42,7 +42,8 @@ def test_cronjob():
     (c,) = pod["containers"]
     image = c["image"]
     assert image.split(":")[0].endswith("renovate/renovate")
-    tag = image.split(":")[1]
+    assert "@sha256:" in image, "pinned by digest (the tag stays for Renovate and humans)"
+    tag = image.split("@")[0].split(":")[1]
     assert tag.count(".") == 2 and tag.replace(".", "").isdigit(), "exact tag"
     assert c["securityContext"]["capabilities"]["drop"] == ["ALL"]
     assert c["securityContext"]["allowPrivilegeEscalation"] is False
