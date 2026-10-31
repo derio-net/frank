@@ -145,13 +145,33 @@ def is_ignored(image: str) -> bool:
     return not image.strip() or "$(" in image or "{{" in image
 
 
+PIN_EXCEPTIONS_FILE = ROOT / "scripts/tests/fixtures/life/pin-exceptions.yaml"
+_HEX_TAG = re.compile(r"^(?:sha-)?[0-9a-f]{7,40}$")
+
+
+def _pin_exceptions() -> frozenset[str]:
+    if not PIN_EXCEPTIONS_FILE.exists():
+        return frozenset()
+    data = yaml.safe_load(PIN_EXCEPTIONS_FILE.read_text()) or {}
+    return frozenset(e["image"] for e in data.get("exceptions", []))
+
+
+def is_exact_tag(tag: str) -> bool:
+    """Exact = a full release version (>=3 numeric parts), a date/build stamp (an 8+ digit
+    run) or a commit hash. `16`, `3.13-slim`, `2.9-alpine`, `latest` float."""
+    runs = re.findall(r"\d+", tag)
+    return len(runs) >= 3 or any(len(r) >= 8 for r in runs) or bool(_HEX_TAG.match(tag))
+
+
 def is_unpinned(image: str) -> bool:
     if "@sha256:" in image or "@sha512:" in image:
+        return False
+    if image in _pin_exceptions():
         return False
     last = image.rsplit("/", 1)[-1]
     if ":" not in last:
         return True
-    return last.rsplit(":", 1)[1] == "latest"
+    return not is_exact_tag(last.rsplit(":", 1)[1])
 
 
 def find_unpinned(rendered_yaml: str) -> list[str]:
@@ -161,8 +181,13 @@ def find_unpinned(rendered_yaml: str) -> list[str]:
     )
 
 
+def is_remote_render(cmd: list[str]) -> bool:
+    return "--repo" in cmd or any(a.startswith("oci://") for a in cmd)
+
+
 def _run(cmd: list[str]) -> str:
-    cache = os.environ.get("RENDER_CACHE")
+    # Only remote-chart renders are memoised: git-resident sources are cheap and change often.
+    cache = os.environ.get("RENDER_CACHE") if is_remote_render(cmd) else None
     key = None
     if cache:
         blob = " ".join(cmd).encode()

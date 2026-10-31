@@ -176,7 +176,7 @@ spec:
         # `--workspaces --if-present`, the guard against empty script entries.
         stepTemplate:
           computeResources: {}
-          image: node:22-alpine
+          image: node:22.23.3-alpine
           workingDir: $(workspaces.source.path)/repo
           securityContext:
             allowPrivilegeEscalation: false

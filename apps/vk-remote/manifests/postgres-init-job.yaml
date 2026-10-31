@@ -12,7 +12,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: init
-          image: postgres:16-alpine
+          image: postgres:16.15-alpine
           command:
             - sh
             - -c

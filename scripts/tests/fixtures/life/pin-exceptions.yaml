@@ -1,0 +1,14 @@
+# Images allowed to carry a tag that is not >=3 numeric components. Each needs a reason that
+# explains why the publisher offers nothing finer. Entries must exist in rendered-images.txt
+# (a test fails on stale ones). Everything else must be an exact tag or a digest (spec R2).
+exceptions:
+  - image: docker.io/library/postgres:17.9-bookworm
+    reason: PostgreSQL versions are major.minor (17.9 IS the exact release); chart default.
+  - image: postgres:16.15
+    reason: PostgreSQL versions are major.minor (16.15 IS the exact release).
+  - image: postgres:16.15-alpine
+    reason: PostgreSQL versions are major.minor (16.15 IS the exact release).
+  - image: ghcr.io/derio-net/openrgb:1.0rc2
+    reason: Own image tagged with upstream's pre-release name; immutable, no finer tag exists.
+  - image: ghcr.io/derio-net/ovms-retrieval-models:2
+    reason: Own image; the tag is the immutable MODELS_REV integer guarded by test_models_rev_moves_when_the_dockerfile_changes.

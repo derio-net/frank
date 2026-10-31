@@ -430,7 +430,7 @@ spec:
                 - {name: plan, mountPath: /plan}
                 - {name: tmp, mountPath: /tmp}
             - name: plan
-              image: python:3.13-slim
+              image: python:3.13.18-slim
               command: ["python3", "/scripts/plan.py"]
               env:
                 - {name: HOME, value: /tmp/home}

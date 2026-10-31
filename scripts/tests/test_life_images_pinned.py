@@ -110,3 +110,35 @@ def test_committed_exemptions_file_is_non_silent():
     lines = (FIX / "audit-exemptions.txt").read_text().splitlines()
     kinds = {line.split(" ", 1)[0] for line in lines if line and not line.startswith("#")}
     assert {"helm-test-hook", "disabled-component"} <= kinds
+
+
+# --- p1-r2: EXACT versions, not floating major/minor tags -----------------------------
+
+
+def test_floating_tags_are_unpinned():
+    for image in (
+        "postgres:16", "postgres:16-alpine", "python:3.13-slim", "node:22-alpine",
+        "caddy:2.9-alpine", "alpine:3.20", "busybox:1.37", "ghcr.io/x/y:2", "x:latest",
+    ):
+        assert is_unpinned(image), image
+
+
+def test_exact_tags_are_pinned():
+    for image in (
+        "busybox:1.37.0", "python:3.13.18-slim", "node:22.23.3-alpine", "x:20260527",
+        "ghcr.io/x/y:sha-d554c47", "ghcr.io/x/y:7cebcbb", "a/b:main-v1.83.14-stable.patch.1",
+        "a@sha256:" + "0" * 64, "a:1.37@sha256:" + "0" * 64,
+    ):
+        assert not is_unpinned(image), image
+
+
+def test_pin_exceptions_are_justified_and_live():
+    import yaml
+
+    data = yaml.safe_load((FIX / "pin-exceptions.yaml").read_text())
+    entries = data["exceptions"]
+    assert entries
+    snapshot = (FIX / "rendered-images.txt").read_text().splitlines()
+    for entry in entries:
+        assert len(entry["reason"].strip()) > 20, entry
+        assert entry["image"] in snapshot, f"stale exception {entry['image']}"

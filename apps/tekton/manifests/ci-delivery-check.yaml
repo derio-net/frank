@@ -329,7 +329,7 @@ spec:
             seccompProfile: {type: RuntimeDefault}
           containers:
             - name: check
-              image: python:3.13-slim
+              image: python:3.13.18-slim
               command: [python3, /scripts/check.py]
               env:
                 - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
