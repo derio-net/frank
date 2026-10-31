@@ -270,3 +270,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-31--life--update-security-lifecycle-p5 created=2026-10-31T18:52:25+00:00 -->
 ### phase-split-2026-10-31--life--update-security-lifecycle-p5 · decision · ask: R20-R23/R25/R29 — the disposable-session security boundary (namespace, egress, scoped RBAC, briefs, scrubbing)
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-10-31--life--update-security-lifecycle-p6 created=2026-10-31T18:52:29+00:00 -->
+### phase-split-2026-10-31--life--update-security-lifecycle-p6 · decision · ask: R24/R19 — OS upgrade sequencing, rollback paths and the Omni runbook
