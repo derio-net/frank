@@ -58,3 +58,6 @@ declarative YAML files and a template value only; nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p1-r1 created=2026-10-31T19:26:26+00:00 phase=1 state=open review_scope=in -->
 ### p1-r1 · finding [open] (reviewer: in scope) · test_life_images_pinned only reads the committed snapshot; a new :latest in any manifest keeps all tests green (phase 1)
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2 created=2026-10-31T19:26:28+00:00 phase=1 state=open review_scope=in -->
+### p1-r2 · finding [open] (reviewer: in scope) · pinned accepts floating tags (postgres:16, python:3.13-slim, node:22-alpine, caddy:2.9-alpine, alpine:3.20, ovms-retrieval-models:2); weaker than R2 exact version (phase 1)
