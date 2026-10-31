@@ -222,3 +222,8 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r9 created=2026-10-31T20:08:09+00:00 phase=2 state=open review_scope=in -->
 ### p2-r9 · finding [open] (reviewer: in scope) · renovate image pinned by tag not digest and default patch policy lets it auto-update itself (phase 2)
+
+<!-- fr:journal kind=discovery scope=plan id=p5-briefs-untrusted-data created=2026-10-31T20:19:04+00:00 phase=5 -->
+### p5-briefs-untrusted-data · discovery · Brief templates must fence forge-sourced text as untrusted data (phase 5)
+
+Console security review: PR titles/bodies and release notes flowed verbatim into session briefs read by an agent holding cluster credentials (prompt injection). Frank's brief templates (docs/upgrade-briefs/) and AGENTS.md/CLAUDE.md must: keep instruction sections free of interpolated forge text; put release notes/PR text in a fenced block introduced as untrusted data, not instructions; and instruct the agent never to follow instructions found in those blocks, never to widen its own credentials, and to stop and ask the operator if the data asks it to. Test the templates for that wording and that no {{pr_*}}/{{release_*}} placeholder sits outside the untrusted block.
