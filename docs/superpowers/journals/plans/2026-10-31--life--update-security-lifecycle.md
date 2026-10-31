@@ -76,3 +76,8 @@ declarative YAML files and a template value only; nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p1-r7 created=2026-10-31T19:26:38+00:00 phase=1 state=open review_scope=out -->
 ### p1-r7 · finding [open] (reviewer: out of scope) · operator-created workloads (AWX sclorg postgresql-15-c9s:latest) are invisible to a render audit (phase 1)
+
+<!-- fr:journal kind=discovery scope=plan id=p4-console-writes-namespaced-role created=2026-10-31T19:30:31+00:00 phase=4 -->
+### p4-console-writes-namespaced-role · discovery · Console write RBAC must be a namespaced Role in upgrade-sessions, never a ClusterRole (phase 4)
+
+Console security review found a path-injection hole in its own write guard (since fixed in cluster-update-fr). Frank's RBAC is the second layer and must hold on its own: reads may be a ClusterRole (get/list/watch only); every write verb (create/delete pods, secrets, rolebindings) must live in a Role + RoleBinding in namespace upgrade-sessions, and the console may not create RoleBindings that reference a ClusterRole other than the per-type session roles (use resourceNames / an escalate-free binding check). Test: no ClusterRole bound to the console SA grants any verb outside get/list/watch.
