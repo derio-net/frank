@@ -1,14 +1,42 @@
-# Images allowed to carry a tag that is not >=3 numeric components. Each needs a reason that
+# Images allowed to carry a tag that is not >=3 numeric components, and stateful-workload images not digest-pinned. Each needs a reason that
 # explains why the publisher offers nothing finer. Entries must exist in rendered-images.txt
 # (a test fails on stale ones). Everything else must be an exact tag or a digest (spec R2).
 exceptions:
   - image: docker.io/library/postgres:17.9-bookworm
     reason: PostgreSQL versions are major.minor (17.9 IS the exact release); chart default.
-  - image: postgres:16.15
-    reason: PostgreSQL versions are major.minor (16.15 IS the exact release).
-  - image: postgres:16.15-alpine
-    reason: PostgreSQL versions are major.minor (16.15 IS the exact release).
   - image: ghcr.io/derio-net/openrgb:1.0rc2
     reason: Own image tagged with upstream's pre-release name; immutable, no finer tag exists.
   - image: ghcr.io/derio-net/ovms-retrieval-models:2
     reason: Own image; the tag is the immutable MODELS_REV integer guarded by test_models_rev_moves_when_the_dockerfile_changes.
+  - image: arp242/goatcounter:2.7.0
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: docker.io/n8nio/n8n:2.13.4
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: docker.io/nousresearch/hermes-agent:v2026.7.7.2
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: docker:28.3.2-dind
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/agentic-stoa/cnc-frd:0.18.0
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/caddy-cloudflare:2.11.3
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/hermes-agent-shell-hindsight:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/hermes-agent-shell-ssh:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/secure-agent-kali:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/vk-local:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/paperclipai/paperclip:sha-d554c47
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: gitea/act_runner:0.2.13
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: headscale/headscale:0.25.1
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: openvino/model_server:2026.2.1-gpu
+    reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.

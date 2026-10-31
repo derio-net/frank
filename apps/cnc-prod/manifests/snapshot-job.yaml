@@ -17,7 +17,9 @@ spec:
       restartPolicy: Never
       containers:
         - name: snapshot
-          image: postgres:16.15
+          # pg_dump client; nothing ran under the old tag to copy a digest from, so this is the registry
+          # index digest of 16.15 on 2026-10-31.
+          image: postgres:16.15@sha256:1beaa3084eee2676f20a9cd9928f0bf2c5bf674f8e49f81017912183d377c61c
           env:
             - name: PG_PASSWORD
               valueFrom:

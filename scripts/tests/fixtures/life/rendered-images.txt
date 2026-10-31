@@ -33,7 +33,7 @@ docker.io/longhornio/longhorn-ui:v1.11.2
 docker.io/longhornio/support-bundle-kit:v0.0.84
 docker.io/n8nio/n8n:2.13.4
 docker.io/nousresearch/hermes-agent:v2026.7.7.2
-docker.io/redis:7.4.9
+docker.io/redis:7@sha256:b2b95679e3b46fb51864949ed25ea976fc3a6bcc00a40a1bc00d568cb2822e50
 docker.io/traefik:v3.6.12
 docker:28.3.2-dind
 ecr-public.aws.com/docker/library/redis:8.2.3-alpine
@@ -103,8 +103,8 @@ nvcr.io/nvidia/kubevirt-gpu-device-plugin:v1.4.0
 ollama/ollama:0.30.5
 openvino/model_server:2026.2.1-gpu
 pgvector/pgvector:0.8.6-pg18@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62
-postgres:16.15
-postgres:16.15-alpine
+postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
+postgres:16.15@sha256:1beaa3084eee2676f20a9cd9928f0bf2c5bf674f8e49f81017912183d377c61c
 prom/blackbox-exporter:v0.25.0
 prom/pushgateway:v1.9.0
 python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
@@ -126,7 +126,7 @@ quay.io/jetstack/cert-manager-startupapicheck:v1.17.1
 quay.io/jetstack/cert-manager-webhook:v1.17.1
 quay.io/kiwigrid/k8s-sidecar:2.5.0
 quay.io/prometheus/node-exporter:v1.10.2
-quay.io/sclorg/postgresql-15-c9s:20260527
+quay.io/sclorg/postgresql-15-c9s:20260527@sha256:da362fb44ceca3669d3f7d9272a4f18d198a0db057add34a307083cb3916338f
 rancher/kubectl:v1.35.0
 registry-1.docker.io/bitnami/postgresql@sha256:db2312d9b243afa8c3b3f5496e478d17d0dff9791d06f3b93b9567abd86ae92f
 registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.18.0

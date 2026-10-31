@@ -182,3 +182,51 @@ def test_offline_audit_goes_red_on_a_floating_image(tmp_path, monkeypatch):
     app = {"metadata": {"name": "x"}, "spec": {"destination": {"namespace": "x"}}}
     out = r.render_source(app, {"path": "m"}, tmp_path)
     assert r.find_unpinned(out) == ["foo:latest"]
+
+
+# --- stateful workloads never change bytes in this phase -------------------------------
+
+WORKLOAD_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod"}
+
+
+def _pod_spec(doc):
+    spec = doc.get("spec") or {}
+    if doc.get("kind") == "CronJob":
+        spec = ((spec.get("jobTemplate") or {}).get("spec")) or {}
+    return (spec.get("template") or {}).get("spec") or (spec if doc.get("kind") == "Pod" else {})
+
+
+def stateful_images(rendered_yaml):
+    import yaml
+
+    out = set()
+    for doc in yaml.safe_load_all(rendered_yaml):
+        if not isinstance(doc, dict) or doc.get("kind") not in WORKLOAD_KINDS:
+            continue
+        pod = _pod_spec(doc)
+        spec = doc.get("spec") or {}
+        stateful = bool(spec.get("volumeClaimTemplates")) or any(
+            "persistentVolumeClaim" in v for v in pod.get("volumes") or []
+        )
+        if stateful:
+            for c in (pod.get("containers") or []) + (pod.get("initContainers") or []):
+                if isinstance(c.get("image"), str):
+                    out.add(c["image"])
+    return out
+
+
+def test_stateful_workload_images_are_digest_pinned_or_excepted():
+    import render_all_images as r
+
+    images = set()
+    for app in r.applications():
+        for source in app["spec"].get("sources") or [app["spec"]["source"]]:
+            if "path" not in source:
+                continue
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as td:
+                images |= stateful_images(r.render_source(app, source, Path(td)))
+    assert images, "no stateful git-resident workloads found"
+    bad = sorted(i for i in images if "@sha256:" not in i and i not in r._pin_exceptions())
+    assert bad == [], "stateful images must be digest-pinned (or justified in pin-exceptions.yaml)"
