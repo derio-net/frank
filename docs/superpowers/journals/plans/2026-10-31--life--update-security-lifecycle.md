@@ -101,3 +101,43 @@ A Job pod template is immutable. vk-remote postgres-init Job (PostSync hook, hoo
 ### p1-restart-list-v2 · discovery · p1-restart-list correction: same bytes vs new bytes (supersedes p1-restart-list) (phase 1)
 
 SAME bytes (image string only, restart on sync): litellm-postgresql STS (digest), awx-postgres-15 STS (20260527@digest), awx-web, vk-remote postgres Deployment (postgres:16-alpine@digest). awx-task: redis moves to awx-web's redis:7 digest (it ran a different one; ephemeral cache, no data). NEW bytes, stateless: hop landing (caddy 2.9.1-alpine), gpu-operator-extras validation-markers DaemonSet (busybox 1.37.0); Tekton tasks/pipelines/triggers and mirror-reconcile + ci-delivery-check CronJobs (python 3.13.18-slim, alpine 3.20.10, node 22.23.3-alpine, busybox 1.37.0) on next run. cnc-prod snapshot-job (pg_dump client PreSync hook): postgres:16.15@registry-index-digest, new bytes because nothing ran under the old tag; not a data store.
+
+<!-- fr:journal kind=review scope=plan id=p1-review created=2026-10-31T19:41:25+00:00 phase=1 -->
+### p1-review · review · Phase 1 independent review: 7 findings (6 in, 1 out) (phase 1)
+
+Reviewer raised p1-r1..p1-r7. All six in-scope findings fixed by the phase executor with tests (25 passing). p1-r7 stays out of scope: the render audit cannot see operator-created images in general; the one known instance (AWX postgres/redis) was pinned in this phase, and the general gap is covered by the console's live inventory (R1).
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r1 -->
+### p1-r1-resolved · finding [fixed] · resolves p1-r1: test_life_images_pinned only reads the committed snapshot; a new :latest in any manifest keeps all tests green (phase 1)
+
+Offline render of git-resident sources + subset-of-snapshot test; proven red with a planted :latest.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r2 -->
+### p1-r2-resolved · finding [fixed] · resolves p1-r2: pinned accepts floating tags (postgres:16, python:3.13-slim, node:22-alpine, caddy:2.9-alpine, alpine:3.20, ovms-retrieval-models:2); weaker than R2 exact version (phase 1)
+
+Exact = >=3 numeric parts, date stamp, commit hash or digest; reasoned pin-exceptions.yaml; floating tags pinned; stateful images digest-pinned to the running bytes with a test enforcing it.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r3 -->
+### p1-r3-resolved · finding [fixed] · resolves p1-r3: litellm postgres tag->digest changes the StatefulSet image string so the DB pod restarts; journal claim wrong; digest index/platform unverified (phase 1)
+
+Digest verified as the multi-arch index equal to the running imageID; comment and journal now state the StatefulSet rolls once.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r4 -->
+### p1-r4-resolved · finding [fixed] · resolves p1-r4: audit walker silently exempts enabled:false dicts, $( / {{ images and ConfigMap/env-embedded images; exemptions not machine-visible (phase 1)
+
+enabled:false skip limited to named operator keys; string-embedded refs and *_image pairs audited; exemptions written to audit-exemptions.txt with a non-silence test.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r5-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r5 -->
+### p1-r5-resolved · finding [fixed] · resolves p1-r5: OMNI_VERSION pin may not reach OMNI_IMG_TAG depending on how the template is consumed; undocumented and untested (phase 1)
+
+Literal OMNI_IMG_TAG plus OMNI_VERSION anchor; test asserts both equal and exact.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=fixed resolves=p1-r6 -->
+### p1-r6-resolved · finding [fixed] · resolves p1-r6: --check does not fail when sources are skipped (e.g. kustomize missing), giving a false green (phase 1)
+
+--check fails on any skipped source; kubectl kustomize fallback.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7-resolved created=2026-10-31T19:41:25+00:00 phase=1 state=open resolves=p1-r7 out_of_scope=true -->
+### p1-r7-resolved · finding [out-of-scope] · resolves p1-r7: operator-created workloads (AWX sclorg postgresql-15-c9s:latest) are invisible to a render audit (phase 1)
+
+Not caused by this change: operator-created workloads were invisible before it. The AWX instance was pinned via its CR in this phase; the general gap belongs to the console's live inventory (R1), not the git render audit.
