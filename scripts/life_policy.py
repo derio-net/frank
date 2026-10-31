@@ -117,6 +117,10 @@ def resolve(dep: dict, update: str = "patch", policy: dict | None = None,
     return max(paths, key=RANK.__getitem__)
 
 
+def policy_default(update: str) -> str:
+    return load_policy()["defaults"][update]
+
+
 # --------------------------------------------------------------------- facts
 def _walk(node):
     if isinstance(node, dict):
@@ -238,10 +242,14 @@ def _attrs(path: str) -> dict:
     return {
         "labels": [f"path:{path}"],
         "automerge": False,
-        "groupName": BATCH_GROUP if path == "batch-approve" else None,
         "dependencyDashboardApproval": needs_approval,
         **({"minimumReleaseAge": "3 days"} if path in ("auto-merge", "batch-approve") else {}),
     }
+
+
+def _re(*patterns: str) -> list[str]:
+    """Renovate managerFilePatterns: a regex is written between slashes."""
+    return [f"/{p}/" for p in patterns]
 
 
 def renovate_config(policy: dict | None = None, facts: dict | None = None) -> dict:
@@ -252,6 +260,21 @@ def renovate_config(policy: dict | None = None, facts: dict | None = None) -> di
         p = policy["defaults"][ut]
         rules.append({"description": f"default path for {ut} updates: {p}",
                       "matchUpdateTypes": [ut], **_attrs(p)})
+    # Batching is POSITIVE: only dependencies that resolve to batch-approve for an update type join
+    # the group, so no later rule has to (and none can) un-set a groupName inherited from a default.
+    for ut in UPDATE_TYPES:
+        files, pkgs = set(), set()
+        for key, f in facts.items():
+            if resolve({"app": key}, ut, policy, facts) == "batch-approve":
+                files.update(f["paths"])
+        for chart in sorted({c for f in facts.values() for c in f["charts"]}):
+            if resolve({"chart": chart}, ut, policy, facts) == "batch-approve":
+                pkgs.add(chart)
+        for field, values in (("matchFileNames", files), ("matchPackageNames", pkgs)):
+            if values:
+                rules.append({"description": f"batch-approve: {field} ({ut}) share one group",
+                              field: sorted(values), "matchUpdateTypes": [ut],
+                              **_attrs("batch-approve"), "groupName": BATCH_GROUP})
     grouped: dict[tuple, dict] = {}
     for rule in policy["rules"]:
         (kind, value), = rule["match"].items()
@@ -280,20 +303,20 @@ def renovate_config(policy: dict | None = None, facts: dict | None = None) -> di
         "dependencyDashboard": True,
         "dependencyDashboardTitle": "Dependency Dashboard (frank)",
         "enabledManagers": ["argocd", "helm-values", "kubernetes", "kustomize", "custom.regex"],
-        "argocd": {"fileMatch": [r"^apps/root/templates/.+\.ya?ml$", r"^clusters/hop/apps/root/templates/.+\.ya?ml$"]},
-        "helm-values": {"fileMatch": [r"(^|/)values\.ya?ml$"]},
-        "kubernetes": {"fileMatch": [r"^apps/.+/manifests/.+\.ya?ml$", r"^clusters/hop/apps/.+/manifests/.+\.ya?ml$"]},
-        "kustomize": {"fileMatch": [r"(^|/)kustomization\.ya?ml$"]},
+        "argocd": {"managerFilePatterns": _re(r"^apps/root/templates/.+\.ya?ml$", r"^clusters/hop/apps/root/templates/.+\.ya?ml$")},
+        "helm-values": {"managerFilePatterns": _re(r"(^|/)values\.ya?ml$")},
+        "kubernetes": {"managerFilePatterns": _re(r"^apps/.+/manifests/.+\.ya?ml$", r"^clusters/hop/apps/.+/manifests/.+\.ya?ml$")},
+        "kustomize": {"managerFilePatterns": _re(r"(^|/)kustomization\.ya?ml$")},
         "customManagers": [
-            {"customType": "regex", "fileMatch": [r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"],
+            {"customType": "regex", "managerFilePatterns": _re(r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"),
              "matchStrings": [r"(?m)^talos: (?<currentValue>\S+)"],
              "depNameTemplate": "siderolabs/talos", "datasourceTemplate": "github-releases",
              "extractVersionTemplate": "^v(?<version>.+)$"},
-            {"customType": "regex", "fileMatch": [r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"],
+            {"customType": "regex", "managerFilePatterns": _re(r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"),
              "matchStrings": [r"(?m)^kubernetes: (?<currentValue>\S+)"],
              "depNameTemplate": "kubernetes/kubernetes", "datasourceTemplate": "github-releases",
              "extractVersionTemplate": "^v(?<version>.+)$"},
-            {"customType": "regex", "fileMatch": [r"^omni/omni/omni\.env\.template$"],
+            {"customType": "regex", "managerFilePatterns": _re(r"^omni/omni/omni\.env\.template$"),
              "matchStrings": [r"(?m)^OMNI_VERSION=(?<currentValue>\S+)"],
              "depNameTemplate": "siderolabs/omni", "datasourceTemplate": "github-releases"},
         ],

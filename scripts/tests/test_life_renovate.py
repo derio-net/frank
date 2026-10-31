@@ -1,5 +1,6 @@
 """renovate.json5 is generated from update-policy.yaml and never automerges (spec R4-R7)."""
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -57,7 +58,7 @@ def test_custom_managers_cover_os_and_omni_declarations():
     managers = load()["customManagers"]
 
     def covering(path):
-        return [m for m in managers if any(re.search(p, path) for p in m["fileMatch"])]
+        return [m for m in managers if any(re.search(p[1:-1], path) for p in m["managerFilePatterns"])]
 
     deps = {m["depNameTemplate"] for m in covering("versions/frank.yaml")}
     assert deps == {"siderolabs/talos", "kubernetes/kubernetes"}
@@ -72,13 +73,14 @@ def test_custom_managers_cover_os_and_omni_declarations():
         assert re.search(m["matchStrings"][0].replace("(?<", "(?P<"), (ROOT / rel).read_text()), (rel, dep)
 
 
-def test_batch_approve_rules_share_one_group():
-    rules = [r for r in load()["packageRules"] if r["labels"] == ["path:batch-approve"]]
-    assert rules
-    assert len({r["groupName"] for r in rules}) == 1 and rules[0]["groupName"]
-    for r in load()["packageRules"]:
-        if r["labels"] != ["path:batch-approve"]:
-            assert r["groupName"] is None, r
+def test_batch_approve_rules_share_one_group_and_nothing_else_has_one():
+    rules = load()["packageRules"]
+    batch = [r for r in rules if "groupName" in r]
+    assert batch
+    assert {r["groupName"] for r in batch} == {life_policy.BATCH_GROUP}
+    for r in batch:
+        assert r["labels"] == ["path:batch-approve"] and "matchUpdateTypes" in r, r
+    assert not any(r.get("groupName") is None and "groupName" in r for r in rules), "no null groupName"
 
 
 def test_stateful_apps_are_never_batched_or_auto_merged():
@@ -96,9 +98,101 @@ def test_committed_file_equals_the_emitted_one():
     assert FILE.read_text() == life_policy.emit_renovate()
 
 
-def test_renovate_config_validator_passes():
+def _validator():
     exe = shutil.which("renovate-config-validator")
-    if not exe:
-        pytest.skip("renovate-config-validator is not on PATH (npm renovate not installed here)")
-    done = subprocess.run([exe, "--strict", str(FILE)], capture_output=True, text=True, cwd=ROOT)
+    if exe:
+        return [exe]
+    if os.environ.get("CI") == "true" and shutil.which("npx"):
+        return ["npx", "--yes", "renovate@44.198.3", "renovate-config-validator"]
+    return None
+
+
+def test_renovate_config_validator_passes():
+    cmd = _validator()
+    if cmd is None:
+        if os.environ.get("CI") == "true":
+            pytest.fail("CI must validate renovate.json5: neither renovate-config-validator nor npx is available")
+        pytest.skip("renovate-config-validator is not on PATH and CI is not set (no npm installs here)")
+    done = subprocess.run(cmd + ["--strict", str(FILE)], capture_output=True, text=True, cwd=ROOT, timeout=900)
     assert done.returncode == 0, done.stdout + done.stderr
+
+
+def _walk(node, path=""):
+    if isinstance(node, dict):
+        for k, v in node.items():
+            yield f"{path}/{k}", k, v
+            yield from _walk(v, f"{path}/{k}")
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            yield from _walk(v, f"{path}[{i}]")
+
+
+def test_every_automerge_key_anywhere_is_false_and_there_is_no_automerge_type():
+    found = 0
+    for where, key, value in _walk(load()):
+        if "automerge" in key.lower():
+            found += 1
+            assert key != "automergeType", where
+            assert value is False, where
+    assert found > 10
+
+
+def test_deprecated_fileMatch_and_null_values_are_not_emitted():
+    for where, key, value in _walk(load()):
+        assert key != "fileMatch", where
+        assert value is not None, where
+
+
+# ---------------------------------------------------------------- simulated Renovate matching
+def _glob(pattern):
+    rx = re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
+    return re.compile(rx + r"\Z")
+
+
+def simulate(rules, *, file=None, package=None, dep=None, update="patch"):
+    """Last matching packageRule wins for `labels`; a rule matches when ALL its matchers match."""
+    label = None
+    for rule in rules:
+        if "matchUpdateTypes" in rule and update not in rule["matchUpdateTypes"]:
+            continue
+        if "matchFileNames" in rule and not (file and any(_glob(g).match(file) for g in rule["matchFileNames"])):
+            continue
+        if "matchPackageNames" in rule and package not in rule["matchPackageNames"]:
+            continue
+        if "matchDepNames" in rule and dep not in rule["matchDepNames"]:
+            continue
+        label = rule["labels"][0].removeprefix("path:")
+    return label
+
+
+def _concrete(globs):
+    return [g.replace("/**", "/some/file.yaml") for g in globs]
+
+
+def test_generated_rules_agree_with_resolve_for_every_app_chart_and_dep():
+    rules = load()["packageRules"]
+    facts = life_policy.load_facts()
+    for ut in life_policy.UPDATE_TYPES:
+        for key, f in facts.items():
+            want = life_policy.resolve({"app": key}, ut)
+            for file in _concrete(f["paths"]):
+                got = simulate(rules, file=file, update=ut)
+                assert got == want, (key, file, ut, got, want)
+                for chart in f["charts"] or [None]:
+                    got = simulate(rules, file=file, package=chart, update=ut)
+                    # a chart shared with a stricter app may only make the result stricter
+                    assert life_policy.RANK[got] >= life_policy.RANK[want], (key, chart, ut, got, want)
+        for chart in {c for f in facts.values() for c in f["charts"]}:
+            want = life_policy.resolve({"chart": chart}, ut)
+            assert simulate(rules, file="unrelated.yaml", package=chart, update=ut) in (want, life_policy.policy_default(ut)), (chart, ut)
+        for dep, name in life_policy.DEP_NAMES.items():
+            want = life_policy.resolve({"dep": dep}, ut)
+            got = simulate(rules, dep=name, update=ut)
+            assert got == want, (dep, ut, got, want)
+
+
+def test_unattended_tool_images_simulate_to_session():
+    rules = load()["packageRules"]
+    for image in ("renovate/renovate", "ghcr.io/derio-net/cluster-update-fr", "ghcr.io/derio-net/upgrade-session"):
+        for ut in life_policy.UPDATE_TYPES:
+            assert simulate(rules, file="apps/renovate/manifests/cronjob.yaml", package=image, update=ut) == "session"
