@@ -5,6 +5,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "automerge": false,
   "platformAutomerge": false,
+  "platformCommit": "enabled",
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Dependency Dashboard (frank)",
   "enabledManagers": [
@@ -40,26 +41,52 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^versions/frank\\.yaml$/",
-        "/^versions/hop\\.yaml$/"
+        "/^versions/frank\\.yaml$/"
       ],
       "matchStrings": [
         "(?m)^talos: (?<currentValue>\\S+)"
       ],
-      "depNameTemplate": "siderolabs/talos",
+      "depNameTemplate": "frank/talos",
+      "packageNameTemplate": "siderolabs/talos",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^versions/frank\\.yaml$/",
+        "/^versions/frank\\.yaml$/"
+      ],
+      "matchStrings": [
+        "(?m)^kubernetes: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "frank/kubernetes",
+      "packageNameTemplate": "kubernetes/kubernetes",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^versions/hop\\.yaml$/"
+      ],
+      "matchStrings": [
+        "(?m)^talos: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "hop/talos",
+      "packageNameTemplate": "siderolabs/talos",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "/^versions/hop\\.yaml$/"
       ],
       "matchStrings": [
         "(?m)^kubernetes: (?<currentValue>\\S+)"
       ],
-      "depNameTemplate": "kubernetes/kubernetes",
+      "depNameTemplate": "hop/kubernetes",
+      "packageNameTemplate": "kubernetes/kubernetes",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
@@ -117,128 +144,6 @@
       ],
       "automerge": false,
       "dependencyDashboardApproval": true
-    },
-    {
-      "description": "batch-approve: matchFileNames (minor) share one group",
-      "matchFileNames": [
-        "../values.yaml",
-        "apps/argo-rollouts-extras/manifests/**",
-        "apps/argo-rollouts/values.yaml",
-        "apps/argocd-extras/manifests/**",
-        "apps/argocd-notifications/manifests/**",
-        "apps/authentik-extras/manifests/**",
-        "apps/blackbox-exporter/manifests/**",
-        "apps/cert-manager/values.yaml",
-        "apps/ci-budget/**",
-        "apps/cnc-staging-host/manifests/**",
-        "apps/external-secrets/values.yaml",
-        "apps/fluent-bit/values.yaml",
-        "apps/gitea/manifests/**",
-        "apps/gpu-operator-extras/manifests/**",
-        "apps/gpu-operator/values.yaml",
-        "apps/gpu-switcher/manifests/**",
-        "apps/grafana-alerting/manifests/**",
-        "apps/health-bridge/manifests/**",
-        "apps/homepage/manifests/**",
-        "apps/infisical/manifests/**",
-        "apps/infisical/values.yaml",
-        "apps/intel-gpu-driver/chart/**",
-        "apps/metrics-server/values.yaml",
-        "apps/openrgb/manifests/**",
-        "apps/pushgateway/manifests/**",
-        "apps/renovate/manifests/**",
-        "apps/root/templates/argo-rollouts-extras.yaml",
-        "apps/root/templates/argo-rollouts.yaml",
-        "apps/root/templates/argocd-extras.yaml",
-        "apps/root/templates/argocd-notifications.yaml",
-        "apps/root/templates/authentik-extras.yaml",
-        "apps/root/templates/blackbox-exporter.yaml",
-        "apps/root/templates/cert-manager.yaml",
-        "apps/root/templates/ci-budget.yaml",
-        "apps/root/templates/cnc-staging-host.yaml",
-        "apps/root/templates/external-secrets.yaml",
-        "apps/root/templates/fluent-bit.yaml",
-        "apps/root/templates/gitea-extras.yaml",
-        "apps/root/templates/gpu-operator-extras.yaml",
-        "apps/root/templates/gpu-operator.yaml",
-        "apps/root/templates/gpu-switcher.yaml",
-        "apps/root/templates/grafana-alerting.yaml",
-        "apps/root/templates/health-bridge.yaml",
-        "apps/root/templates/homepage.yaml",
-        "apps/root/templates/infisical-extras.yaml",
-        "apps/root/templates/infisical.yaml",
-        "apps/root/templates/intel-gpu-driver.yaml",
-        "apps/root/templates/metrics-server.yaml",
-        "apps/root/templates/openrgb.yaml",
-        "apps/root/templates/pushgateway.yaml",
-        "apps/root/templates/renovate.yaml",
-        "apps/root/templates/runs-fr-staging.yaml",
-        "apps/root/templates/staging-gate.yaml",
-        "apps/root/templates/stoa-live-mirror-sync.yaml",
-        "apps/root/templates/tekton-dashboard.yaml",
-        "apps/root/templates/tekton-extras.yaml",
-        "apps/root/templates/tekton-pipelines.yaml",
-        "apps/root/templates/tekton-triggers.yaml",
-        "apps/root/templates/traefik-extras.yaml",
-        "apps/root/templates/zot-extras.yaml",
-        "apps/staging-gate/runs-fr/staging-values.yaml",
-        "apps/staging-gate/tekton/**",
-        "apps/tekton/**",
-        "apps/tekton/vendor/dashboard/**",
-        "apps/tekton/vendor/pipelines/**",
-        "apps/tekton/vendor/triggers/**",
-        "apps/traefik/manifests/**",
-        "apps/zot/manifests/**",
-        "charts/runs-fr/**",
-        "clusters/hop/apps/blog/manifests/**",
-        "clusters/hop/apps/falco/values.yaml",
-        "clusters/hop/apps/fluent-bit/values.yaml",
-        "clusters/hop/apps/headplane/manifests/**",
-        "clusters/hop/apps/landing/manifests/**",
-        "clusters/hop/apps/root/templates/blog.yaml",
-        "clusters/hop/apps/root/templates/falco.yaml",
-        "clusters/hop/apps/root/templates/fluent-bit.yaml",
-        "clusters/hop/apps/root/templates/headplane.yaml",
-        "clusters/hop/apps/root/templates/landing.yaml",
-        "clusters/hop/apps/root/templates/storage.yaml",
-        "clusters/hop/apps/root/templates/www.yaml",
-        "clusters/hop/apps/storage/manifests/**",
-        "clusters/hop/apps/www/manifests/**",
-        "stoa/ci/tekton/live-mirror-sync/**"
-      ],
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "labels": [
-        "path:batch-approve"
-      ],
-      "automerge": false,
-      "dependencyDashboardApproval": false,
-      "minimumReleaseAge": "3 days",
-      "groupName": "routine-updates"
-    },
-    {
-      "description": "batch-approve: matchPackageNames (minor) share one group",
-      "matchPackageNames": [
-        "argo-rollouts",
-        "cert-manager",
-        "external-secrets",
-        "falco",
-        "fluent-bit",
-        "gpu-operator",
-        "infisical-standalone",
-        "metrics-server"
-      ],
-      "matchUpdateTypes": [
-        "minor"
-      ],
-      "labels": [
-        "path:batch-approve"
-      ],
-      "automerge": false,
-      "dependencyDashboardApproval": false,
-      "minimumReleaseAge": "3 days",
-      "groupName": "routine-updates"
     },
     {
       "description": "session: files (patch, minor, major)",
@@ -355,8 +260,10 @@
     {
       "description": "session: dependencies (patch, minor, major)",
       "matchDepNames": [
-        "kubernetes/kubernetes",
-        "siderolabs/talos"
+        "frank/kubernetes",
+        "frank/talos",
+        "hop/kubernetes",
+        "hop/talos"
       ],
       "labels": [
         "path:session"

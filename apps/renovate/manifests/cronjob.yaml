@@ -40,6 +40,8 @@ spec:
                   value: "false"
                 - name: RENOVATE_REQUIRE_CONFIG
                   value: required
+                # Keep this identity consistent with the console's RENOVATE_BOT_LOGIN (<app-slug>[bot]);
+                # both come from the App created in phase 7.
                 # GitHub App bot identity: <app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>.
                 # Placeholders until the App exists (phase 7). Needs a LIVE check that commits are
                 # attributed to the App and signed off as expected.

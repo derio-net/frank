@@ -38,12 +38,11 @@ STATE_KINDS = frozenset({"AWX", "VMSingle", "VLSingle", "VMCluster", "Persistent
 WORKLOAD_KINDS = frozenset({"StatefulSet", "Deployment", "DaemonSet", "Job", "CronJob", "Rollout"})
 # Stateful by identity, not by an owned claim: Longhorn is the storage layer for every PVC.
 STATEFUL_BY_IDENTITY = frozenset({"frank/longhorn", "frank/longhorn-extras"})
-DEP_NAMES = {  # policy dep -> Renovate depName (see the customManagers below)
-    "talos:frank": "siderolabs/talos", "talos:hop": "siderolabs/talos",
-    "kubernetes:frank": "kubernetes/kubernetes", "kubernetes:hop": "kubernetes/kubernetes",
+DEP_NAMES = {  # policy dep -> Renovate depName (see the customManagers below); distinct per cluster
+    "talos:frank": "frank/talos", "talos:hop": "hop/talos",
+    "kubernetes:frank": "frank/kubernetes", "kubernetes:hop": "hop/kubernetes",
     "omni": "siderolabs/omni",
 }
-BATCH_GROUP = "routine-updates"
 
 
 # --------------------------------------------------------------------- enumeration
@@ -260,21 +259,6 @@ def renovate_config(policy: dict | None = None, facts: dict | None = None) -> di
         p = policy["defaults"][ut]
         rules.append({"description": f"default path for {ut} updates: {p}",
                       "matchUpdateTypes": [ut], **_attrs(p)})
-    # Batching is POSITIVE: only dependencies that resolve to batch-approve for an update type join
-    # the group, so no later rule has to (and none can) un-set a groupName inherited from a default.
-    for ut in UPDATE_TYPES:
-        files, pkgs = set(), set()
-        for key, f in facts.items():
-            if resolve({"app": key}, ut, policy, facts) == "batch-approve":
-                files.update(f["paths"])
-        for chart in sorted({c for f in facts.values() for c in f["charts"]}):
-            if resolve({"chart": chart}, ut, policy, facts) == "batch-approve":
-                pkgs.add(chart)
-        for field, values in (("matchFileNames", files), ("matchPackageNames", pkgs)):
-            if values:
-                rules.append({"description": f"batch-approve: {field} ({ut}) share one group",
-                              field: sorted(values), "matchUpdateTypes": [ut],
-                              **_attrs("batch-approve"), "groupName": BATCH_GROUP})
     grouped: dict[tuple, dict] = {}
     for rule in policy["rules"]:
         (kind, value), = rule["match"].items()
@@ -300,6 +284,9 @@ def renovate_config(policy: dict | None = None, facts: dict | None = None) -> di
         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
         "automerge": False,
         "platformAutomerge": False,
+        # Commits are created through the GitHub API with the App token, so GitHub signs them
+        # (web-flow) and the console can require verification.verified on every commit.
+        "platformCommit": "enabled",
         "dependencyDashboard": True,
         "dependencyDashboardTitle": "Dependency Dashboard (frank)",
         "enabledManagers": ["argocd", "helm-values", "kubernetes", "kustomize", "custom.regex"],
@@ -308,14 +295,14 @@ def renovate_config(policy: dict | None = None, facts: dict | None = None) -> di
         "kubernetes": {"managerFilePatterns": _re(r"^apps/.+/manifests/.+\.ya?ml$", r"^clusters/hop/apps/.+/manifests/.+\.ya?ml$")},
         "kustomize": {"managerFilePatterns": _re(r"(^|/)kustomization\.ya?ml$")},
         "customManagers": [
-            {"customType": "regex", "managerFilePatterns": _re(r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"),
-             "matchStrings": [r"(?m)^talos: (?<currentValue>\S+)"],
-             "depNameTemplate": "siderolabs/talos", "datasourceTemplate": "github-releases",
-             "extractVersionTemplate": "^v(?<version>.+)$"},
-            {"customType": "regex", "managerFilePatterns": _re(r"^versions/frank\.yaml$", r"^versions/hop\.yaml$"),
-             "matchStrings": [r"(?m)^kubernetes: (?<currentValue>\S+)"],
-             "depNameTemplate": "kubernetes/kubernetes", "datasourceTemplate": "github-releases",
-             "extractVersionTemplate": "^v(?<version>.+)$"},
+            *[
+                {"customType": "regex", "managerFilePatterns": _re(rf"^versions/{cluster}\.yaml$"),
+                 "matchStrings": [rf"(?m)^{field}: (?<currentValue>\S+)"],
+                 "depNameTemplate": f"{cluster}/{field}", "packageNameTemplate": upstream,
+                 "datasourceTemplate": "github-releases", "extractVersionTemplate": "^v(?<version>.+)$"}
+                for cluster in ("frank", "hop")
+                for field, upstream in (("talos", "siderolabs/talos"), ("kubernetes", "kubernetes/kubernetes"))
+            ],
             {"customType": "regex", "managerFilePatterns": _re(r"^omni/omni/omni\.env\.template$"),
              "matchStrings": [r"(?m)^OMNI_VERSION=(?<currentValue>\S+)"],
              "depNameTemplate": "siderolabs/omni", "datasourceTemplate": "github-releases"},

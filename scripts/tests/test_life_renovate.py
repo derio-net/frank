@@ -60,27 +60,28 @@ def test_custom_managers_cover_os_and_omni_declarations():
     def covering(path):
         return [m for m in managers if any(re.search(p[1:-1], path) for p in m["managerFilePatterns"])]
 
-    deps = {m["depNameTemplate"] for m in covering("versions/frank.yaml")}
-    assert deps == {"siderolabs/talos", "kubernetes/kubernetes"}
-    assert {m["depNameTemplate"] for m in covering("versions/hop.yaml")} == deps
+    for cluster in ("frank", "hop"):
+        assert {m["depNameTemplate"] for m in covering(f"versions/{cluster}.yaml")} == {
+            f"{cluster}/talos", f"{cluster}/kubernetes"}
+    upstream = {m["depNameTemplate"]: m["packageNameTemplate"] for m in managers if "packageNameTemplate" in m}
+    assert upstream["hop/talos"] == "siderolabs/talos" and upstream["frank/kubernetes"] == "kubernetes/kubernetes"
     assert [m["depNameTemplate"] for m in covering("omni/omni/omni.env.template")] == ["siderolabs/omni"]
     for m in managers:
         assert m["datasourceTemplate"] == "github-releases"
     # the match strings really pick the declared value out of the real files
-    for rel, dep in (("versions/frank.yaml", "siderolabs/talos"), ("versions/frank.yaml", "kubernetes/kubernetes"),
-                     ("versions/hop.yaml", "siderolabs/talos"), ("omni/omni/omni.env.template", "siderolabs/omni")):
+    for rel, dep in (("versions/frank.yaml", "frank/talos"), ("versions/frank.yaml", "frank/kubernetes"),
+                     ("versions/hop.yaml", "hop/talos"), ("versions/hop.yaml", "hop/kubernetes"),
+                     ("omni/omni/omni.env.template", "siderolabs/omni")):
         m = next(m for m in covering(rel) if m["depNameTemplate"] == dep)
         assert re.search(m["matchStrings"][0].replace("(?<", "(?P<"), (ROOT / rel).read_text()), (rel, dep)
 
 
-def test_batch_approve_rules_share_one_group_and_nothing_else_has_one():
-    rules = load()["packageRules"]
-    batch = [r for r in rules if "groupName" in r]
-    assert batch
-    assert {r["groupName"] for r in batch} == {life_policy.BATCH_GROUP}
-    for r in batch:
-        assert r["labels"] == ["path:batch-approve"] and "matchUpdateTypes" in r, r
-    assert not any(r.get("groupName") is None and "groupName" in r for r in rules), "no null groupName"
+def test_no_rule_groups_updates_because_the_console_builds_the_batch():
+    assert "groupName" not in json.dumps(load()), "the console builds the batch; Renovate opens one PR per dependency"
+
+
+def test_commits_are_created_through_the_api_so_github_verifies_them():
+    assert load()["platformCommit"] == "enabled"
 
 
 def test_stateful_apps_are_never_batched_or_auto_merged():
