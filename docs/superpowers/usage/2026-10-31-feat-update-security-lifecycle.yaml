@@ -1,0 +1,80 @@
+schema_version: 2
+run: 2026-10-31-feat-update-security-lifecycle
+captures:
+- host: h-986fcd3b
+  harness: claude-code
+  mode: host-worktree
+  captured_at: '2026-10-31T18:22:57+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 186
+        cache_write: 609257
+        cache_read: 11826130
+        output: 68247
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 4
+      other:
+        usd: null
+        turns: 43
+      paperwork:
+        usd: null
+        turns: 27
+    steps:
+      (outside run):
+        usd: null
+        turns: 11
+        input: 26
+        cache_write: 126031
+        cache_read: 1516967
+        output: 4788
+      brainstorm:
+        usd: null
+        turns: 61
+        input: 160
+        cache_write: 483226
+        cache_read: 10309163
+        output: 63459
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 11
+          input: 26
+          cache_write: 126031
+          cache_read: 1516967
+          output: 4788
+        brainstorm:
+          usd: null
+          turns: 53
+          input: 144
+          cache_write: 294233
+          cache_read: 10234011
+          output: 59235
+      subagent:
+        brainstorm:
+          usd: null
+          turns: 8
+          input: 16
+          cache_write: 188993
+          cache_read: 75152
+          output: 4224
+    units:
+      (unattributed):
+        subagent:
+          usd: null
+          turns: 8
+          input: 16
+          cache_write: 188993
+          cache_read: 75152
+          output: 4224
+    briefs:
+      a40c5167e6fffc3a4: 1187

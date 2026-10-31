@@ -3,11 +3,14 @@ run: 2026-10-31-feat-update-security-lifecycle
 workflow: fr-goal@1
 branch: feat/update-security-lifecycle
 started: '2026-10-31T06:56:42+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-10-31T06:56:59+00:00'
+    state: done
+    at: '2026-10-31T18:22:54+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md
   spec-review:
     state: pending
   plan:
