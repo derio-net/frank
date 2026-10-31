@@ -91,3 +91,20 @@ def test_in_cluster_targets_are_well_formed_and_name_a_rendered_service():
             m = re.search(r"(?:https?://)?([\w.-]+)\.([\w-]+)\.svc\.cluster\.local", t)
             if m:
                 assert (m.group(1), m.group(2)) in services, f"{app}: {t} names no rendered Service"
+
+
+def test_http_checks_expect_one_status_and_never_accept_auth_walls():
+    seen = {}
+    for cluster, app in _apps():
+        for c in load(cluster, app)["checks"]:
+            if c["kind"] != "http":
+                continue
+            status = c["expect"]["status"]
+            statuses = status if isinstance(status, list) else [status]
+            assert 1 <= len(statuses) <= 2, (app, status)
+            assert not set(statuses) & {401, 403, 404}, f"{app}: {status} proves reachability, not health"
+            for h in c["expect"].get("headers", {}):
+                assert h == h.lower()
+            seen[app] = c["target"]
+    assert seen["argocd"].startswith("http://argocd-server."), "not the applicationset-controller"
+    assert seen["authentik"].endswith("/-/health/ready/")
