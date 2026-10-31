@@ -26,6 +26,15 @@ spec:
   # root init container that chowns the data volume to UID 26 before postgres
   # starts — storage-agnostic (works regardless of CSI fsGroup support).
   postgres_data_volume_init: true
+  # Pinned (spec R2): the operator otherwise picks `postgresql-15-c9s:latest` and
+  # `redis:7`. 20260527 is the tag whose manifest digest is the one running on
+  # 2026-10-31; redis 7.4.9 is the server version running. Applying this changes
+  # the image string, so the awx-postgres-15 StatefulSet and the awx-web/awx-task
+  # Deployments roll once on sync.
+  postgres_image: quay.io/sclorg/postgresql-15-c9s
+  postgres_image_version: "20260527"
+  redis_image: docker.io/redis
+  redis_image_version: "7.4.9"
   projects_persistence: false
   # Non-secret OIDC settings. SOCIAL_AUTH_OIDC_SECRET is set out-of-band
   # via the AWX Settings API (manual-op in Phase 3) so the secret value
