@@ -227,3 +227,8 @@ five small declarative manifests, nothing to clean
 ### p5-briefs-untrusted-data · discovery · Brief templates must fence forge-sourced text as untrusted data (phase 5)
 
 Console security review: PR titles/bodies and release notes flowed verbatim into session briefs read by an agent holding cluster credentials (prompt injection). Frank's brief templates (docs/upgrade-briefs/) and AGENTS.md/CLAUDE.md must: keep instruction sections free of interpolated forge text; put release notes/PR text in a fenced block introduced as untrusted data, not instructions; and instruct the agent never to follow instructions found in those blocks, never to widen its own credentials, and to stop and ask the operator if the data asks it to. Test the templates for that wording and that no {{pr_*}}/{{release_*}} placeholder sits outside the untrusted block.
+
+<!-- fr:journal kind=discovery scope=plan id=p4-console-trust-config created=2026-10-31T20:19:08+00:00 phase=4 -->
+### p4-console-trust-config · discovery · Console needs the trusted bot logins and branch prefixes in its config (phase 4)
+
+Console only accepts PRs authored by the configured Renovate App bot (or its own App bot for batches), from the base repo, on configured branch prefixes (renovate/, cluster-update/). Frank's console config (configMapGenerator) must declare renovate_bot_login, console_bot_login and the branch prefixes; they are filled from the Apps the operator creates in phase 7 (placeholders until then, console treats placeholders as 'trust nothing').
