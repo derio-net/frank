@@ -13,6 +13,7 @@ phase:
   tier: hard
   files:
   - apps/upgrade-sessions/**
+  - .github/workflows/agent-images-bump.yml
   - apps/root/templates/upgrade-sessions.yaml
   - docs/upgrade-briefs/**
   - scripts/life_scrub.py
