@@ -61,8 +61,6 @@ Which is not hypothetical. On 2026-06-20 [the Pi failed outright](https://github
 
 **Zone D** is the rag-tag edge: a legacy desktop (pc-1) and two Raspberry Pi 4s. They run CI/CD pipelines, monitoring scrapers, DNS caches — workloads that need to be always-on but do not need a GPU or fast storage.
 
-{{< screenshot src="homelab.png" alt="Frank's seven nodes marked in yellow: pc-1, gpu-1, three mini nodes, and two Raspberry Pis." caption="The rack contains several systems, but Frank's seven nodes are the equipment marked in yellow: pc-1 (1), gpu-1 (2), mini-1 through mini-3 (3–5), and raspi-1 and raspi-2 (6–7). The purple, turquoise, and blue markers identify neighboring Proxmox, NAS, and unrelated Raspberry Pi equipment rather than Frank nodes." >}}
-
 ## The Two-Layer Model That Makes It Work
 
 The single most important design decision was separating machine config from workload config. With two declarative systems in play there are three arrangements available, and only one of them is comfortable. You can let both manage everything and rely on discipline to keep them apart. You can hand one of them everything and give up the other's strengths. Or you can draw a boundary and pay to defend it. The first is the default, because it requires no decision, and it is the one where an OS extension installed by Omni is also a resource ArgoCD is trying to reconcile, with neither aware of the other.
