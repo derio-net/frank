@@ -198,3 +198,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r4 created=2026-10-31T20:06:24+00:00 phase=2 state=open review_scope=in -->
 ### p2-r4 · finding [open] (reviewer: in scope) · Renovate CronJob fails hourly while App ids are placeholders; suspend until the manual phase (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r10 created=2026-10-31T20:06:58+00:00 phase=2 state=open review_scope=in -->
+### p2-r10 · finding [open] (reviewer: in scope) · No RENOVATE_GIT_AUTHOR for an App installation token (verify live) (phase 2)
