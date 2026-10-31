@@ -9,6 +9,9 @@ metadata:
 spec:
   schedule: "0 * * * *"
   concurrencyPolicy: Forbid
+  # Suspended while appID/installID are placeholders (the job would fail hourly). Phase 7
+  # fills them and flips this to false in the same commit; a test pins the relation.
+  suspend: true
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:

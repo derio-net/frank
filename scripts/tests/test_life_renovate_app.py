@@ -75,3 +75,14 @@ def test_namespace_and_no_secret_data_in_git():
     assert not of("Secret"), "the PEM is applied out-of-band (manual phase), never committed"
     for f in MAN.glob("*.yaml"):
         assert "BEGIN" not in f.read_text() or "PRIVATE KEY" not in f.read_text()
+
+
+def _placeholders():
+    (cg,) = of("ClusterGenerator")
+    gen = cg["spec"]["generator"]["githubAccessTokenSpec"]
+    return "PENDING" in gen["appID"] or "PENDING" in gen["installID"]
+
+
+def test_cronjob_is_suspended_exactly_while_the_app_ids_are_placeholders():
+    (cj,) = of("CronJob")
+    assert cj["spec"].get("suspend", False) is _placeholders()
