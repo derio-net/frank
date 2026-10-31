@@ -1,0 +1,80 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Vulnerability scanning, the Hop route and the Grafana view
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - life-grafana-trend
+  tier: standard
+  files:
+  - apps/trivy-operator/**
+  - apps/root/templates/trivy-operator.yaml
+  - apps/hop-scan/**
+  - apps/root/templates/hop-scan.yaml
+  - clusters/hop/apps/headscale/manifests/configmap.yaml
+  - apps/grafana-alerting/manifests/**
+  - scripts/tests/test_life_*.py
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 1100
+tasks:
+- number: 1
+  title: Trivy Operator on Frank (red → green)
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write scripts/tests/test_life_trivy.py: apps/root/templates/trivy-operator.yaml is multi-source (aquasecurity trivy-operator chart pinned exact + $values/apps/trivy-operator/values.yaml), ServerSideApply, prune false; values disable per-vulnerability-id metrics (`operator.metricsVulnIdEnabled: false`), keep summary metrics, enable a ServiceMonitor/VMServiceScrape, set scanJob resource limits, run the built-in trivy server (client/server mode) so phase 3 task 2 can reuse it. Run: FAILS.
+  - id: P3.T1.S2
+    text: |-
+      Write the template and values (helm show values locally to confirm keys at the pinned chart version; record the version in a values comment). Run the test: passes. Record in the plan journal the measurement to do post-merge: the scrape size of the trivy metrics endpoint must stay well under promscrape.maxScrapeSize (32MB).
+- number: 2
+  title: Frank reaches Hop over the tailnet (red → green)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Write scripts/tests/test_life_hop_route.py: clusters/hop/apps/headscale/manifests/configmap.yaml's policy grants tag:frank-updater access ONLY to hop-1's kube API (6443) and Talos API (50000) and declares the tag owner; apps/hop-scan/manifests has a CronJob (daily) whose pod carries a userspace tailscale sidecar (TS_USERSPACE=true, TS_AUTHKEY from Secret `frank-updater-tailscale` key `authkey`, optional: true so it degrades before phase 7, TS_EXTRA_ARGS includes --advertise-tags=tag:frank-updater), lists Hop pods with a read-only kubeconfig Secret `hop-readonly-kubeconfig` (optional), and runs `trivy image --server http://trivy-service.trivy-system:4954` per distinct image, writing results to a ConfigMap-free output consumed by the console (stdout JSON lines → VictoriaLogs with a `hop-scan result` prefix). Assert the Headscale change is a separate, minimal policy edit (test reads the old ACL entries and asserts they are unchanged). Run: FAILS.
+  - id: P3.T2.S2
+    text: |-
+      Implement the Headscale policy edit and apps/hop-scan (namespace, CronJob, RBAC none, NetworkPolicy egress to trivy service + headscale + DERP). Note in the plan journal that Headscale needs a manual rollout restart after the ConfigMap lands (networking gotcha: headscale-config never rolls). Run the test: passes.
+- number: 3
+  title: Grafana view and dead-man switches (red → green)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Write scripts/tests/test_life_grafana.py: a dashboard ConfigMap `life-dashboard-cm.yaml` in apps/grafana-alerting/manifests with panels for versions-behind per cluster (from the console metrics `cluster_update_versions_behind`), vulnerability counts by severity (trivy summary metrics + console `cluster_update_vulns_open`), last report and last scan timestamps; alert rules `life-scan-heartbeat-stale` and `life-report-heartbeat-stale` (uid ≤40 chars — Grafana crash gotcha; folder feature-health; route health-bridge only, NOT telegram — spec: Grafana is a dead-man's switch, never the alarm source); VictoriaLogs rules use `_msg` and `model.queryType: stats`; parse_mode guard unaffected. Run: FAILS.
+  - id: P3.T3.S2
+    text: |-
+      Write the dashboard and rules. Run test_life_grafana.py plus the existing grafana guards (scripts/tests/test_*grafana*.py, test_no_rule_uid_exceeds_grafanas_forty_character_limit): pass.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

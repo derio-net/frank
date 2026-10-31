@@ -1,0 +1,96 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Deploy the console and production runs-fr
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - life-console-acts-via-forges
+  - life-telegram-quiet-alarm
+  - life-vulns-jump-queue
+  tier: standard
+  files:
+  - apps/cluster-update-fr/**
+  - apps/root/templates/cluster-update-fr.yaml
+  - apps/runs-fr/**
+  - apps/root/templates/runs-fr.yaml
+  - apps/traefik/manifests/ingressroutes.yaml
+  - apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml
+  - apps/homepage/manifests/files/services.yaml
+  - apps/tekton/webhooks.yaml
+  - apps/tekton/manifests/mirror-reconcile.yaml
+  - apps/tekton/triggers/**
+  - scripts/tests/test_life_*.py
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 1000
+tasks:
+- number: 1
+  title: Console Application (red → green)
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Write scripts/tests/test_life_console_app.py: apps/root/templates/cluster-update-fr.yaml single-source apps/cluster-update-fr/manifests; Deployment image ghcr.io/derio-net/cluster-update-fr pinned to an exact tag, replicas 1, strategy Recreate (one alarm owner — anti-goal 1), non-root, caps drop ALL, readOnlyRootFilesystem; config via Kustomize configMapGenerator (config-reaches-the-process: hash suffix rolls the pod) so the app has prune true with per-resource Prune=false on its PVC; a PVC for the state store; ServiceAccount with a ClusterRole that is READ-ONLY (get/list/watch on pods, deployments, statefulsets, daemonsets, applications.argoproj.io, rollouts.argoproj.io, vulnerabilityreports.aquasecurity.github.io, nodes) — the test fails on any verb outside get/list/watch EXCEPT create/get/delete on pods+secrets in namespace upgrade-sessions only (session launch, spec Part 3); env from ExternalSecrets for the console GitHub App token, Gitea token, Telegram (all optional: true); VMServiceScrape on /metrics; a tailscale sidecar as in phase 3 for Hop reads. Run: FAILS.
+  - id: P4.T1.S2
+    text: |-
+      Write the manifests and template. Run the test: passes.
+- number: 2
+  title: Exposure, SSO, homepage (red → green)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Extend test_life_console_app.py: IngressRoute updates.cluster.derio.net with authentik-forwardauth middleware; a proxy provider in blueprints-cluster-proxy-providers.yaml (forward_single, invalidation_flow, external_host https://updates.cluster.derio.net); homepage tile in category for cluster ops; and an IngressRoute for runs-fr (sessions.cluster.derio.net) also behind forward-auth. Assert both upstream Services are ClusterIP only (runs-fr contract: never reachable around Traefik). Run: FAILS.
+  - id: P4.T2.S2
+    text: |-
+      Add the routes, provider and tile (expose-service skill conventions). Record the manual outpost-assignment step for BOTH providers as a manual-operation block in phase 7. Run: passes.
+- number: 3
+  title: Production runs-fr scoped to sessions (red → green)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Write scripts/tests/test_life_runs_fr.py: apps/root/templates/runs-fr.yaml installs the runs-fr chart (same source as runs-fr-staging) with NAMESPACE=upgrade-sessions, LABEL_SELECTOR=fr.run/id, AUTH_HEADER=X-authentik-username, Role (not ClusterRole) limited to pods get/list/watch + pods/exec create in upgrade-sessions, image pinned exact. Run: FAILS.
+  - id: P4.T3.S2
+    text: |-
+      Write it (reuse apps/staging-gate/runs-fr/staging-values.yaml as the starting point). Run: passes.
+- number: 4
+  title: CI delivery for the public console repo (red → green)
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Extend the mirror and status-bridge config so derio-net/cluster-update-fr is mirrored to Gitea and its statuses bridged (mirror-reconcile MAIN_REPOS, github-listener/gitea-status-bridge allowlists — onboard TRIGGER-FIRST, hook second per the tekton gotcha), and declare its webhook in apps/tekton/webhooks.yaml. Run scripts/tests/test_webhook_delivery_paths.py and the tekton guards: FAIL before the edits, pass after.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

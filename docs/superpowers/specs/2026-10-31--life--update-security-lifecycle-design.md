@@ -471,3 +471,9 @@ These were decided by the designer, not the operator; check them:
 Console storage, framework and UI library; the policy file's format; smoke-test
 format; Renovate schedule specifics; the alarm threshold (suggest Critical and
 High with a fixed version); the daily report time; exact NetworkPolicy rules.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-10-31--life--update-security-lifecycle | `derio-net/frank` | `2026-10-31--life--update-security-lifecycle` | — |

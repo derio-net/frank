@@ -1,0 +1,70 @@
+schema_version: 2
+phase:
+  number: 7
+  title: '[manual] Bootstrap, merge order and the live handover'
+  tag: manual
+  depends_on:
+  - 6
+  tracking_issue: null
+  acceptance:
+  - life-working-at-handover
+  - life-clean-failure-state
+  - life-ci-recovery
+tasks:
+- number: 1
+  title: Bootstrap secrets and accounts (operator)
+  steps:
+  - id: P7.T1.S1
+    text: |-
+      Run the spec's `life-telegram-derio-net-group` manual operation (Telegram group derio.net, #security topic, @frank_updater_bot, three Infisical keys).
+  - id: P7.T1.S2
+    text: |-
+      Create two GitHub Apps (renovate: contents/PRs/issues RW on derio-net/frank; console: PRs RW + statuses RW + issues RW + webhooks redeliver on derio-net/frank) and a session App (contents/PRs RW on frank only); apply each PEM via SOPS into the CONSUMER namespace (renovate, cluster-update-fr, upgrade-sessions). Create a Gitea token limited to Actions on the frank mirror. Mint a Hop read-only ServiceAccount kubeconfig, an Omni Reader SA and an Omni upgrade SA; a Headscale ephemeral, tagged (tag:frank-updater) pre-auth key. Apply all via SOPS; record each as a manual-operation block in this phase's prose and run /sync-runbook.
+  - id: P7.T1.S3
+    text: |-
+      Assign the two new Authentik proxy providers (updates, sessions) to the embedded outpost (frank-argocd.md Django ORM step). `kubectl -n headscale-system rollout restart deploy/headscale` after the ACL ConfigMap lands (gate on live CM content).
+- number: 2
+  title: Merge order (operator)
+  steps:
+  - id: P7.T2.S1
+    text: |-
+      Merge in this order: agent-images (session image published, GHCR public) → cluster-update-fr (v0.1.0 tag, GHCR package set public on first publish) → this frank PR. Confirm each image exists and is public before the next merge.
+- number: 3
+  title: Live handover (operator, with the console)
+  steps:
+  - id: P7.T3.S1
+    text: |-
+      After ArgoCD applies the merge SHA (operationState, not Synced) for every new app: confirm a test alarm reaches derio.net → #security only; a real auto-merge completes and verifies; a batch is approved and verifies; a security item is approved alone; a session upgrades one stateful app (snapshot taken first) and is cleaned up; one OS step on Frank and one on Hop complete and verify; a deliberately killed session ends in a named state; a held-for-CI item is recovered from the console. Flip the matching acceptance rows with evidence.
+  - id: P7.T3.S2
+    text: |-
+      Post-Deploy checklist: building + operating blog posts (/blog-craft:blog-post), add layer 22 `life` to docs/layers.yaml consumers (blog/data/roadmap.yaml, layer palette), /update-readme, /sync-runbook, plan Status → Deployed.
+state:
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
