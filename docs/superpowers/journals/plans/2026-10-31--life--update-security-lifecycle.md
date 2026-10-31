@@ -189,3 +189,6 @@ five small declarative manifests, nothing to clean
 
 <!-- fr:journal kind=finding scope=plan id=p2-r1 created=2026-10-31T20:05:52+00:00 phase=2 state=open review_scope=in -->
 ### p2-r1 · finding [open] (reviewer: in scope) · Smoke targets contain a .None. namespace (litellm, zot, infisical, awx, hop/crowdsec); no test catches it (phase 2)
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2 created=2026-10-31T20:06:04+00:00 phase=2 state=open review_scope=in -->
+### p2-r2 · finding [open] (reviewer: in scope) · http smoke checks accept 200/3xx/401/403(/404) so only reachability is proved; argocd probes applicationset-controller (phase 2)
