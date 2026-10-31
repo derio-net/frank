@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-10-31T18:23:02+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-10-31T18:23:02+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: 6e5115b5-7008-498c-9028-3ac060fab4bd
   plan:
     state: pending
   plan-review:
