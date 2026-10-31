@@ -49,7 +49,7 @@ tasks:
       Write scripts/tests/test_life_renovate_app.py asserting: apps/root/templates/renovate.yaml is single-source path apps/renovate/manifests, ServerSideApply=true, prune false, selfHeal true; apps/renovate/manifests has a CronJob (schedule hourly, concurrencyPolicy Forbid, image renovate/renovate pinned to an exact tag, non-root, capabilities drop ALL, resources limits), an ExternalSecret using a GithubAccessToken ClusterGenerator whose auth.privateKey.secretRef lives in namespace `renovate` (ESO gotcha: resolved in the CONSUMER's namespace), env RENOVATE_PLATFORM=github, RENOVATE_REPOSITORIES=derio-net/frank, RENOVATE_ONBOARDING=false, and DISABLE_AUTOUPDATER not needed; no Secret data in git. Run: FAILS.
   - id: P2.T3.S2
     text: |-
-      Write apps/renovate/manifests/{namespace,cronjob,clustergenerator,externalsecret}.yaml and apps/root/templates/renovate.yaml following apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml's shape, referencing a PEM Secret `github-app-renovate-key` in ns renovate that phase 7 applies via SOPS. Run the test: passes.
+      Write apps/renovate/manifests/{namespace,cronjob,clustergenerator,externalsecret}.yaml and apps/root/templates/renovate.yaml following apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml's shape, referencing a PEM Secret `github-app-renovate-key` in ns renovate, provided out-of-band by the trailing manual phase. Run the test: passes.
 - number: 4
   title: Smoke declarations for every application (red → green → refactor)
   steps:

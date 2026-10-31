@@ -1,0 +1,4 @@
+{"schema_version": 10, "run": "2026-10-31-feat-update-security-lifecycle", "step": "plan", "outcome": "done",
+ "journal": [{"kind": "decision", "id": "plan-repo-split", "title": "One plan per repo (operator chose option A)", "body": "frank (this plan), derio-net/cluster-update-fr (console), derio-net/agent-images (session image); sibling plans run by cross-repo agents in their own workspaces.", "global": true},
+             {"kind": "decision", "id": "manual-back-loaded", "title": "Bootstrap/manual work back-loaded to phase 7", "body": "No agentic phase needs live secrets; apps tolerate missing Secrets (optional: true) until the trailing manual phase.", "global": true}],
+ "resolves": [], "emitted": {"plan": "docs/superpowers/plans/2026-10-31--life--update-security-lifecycle"}, "evidence": {}}
