@@ -186,3 +186,6 @@ renovate.json5 is generated from the policy, so there is no hand-written duplica
 ### no-refactor-p2-t3 · discovery · no-refactor-because P2.T3 (phase 2)
 
 five small declarative manifests, nothing to clean
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1 created=2026-10-31T20:05:52+00:00 phase=2 state=open review_scope=in -->
+### p2-r1 · finding [open] (reviewer: in scope) · Smoke targets contain a .None. namespace (litellm, zot, infisical, awx, hop/crowdsec); no test catches it (phase 2)
