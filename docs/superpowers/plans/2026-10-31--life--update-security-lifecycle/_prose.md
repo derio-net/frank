@@ -112,6 +112,22 @@ verify:
 status: pending
 ```
 
+```yaml
+# manual-operation
+id: life-main-ruleset
+layer: life
+app: cluster-update-fr
+plan: 2026-10-31--life--update-security-lifecycle
+when: "[POST-MERGE] after the three GitHub Apps exist and the console posts cluster-update/approved"
+why_manual: "GitHub rulesets are forge state with no IaC in this repo; without it the session App (contents:write) could push or merge to main directly"
+commands:
+  - "gh api -X POST repos/derio-net/frank/rulesets with target=branch, include refs/heads/main, rules: pull_request, required_status_checks [{context: cluster-update/approved, integration_id: <console App id>}], non_fast_forward, deletion; bypass_actors = the operator and the console App only"
+verify:
+  - "with a session-App installation token: git push to main is refused, and a PR merge attempt is refused"
+  - "the console merges a verified PR (it posts cluster-update/approved on the head SHA first)"
+status: pending
+```
+
 ## Deployment deviations
 
 None yet.

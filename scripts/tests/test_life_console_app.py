@@ -458,3 +458,27 @@ def test_the_console_repo_is_mirrored_bridged_and_declared_trigger_first():
     assert "TRIGGER-FIRST" in entry["note"]
     tiers = yaml.safe_load((ROOT / "apps/ci-budget/tiers.yaml").read_text())
     assert tiers["orgs"]["derio-net"]["repos"]["cluster-update-fr"]["tier"] == "github-preferred"
+
+
+# ------------------------------------------------------------------ p4-sec-1: what protects main
+
+
+PLAN = ROOT / "docs/superpowers/plans/2026-10-31--life--update-security-lifecycle"
+
+
+def test_session_app_comment_does_not_claim_a_control_that_is_not_in_git():
+    text = (MAN / "clustergenerators.yaml").read_text()
+    assert "cannot merge, so" not in text
+    assert "ruleset" in text and "cluster-update/approved" in text, "name the control that actually protects main"
+    assert "phase 7" in text.lower(), "and say it is a manual step, not code in this repo"
+
+
+def test_phase_7_creates_the_main_ruleset_with_the_console_only_check():
+    plan = yaml.safe_load((PLAN / "07.yaml").read_text())
+    steps = {s["id"]: s["text"] for t in plan["tasks"] for s in t["steps"]}
+    text = steps["P7.T1.S5"]
+    for needle in ("main", "cluster-update/approved", "console App", "force", "deletion", "session App"):
+        assert needle in text, needle
+    assert "P7.T1.S5" in plan["state"]["steps"]
+    prose = (PLAN / "_prose.md").read_text()
+    assert "id: life-main-ruleset" in prose

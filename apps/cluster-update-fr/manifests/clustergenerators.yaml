@@ -1,9 +1,13 @@
 # Two SEPARATE GitHub Apps (plan 2026-10-31--life--update-security-lifecycle, phase 4):
 #   console   merges, retries CI, manages webhooks, posts statuses; its token never leaves the
 #             console pod.
-#   session   what an upgrade-session pod gets: it can push a branch and open a PR on frank,
-#             and nothing else. It cannot merge, so a compromised session cannot bypass the
-#             console as merger (main has no required checks).
+#   session   what an upgrade-session pod gets. It can push branches and open PRs on frank. It
+#             holds contents:write, so on its own it COULD push or merge to main. What stops
+#             that is a GitHub ruleset on main (manual operation life-main-ruleset, phase 7,
+#             NOT code in this repo): PR required, required check `cluster-update/approved`
+#             whose only source is the console App, bypass limited to the operator and the
+#             console App, no force-push or deletion. Until that ruleset exists the session
+#             App must not be installed.
 # Both tokens are scoped at mint time to derio-net/frank. ESO resolves privateKey.secretRef in
 # the CONSUMING ExternalSecret's namespace, so BOTH PEM Secrets live in cluster-update-fr
 # (applied out-of-band, phase 7). appID/installID are placeholders that make the generator fail
