@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   name: cluster-update-fr
   annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
   labels:
     pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/audit: restricted

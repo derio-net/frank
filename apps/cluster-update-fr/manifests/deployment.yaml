@@ -24,6 +24,10 @@ spec:
         app.kubernetes.io/name: cluster-update-fr
     spec:
       serviceAccountName: cluster-update-fr
+      # No pod-wide token: the tailscale sidecar (a network-facing process holding a tailnet key)
+      # must not carry the console's cluster credentials. The console gets its token through a
+      # projected volume mounted in that container alone.
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -111,6 +115,7 @@ spec:
             - {name: state, mountPath: /var/lib/cluster-update-fr}
             - {name: tmp, mountPath: /tmp}
             - {name: omni-status, mountPath: /var/run/omni-status}
+            - {name: kube-api-access, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
             - {name: cred-github, mountPath: /var/run/credentials/github, readOnly: true}
             - {name: cred-gitea, mountPath: /var/run/credentials/gitea, readOnly: true}
             - {name: cred-telegram, mountPath: /var/run/credentials/telegram, readOnly: true}
@@ -122,6 +127,16 @@ spec:
             claimName: cluster-update-fr-state
         - name: tmp
           emptyDir: {}
+        - name: kube-api-access
+          projected:
+            defaultMode: 0444
+            sources:
+              - serviceAccountToken: {path: token, expirationSeconds: 3607}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+              - downwardAPI:
+                  items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]
         - name: ts-state
           emptyDir: {}
         # Omni's running version, written as JSON by a Reader-role omnictl sidecar. The sidecar

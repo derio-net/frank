@@ -6,7 +6,7 @@ metadata:
   name: cluster-update-fr-state
   namespace: cluster-update-fr
   annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes: ["ReadWriteOnce"]
   storageClassName: longhorn

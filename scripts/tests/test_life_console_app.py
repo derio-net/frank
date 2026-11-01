@@ -85,9 +85,9 @@ def test_application_is_a_single_source_with_pruning_for_the_config_hash():
 
 def test_state_pvc_and_namespace_survive_a_prune():
     (pvc,) = of_kind("PersistentVolumeClaim")
-    assert pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] == "Prune=false"
+    assert pvc["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] == "Prune=false,Delete=false"
     (ns,) = [n for n in of_kind("Namespace") if n["metadata"]["name"] == NS]
-    assert ns["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] == "Prune=false"
+    assert ns["metadata"]["annotations"]["argocd.argoproj.io/sync-options"] == "Prune=false,Delete=false"
     assert pvc["spec"]["accessModes"] == ["ReadWriteOnce"]
 
 
@@ -542,3 +542,17 @@ def test_nobody_but_cluster_admin_may_add_ephemeral_containers_to_session_pods()
 def test_secrets_list_stays_only_for_orphan_reconciliation_and_says_so():
     text = (MAN / "rbac.yaml").read_text()
     assert "orphan" in text and "list" in text.split("orphan", 1)[0][-600:] + text.split("orphan", 1)[1][:600]
+
+
+# ------------------------------------------------------------------ p4-r9: the API token only reaches the console
+
+
+def test_the_service_account_token_is_mounted_only_in_the_console_container():
+    assert pod()["automountServiceAccountToken"] is False
+    vol = next(v for v in pod()["volumes"] if "projected" in v and any(
+        "serviceAccountToken" in s for s in v["projected"]["sources"]))
+    mounts = {c["name"]: [m for m in c.get("volumeMounts", []) if m["name"] == vol["name"]]
+              for c in pod()["containers"] + pod().get("initContainers", [])}
+    assert [m["mountPath"] for m in mounts["console"]] == ["/var/run/secrets/kubernetes.io/serviceaccount"]
+    assert mounts["console"][0]["readOnly"] is True
+    assert all(not m for name, m in mounts.items() if name != "console"), mounts
