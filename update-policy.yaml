@@ -27,8 +27,11 @@ version: 1
 # `paths:` filter on pull_request may be listed: a path-filtered check never runs on a PR that
 # touches other files, and the PR would wait forever. (Console contract: ci_source, required_ci_checks.)
 ci_source: github-checks
+# Each entry pins the check to the workflow FILE that must produce it on the base branch, so a
+# PR cannot satisfy the gate with a same-named check from a workflow it added or edited.
 required_ci_checks:
-- tripwires
+- workflow: .github/workflows/repo-tripwires.yml
+  name: tripwires
 defaults:
   patch: auto-merge
   minor: batch-approve

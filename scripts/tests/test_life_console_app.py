@@ -224,33 +224,40 @@ def test_trust_config_is_declared_and_trusts_nothing_until_phase_7():
     assert env["FRANK_REF"] == "main" and env["FRANK_REPO"] == "derio-net/frank"
 
 
-def _workflow_checks():
-    """{check name: workflow} the way GitHub names check-runs: the job's `name:`, else its id."""
-    out = {}
-    for f in sorted((ROOT / ".github/workflows").glob("*.yml")):
-        wf = yaml.safe_load(f.read_text())
-        trig = wf.get(True, wf.get("on"))  # YAML 1.1 reads the key `on` as True
-        pr = trig.get("pull_request") if isinstance(trig, dict) else None
-        for job_id, job in wf["jobs"].items():
-            out[job.get("name", job_id)] = {"file": f.name, "pull_request": isinstance(trig, dict) and "pull_request" in trig,
-                                            "paths": bool(pr and (pr.get("paths") or pr.get("paths-ignore"))),
-                                            "branches": bool(pr and pr.get("branches")), "if": job.get("if")}
-    return out
+def _workflow(path):
+    wf = yaml.safe_load((ROOT / path).read_text())
+    trig = wf.get(True, wf.get("on"))  # YAML 1.1 reads the key `on` as True
+    return wf, trig
 
 
 def test_frank_gates_on_github_check_runs_that_always_run_on_a_pr():
     policy = yaml.safe_load((ROOT / "update-policy.yaml").read_text())
     assert policy["ci_source"] == "github-checks"
     assert "required_ci_contexts" not in policy, "the bridged gitea-actions/* statuses do not exist for frank"
-    names = policy["required_ci_checks"]
-    assert names
-    checks = _workflow_checks()
-    for n in names:
-        assert n in checks, f"{n} is not a job in any workflow"
-        c = checks[n]
-        assert c["pull_request"], f"{n} does not run on pull_request"
-        assert not c["paths"], f"{n} is path-filtered: a PR that skips it would wait forever"
-        assert not c["branches"] and not c["if"], f"{n} can be skipped on some PRs"
+    required = policy["required_ci_checks"]
+    assert required
+    for entry in required:
+        assert set(entry) == {"workflow", "name"}, entry
+        assert entry["workflow"].startswith(".github/workflows/") and (ROOT / entry["workflow"]).exists(), entry
+        wf, trig = _workflow(entry["workflow"])
+        # GitHub names a check-run after the job's `name:`, else its id
+        jobs = {job.get("name", jid): job for jid, job in wf["jobs"].items()}
+        assert entry["name"] in jobs, f"{entry['workflow']} defines no job rendering the check {entry['name']}"
+        job = jobs[entry["name"]]
+        assert isinstance(trig, dict) and "pull_request" in trig, "does not run on pull_request"
+        pr = trig["pull_request"] or {}
+        assert not pr.get("paths") and not pr.get("paths-ignore"), "path-filtered: a PR that skips it would wait forever"
+        assert not pr.get("branches") and not job.get("if"), "can be skipped on some PRs"
+
+
+def test_every_workflow_limits_its_token_so_a_check_can_only_come_from_a_job_that_needs_it():
+    for f in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        wf = yaml.safe_load(f.read_text())
+        jobs = wf["jobs"].values()
+        assert "permissions" in wf or all("permissions" in j for j in jobs), f"{f.name} inherits the default token"
+        blocks = [wf.get("permissions")] + [j.get("permissions") for j in jobs]
+        for b in blocks:
+            assert not (isinstance(b, dict) and b.get("checks") == "write"), f.name
 
 
 def test_identity_is_the_authentik_jwt_for_the_operator_group():

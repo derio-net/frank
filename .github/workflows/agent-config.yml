@@ -28,6 +28,9 @@ on:
       - docs/runbooks/**
       - .github/workflows/agent-config.yml
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
