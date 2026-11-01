@@ -21,10 +21,14 @@
 # Rules are first-match; `update:` restricts a rule to patch/minor/major. match is one of
 # app (cluster/name), image, chart or dep. Anything unmatched takes `defaults`.
 version: 1
-# Status contexts that must ALL be green before the console merges anything: exact names or
-# `prefix*`. The Gitea->GitHub status bridge posts gitea-actions/<job>. (Console contract.)
-required_ci_contexts:
-- gitea-actions/*
+# CI gate (spec R28). derio-net/frank runs its CI on GitHub-hosted runners and is never mirrored
+# to Gitea, so the gate is GitHub check-runs from the GitHub Actions app. Every check named here
+# must be `success` on the PR head before the console merges anything. Only workflows with NO
+# `paths:` filter on pull_request may be listed: a path-filtered check never runs on a PR that
+# touches other files, and the PR would wait forever. (Console contract: ci_source, required_ci_checks.)
+ci_source: github-checks
+required_ci_checks:
+- tripwires
 defaults:
   patch: auto-merge
   minor: batch-approve

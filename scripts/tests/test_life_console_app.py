@@ -224,9 +224,33 @@ def test_trust_config_is_declared_and_trusts_nothing_until_phase_7():
     assert env["FRANK_REF"] == "main" and env["FRANK_REPO"] == "derio-net/frank"
 
 
-def test_ci_contexts_are_required_by_the_policy_file():
+def _workflow_checks():
+    """{check name: workflow} the way GitHub names check-runs: the job's `name:`, else its id."""
+    out = {}
+    for f in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        wf = yaml.safe_load(f.read_text())
+        trig = wf.get(True, wf.get("on"))  # YAML 1.1 reads the key `on` as True
+        pr = trig.get("pull_request") if isinstance(trig, dict) else None
+        for job_id, job in wf["jobs"].items():
+            out[job.get("name", job_id)] = {"file": f.name, "pull_request": isinstance(trig, dict) and "pull_request" in trig,
+                                            "paths": bool(pr and (pr.get("paths") or pr.get("paths-ignore"))),
+                                            "branches": bool(pr and pr.get("branches")), "if": job.get("if")}
+    return out
+
+
+def test_frank_gates_on_github_check_runs_that_always_run_on_a_pr():
     policy = yaml.safe_load((ROOT / "update-policy.yaml").read_text())
-    assert policy["required_ci_contexts"] == ["gitea-actions/*"]
+    assert policy["ci_source"] == "github-checks"
+    assert "required_ci_contexts" not in policy, "the bridged gitea-actions/* statuses do not exist for frank"
+    names = policy["required_ci_checks"]
+    assert names
+    checks = _workflow_checks()
+    for n in names:
+        assert n in checks, f"{n} is not a job in any workflow"
+        c = checks[n]
+        assert c["pull_request"], f"{n} does not run on pull_request"
+        assert not c["paths"], f"{n} is path-filtered: a PR that skips it would wait forever"
+        assert not c["branches"] and not c["if"], f"{n} can be skipped on some PRs"
 
 
 def test_identity_is_the_authentik_jwt_for_the_operator_group():
