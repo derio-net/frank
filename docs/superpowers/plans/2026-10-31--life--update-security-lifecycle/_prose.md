@@ -205,6 +205,7 @@ when: "[POST-MERGE] once the admission policies are applied; also covers environ
 why_manual: "the policies were evaluated offline with cel-python only; the API server's CEL is the authority"
 commands:
   - "as the console SA (kubectl --as=system:serviceaccount:cluster-update-fr:cluster-update-fr) kubectl apply --dry-run=server -n upgrade-sessions -f <pod>: a pod with a foreign image, another ServiceAccount, a hostPath, privileged, hop-os with a token, an ephemeral container; and a service-account-token Secret, a Secret with the service-account.name annotation, a Secret not named us-*; a hop-os pod whose tailscale sidecar smuggles an extra TS_EXTRA_ARGS flag, carries a second TS_EXTRA_ARGS, or binds a proxy on 0.0.0.0; and `kubectl exec`/`attach`/`port-forward` into a session pod as a root-devops user (--as=x --as-group=root-devops) and as secure-agent-pod's agent-sa"
+  - "as root-devops (--as=x --as-group=root-devops): kubectl -n upgrade-sessions create token upgrade-session-stateful and kubectl -n runs-fr create token runs-fr (both refused), kubectl -n runs-fr run x --image=busybox --overrides='{\"spec\":{\"serviceAccountName\":\"runs-fr\"}}' --dry-run=server (refused); then kubectl -n runs-fr rollout restart deploy/runs-fr and confirm the new pod is Running and a session pod still mounts its projected token (kubelet TokenRequests admitted)"
 verify:
   - "every hostile object is refused with the policy's message; a pod shaped like the console's own is admitted"
 status: pending
