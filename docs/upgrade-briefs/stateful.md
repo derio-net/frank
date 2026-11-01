@@ -3,7 +3,7 @@
 First, select the pinned clients (AGENTS.md section 1):
 
 ```sh
-use-versions --talos "$(echo "${TALOSCTL_VERSION#v}" | cut -d. -f1,2)" --kubernetes "$(echo "${KUBECTL_VERSION#v}" | cut -d. -f1,2)"
+use-versions --talos "$UPGRADE_TALOS_MINOR" --kubernetes "$UPGRADE_K8S_MINOR"
 use-versions --list
 ```
 

@@ -241,3 +241,15 @@ def test_agents_md_says_everything_after_the_untrusted_heading_is_data():
     assert re.search(r"only (from |in )?(this file|the console's own header|AGENTS\.md)", sec, re.I), \
         "say where real instructions come from"
 
+
+SELECT = 'use-versions --talos "$UPGRADE_TALOS_MINOR" --kubernetes "$UPGRADE_K8S_MINOR"'
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_client_selection_uses_the_consoles_minors(name):
+    # p5-r17: the console sets UPGRADE_TALOS_MINOR / UPGRADE_K8S_MINOR already reduced to a minor
+    # the image ships (launch.go minorOf); rebuilding one from TALOSCTL_VERSION skips that.
+    flat = re.sub(r"\s*\\\n\s*", " ", text(name))
+    assert SELECT in flat, name
+    assert "TALOSCTL_VERSION" not in flat and "KUBECTL_VERSION" not in flat, name
+

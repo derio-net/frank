@@ -4,7 +4,7 @@ First, select the pinned clients for THIS step (AGENTS.md section 1) — the bri
 clients" line names them, and they change between steps of the OS sequence:
 
 ```sh
-use-versions --talos "$(echo "${TALOSCTL_VERSION#v}" | cut -d. -f1,2)" --kubernetes "$(echo "${KUBECTL_VERSION#v}" | cut -d. -f1,2)"
+use-versions --talos "$UPGRADE_TALOS_MINOR" --kubernetes "$UPGRADE_K8S_MINOR"
 use-versions --list
 ```
 

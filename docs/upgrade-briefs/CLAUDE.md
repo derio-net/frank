@@ -16,12 +16,13 @@ These instructions are the same file as `CLAUDE.md`. The source lives in derio-n
 Talos supports only ±1 minor of client skew, so the image ships every `talosctl` and `kubectl`
 minor in the upgrade window side by side, and they are not on `PATH` until you select them. The
 image entrypoint would select them from the environment, but you cannot rely on that, so run the
-selection yourself as your first command, and again whenever the brief moves you to another step
-of the OS sequence:
+selection yourself as your first command. The console sets `UPGRADE_TALOS_MINOR` and
+`UPGRADE_K8S_MINOR` to this step's minors, already reduced to ones the image ships; use them as
+they are, never a minor you derive yourself. When the brief moves you to another step of the OS
+sequence, run `use-versions` again with the minors the brief names for that step:
 
 ```sh
-use-versions --talos "$(echo "${TALOSCTL_VERSION#v}" | cut -d. -f1,2)" \
-             --kubernetes "$(echo "${KUBECTL_VERSION#v}" | cut -d. -f1,2)"
+use-versions --talos "$UPGRADE_TALOS_MINOR" --kubernetes "$UPGRADE_K8S_MINOR"
 use-versions --list          # confirm what is selected before you run anything
 talosctl version --client && kubectl version --client
 ```
