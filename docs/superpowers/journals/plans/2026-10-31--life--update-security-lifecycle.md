@@ -560,3 +560,6 @@ one values file and one policy; the chart supplies everything else
 
 <!-- fr:journal kind=finding scope=plan id=p4-r4 created=2026-11-01T09:45:49+00:00 phase=4 state=open review_scope=in -->
 ### p4-r4 · finding [open] (reviewer: in scope) · R24 Omni running version not delivered: omni-status emptyDir has no writer and no later step owns the sidecar (phase 4)
+
+<!-- fr:journal kind=finding scope=plan id=p4-r5 created=2026-11-01T09:45:54+00:00 phase=4 state=open review_scope=in -->
+### p4-r5 · finding [open] (reviewer: in scope) · phase 7 lacks manual-op blocks for digest pin, bot logins, SESSION_IMAGE, console-ns secrets, console mirror+webhook; session PEM namespace wrong (phase 4)
