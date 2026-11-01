@@ -134,5 +134,4 @@ journal:
       any session container that sets `command:`, and every brief runs use-versions explicitly. upgrade-session
       is in the agent-images bump AGENT_IMAGES list.
 resolves: []
-evidence:
-  tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/6e5115b5-7008-498c-9028-3ac060fab4bd/scratchpad/phase5-tests.log
+evidence: {}
