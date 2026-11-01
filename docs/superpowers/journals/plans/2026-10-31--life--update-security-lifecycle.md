@@ -423,3 +423,43 @@ Supersedes parts of p4-console-contract. Console runs single-writer: replicas 1,
 ### p5-briefs-open-and-request · discovery · Briefs: sessions open PRs and request merge; never merge (phase 5)
 
 Console contract: session briefs and AGENTS.md/CLAUDE.md must instruct the agent to open PRs on its session branch prefix and call POST /api/sessions/{id}/request-merge, then wait for the operator's click in the console — never merge, never push to main. Test the brief templates for that wording.
+
+<!-- fr:journal kind=review scope=plan id=p3-review created=2026-11-01T08:24:10+00:00 phase=3 -->
+### p3-review · review · Phase 3 independent review: 7 findings (6 in, 1 out) (phase 3)
+
+Reviewer raised p3-r1..p3-r7. All six in-scope findings fixed with tests (146 passed, 1 skipped). p3-r1 needed an operator decision (confine only the new tag), applied. p3-r7 out of scope: the two token Secrets are created together from one source by the phase-7 manual op.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r1 -->
+### p3-r1-resolved · finding [fixed] · resolves p3-r1: Headscale ACL restricts nothing: the existing *:* wildcard still lets tag:frank-updater reach everything; port 50000 not needed (phase 3)
+
+Operator decision: wildcard src narrowed to default + tag:subnet-router + tag:hop-node (everyone who had it, incl. hop-1 once tagged), so only tag:frank-updater is confined to tag:hop-node:6443; port 50000 dropped; test asserts the source set and that no other rule matches the new tag.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r2-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r2 -->
+### p3-r2-resolved · finding [fixed] · resolves p3-r2: Pre-auth key described as ephemeral single-use cannot serve a daily CronJob registering a fresh node each run (phase 3)
+
+Key is reusable + ephemeral + pre-tagged, short expiry, rotated; comment, phase-7 note and test updated.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r3 -->
+### p3-r3-resolved · finding [fixed] · resolves p3-r3: hop-scan heartbeat rule accepts status=skipped / scanned=0, so a blind scanner never alarms (phase 3)
+
+Dead-man counts only healthy heartbeats (status ok, scanned>0); new health-bridge-only rule on unhealthy heartbeats; tested on report.py's real output.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r4-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r4 -->
+### p3-r4-resolved · finding [fixed] · resolves p3-r4: Phase 7 omits creating headscale user tag-admin and tagging hop-1 tag:hop-node; missing user may break policy load (phase 3)
+
+Four ordered manual-operation blocks in phase 7 (user, key, tag hop-1, apply+restart gated on live CM); Headscale 0.25.1 loads a policy naming a missing user, ordering still load-bearing.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r5-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r5 -->
+### p3-r5-resolved · finding [fixed] · resolves p3-r5: No captured trivy-output fixture/report.py test and no helm render check of chart keys and the trivy-server pod label (phase 3)
+
+Trivy's own golden JSON as fixture for report.py incl. error rows; chart-render contract test (pod label, metrics port, token keys), fails under CI=true when offline.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r6-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=fixed resolves=p3-r6 -->
+### p3-r6-resolved · finding [fixed] · resolves p3-r6: Scan loop lacks </dev/null, token on the command line, job deadline can kill the pod before the heartbeat (phase 3)
+
+</dev/null in the loop, token only via TRIVY_TOKEN env, 2100s scan budget with 5m per image inside the 3000s deadline; behavioural test with a fake trivy.
+
+<!-- fr:journal kind=finding scope=plan id=p3-r7-resolved created=2026-11-01T08:24:10+00:00 phase=3 state=open resolves=p3-r7 out_of_scope=true -->
+### p3-r7-resolved · finding [out-of-scope] · resolves p3-r7: trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync (phase 3)
+
+Not caused by this phase's manifests: the trailing manual phase creates both token Secrets from one source value.

@@ -147,13 +147,20 @@ steps:
           tests: phase3-tests.log@696f306aebb7;tree=20a15dad93e9fe789b030697d60dbf87d805f192f9ef587396ee36c39cef8b8b
           visual: none
       phase/3/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-01T05:40:50+00:00'
           agent: abd299000081e3206
           harness: claude-code
           model: claude-sonnet-5-5
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-11-01T08:24:11+00:00'
+          outcome: done
+        evidence:
+          review: p3-review
+          reviewer: abd299000081e3206
+          visual: none
+          findings: p3-r1,p3-r2,p3-r3,p3-r4,p3-r5,p3-r6,p3-r7
   journal-check:
     state: pending
   deliver:
