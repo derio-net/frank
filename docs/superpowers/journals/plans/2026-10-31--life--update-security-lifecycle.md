@@ -257,3 +257,68 @@ The console reads hop scan results from VictoriaLogs lines 'hop-scan result {jso
 ### p5-session-merge-and-exfil-boundary · discovery · Session GitHub token must not bypass the console as merger; egress bounds exfiltration (phase 5)
 
 Console security review c1s-r12 (frank-side): (1) the session GitHub App token must be scoped to contents:write on branches + pull_requests:write only, and main must be protected by a ruleset requiring a PR (bypass: operator and the console App only), so a steered session can open a PR but never push to main; (2) session egress per type is the exfiltration boundary: GitHub API only (not gist/raw uploads — restrict to api.github.com and the git endpoints of derio-net/frank), model provider endpoints, and the type's cluster endpoints; no general internet. Phase 5 tests assert both; phase 7 applies the main ruleset.
+
+<!-- fr:journal kind=review scope=plan id=p2-review created=2026-11-01T05:00:22+00:00 phase=2 -->
+### p2-review · review · Phase 2 independent review: 12 findings (11 in, 1 out) (phase 2)
+
+Reviewer raised p2-r1..p2-r12. All 11 in-scope findings fixed by the phase executor with tests; life suite 64 passed, 1 skipped (validator absent locally; CI fails rather than skips). p2-r12 stays out of scope (plan-prescribed OVMS endpoint; verified live in phase 7).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r1 -->
+### p2-r1-resolved · finding [fixed] · resolves p2-r1: Smoke targets contain a .None. namespace (litellm, zot, infisical, awx, hop/crowdsec); no test catches it (phase 2)
+
+Smoke targets take the rendered Service namespace; facts record services; test rejects None/{{/$ and unknown svc.ns.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r2 -->
+### p2-r2-resolved · finding [fixed] · resolves p2-r2: http smoke checks accept 200/3xx/401/403(/404) so only reachability is proved; argocd probes applicationset-controller (phase 2)
+
+One real health status per app (≤2), real health endpoints, argocd-server not applicationset-controller.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r3 -->
+### p2-r3-resolved · finding [fixed] · resolves p2-r3: hop/caddy smoke duplicates the www check; its security-headers note is not asserted (phase 2)
+
+hop/caddy asserts HSTS and CSP headers; duplicate removed.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r4 -->
+### p2-r4-resolved · finding [fixed] · resolves p2-r4: Renovate CronJob fails hourly while App ids are placeholders; suspend until the manual phase (phase 2)
+
+Renovate CronJob suspended while App ids are placeholders; test ties suspend to placeholder state; phase 7 unsuspends.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r5-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r5 -->
+### p2-r5-resolved · finding [fixed] · resolves p2-r5: ExternalSecret refresh 45m vs 1h token and 3000s deadline lets the token expire mid-run (phase 2)
+
+refreshInterval 20m, activeDeadlineSeconds 900; test asserts deadline+refresh < token lifetime.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r6 -->
+### p2-r6-resolved · finding [fixed] · resolves p2-r6: Validator test skipped when absent; fileMatch (renamed managerFilePatterns) and groupName:null unverified (phase 2)
+
+managerFilePatterns, no null groupName; validator test fails (not skips) when CI=true.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r7-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r7 -->
+### p2-r7-resolved · finding [fixed] · resolves p2-r7: No test proves the generated Renovate config (last-match) agrees with resolve() (first-match); automerge not scanned recursively (phase 2)
+
+Simulated Renovate last-match matching equals resolve() for every dep; recursive automerge scan.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r8 -->
+### p2-r8-resolved · finding [fixed] · resolves p2-r8: Stateful/rollout facts not re-checked for remote-chart apps; charts-session test only checks images; no facts-drift job (phase 2)
+
+Charts of stateful apps resolve to session; facts drift check against a full render.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r9 -->
+### p2-r9-resolved · finding [fixed] · resolves p2-r9: renovate image pinned by tag not digest and default patch policy lets it auto-update itself (phase 2)
+
+renovate digest-pinned; renovate, console and session images always take the session path.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r10-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r10 -->
+### p2-r10-resolved · finding [fixed] · resolves p2-r10: No RENOVATE_GIT_AUTHOR for an App installation token (verify live) (phase 2)
+
+RENOVATE_GIT_AUTHOR in App bot identity form with phase-7 placeholders; live check journaled.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r11-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=fixed resolves=p2-r11 -->
+### p2-r11-resolved · finding [fixed] · resolves p2-r11: Slow rendering tests re-render per module; no slow marker or shared cache (phase 2)
+
+slow marker, session-scoped render cache, memoised offline detection.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r12-resolved created=2026-11-01T05:00:22+00:00 phase=2 state=open resolves=p2-r12 out_of_scope=true -->
+### p2-r12-resolved · finding [out-of-scope] · resolves p2-r12: ovms /v2/models/<name>/ready unverified against MediaPipe-graph servables (plan-prescribed; documented gotcha) (phase 2)
+
+Not caused by this change: the per-model ready endpoint is the plan's documented choice and a known gotcha; it is checked live (and /v1/config consulted) in the phase 7 handover.
