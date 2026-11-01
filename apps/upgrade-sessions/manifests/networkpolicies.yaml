@@ -590,7 +590,6 @@ spec:
         - matchName: blog.derio.net.cluster.local
         - matchName: gitea-http.gitea.svc.cluster.local
         - matchName: cluster-update-fr-session.cluster-update-fr.svc.cluster.local
-        - matchName: kubernetes.default.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
     - matchName: api.anthropic.com
@@ -611,12 +610,6 @@ spec:
         protocol: TCP
       - port: '3478'
         protocol: UDP
-  - toEntities:
-    - kube-apiserver
-    toPorts:
-    - ports:
-      - port: '6443'
-        protocol: TCP
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: cluster-update-fr

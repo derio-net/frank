@@ -256,6 +256,12 @@ def _fqdn(name):
     return {"matchPattern": name} if "*" in name else {"matchName": name}
 
 
+def _in_cluster(typ: str) -> bool:
+    """Types that run with an in-cluster token and talk to Frank's API server. hop-os has no
+    token (automount off) and reaches Hop through the tailnet (p5-r16)."""
+    return VERIFIES[typ][0] == "frank"
+
+
 def _dns_names(typ: str) -> list[str]:
     spec = ENDPOINTS[typ]
     names = [n for group, _ in spec["fqdns"] for n in group]
@@ -264,8 +270,9 @@ def _dns_names(typ: str) -> list[str]:
     for n in names:
         out += [n] + [f"{n}.{s}" for s in SEARCH]
     out += ["gitea-http.gitea.svc.cluster.local",
-            "cluster-update-fr-session.cluster-update-fr.svc.cluster.local",
-            "kubernetes.default.svc.cluster.local"]
+            "cluster-update-fr-session.cluster-update-fr.svc.cluster.local"]
+    if _in_cluster(typ):
+        out.append("kubernetes.default.svc.cluster.local")
     out += [h for h, p in smoke_targets(typ) if _allowed(h, p)
             and set(load_target_ports()[f"{h}:{p}"]) - NEVER_PORTS]
     return list(dict.fromkeys(out))
@@ -280,7 +287,8 @@ def type_policy(typ: str) -> dict:
     }]
     for group, pairs in spec["fqdns"]:
         egress.append({"toFQDNs": [_fqdn(n) for n in group], "toPorts": _ports(pairs)})
-    egress.append({"toEntities": ["kube-apiserver"], "toPorts": _ports([("6443", "TCP")])})
+    if _in_cluster(typ):
+        egress.append({"toEntities": ["kube-apiserver"], "toPorts": _ports([("6443", "TCP")])})
     egress.append({"toEndpoints": [_ep(**{"k8s:io.kubernetes.pod.namespace": "cluster-update-fr",
                                           "app.kubernetes.io/name": "cluster-update-fr"})],
                    "toPorts": _ports([("8081", "TCP")])})

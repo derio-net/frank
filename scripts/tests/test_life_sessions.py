@@ -224,7 +224,12 @@ def test_only_entity_is_the_kube_apiserver(typ):
         if "toEntities" in rule:
             assert rule["toEntities"] == ["kube-apiserver"], rule
             assert ports(rule) == {("6443", "TCP")}
-    assert any("toEntities" in r for r in type_policy(typ)["spec"]["egress"])
+    # p5-r16: hop-os has no in-cluster token (automount off) and works on Hop through the
+    # tailnet, so Frank's API server is not its business at all.
+    assert any("toEntities" in r for r in type_policy(typ)["spec"]["egress"]) == (typ != "hop-os")
+    dns = {d.get("matchName") for r in type_policy(typ)["spec"]["egress"] for tp in r.get("toPorts", [])
+           for d in (tp.get("rules") or {}).get("dns", [])}
+    assert ("kubernetes.default.svc.cluster.local" in dns) == (typ != "hop-os")
 
 
 @pytest.mark.parametrize("typ", TYPES)
