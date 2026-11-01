@@ -24,8 +24,17 @@ spec:
       expression: "has(object.metadata.labels) && 'cluster-update.fr/type' in object.metadata.labels ? object.metadata.labels['cluster-update.fr/type'] : ''"
     - name: sa
       expression: "has(object.spec.serviceAccountName) ? object.spec.serviceAccountName : 'default'"
+    - name: inits
+      expression: "has(object.spec.initContainers) ? object.spec.initContainers : []"
     - name: containers
-      expression: "object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers : [])"
+      expression: "object.spec.containers + variables.inits"
+    - name: creds
+      expression: "object.metadata.name + '-creds'"
+    # hop-os only: the console's userspace tailscale sidecar (p5-console-contract-tailscale). The
+    # SAME digest as console config SESSION_TAILSCALE_IMAGE (files/console.env); a test holds
+    # the two equal, and bumping it is a phase-7 style manual op (life-session-tailscale).
+    - name: tailscaleImage
+      expression: "'tailscale/tailscale:v1.82.5@sha256:9a1f2640beecac3ad42ed8ef03d75adcb7165600f5131b17f9a2a3da68505928'"
   validations:
     - expression: "variables.type in ['chart-major', 'stateful', 'rollouts', 'frank-os', 'hop-os']"
       message: "cluster-update.fr/type must be one of the five upgrade types"
@@ -35,8 +44,28 @@ spec:
       message: "serviceAccountName must be upgrade-session-<type> (hop-os has none)"
     - expression: "has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == (variables.type != 'hop-os')"
       message: "automountServiceAccountToken must be true for in-cluster types and false for hop-os"
-    - expression: "variables.containers.all(c, c.image.startsWith('ghcr.io/derio-net/upgrade-session:') || c.image.startsWith('ghcr.io/derio-net/upgrade-session@sha256:'))"
+    - expression: "object.spec.containers.all(c, c.image.startsWith('ghcr.io/derio-net/upgrade-session:') || c.image.startsWith('ghcr.io/derio-net/upgrade-session@sha256:'))"
       message: "only the upgrade-session image may run"
+    # p5-r1: the one init container any session may carry is hop-os's tailscale sidecar, exactly
+    # as launch.go builds it: native sidecar, the pinned image, its own uid, only its own state
+    # volumes, and the auth key from this session's creds Secret and nothing else.
+    - expression: "size(variables.inits) == 0 || variables.type == 'hop-os'"
+      message: "only hop-os sessions carry an init container"
+    - expression: "variables.type != 'hop-os' || (size(variables.inits) == 1 && variables.inits[0].name == 'tailscale' && has(variables.inits[0].restartPolicy) && variables.inits[0].restartPolicy == 'Always')"
+      message: "hop-os carries exactly one init container, the native sidecar `tailscale`"
+    - expression: "variables.inits.all(c, c.image == variables.tailscaleImage)"
+      message: "the tailscale sidecar runs the digest pinned here (same as SESSION_TAILSCALE_IMAGE)"
+    - expression: "variables.inits.all(c, has(c.securityContext) && has(c.securityContext.runAsUser) && c.securityContext.runAsUser == 65531)"
+      message: "the tailscale sidecar runs as uid 65531"
+    - expression: "variables.inits.all(c, !has(c.args) && !has(c.envFrom) && has(c.volumeMounts) && c.volumeMounts.all(m, m.name in ['ts-state', 'ts-tmp']))"
+      message: "the tailscale sidecar mounts only ts-state / ts-tmp and takes no args or envFrom"
+    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !has(e.valueFrom) || (e.name == 'TS_AUTHKEY' && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == variables.creds && e.valueFrom.secretKeyRef.key == 'tailscale-authkey')))"
+      message: "the tailscale sidecar reads only TS_AUTHKEY, from <pod>-creds/tailscale-authkey"
+    # ...and the agent never reaches that key or the sidecar's node key.
+    - expression: "object.spec.containers.all(c, !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom))) && (!has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in ['ts-state', 'ts-tmp']))))"
+      message: "session containers take no env from Secrets and never mount the tailscale state"
+    - expression: "!has(object.spec.volumes) || object.spec.volumes.all(v, (!has(v.secret) || !has(v.secret.secretName) || v.secret.secretName != variables.creds || (has(v.secret.items) && v.secret.items.all(i, i.key != 'tailscale-authkey'))) && (!has(v.projected) || !has(v.projected.sources) || v.projected.sources.all(s, !has(s.secret) || !has(s.secret.name) || s.secret.name != variables.creds)))"
+      message: "the creds volume projects named keys only, never tailscale-authkey"
     # A pod `command:` replaces the image ENTRYPOINT, which is what selects the pinned
     # talosctl/kubectl (p5-session-selection-explicit); the console sets args, never command.
     - expression: "variables.containers.all(c, !has(c.command))"

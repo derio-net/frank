@@ -1,12 +1,15 @@
-"""Evaluate the upgrade-session admission policies for real (p4-r3, p4-r7).
+"""Evaluate the upgrade-session admission policies for real (p4-r3, p4-r7, p5-r1).
 
-Runs the CEL in apps/cluster-update-fr/manifests/admission-policy.yaml against a pod shaped like
-the console's podSpec (internal/session/launch.go) and against hostile ones. Needs cel-python,
+Runs the CEL in apps/cluster-update-fr/manifests/admission-policy.yaml against the console's REAL
+pod shapes (scripts/tests/fixtures/life/session-pods/<type>.json, dumped from
+internal/session/launch.go podSpec; see that directory's README) and against hostile variants. Needs cel-python,
 which does not build on every interpreter; without it the tests skip and the phase-7 manual
 check `life-admission-dry-run` is the evidence instead.
 """
 import copy
+import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -27,7 +30,25 @@ POLICIES = {d["metadata"]["name"]: d for d in DOCS if d["kind"] == "ValidatingAd
 CONSOLE = "system:serviceaccount:cluster-update-fr:cluster-update-fr"
 IMAGE = "ghcr.io/derio-net/upgrade-session:3f2a9c1"
 TYPES = ["chart-major", "stateful", "rollouts", "frank-os", "hop-os"]
+PODS = ROOT / "scripts/tests/fixtures/life/session-pods"
 _env = celpy.Environment()
+
+
+def _tailscale_pin():
+    var = next(v for v in POLICIES["upgrade-session-pods"]["spec"]["variables"] if v["name"] == "tailscaleImage")
+    return re.fullmatch(r"'([^']+)'", var["expression"]).group(1)
+
+
+TAILSCALE = _tailscale_pin()
+
+
+def console_pod(typ):
+    """The console's own pod for `typ`, with the configured images (SESSION_IMAGE and
+    SESSION_TAILSCALE_IMAGE are console config, the fixture carries placeholders)."""
+    p = json.loads((PODS / f"{typ}.json").read_text())
+    for c in p["spec"].get("initContainers", []):
+        c["image"] = TAILSCALE
+    return p
 
 
 def _cel(v):
@@ -77,21 +98,7 @@ def decide(policy, obj, user=CONSOLE, groups=()):
 
 
 def pod(typ="stateful", **over):
-    sa = typ != "hop-os"
-    p = {
-        "metadata": {"name": "us-abc-1", "labels": {
-            "fr.run/id": "abc", "cluster-update.fr/type": typ, "app.kubernetes.io/managed-by": "cluster-update-fr"}},
-        "spec": {
-            "restartPolicy": "Never", "automountServiceAccountToken": sa,
-            "securityContext": {"runAsNonRoot": True},
-            "containers": [{"name": "session", "image": IMAGE, "securityContext": {
-                "allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
-                "capabilities": {"drop": ["ALL"]}}}],
-            "volumes": [{"name": "home", "emptyDir": {}}, {"name": "credentials", "secret": {"secretName": "us-abc-1-creds"}}],
-        },
-    }
-    if sa:
-        p["spec"]["serviceAccountName"] = "upgrade-session-" + typ
+    p = console_pod(typ)
     for path, val in over.items():
         node = p
         keys = path.split(".")
@@ -103,7 +110,73 @@ def pod(typ="stateful", **over):
 
 @pytest.mark.parametrize("typ", TYPES)
 def test_the_consoles_own_pod_shape_is_admitted_for_every_type(typ):
-    assert decide("upgrade-session-pods", pod(typ)) == (True, [])
+    assert decide("upgrade-session-pods", console_pod(typ)) == (True, [])
+
+
+def test_the_tailscale_pin_is_a_digest():
+    assert re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", TAILSCALE)
+
+
+def _hop(mutate):
+    p = console_pod("hop-os")
+    mutate(p)
+    return p
+
+
+def _ts(p):
+    return p["spec"]["initContainers"][0]
+
+
+def _session(p):
+    return p["spec"]["containers"][0]
+
+
+def _authkey(p):
+    return next(e for e in _ts(p)["env"] if e["name"] == "TS_AUTHKEY")
+
+
+HOP_HOSTILE = {
+    "second init container": lambda p: p["spec"]["initContainers"].append(dict(_ts(p), name="tailscale2")),
+    "no init container": lambda p: p["spec"].pop("initContainers"),
+    "init renamed": lambda p: _ts(p).update(name="helper"),
+    "init not a native sidecar": lambda p: _ts(p).pop("restartPolicy"),
+    "tailscale by tag": lambda p: _ts(p).update(image="tailscale/tailscale:v1.82.5"),
+    "tailscale other digest": lambda p: _ts(p).update(image="tailscale/tailscale@sha256:" + "f" * 64),
+    "session image as sidecar": lambda p: _ts(p).update(image=IMAGE),
+    "sidecar as root": lambda p: _ts(p)["securityContext"].update(runAsUser=0),
+    "sidecar uid unset": lambda p: _ts(p)["securityContext"].pop("runAsUser"),
+    "sidecar mounts the agent credentials": lambda p: _ts(p)["volumeMounts"].append(
+        {"name": "credentials", "mountPath": "/c"}),
+    "sidecar mounts home": lambda p: _ts(p)["volumeMounts"].append({"name": "home", "mountPath": "/h"}),
+    "sidecar envFrom": lambda p: _ts(p).update(envFrom=[{"secretRef": {"name": p["metadata"]["name"] + "-creds"}}]),
+    "sidecar command": lambda p: _ts(p).update(command=["sh"]),
+    "sidecar args": lambda p: _ts(p).update(args=["-c", "x"]),
+    "authkey from another secret": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(name="us-other-creds"),
+    "authkey is another key": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(key="github-token"),
+    "sidecar reads another key": lambda p: _ts(p)["env"].append({"name": "X", "valueFrom": {"secretKeyRef": {
+        "name": p["metadata"]["name"] + "-creds", "key": "hop-talosconfig"}}}),
+    "session mounts ts-state": lambda p: _session(p)["volumeMounts"].append({"name": "ts-state", "mountPath": "/s"}),
+    "session reads the authkey": lambda p: _session(p)["env"].append({"name": "K", "valueFrom": {"secretKeyRef": {
+        "name": p["metadata"]["name"] + "-creds", "key": "tailscale-authkey"}}}),
+    "session envFrom": lambda p: _session(p).update(envFrom=[{"secretRef": {"name": p["metadata"]["name"] + "-creds"}}]),
+    "creds volume projects the authkey": lambda p: next(v for v in p["spec"]["volumes"] if v["name"] == "credentials")[
+        "secret"]["items"].append({"key": "tailscale-authkey", "path": "k"}),
+    "creds volume without items": lambda p: next(v for v in p["spec"]["volumes"] if v["name"] == "credentials")[
+        "secret"].pop("items"),
+}
+
+
+@pytest.mark.parametrize("why", sorted(HOP_HOSTILE))
+def test_hostile_hop_os_sidecars_are_denied(why):
+    allowed, failed = decide("upgrade-session-pods", _hop(HOP_HOSTILE[why]))
+    assert not allowed and failed, why
+
+
+@pytest.mark.parametrize("typ", [t for t in TYPES if t != "hop-os"])
+def test_only_hop_os_carries_the_tailscale_sidecar(typ):
+    p = console_pod(typ)
+    p["spec"]["initContainers"] = copy.deepcopy(console_pod("hop-os")["spec"]["initContainers"])
+    assert not decide("upgrade-session-pods", p)[0]
 
 
 def test_a_digest_pinned_session_image_is_admitted():

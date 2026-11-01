@@ -155,6 +155,28 @@ def test_one_egress_policy_per_type_selecting_its_label_and_nothing_else():
         assert of_kind("CiliumClusterwideNetworkPolicy") == []
 
 
+CONSOLE_PODS = ROOT / "scripts/tests/fixtures/life/session-pods"
+
+
+def _selects(selector, labels):
+    want = selector.get("matchLabels", {})
+    assert set(selector) <= {"matchLabels"}, f"unhandled selector form: {selector}"
+    return all(labels.get(k) == v for k, v in want.items())
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_every_policy_meant_for_a_type_selects_the_consoles_real_pod(typ):
+    # p5-r1: the selectors are checked against the labels the console really sets
+    # (launch.go podSpec, dumped into the fixtures), not against labels assumed here.
+    import json
+
+    labels = json.loads((CONSOLE_PODS / f"{typ}.json").read_text())["metadata"]["labels"]
+    assert _selects(cnp("upgrade-sessions-default-deny")["spec"]["endpointSelector"], labels)
+    selected = {d["metadata"]["name"] for d in of_kind("CiliumNetworkPolicy")
+                if _selects(d["spec"]["endpointSelector"], labels)}
+    assert selected == {"upgrade-sessions-default-deny", f"upgrade-session-{typ}"}, selected
+
+
 @pytest.mark.parametrize("typ", TYPES)
 def test_every_type_reaches_the_github_api_and_the_model_providers(typ):
     names = fqdns(type_policy(typ))
