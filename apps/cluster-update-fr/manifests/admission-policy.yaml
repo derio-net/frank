@@ -33,6 +33,16 @@ spec:
     # hop-os only: the console's userspace tailscale sidecar (p5-console-contract-tailscale). The
     # SAME digest as console config SESSION_TAILSCALE_IMAGE (files/console.env); a test holds
     # the two equal, and bumping it is a phase-7 style manual op (life-session-tailscale).
+    - name: runId
+      expression: "has(object.metadata.labels) && 'fr.run/id' in object.metadata.labels ? object.metadata.labels['fr.run/id'] : ''"
+    - name: tsEnvNames
+      expression: "['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']"
+    - name: tsFixedEnv
+      expression: "{'TS_USERSPACE': 'true', 'TS_STATE_DIR': '/ts-state', 'TS_SOCKET': '/ts-state/tailscaled.sock', 'TS_KUBE_SECRET': '', 'TS_SOCKS5_SERVER': 'localhost:1055', 'TS_OUTBOUND_HTTP_PROXY_LISTEN': 'localhost:1056'}"
+    # tag:frank-session alone (p5-r3; never hop-scan's tag:frank-updater), Frank's own control
+    # server, and the hostname of THIS session.
+    - name: tsArgs
+      expression: "['--login-server=https://headscale.hop.derio.net', '--hostname=frank-upgrade-' + variables.runId, '--advertise-tags=tag:frank-session']"
     - name: tailscaleImage
       expression: "'tailscale/tailscale:v1.82.5@sha256:9a1f2640beecac3ad42ed8ef03d75adcb7165600f5131b17f9a2a3da68505928'"
   validations:
@@ -61,16 +71,16 @@ spec:
       message: "the tailscale sidecar mounts only ts-state / ts-tmp and takes no args or envFrom"
     - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !has(e.valueFrom) || (e.name == 'TS_AUTHKEY' && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == variables.creds && e.valueFrom.secretKeyRef.key == 'tailscale-authkey')))"
       message: "the tailscale sidecar reads only TS_AUTHKEY, from <pod>-creds/tailscale-authkey"
-    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, e.name in ['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']))"
-      message: "the tailscale sidecar takes only the env launch.go sets"
-    # Both proxies (SOCKS5 :1055, HTTP CONNECT :1056) listen on loopback only: the pod's other
-    # containers use them; nothing else may (cluster-update-fr@537f208).
-    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !(e.name in ['TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN']) || (has(e.value) && (e.value.startsWith('localhost:') || e.value.startsWith('127.0.0.1:')))))"
-      message: "the tailscale sidecar's proxies listen on loopback only"
-    # Joined as tag:frank-session alone (p5-r3), never hop-scan's tag:frank-updater, against
-    # Frank's own control server.
-    - expression: "variables.inits.all(c, has(c.env) && c.env.exists(e, e.name == 'TS_EXTRA_ARGS' && has(e.value) && e.value.matches('(^| )--advertise-tags=tag:frank-session( |$)') && !e.value.matches('--advertise-tags=.*--advertise-tags=') && e.value.matches('(^| )--login-server=https://headscale[.]hop[.]derio[.]net( |$)') && !e.value.matches('--login-server=.*--login-server=')))"
-      message: "the tailscale sidecar advertises tag:frank-session only, against headscale.hop.derio.net"
+    # The sidecar's env is exactly launch.go's (cluster-update-fr@537f208 golden hop-os pod):
+    # each variable once (Kubernetes honours the LAST of duplicate names, so `exists` over env
+    # can be satisfied by a decoy), fixed values exact (both proxies on loopback only), and
+    # TS_EXTRA_ARGS tokenized and allowlisted, so no flag can ride along.
+    - expression: "variables.inits.all(c, has(c.env) && c.env.all(e, e.name in variables.tsEnvNames) && variables.tsEnvNames.all(n, size(c.env.filter(e, e.name == n)) == 1))"
+      message: "the tailscale sidecar sets each of launch.go's variables exactly once and nothing else"
+    - expression: "variables.inits.all(c, c.env.all(e, !(e.name in variables.tsFixedEnv) || (has(e.value) ? e.value : '') == variables.tsFixedEnv[e.name]))"
+      message: "the tailscale sidecar runs userspace, keeps its state in ts-state, and proxies on localhost:1055 / localhost:1056 only"
+    - expression: "variables.inits.all(c, c.env.all(e, e.name != 'TS_EXTRA_ARGS' || (has(e.value) && size(e.value.split(' ')) == size(variables.tsArgs) && e.value.split(' ').all(t, t in variables.tsArgs) && variables.tsArgs.all(a, size(e.value.split(' ').filter(t, t == a)) == 1))))"
+      message: "TS_EXTRA_ARGS is exactly --login-server=https://headscale.hop.derio.net --hostname=frank-upgrade-<run id> --advertise-tags=tag:frank-session"
     # ...and the agent never reaches that key or the sidecar's node key.
     - expression: "object.spec.containers.all(c, !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom))) && (!has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in ['ts-state', 'ts-tmp']))))"
       message: "session containers take no env from Secrets and never mount the tailscale state"

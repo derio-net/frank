@@ -67,8 +67,14 @@ def _cel(v):
     return v
 
 
+def _split(s, sep):
+    # Kubernetes CEL's ext.strings split (Go strings.Split): "a  b".split(" ") keeps the empty
+    # token, as Python's str.split(sep) does. cel-python ships no strings extension.
+    return celpy.celtypes.ListType([celpy.celtypes.StringType(x) for x in str(s).split(str(sep))])
+
+
 def _eval(expr, activation):
-    prog = _env.program(_env.compile(expr))
+    prog = _env.program(_env.compile(expr), functions={"split": _split})
     return prog.evaluate({k: _cel(v) for k, v in activation.items()})
 
 
@@ -160,6 +166,30 @@ HOP_HOSTILE = {
     "http proxy off loopback": lambda p: _envvar(_ts(p), "TS_OUTBOUND_HTTP_PROXY_LISTEN").update(value=":1056"),
     "scanner's tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
         value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("tag:frank-session", "tag:frank-updater")),
+    # security review of the sidecar rule: argv is tokenized and allowlisted, every TS_* var
+    # appears exactly once (Kubernetes uses the LAST duplicate), and the binds are exact.
+    "smuggled flag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"] + " --exit-node=100.64.0.1"),
+    "smuggled flag glued to the tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace(
+            "--advertise-tags=tag:frank-session", "--advertise-tags=tag:frank-session --accept-routes")),
+    "empty token": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace(" ", "  ", 1)),
+    "required token missing": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=" ".join(t for t in _envvar(_ts(p), "TS_EXTRA_ARGS")["value"].split() if not t.startswith("--login-server"))),
+    "required token twice": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"] + " --advertise-tags=tag:frank-session"),
+    "another session's hostname": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("--hostname=frank-upgrade-", "--hostname=frank-upgrade-x")),
+    "duplicate TS_EXTRA_ARGS, good then bad": lambda p: _ts(p)["env"].append(
+        {"name": "TS_EXTRA_ARGS", "value": "--login-server=https://evil.example --advertise-tags=tag:frank-updater"}),
+    "duplicate authkey": lambda p: _ts(p)["env"].append(copy.deepcopy(_authkey(p))),
+    "duplicate socks5": lambda p: _ts(p)["env"].append({"name": "TS_SOCKS5_SERVER", "value": "localhost:1055"}),
+    "http proxy on 0.0.0.0:1056": lambda p: _envvar(_ts(p), "TS_OUTBOUND_HTTP_PROXY_LISTEN").update(value="0.0.0.0:1056"),
+    "socks5 on another loopback port": lambda p: _envvar(_ts(p), "TS_SOCKS5_SERVER").update(value="localhost:9999"),
+    "kernel networking": lambda p: _envvar(_ts(p), "TS_USERSPACE").update(value="false"),
+    "state elsewhere": lambda p: _envvar(_ts(p), "TS_STATE_DIR").update(value="/tmp"),
+    "kube secret state": lambda p: _envvar(_ts(p), "TS_KUBE_SECRET").update(value="tailscale"),
     "extra tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
         value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("tag:frank-session", "tag:frank-session,tag:hop-node")),
     "authkey from another secret": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(name="us-other-creds"),
