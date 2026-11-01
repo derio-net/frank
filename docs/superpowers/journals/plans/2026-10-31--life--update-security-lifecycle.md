@@ -387,3 +387,6 @@ one ACL edit and one small app; the report script is the only logic and has no t
 ### no-refactor-p3-t3 · discovery · no-refactor-because P3.T3 (phase 3)
 
 dashboard JSON generated once; rules reuse the existing group/rule shapes verbatim
+
+<!-- fr:journal kind=finding scope=plan id=p3-r1 created=2026-11-01T05:43:45+00:00 phase=3 state=open review_scope=in -->
+### p3-r1 · finding [open] (reviewer: in scope) · Headscale ACL restricts nothing: the existing *:* wildcard still lets tag:frank-updater reach everything; port 50000 not needed (phase 3)
