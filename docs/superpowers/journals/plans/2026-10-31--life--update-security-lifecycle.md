@@ -1002,3 +1002,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r10 created=2026-11-01T17:32:47+00:00 phase=6 state=open review_scope=out -->
 ### p6-r10 · finding [open] (reviewer: out of scope) · support-matrix header cites verified pages without pinning patch release (cosmetic) (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r11 created=2026-11-01T17:33:01+00:00 phase=6 state=open review_scope=out -->
+### p6-r11 · finding [open] (reviewer: out of scope) · test_life_runbooks is keyword-grep only (phase 6)
