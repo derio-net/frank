@@ -588,3 +588,58 @@ one values file and one policy; the chart supplies everything else
 ### p4-r2-checks-shape · decision · required_ci_checks pins each check to its workflow file; token permissions (phase 4)
 
 update-policy.yaml required_ci_checks is a list of {workflow, name}; tested that the file exists, a job renders that check-run name, it runs on pull_request and is not path-filtered or conditional. Console App permissions checks:read + actions:write (write includes read; the generator cannot list actions twice) are in the generator and in P7.T1.S2. Workflow permissions: every frank workflow already limited its token except agent-config.yml, which inherited the default; I added permissions: contents: read there (it only checks out and runs a script). A test now requires every workflow to set permissions and none to grant checks: write.
+
+<!-- fr:journal kind=review scope=plan id=p4-review created=2026-11-01T10:28:24+00:00 phase=4 -->
+### p4-review · review · Phase 4 independent review: 10 findings (9 in, 1 out) (phase 4)
+
+Reviewer raised p4-r1..p4-r10, incl. two criticals at the frank/console contract boundary (SOCKS proxy unsupported; CI source assumed Gitea). Both fixed on both sides; spec corrected. All 9 in-scope findings fixed with tests (260 passed, 2 skipped + 30 CEL tests in a scratch venv). p4-r10 out of scope until SESSION_IMAGE is pinned in phase 7.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r1-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r1 -->
+### p4-r1-resolved · finding [fixed] · resolves p4-r1: Hop kubeconfig relies on proxy-url socks5 but the console kube client ignores proxy-url and has no Proxy func (phase 4)
+
+Hop kubeconfig keeps proxy-url socks5://localhost:1055; console (cluster-update-fr@ce85584) now supports socks5 proxy-url; frank test pins the shared mechanism and the sidecar's SOCKS5 port.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r2-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r2 -->
+### p4-r2-resolved · finding [fixed] · resolves p4-r2: required_ci_contexts gitea-actions/* can never be met: frank is not mirrored and its CI is GitHub Actions check-runs (phase 4)
+
+Spec corrected: frank's CI gate is GitHub check-runs; update-policy declares ci_source github-checks and required_ci_checks [{workflow: .github/workflows/repo-tripwires.yml, name: tripwires}] (verified on PR #906); every workflow declares permissions, none grants checks:write; console binds checks to the declared workflow file.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r3-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r3 -->
+### p4-r3-resolved · finding [fixed] · resolves p4-r3: console can create service-account-token Secrets in upgrade-sessions and mint permanent session-SA tokens (phase 4)
+
+ValidatingAdmissionPolicy on secrets for the console SA: Opaque only, us- prefix, managed-by label, no service-account.name annotation; CEL evaluated with cel-python.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r4-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r4 -->
+### p4-r4-resolved · finding [fixed] · resolves p4-r4: R24 Omni running version not delivered: omni-status emptyDir has no writer and no later step owns the sidecar (phase 4)
+
+omni-status sidecar (upgrade-session image, Reader SA, own emptyDir) writes the version file the console reads; image pinned in phase 7 step life-console-pins.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r5-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r5 -->
+### p4-r5-resolved · finding [fixed] · resolves p4-r5: phase 7 lacks manual-op blocks for digest pin, bot logins, SESSION_IMAGE, console-ns secrets, console mirror+webhook; session PEM namespace wrong (phase 4)
+
+Phase 7 gained life-console-pins/-trust/-secrets/-mirror/life-admission-dry-run blocks; session App PEM namespace corrected to cluster-update-fr.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r6-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r6 -->
+### p4-r6-resolved · finding [fixed] · resolves p4-r6: ClusterRole grants apps/* and watch the console never uses; test pins the over-grant (phase 4)
+
+ClusterRole reduced to what the console reads; test updated.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r7-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r7 -->
+### p4-r7-resolved · finding [fixed] · resolves p4-r7: admission-policy tests are substring checks, not CEL evaluation against good/hostile pods (phase 4)
+
+Admission CEL evaluated with a real CEL engine against legitimate pods of all five types and hostile pods/Secrets (30 passing); phase 7 adds a server-side dry run.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r8-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r8 -->
+### p4-r8-resolved · finding [fixed] · resolves p4-r8: state PVC/namespace have Prune=false but not Delete=false; Application deletion loses the audit trail (phase 4)
+
+State PVC and namespace carry Prune=false,Delete=false.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r9-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=fixed resolves=p4-r9 -->
+### p4-r9-resolved · finding [fixed] · resolves p4-r9: console SA token (with write rights) is automounted into the tailscale sidecar (phase 4)
+
+Pod-level token automount off; projected SA token mounted only in the console container.
+
+<!-- fr:journal kind=finding scope=plan id=p4-r10-resolved created=2026-11-01T10:28:24+00:00 phase=4 state=open resolves=p4-r10 out_of_scope=true -->
+### p4-r10-resolved · finding [out-of-scope] · resolves p4-r10: admission policy allows any upgrade-session tag; bind the exact digest once SESSION_IMAGE is pinned (phase 4)
+
+Not caused by this change: the admission policy cannot name the exact session image digest until phase 7 publishes and pins it; bind it via paramRef then.
