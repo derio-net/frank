@@ -171,3 +171,72 @@ def test_every_image_is_pinned_and_workloads_are_bounded():
         assert ":" in c["image"].split("/")[-1] and "latest" not in tag, c["image"]
         assert c["resources"]["limits"]["memory"], c["name"]
         assert c["securityContext"]["allowPrivilegeEscalation"] is False
+
+
+# ---- security review (p3-sec-1..4) ----------------------------------------------------------
+import subprocess  # noqa: E402
+
+
+def test_p3_sec_1_tag_owners_are_an_admin_group_not_default():
+    a = acl()
+    admins = a["groups"]["group:tag-admins"]
+    assert admins and "*" not in admins
+    for tag in ("tag:frank-updater", "tag:hop-node"):
+        assert a["tagOwners"][tag] == ["group:tag-admins"], tag
+    # the old entry is still exactly as it was
+    assert a["tagOwners"]["tag:subnet-router"] == ["default"]
+    text = yaml.safe_load(HEADSCALE_CM.read_text())["data"]["acl.yaml"]
+    assert "ephemeral" in text and "single-use" in text and "pre-tagged" in text
+
+
+def _scan_script():
+    _, pod = _cronjob()
+    (scan,) = [c for c in _all_containers(pod) if c["name"] == "scan"]
+    return "\n".join(scan["command"] + scan.get("args", []))
+
+
+def test_p3_sec_2_image_lines_are_validated_and_trivy_gets_a_terminator():
+    script = _scan_script()
+    assert "grep -E" in script
+    assert '-- "$image"' in script
+    m = re.search(r"grep -E '([^']+)'", script)
+    pat = re.compile(m.group(1))
+    for ok in ("ghcr.io/x/y:1.2", "nginx", "r.io/a/b@sha256:" + "a" * 64, "a/b:c"):
+        assert pat.match(ok), ok
+    for bad in ("--config=/etc/x", "-x", "", " a", "a b", "a;b", "$(id)"):
+        assert not pat.match(bad), bad
+    # behavioural: run the filter pipeline on the fixture
+    out = subprocess.run(["sh", "-c", f"grep -E '{m.group(1)}'"], input="--config=/etc/x\n\nok/img:1\n",
+                         capture_output=True, text=True).stdout
+    assert out == "ok/img:1\n"
+
+
+def test_p3_sec_3_tailscale_state_is_not_visible_to_the_scanner():
+    _, pod = _cronjob()
+    byname = {c["name"]: c for c in _all_containers(pod)}
+    ts, scan = byname["tailscale"], byname["scan"]
+    mounts = lambda c: {m["name"]: m["mountPath"] for m in c.get("volumeMounts", [])}
+    assert mounts(ts) == {"ts-state": "/ts-state"}
+    assert "ts-state" not in mounts(scan)
+    for name, c in byname.items():
+        if name != "tailscale":
+            assert "ts-state" not in mounts(c), name
+    env = {e["name"]: e.get("value") for e in ts["env"]}
+    assert env["TS_STATE_DIR"] == "/ts-state" and env["TS_SOCKET"].startswith("/ts-state/")
+    # scan has its own cache dir, not a /tmp shared with tailscale
+    senv = {e["name"]: e.get("value") for e in scan["env"]}
+    assert senv["TRIVY_CACHE_DIR"].startswith("/scan-tmp")
+    assert mounts(scan)["scan-tmp"] == "/scan-tmp"
+    assert "/tmp" not in mounts(ts).values()
+    vols = {v["name"] for v in pod["volumes"]}
+    assert {"ts-state", "scan-tmp"} <= vols
+    assert ts["securityContext"]["runAsUser"] != scan["securityContext"]["runAsUser"]
+
+
+def test_p3_sec_4_trivy_token_reaches_the_scanner_from_an_optional_secret():
+    _, pod = _cronjob()
+    (scan,) = [c for c in _all_containers(pod) if c["name"] == "scan"]
+    env = {e["name"]: e for e in scan["env"]}
+    ref = env["TRIVY_TOKEN"]["valueFrom"]["secretKeyRef"]
+    assert ref["name"] == "trivy-server-token" and ref["optional"] is True
+    assert '--token "$TRIVY_TOKEN"' in _scan_script()
