@@ -408,3 +408,8 @@ dashboard JSON generated once; rules reuse the existing group/rule shapes verbat
 
 <!-- fr:journal kind=finding scope=plan id=p3-r7 created=2026-11-01T05:44:09+00:00 phase=3 state=open review_scope=out -->
 ### p3-r7 · finding [open] (reviewer: out of scope) · trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync (phase 3)
+
+<!-- fr:journal kind=discovery scope=plan id=p3-r2-r4-headscale-facts created=2026-11-01T05:50:29+00:00 phase=3 -->
+### p3-r2-r4-headscale-facts · discovery · Headscale key is reusable+ephemeral (supersedes single-use); unknown user in policy loads (phase 3)
+
+The frank-updater pre-auth key is reusable + ephemeral + pre-tagged, short expiry (720h), rotated: a daily CronJob registers a fresh node each run, so single-use cannot work (supersedes the earlier p3-phase7-tag-admin wording). Headscale v0.25.1 hscontrol/policy/acls.go read from source (not run live): expandUsersFromGroup returns member strings unvalidated and filterNodesByUser matches nothing for an unknown user, so a policy naming the not-yet-created user tag-admin loads. Ordering is still load-bearing for the CLI: the user must exist before preauthkeys create --user, and the restart goes last so the grant is effective only once key, tag and node exist. Blocks life-hop-headscale-{user,key,tag-hop1,apply} are in _prose.md; port 50000 dropped from the grant.
