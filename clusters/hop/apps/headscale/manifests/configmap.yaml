@@ -128,10 +128,17 @@ data:
           "dst": ["tag:hop-node:6443,50000"]
         }
       ],
+      // Dedicated owner group for the lifecycle tags, so they are NOT claimable by any
+      // user: only members of group:tag-admins may advertise them. The frank-updater auth
+      // key must be ephemeral, single-use and pre-tagged (minted by the operator in
+      // phase 7), so the node never needs to claim the tag itself.
+      "groups": {
+        "group:tag-admins": ["default"]
+      },
       "tagOwners": {
         "tag:subnet-router": ["default"],
-        "tag:frank-updater": ["default"],
-        "tag:hop-node": ["default"]
+        "tag:frank-updater": ["group:tag-admins"],
+        "tag:hop-node": ["group:tag-admins"]
       },
       "autoApprovers": {
         "routes": {
