@@ -40,13 +40,15 @@ READ_VERBS = {"get", "list", "watch"}
 FRANK_NODES = {"192.168.55.21", "192.168.55.22", "192.168.55.23", "192.168.55.31",
                "192.168.55.71", "192.168.55.41", "192.168.55.42"}
 
-GITHUB = {"api.github.com", "github.com"}
-MODELS = {"api.anthropic.com", "console.anthropic.com", "claude.ai", "platform.claude.com",
+# p5-sec-3: the documented minimum. Commits go through the API only, so no github.com; the
+# interactive logins' authorize pages open in the OPERATOR's browser, so no claude.ai.
+GITHUB = {"api.github.com"}
+MODELS = {"api.anthropic.com", "console.anthropic.com", "platform.claude.com",
           "api.openai.com", "auth.openai.com", "chatgpt.com"}
 OMNI = "omni.frank.derio.net"
 TAILNET = {"headscale.hop.derio.net"}
 # Hosts that would let a steered session upload data somewhere readable, or fetch arbitrary code.
-FORBIDDEN_HOSTS = {"gist.github.com", "uploads.github.com", "raw.githubusercontent.com",
+FORBIDDEN_HOSTS = {"github.com", "claude.ai", "gist.github.com", "uploads.github.com", "raw.githubusercontent.com",
                    "objects.githubusercontent.com", "gist.githubusercontent.com", "codeload.github.com",
                    "pastebin.com", "registry.npmjs.org", "pypi.org"}
 
@@ -154,9 +156,29 @@ def test_one_egress_policy_per_type_selecting_its_label_and_nothing_else():
 
 
 @pytest.mark.parametrize("typ", TYPES)
-def test_every_type_reaches_github_api_and_git_and_the_model_providers(typ):
+def test_every_type_reaches_the_github_api_and_the_model_providers(typ):
     names = fqdns(type_policy(typ))
     assert GITHUB | MODELS <= names
+
+
+EXPECTED_FQDNS = {
+    "chart-major": GITHUB | MODELS, "stateful": GITHUB | MODELS, "rollouts": GITHUB | MODELS,
+    "frank-os": GITHUB | MODELS | {OMNI},
+    "hop-os": GITHUB | MODELS | TAILNET | {"derp*.tailscale.com", "blog.derio.net"},
+}
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_allowed_fqdns_equal_the_documented_minimum(typ):
+    assert fqdns(type_policy(typ)) == EXPECTED_FQDNS[typ]
+
+
+def test_every_external_host_has_a_documented_reason():
+    import life_sessions as ls
+
+    hosts = set().union(*EXPECTED_FQDNS.values()) - {"blog.derio.net"}  # public smoke target
+    assert set(ls.HOST_REASONS) == hosts
+    assert all(len(r) > 20 for r in ls.HOST_REASONS.values())
 
 
 @pytest.mark.parametrize("typ", TYPES)
@@ -165,7 +187,7 @@ def test_no_type_reaches_an_upload_host_or_a_wildcard(typ):
     assert not names & FORBIDDEN_HOSTS
     for n in names:
         assert n != "*" and not n.startswith("*."), f"{typ}: wildcard {n} widens the exfiltration boundary"
-        assert "github" not in n or n in GITHUB, f"{typ}: {n}"
+        assert "github" not in n or n == "api.github.com", f"{typ}: {n}"
 
 
 @pytest.mark.parametrize("typ", TYPES)

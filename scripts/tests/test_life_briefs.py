@@ -184,3 +184,20 @@ def test_frank_os_tells_the_agent_it_has_no_omni_host_access():
 def test_hop_os_announces_edge_downtime_before_each_step():
     s = sections(text("hop-os.md"))
     assert re.search(r"announce", s["Sequence position"] + s["Gotchas"], re.I)
+
+
+# ------------------------------------------------------------------ residual risk (p5-sec-3)
+@pytest.mark.parametrize("name", ["AGENTS.md"] + [f"{t}.md" for t in TYPES])
+def test_residual_github_exfiltration_risk_is_stated(name):
+    body = text(name)
+    assert "Security note" in body
+    assert "api.github.com" in body and re.search(r"exfiltrat", body, re.I)
+    assert re.search(r"cannot (filter|see|inspect)", body, re.I), "say what the network policy cannot do"
+
+
+@pytest.mark.parametrize("name", ALL)
+def test_briefs_never_send_the_agent_to_github_com(name):
+    # egress allows api.github.com only; a git clone/fetch of github.com is refused
+    body = text(name)
+    assert "git clone" not in body and "git fetch" not in body
+    assert not re.search(r"(?<![\w.])github\.com(?!/derio-net/frank/blob)", body.replace("api.github.com", "")), name

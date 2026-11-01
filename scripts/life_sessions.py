@@ -33,8 +33,25 @@ TYPES = ("chart-major", "stateful", "rollouts", "frank-os", "hop-os")
 TYPE_LABEL = "cluster-update.fr/type"
 SEARCH = (f"{NS}.svc.cluster.local", "svc.cluster.local", "cluster.local")  # pod resolv.conf, ndots:5
 
-GITHUB = ("api.github.com", "github.com")  # API commits + git fetch of frank; no gist/raw/uploads
-MODELS = ("api.anthropic.com", "console.anthropic.com", "claude.ai", "platform.claude.com",
+# p5-sec-3: the documented minimum, each host with its reason. Cilium filters by NAME only (no
+# TLS interception, so no paths): whatever is listed here is reachable for anything, which is
+# why the list is short. Residual risk of api.github.com: journal p5-github-egress-residual.
+HOST_REASONS = {
+    "api.github.com": "commits through the contents API / GraphQL createCommitOnBranch, PRs, reads of frank; "
+                      "github.com is NOT needed (no git clone/push) and would add git/gist upload paths",
+    "api.anthropic.com": "Claude Code model requests (API key or subscription OAuth token)",
+    "console.anthropic.com": "Claude Code OAuth token exchange and refresh (older CLI versions)",
+    "platform.claude.com": "Claude Code OAuth token exchange and refresh (current CLI versions); the claude.ai "
+                           "authorize page opens in the operator's browser, never from the pod",
+    "api.openai.com": "Codex model requests with an API key",
+    "auth.openai.com": "Codex device-code login and token refresh",
+    "chatgpt.com": "Codex signed in with a ChatGPT plan sends its model requests to chatgpt.com/backend-api",
+    "omni.frank.derio.net": "frank-os only: the Omni API (version change of the cluster); never the Omni host",
+    "headscale.hop.derio.net": "hop-os only: tailnet control server and its DERP region (443 + STUN 3478/udp)",
+    "derp*.tailscale.com": "hop-os only: Tailscale's DERP relays from headscale's default DERP map",
+}
+GITHUB = ("api.github.com",)
+MODELS = ("api.anthropic.com", "console.anthropic.com", "platform.claude.com",
           "api.openai.com", "auth.openai.com", "chatgpt.com")
 OMNI = "omni.frank.derio.net"
 FRANK_NODES = ("192.168.55.21", "192.168.55.22", "192.168.55.23", "192.168.55.31",
