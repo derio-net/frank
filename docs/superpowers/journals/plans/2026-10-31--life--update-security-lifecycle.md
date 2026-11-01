@@ -399,3 +399,6 @@ dashboard JSON generated once; rules reuse the existing group/rule shapes verbat
 
 <!-- fr:journal kind=finding scope=plan id=p3-r4 created=2026-11-01T05:43:57+00:00 phase=3 state=open review_scope=in -->
 ### p3-r4 · finding [open] (reviewer: in scope) · Phase 7 omits creating headscale user tag-admin and tagging hop-1 tag:hop-node; missing user may break policy load (phase 3)
+
+<!-- fr:journal kind=finding scope=plan id=p3-r5 created=2026-11-01T05:44:01+00:00 phase=3 state=open review_scope=in -->
+### p3-r5 · finding [open] (reviewer: in scope) · No captured trivy-output fixture/report.py test and no helm render check of chart keys and the trivy-server pod label (phase 3)
