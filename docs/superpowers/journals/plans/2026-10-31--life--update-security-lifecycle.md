@@ -1105,3 +1105,8 @@ Grouped follow-up (operator chose grouping).
 ### p6-r10-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p6-r10: support-matrix header cites verified pages without pinning patch release (cosmetic)
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=finding scope=plan id=p6-r11-resolved-2 created=2026-11-01T19:33:40+00:00 state=open resolves=p6-r11 tracked_by=derio-net/frank#914 -->
+### p6-r11-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p6-r11: test_life_runbooks is keyword-grep only
+
+Grouped follow-up (operator chose grouping).
