@@ -853,3 +853,8 @@ Fixed on the console side (cluster-update-fr@6ebe748): session pod uid/HOME/empt
 ### p5-console-scrub-adjacent-github-token-resolved · finding [fixed] · resolves p5-console-scrub-adjacent-github-token: Console scrubber leaks the body of a second GitHub token adjacent with no separator (phase 5)
 
 Fixed on the console side (cluster-update-fr@d36ea1b, then e09d720/9d1813f): adjacency audit across every pattern, fail-closed caps; frank's life_scrub.py shares the console's scrub-cases fixtures.
+
+<!-- fr:journal kind=finding scope=plan id=p5-session-network-scope-per-type-resolved created=2026-11-01T17:18:34+00:00 phase=5 state=open resolves=p5-session-network-scope-per-type out_of_scope=true -->
+### p5-session-network-scope-per-type-resolved · finding [out-of-scope] · resolves p5-session-network-scope-per-type: Session target-service egress is per type, not per app (phase 5)
+
+True, not a defect of this phase: the spec scopes session egress per upgrade TYPE; per-APP scoping needs the console to label session pods with their app and per-app policies. Filed as a follow-up at deliver.
