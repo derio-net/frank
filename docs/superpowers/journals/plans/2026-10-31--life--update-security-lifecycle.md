@@ -554,3 +554,6 @@ one values file and one policy; the chart supplies everything else
 
 <!-- fr:journal kind=finding scope=plan id=p4-r2 created=2026-11-01T09:45:40+00:00 phase=4 state=open review_scope=in -->
 ### p4-r2 · finding [open] (reviewer: in scope) · required_ci_contexts gitea-actions/* can never be met: frank is not mirrored and its CI is GitHub Actions check-runs (phase 4)
+
+<!-- fr:journal kind=finding scope=plan id=p4-r3 created=2026-11-01T09:45:44+00:00 phase=4 state=open review_scope=in -->
+### p4-r3 · finding [open] (reviewer: in scope) · console can create service-account-token Secrets in upgrade-sessions and mint permanent session-SA tokens (phase 4)
