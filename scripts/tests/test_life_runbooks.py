@@ -84,3 +84,51 @@ def test_runbook_links_resolve():
     for doc in (ROLLBACK, OMNI):
         for target in re.findall(r"\]\((?!https?:)([^)#]+)\)", doc.read_text()):
             assert (doc.parent / target).exists(), (doc.name, target)
+
+
+def test_revert_distinguishes_squash_from_merge_commits():  # p6-r1
+    body = _find(_sections(ROLLBACK.read_text()), "Revert")
+    assert "git revert <sha>" in body and "squash" in body.lower()
+    assert "-m 1" in body and "merge commit" in body.lower()
+
+
+def test_longhorn_restore_suspends_selfheal_first_and_reverts_last():  # p6-r2
+    body = _find(_sections(ROLLBACK.read_text()), "Longhorn")
+    assert '{"prune":false,"selfHeal":false}' in body
+    assert "root" in body and "frank-argocd.md" in body
+    i_susp, i_scale = body.index('"selfHeal":false'), body.lower().index("scale the workload")
+    i_restore, i_revert = body.index("Longhorn UI"), body.index("version PR")
+    assert i_susp < i_scale < i_restore < i_revert
+    assert "syncOptions" in body
+
+
+def test_talos_rollbacks_check_the_running_k8s_window():  # p6-r4, p6-r5
+    s = _sections(ROLLBACK.read_text())
+    for word in ("Frank Talos", "Hop Talos"):
+        body = _find(s, word)
+        assert "versions/support-matrix.yaml" in body and "forward-fix" in body.lower()
+    assert "1.13" in _find(s, "Frank Talos") and "1.36" in _find(s, "Frank Talos")
+
+
+def test_frank_revert_has_exact_omnictl_and_unverified_marks():  # p6-r3
+    body = _find(_sections(ROLLBACK.read_text()), "Frank Talos")
+    assert "omnictl get cluster frank -o yaml" in body and "talosversion" in body
+    assert "omnictl apply -f" in body and "UNVERIFIED" in body
+
+
+def test_hop_rollback_states_limits_and_invocation():  # p6-r5
+    body = _find(_sections(ROLLBACK.read_text()), "Hop Talos")
+    assert "--talosconfig" in body and ".env_hop" in body
+    assert re.search(r"A/B|previous slot", body) and "upgrade-k8s" in body and "last" in body.lower()
+
+
+def test_frank_revert_preconditions():  # p6-r6
+    body = _find(_sections(ROLLBACK.read_text()), "Frank Talos")
+    assert "one node at a time" not in body
+    assert "sole replica" in body and "etcd snapshot" in body and "etcd status" in body
+
+
+def test_omni_backup_stops_first_and_names_the_directory():  # p6-r7
+    body = _find(_sections(OMNI.read_text()), "Backup")
+    assert "/opt/manual_install/omni" in body
+    assert body.index("docker compose stop") < body.index("cp ") < body.index("docker compose up -d")

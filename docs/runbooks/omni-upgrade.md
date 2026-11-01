@@ -13,8 +13,19 @@ On the Omni host (ssh from the laptop):
 
 1. Note the running version: `docker inspect omni --format '{{.Config.Image}}'`.
 2. Back up the state the container mounts: the etcd directory (`ETCD_VOLUME_PATH`), the sqlite
-   directory (`SQLITE_DB_PATH`) and the encryption key `omni.asc`. Stop nothing; copy to a dated
-   directory, then off the host. The key is the one thing that cannot be regenerated.
+   directory (`SQLITE_DB_PATH`) and the encryption key `omni.asc`. A live copy of etcd/sqlite files
+   can be inconsistent, so stop Omni for the copy (Frank keeps running; only reconciliation pauses).
+   Compose runs from `/opt/manual_install/omni` on the host:
+
+   ```sh
+   cd /opt/manual_install/omni
+   docker compose stop
+   cp -a "$ETCD_VOLUME_PATH" "$SQLITE_DB_PATH" omni.asc ~/omni-backup-$(date +%F)/   # create the dir first
+   docker compose up -d
+   ```
+
+   (Alternative without downtime: an etcd snapshot of the embedded etcd.) Then copy the backup off
+   the host. The key is the one thing that cannot be regenerated.
 3. Keep the previous image: `docker image ls ghcr.io/siderolabs/omni`.
 
 ## Upgrade
