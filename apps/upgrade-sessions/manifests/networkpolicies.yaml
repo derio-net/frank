@@ -188,7 +188,6 @@ spec:
         - matchName: litellm.litellm.svc.cluster.local
         - matchName: n8n-01.n8n-01.svc.cluster.local
         - matchName: ollama.ollama.svc.cluster.local
-        - matchName: ovms-retrieval.retrieval.svc.cluster.local
         - matchName: paperclip-lb.paperclip-system.svc.cluster.local
         - matchName: staging.vcluster-staging.svc.cluster.local
         - matchName: traefik.traefik-system.svc.cluster.local
@@ -309,13 +308,6 @@ spec:
     toPorts:
     - ports:
       - port: '3100'
-        protocol: TCP
-  - toEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: retrieval
-    toPorts:
-    - ports:
-      - port: '8000'
         protocol: TCP
   - toEndpoints:
     - matchLabels:

@@ -234,7 +234,7 @@ def _ns_targets(t):
 
 # p5-sec-1: the ONE never-list. A session never reaches these, whatever a smoke file says.
 NEVER_NAMESPACES = {"infisical", "authentik", "secure-agent-pod", "hermes-agent-shell", "agents",
-                    "cluster-update-fr", "kube-system", "longhorn-system", "monitoring", NS}
+                    "cluster-update-fr", "kube-system", "longhorn-system", "monitoring", "retrieval", NS}
 DB_PORTS = {22, 3306, 5432, 6379, 27017}
 
 

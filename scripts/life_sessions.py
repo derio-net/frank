@@ -78,10 +78,11 @@ def app_namespaces(flag: str) -> list[str]:
 # THE never-list (p5-sec-1). A session never reaches these over the network, whatever a smoke
 # file names: secret stores and identity (infisical, authentik), agent pods holding other
 # credentials (secure-agent-pod, hermes-agent-shell, agents), unauthenticated admin APIs
-# (Longhorn manager deletes volumes; VictoriaMetrics/Logs serve delete endpoints), the control
+# (Longhorn manager deletes volumes; VictoriaMetrics/Logs serve delete endpoints), the
+# unauthenticated retrieval server (no auth story, see test_ovms_retrieval_manifests), the control
 # plane, and the session machinery itself. Never a database, cache or SSH port either.
 NEVER_NAMESPACES = frozenset({"infisical", "authentik", "secure-agent-pod", "hermes-agent-shell", "agents",
-                              "cluster-update-fr", "kube-system", "longhorn-system", "monitoring", NS})
+                              "cluster-update-fr", "kube-system", "longhorn-system", "monitoring", "retrieval", NS})
 NEVER_PORTS = frozenset({22, 3306, 5432, 6379, 27017})
 
 # Which apps' smoke checks each type runs to verify (R16). stateful / rollouts: every Frank app
