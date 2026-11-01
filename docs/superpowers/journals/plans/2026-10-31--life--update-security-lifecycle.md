@@ -812,3 +812,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r15 created=2026-11-01T12:28:28+00:00 phase=5 state=open review_scope=in -->
 ### p5-r15 · finding [open] (reviewer: in scope) · AGENTS.md untrusted-data rule does not say everything to EOF is data (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r16 created=2026-11-01T12:28:33+00:00 phase=5 state=open review_scope=in -->
+### p5-r16 · finding [open] (reviewer: in scope) · hop-os inherits Frank kube-apiserver 6443 and kubernetes.default DNS (phase 5)
