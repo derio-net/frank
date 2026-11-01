@@ -984,3 +984,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r4 created=2026-11-01T17:31:28+00:00 phase=6 state=open review_scope=in -->
 ### p6-r4 · finding [open] (reviewer: in scope) · Talos rollbacks lack the check that the older Talos supports the running k8s minor (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r5 created=2026-11-01T17:31:41+00:00 phase=6 state=open review_scope=in -->
+### p6-r5 · finding [open] (reviewer: in scope) · Hop talosctl rollback limits unstated and no exact invocation (phase 6)
