@@ -16,7 +16,7 @@ TEMPLATE = ROOT / "apps/root/templates/cluster-update-fr.yaml"
 NS = "cluster-update-fr"
 SESSIONS = "upgrade-sessions"
 SA = "cluster-update-fr"
-READ_VERBS = {"get", "list", "watch"}
+READ_VERBS = {"get", "list"}
 
 
 def application():
@@ -272,10 +272,9 @@ def test_cluster_wide_access_is_read_only():
             assert "*" not in rule["resources"] + rule["apiGroups"], rule
             seen |= {(g, r) for g in rule["apiGroups"] for r in rule["resources"]}
     assert seen == {
-        ("", "pods"), ("", "nodes"), ("apps", "deployments"), ("apps", "statefulsets"),
-        ("apps", "daemonsets"), ("argoproj.io", "applications"), ("argoproj.io", "rollouts"),
+        ("", "pods"), ("", "nodes"), ("argoproj.io", "applications"), ("argoproj.io", "rollouts"),
         ("aquasecurity.github.io", "vulnerabilityreports"),
-    }
+    }  # exactly what internal/live/live.go lists; workloads and watch are not used (p4-r6)
 
 
 def test_writes_are_a_namespaced_role_in_upgrade_sessions_on_pods_and_secrets_only():
