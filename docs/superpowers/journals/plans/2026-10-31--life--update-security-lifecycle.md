@@ -797,3 +797,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r9 created=2026-11-01T12:28:03+00:00 phase=5 state=open review_scope=in -->
 ### p5-r9 · finding [open] (reviewer: in scope) · repository-mode KEY_NAME exempts lowercase/dash and all-caps passphrases (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r10 created=2026-11-01T12:28:08+00:00 phase=5 state=open review_scope=in -->
+### p5-r10 · finding [open] (reviewer: in scope) · exec/ephemeral test scans only repo Roles; root-devops->admin grants pods/exec into sessions; no admission on pods/exec (phase 5)
