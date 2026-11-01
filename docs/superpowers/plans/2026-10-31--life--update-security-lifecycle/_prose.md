@@ -180,6 +180,23 @@ status: pending
 
 ```yaml
 # manual-operation
+id: life-session-tailscale
+layer: life
+app: cluster-update-fr
+plan: 2026-10-31--life--update-security-lifecycle
+when: "[POST-MERGE] after the Headscale ACL with tag:frank-session is live (life-hop-headscale-* done); until then hop-os sessions are refused by design"
+why_manual: "the auth key cannot live in git, and the sidecar digest must be checked against the image the admission policy admits before hop-os is switched on"
+commands:
+  - "headscale preauthkeys create --user tag-admin --reusable --ephemeral --tags tag:frank-session --expiration 90d (a SEPARATE key from hop-scan's tag:frank-updater one; record its prefix)"
+  - "SOPS-apply Secret cluster-update-session-tailscale, key authkey, namespace cluster-update-fr (projected optionally into the console as session-credentials/tailscale-authkey)"
+  - "files/console.env: set SESSION_TAILSCALE_IMAGE to EXACTLY the tailscaleImage digest in apps/cluster-update-fr/manifests/admission-policy.yaml (crane digest tailscale/tailscale:v1.82.5 must match it); SESSION_TAILSCALE_TAG stays tag:frank-session"
+verify:
+  - "a hop-os session pod is admitted, its tailscale sidecar joins as tag:frank-session (headscale nodes list), talosctl -n <hop-1 tailnet IP> version and kubectl --kubeconfig hop-kubeconfig get nodes work through it, and hop-1:22 and any other tailnet node are refused"
+status: pending
+```
+
+```yaml
+# manual-operation
 id: life-admission-dry-run
 layer: life
 app: cluster-update-fr

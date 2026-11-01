@@ -232,3 +232,10 @@ spec:
                   optional: true
                   items:
                     - {key: config, path: hop-kubeconfig}
+              # hop-os: the reusable ephemeral pre-tagged tag:frank-session key the console puts
+              # in the session Secret for the tailscale sidecar only (never the agent's volume).
+              - secret:
+                  name: cluster-update-session-tailscale
+                  optional: true
+                  items:
+                    - {key: authkey, path: tailscale-authkey}

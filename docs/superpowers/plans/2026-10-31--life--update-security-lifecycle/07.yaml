@@ -44,6 +44,9 @@ tasks:
   - id: P7.T1.S10
     text: |-
       Run manual operation `life-console-mirror` LAST and trigger-first: the listener allowlists, mirror-reconcile and webhooks.yaml for derio-net/cluster-update-fr are already merged; create the Gitea mirror repo, make sure the derio-fr-automation App installation includes the repo, THEN create the GitHub push + pull_request webhook.
+  - id: P7.T1.S11
+    text: |-
+      Run manual operation `life-session-tailscale` after the Headscale operations: mint the reusable ephemeral pre-tagged tag:frank-session key under tag-admin, SOPS-apply Secret cluster-update-session-tailscale (key authkey) in cluster-update-fr, and set SESSION_TAILSCALE_IMAGE in console.env to exactly the tailscaleImage digest the admission policy pins (empty until then: the console refuses hop-os).
 - number: 2
   title: Merge order (operator)
   steps:
@@ -101,6 +104,10 @@ state:
       ticked_at: null
       note: null
     P7.T1.S10:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S11:
       state: ' '
       ticked_at: null
       note: null

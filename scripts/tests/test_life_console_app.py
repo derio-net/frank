@@ -158,7 +158,37 @@ def test_credentials_reach_the_console_as_files():
                         if v["name"] == next(m["name"] for m in container()["volumeMounts"]
                                              if m["mountPath"] == env["SESSION_SECRET_DIR"]))
     files = {i["path"] for s in sessions_dir["projected"]["sources"] for i in s["secret"]["items"]}
-    assert files == {"github-token", "omni-sa-key", "talosconfig", "hop-talosconfig", "hop-kubeconfig"}
+    assert files == {"github-token", "omni-sa-key", "talosconfig", "hop-talosconfig", "hop-kubeconfig",
+                     "tailscale-authkey"}
+
+
+def _tailscale_pin():
+    import re
+
+    docs = [d for d in yaml.safe_load_all((MAN / "admission-policy.yaml").read_text()) if d]
+    pol = next(d for d in docs if d["metadata"]["name"] == "upgrade-session-pods")
+    var = next(v for v in pol["spec"]["variables"] if v["name"] == "tailscaleImage")
+    return re.fullmatch(r"'([^']+)'", var["expression"]).group(1)
+
+
+def test_hop_os_sessions_are_wired_to_the_admitted_tailscale_image_and_their_own_tag():
+    # p5-r2: the console refuses hop-os unless SESSION_TAILSCALE_IMAGE is digest-pinned, and the
+    # admission policy admits exactly one digest. Empty is the placeholder ("refuse hop-os",
+    # the console's own check); once set (manual op life-session-tailscale) it must be the
+    # digest the policy admits, or every hop-os pod is denied at admission.
+    env = env_file()
+    assert "SESSION_TAILSCALE_IMAGE" in env
+    assert env["SESSION_TAILSCALE_IMAGE"] in ("", _tailscale_pin())
+    # Sessions join the tailnet as their own tag (p5-r3), never hop-scan's tag:frank-updater.
+    assert env["SESSION_TAILSCALE_TAG"] == "tag:frank-session"
+
+
+def test_the_session_tailscale_key_is_optional_and_lands_under_the_contract_name():
+    sessions = next(v for v in pod()["volumes"] if v["name"] == "session-credentials")
+    src = next(s["secret"] for s in sessions["projected"]["sources"]
+               if s["secret"]["name"] == "cluster-update-session-tailscale")
+    assert src["optional"] is True
+    assert src["items"] == [{"key": "authkey", "path": "tailscale-authkey"}]
 
 
 def test_telegram_chat_and_thread_come_from_a_secret_not_from_git():

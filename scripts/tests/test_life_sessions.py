@@ -551,7 +551,8 @@ def test_no_credential_carries_the_omni_host():
     assert "ssh" not in text.lower()
     dep = (CONSOLE_MAN / "deployment.yaml").read_text()
     projected = re.findall(r"path: ([\w-]+)", dep.split("name: session-credentials", 2)[-1])
-    assert set(projected) <= {"github-token", "omni-sa-key", "talosconfig", "hop-talosconfig", "hop-kubeconfig"}, projected
+    assert set(projected) <= {"github-token", "omni-sa-key", "talosconfig", "hop-talosconfig", "hop-kubeconfig",
+                              "tailscale-authkey"}, projected
 
 
 # ------------------------------------------------------------------ console pod admission
