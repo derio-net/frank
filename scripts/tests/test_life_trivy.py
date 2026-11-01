@@ -73,3 +73,32 @@ def test_namespace_is_declared():
     (ns,) = [d for d in manifests() if d["kind"] == "Namespace"]
     assert ns["metadata"]["name"] == "trivy-operator" or ns["metadata"]["name"] == "trivy-system"
     assert ns["metadata"]["name"] == "trivy-system"
+
+
+def test_p3_sec_4_server_requires_a_token_from_an_out_of_band_secret():
+    v = values()
+    assert v["trivy"]["existingSecret"] is True, "token lives in a Secret, never in git"
+    assert not v["trivy"].get("serverToken")
+    assert "trivy-operator-trivy-config" in VALUES.read_text()  # the Secret name the chart expects
+
+
+def test_p3_sec_4_ingress_to_the_server_is_restricted():
+    (np,) = [d for d in manifests() if d["kind"] == "NetworkPolicy"]
+    assert np["metadata"]["namespace"] == "trivy-system"
+    assert np["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/name"] == "trivy-server"
+    assert np["spec"]["policyTypes"] == ["Ingress"]
+    (rule,) = np["spec"]["ingress"]
+    assert [(p["protocol"], p["port"]) for p in rule["ports"]] == [("TCP", 4954)]
+    srcs = rule["from"]
+    ns = [s["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"] for s in srcs if "namespaceSelector" in s and "podSelector" not in s]
+    assert ns == ["hop-scan"]
+    pods = [s for s in srcs if "podSelector" in s and "namespaceSelector" not in s]
+    labels = [p["podSelector"]["matchLabels"] for p in pods]
+    assert {"trivy-operator.scan-job": "true"} in labels
+    assert {"app.kubernetes.io/name": "trivy-operator"} in labels
+    assert len(srcs) == 3
+    assert v_label() == "trivy-operator.scan-job=true"
+
+
+def v_label():
+    return values()["trivyOperator"]["scanJobPodTemplateLabels"]

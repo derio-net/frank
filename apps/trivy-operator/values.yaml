@@ -26,6 +26,11 @@ serviceMonitor:
 
 trivy:
   mode: ClientServer
+  # Client/server Trivy has no auth of its own beyond a shared token. The token lives in the
+  # Secret `trivy-operator-trivy-config` (keys trivy.serverToken for the scan jobs and
+  # TRIVY_TOKEN for the server; created out-of-band in phase 7, never in git). The chart
+  # reads it instead of rendering its own.
+  existingSecret: true
   # scan job containers
   resources:
     requests:
@@ -52,3 +57,7 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
+
+trivyOperator:
+  # Deterministic label for the scan-job pods: trivy-server's ingress NetworkPolicy selects it.
+  scanJobPodTemplateLabels: "trivy-operator.scan-job=true"
