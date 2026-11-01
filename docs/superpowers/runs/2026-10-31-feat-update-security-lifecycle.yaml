@@ -260,6 +260,14 @@ steps:
     stdout: "9 out-of-scope finding(s): p1-r7, p2-r12, p3-r7, p4-r10, \np5-session-network-scope-per-type,\
       \ p5-r4, p5-r11, p6-r10, p6-r11\n"
   deliver:
-    state: pending
+    state: running
+    at: '2026-11-01T17:36:31+00:00'
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-01T17:36:31+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: 6e5115b5-7008-498c-9028-3ac060fab4bd
 driver: standalone
 fr_version: 6.0.0rc15
