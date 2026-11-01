@@ -186,7 +186,7 @@ def test_every_type_reaches_the_github_api_and_the_model_providers(typ):
 EXPECTED_FQDNS = {
     "chart-major": GITHUB | MODELS, "stateful": GITHUB | MODELS, "rollouts": GITHUB | MODELS,
     "frank-os": GITHUB | MODELS | {OMNI},
-    "hop-os": GITHUB | MODELS | TAILNET | {"derp*.tailscale.com", "blog.derio.net"},
+    "hop-os": GITHUB | MODELS | TAILNET | {"blog.derio.net"},
 }
 
 
@@ -257,8 +257,10 @@ def test_omni_and_talos_api_only_for_frank_os():
 def test_tailnet_only_for_hop_os():
     for t in TYPES:
         names = fqdns(type_policy(t))
-        has = bool(names & TAILNET) or any("tailscale.com" in n for n in names)
-        assert has == (t == "hop-os"), t
+        assert bool(names & TAILNET) == (t == "hop-os"), t
+        # p5-r5: headscale's embedded DERP region suffices; Tailscale's public relays would be
+        # an exfiltration channel to infrastructure frank does not run.
+        assert not any("tailscale.com" in n or "derp" in n for n in names), t
     rules = type_policy("hop-os")["spec"]["egress"]
     stun = [r for r in rules if ("3478", "UDP") in ports(r)]
     assert stun, "DERP/STUN needs UDP 3478"
@@ -383,7 +385,7 @@ def test_dns_answers_only_the_names_the_type_may_reach(typ):
     for name in allowed:
         base = re.sub(r"\.(upgrade-sessions\.svc\.cluster\.local|svc\.cluster\.local|cluster\.local)$", "", name)
         assert base in fqdns(type_policy(typ)) or name.endswith(".svc.cluster.local"), f"{typ}: stray DNS name {name}"
-        assert "*" not in name or name.startswith("derp"), f"{typ}: wildcard DNS name {name}"
+        assert "*" not in name, f"{typ}: wildcard DNS name {name}"
 
 
 def test_network_policies_equal_the_generator():

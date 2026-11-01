@@ -584,10 +584,6 @@ spec:
         - matchName: headscale.hop.derio.net.upgrade-sessions.svc.cluster.local
         - matchName: headscale.hop.derio.net.svc.cluster.local
         - matchName: headscale.hop.derio.net.cluster.local
-        - matchPattern: derp*.tailscale.com
-        - matchPattern: derp*.tailscale.com.upgrade-sessions.svc.cluster.local
-        - matchPattern: derp*.tailscale.com.svc.cluster.local
-        - matchPattern: derp*.tailscale.com.cluster.local
         - matchName: blog.derio.net
         - matchName: blog.derio.net.upgrade-sessions.svc.cluster.local
         - matchName: blog.derio.net.svc.cluster.local
@@ -609,14 +605,6 @@ spec:
         protocol: TCP
   - toFQDNs:
     - matchName: headscale.hop.derio.net
-    toPorts:
-    - ports:
-      - port: '443'
-        protocol: TCP
-      - port: '3478'
-        protocol: UDP
-  - toFQDNs:
-    - matchPattern: derp*.tailscale.com
     toPorts:
     - ports:
       - port: '443'
