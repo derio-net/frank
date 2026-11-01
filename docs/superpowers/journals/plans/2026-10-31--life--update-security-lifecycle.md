@@ -405,3 +405,6 @@ dashboard JSON generated once; rules reuse the existing group/rule shapes verbat
 
 <!-- fr:journal kind=finding scope=plan id=p3-r6 created=2026-11-01T05:44:05+00:00 phase=3 state=open review_scope=in -->
 ### p3-r6 · finding [open] (reviewer: in scope) · Scan loop lacks </dev/null, token on the command line, job deadline can kill the pod before the heartbeat (phase 3)
+
+<!-- fr:journal kind=finding scope=plan id=p3-r7 created=2026-11-01T05:44:09+00:00 phase=3 state=open review_scope=out -->
+### p3-r7 · finding [open] (reviewer: out of scope) · trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync (phase 3)
