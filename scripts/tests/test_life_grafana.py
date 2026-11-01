@@ -15,7 +15,8 @@ RULES_CM = MANIFESTS / "alert-rules-cm.yaml"
 VM_VALUES = ROOT / "apps/victoria-metrics/values.yaml"
 LOGS_DS = "affdoo4s9258gc"
 VM_DS = "P4169E866C3094E38"
-UIDS = ("life-scan-heartbeat-stale", "life-report-heartbeat-stale", "life-hop-scan-heartbeat-stale")
+UIDS = ("life-scan-heartbeat-stale", "life-report-heartbeat-stale", "life-hop-scan-heartbeat-stale",
+        "life-hop-scan-unhealthy")
 
 
 def rules():
@@ -108,6 +109,7 @@ def test_hop_scan_logs_rule_uses_msg_and_stats():
     assert a["model"]["queryType"] == "stats"
     expr = a["model"]["expr"]
     assert '_msg:"hop-scan heartbeat"' in expr and "log:" not in expr
+    assert '_msg:"\\"healthy\\": true"' in expr, "only HEALTHY heartbeats count as alive"
     assert "kubernetes.namespace_name:hop-scan" in expr
     assert expr.rstrip().endswith("| stats count() as value")
     assert a["relativeTimeRange"]["from"] >= 36 * 3600
@@ -124,3 +126,70 @@ def test_rules_chain_a_b_c():
         assert q(rule, "B")["model"]["type"] == "reduce"
         assert q(rule, "C")["model"]["type"] == "threshold"
         assert rule["annotations"]["summary"] and rule["annotations"]["runbook"]
+
+
+# ---- p3-r3: captured heartbeat lines -------------------------------------------------------
+import re  # noqa: E402
+import runpy  # noqa: E402
+import contextlib  # noqa: E402
+import io  # noqa: E402
+
+REPORT = ROOT / "apps/hop-scan/manifests/files/report.py"
+
+
+def heartbeat(tmp_path, status, images, scanned_ok):
+    g = runpy.run_path(str(REPORT))
+    tmp_path = tmp_path / f"run{len(list(tmp_path.iterdir()))}"
+    tmp_path.mkdir()
+    (tmp_path / "results").mkdir(exist_ok=True)
+    (tmp_path / "status").write_text(status)
+    names = [f"img{i}:1" for i in range(images)]
+    (tmp_path / "images.sorted").write_text("\n".join(names) + ("\n" if names else ""))
+    for i in range(scanned_ok):
+        (tmp_path / "results" / f"{i}.json").write_text('{"Results": []}')
+    g["main"].__globals__["WORK"] = str(tmp_path)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        g["main"]()
+    (line,) = [l for l in out.getvalue().splitlines() if l.startswith("hop-scan heartbeat ")]
+    return line
+
+
+def phrases(expr):
+    """The positive and negated _msg phrases of a LogsQL filter (all we use)."""
+    pos, neg = [], []
+    for m in re.finditer(r'(NOT )?_msg:"((?:[^"\\]|\\.)*)"', expr):
+        (neg if m.group(1) else pos).append(m.group(2).replace('\\"', '"'))
+    return pos, neg
+
+
+def matches(expr, line):
+    pos, neg = phrases(expr)
+    return all(p in line for p in pos) and not any(n in line for n in neg)
+
+
+def test_healthy_rule_counts_only_healthy_heartbeats(tmp_path):
+    expr = q(rules()["life-hop-scan-heartbeat-stale"][1])["model"]["expr"]
+    healthy = heartbeat(tmp_path, "ok", 3, 3)
+    skipped = heartbeat(tmp_path, "skipped: no hop-readonly-kubeconfig", 0, 0)
+    empty_ok = heartbeat(tmp_path, "ok", 0, 0)
+    all_failed = heartbeat(tmp_path, "ok", 3, 0)
+    assert matches(expr, healthy)
+    for blind in (skipped, empty_ok, all_failed):
+        assert not matches(expr, blind), blind
+
+
+def test_unhealthy_rule_fires_on_blind_heartbeats_only(tmp_path):
+    rule = rules()["life-hop-scan-unhealthy"][1]
+    expr = q(rule)["model"]["expr"]
+    assert q(rule)["datasourceUid"] == LOGS_DS and q(rule)["model"]["queryType"] == "stats"
+    assert "kubernetes.namespace_name:hop-scan" in expr
+    assert expr.rstrip().endswith("| stats count() as value")
+    ev = q(rule, "C")["model"]["conditions"][0]["evaluator"]
+    assert (ev["type"], ev["params"][0]) == ("gt", 0)
+    assert rule["noDataState"] == "OK"
+    healthy = heartbeat(tmp_path, "ok", 3, 3)
+    for blind in (heartbeat(tmp_path, "skipped: hop kube API unreachable", 0, 0),
+                  heartbeat(tmp_path, "ok", 3, 0), heartbeat(tmp_path, "ok", 0, 0)):
+        assert matches(expr, blind), blind
+    assert not matches(expr, healthy)

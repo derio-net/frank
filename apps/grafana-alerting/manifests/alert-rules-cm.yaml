@@ -3655,7 +3655,7 @@ data:
                 model:
                   refId: A
                   queryType: stats
-                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" | stats count() as value'
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND _msg:"\"healthy\": true" | stats count() as value'
               - refId: B
                 relativeTimeRange: { from: 129600, to: 0 }
                 datasourceUid: __expr__
@@ -3676,5 +3676,41 @@ data:
               severity: critical
               health_bridge_only: "true"
             annotations:
-              summary: "No hop-scan heartbeat line in VictoriaLogs for 36h: the daily Hop image scan (Frank CronJob hop-scan) is dead or its logs are not arriving, so Hop's images are unscanned."
+              summary: "No HEALTHY hop-scan heartbeat (status ok and at least one image scanned) in VictoriaLogs for 36h: the daily Hop image scan (Frank CronJob hop-scan) is dead, blind or its logs are not arriving, so Hop's images are unscanned."
               runbook: "kubectl -n hop-scan get cronjob,jobs,pods; read the last pod's logs (containers tailscale, list-images, scan, report). The heartbeat prints even when the job is blind (status=skipped: ...), so its absence means the job did not run to the end."
+          # A blind run (kubeconfig/tailnet/scanner failure) still prints a heartbeat, with
+          # healthy=false. Short 6h window: it alarms within a rule interval of the 03:17 run and
+          # clears the same day; persistent blindness is also caught by the 36h rule above.
+          - uid: life-hop-scan-unhealthy
+            title: Hop image scan ran blind
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND NOT _msg:"\"healthy\": true" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+            annotations:
+              summary: "The daily Hop image scan ran but was blind: its heartbeat reports status other than ok or no image scanned (no kubeconfig / tailnet down / trivy failing). Hop's images were not scanned."
+              runbook: "kubectl -n hop-scan logs job/<latest> -c report (status field says why); check Secrets frank-updater-tailscale, hop-readonly-kubeconfig, trivy-server-token and the headscale policy."

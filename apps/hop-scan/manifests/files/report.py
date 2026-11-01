@@ -48,9 +48,12 @@ def main():
             failed += 1
         print("hop-scan result " + json.dumps(row, sort_keys=True), flush=True)
     status = read("status", "unknown")
+    # healthy = the cluster was listed (status ok) and at least one image really scanned.
+    # The Grafana dead-man counts only healthy heartbeats, so a blind scanner alarms.
+    healthy = status == "ok" and scanned > 0
     print("hop-scan heartbeat " + json.dumps(
         {"cluster": "hop", "at": now, "status": status, "images": len(images),
-         "scanned": scanned, "failed": failed}, sort_keys=True), flush=True)
+         "scanned": scanned, "failed": failed, "healthy": healthy}, sort_keys=True), flush=True)
 
 
 if __name__ == "__main__":
