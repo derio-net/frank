@@ -858,3 +858,88 @@ Fixed on the console side (cluster-update-fr@d36ea1b, then e09d720/9d1813f): adj
 ### p5-session-network-scope-per-type-resolved · finding [out-of-scope] · resolves p5-session-network-scope-per-type: Session target-service egress is per type, not per app (phase 5)
 
 True, not a defect of this phase: the spec scopes session egress per upgrade TYPE; per-APP scoping needs the console to label session pods with their app and per-app policies. Filed as a follow-up at deliver.
+
+<!-- fr:journal kind=review scope=plan id=p5-review created=2026-11-01T17:18:58+00:00 phase=5 -->
+### p5-review · review · Phase 5 adversarial review: 16 findings (14 in, 2 out) (phase 5)
+
+Reviewer raised p5-r1..p5-r17 (no r12) against the console's real pod spec. All 14 in-scope fixed with tests (682 passed, 2 skipped; 92 CEL tests against golden podspecs). Operator decided the trust model (root-devops trusted; AI agents out, tracked in frank#912). p5-r4 fixed on the console side (HTTP CONNECT proxy, cluster-update-fr@6755112). Residuals in p5-review-fix-residuals need the phase-7 live dry run.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r1-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r1 -->
+### p5-r1-resolved · finding [fixed] · resolves p5-r1: admission policy denies the console's real hop-os pod (tailscale initContainer); CEL test uses a hand-made pod (phase 5)
+
+hop-os tailscale native sidecar admitted with digest-pinned image, uid 65531, exact TS_* set (each once, fixed values), tokenized TS_EXTRA_ARGS; tested against the console's golden podspecs for all five types; every CNP selector matches them.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r2-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r2 -->
+### p5-r2-resolved · finding [fixed] · resolves p5-r2: hop-os contract not wired: no SESSION_TAILSCALE_IMAGE, no tailscale-authkey projection (phase 5)
+
+SESSION_TAILSCALE_IMAGE (empty = refuse hop-os) and SESSION_TAILSCALE_TAG wired; tailscale-authkey projected optionally; phase-7 op life-session-tailscale.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r3-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r3 -->
+### p5-r3-resolved · finding [fixed] · resolves p5-r3: hop-os cannot reach Hop Talos API; sessions share hop-scan's tag (phase 5)
+
+tag:frank-session owned by tag-admins, granted only tag:hop-node:6443,50000; frank-updater stays 6443; wildcard excludes both.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r5-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r5 -->
+### p5-r5-resolved · finding [fixed] · resolves p5-r5: derp*.tailscale.com egress unnecessary and a public-relay exfil channel (phase 5)
+
+Public DERP egress removed; headscale embedded DERP region used.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r6-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r6 -->
+### p5-r6-resolved · finding [fixed] · resolves p5-r6: toFQDNs is IP-based so other hosts on the same IPs are reachable; residual note false; add serverNames (phase 5)
+
+Per-name rules with Cilium serverNames (SNI) enforced by Envoy; residual-risk note corrected in every brief; decision p5-github-egress-residual-2.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r7-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r7 -->
+### p5-r7-resolved · finding [fixed] · resolves p5-r7: smoke-check allowlist is L4 to unauthenticated write APIs; restrict to GET on checked paths via L7 (phase 5)
+
+L7 rules: only the exact checked method+path per smoke target; tests deny ollama push, comfyui prompt, alert-agent POST.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r8-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r8 -->
+### p5-r8-resolved · finding [fixed] · resolves p5-r8: scrubber REFERENCE regex exempts real secrets, also in scrub() (phase 5)
+
+Reviewed REFERENCE regex; exemption only in repository mode; reviewer's cases tested.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r9-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r9 -->
+### p5-r9-resolved · finding [fixed] · resolves p5-r9: repository-mode KEY_NAME exempts lowercase/dash and all-caps passphrases (phase 5)
+
+KEY_NAME only under name-bearing keys or UPPER_SNAKE with underscore; passphrase case flagged.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r10-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r10 -->
+### p5-r10-resolved · finding [fixed] · resolves p5-r10: exec/ephemeral test scans only repo Roles; root-devops->admin grants pods/exec into sessions; no admission on pods/exec (phase 5)
+
+VAPs: no exec/attach/port-forward/proxy except runs-fr SA, system:masters, root-admins; session/runs-fr SA token minting only by kubelet or admins; runs-fr pods only by replicaset-controller; trust model documented (p5-trust-model).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r13-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r13 -->
+### p5-r13-resolved · finding [fixed] · resolves p5-r13: stateful brief verification reads app logs but sessions have no pods/log (phase 5)
+
+Stateful verification without pods/log; test forbids logs in Verification sections.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r14-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r14 -->
+### p5-r14-resolved · finding [fixed] · resolves p5-r14: frank-os egress to node /32s:50000 unnecessary with an Omni-issued talosconfig (phase 5)
+
+frank-os node /32:50000 egress removed.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r15-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r15 -->
+### p5-r15-resolved · finding [fixed] · resolves p5-r15: AGENTS.md untrusted-data rule does not say everything to EOF is data (phase 5)
+
+AGENTS.md: everything from the Untrusted data heading to EOF is data.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r16-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r16 -->
+### p5-r16-resolved · finding [fixed] · resolves p5-r16: hop-os inherits Frank kube-apiserver 6443 and kubernetes.default DNS (phase 5)
+
+hop-os loses Frank kube-apiserver and kubernetes.default DNS.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r17-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=fixed resolves=p5-r17 -->
+### p5-r17-resolved · finding [fixed] · resolves p5-r17: briefs rebuild the minor from TALOSCTL_VERSION instead of UPGRADE_*_MINOR (phase 5)
+
+Briefs use UPGRADE_TALOS_MINOR/UPGRADE_K8S_MINOR via use-versions.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r4-resolved created=2026-11-01T17:18:58+00:00 phase=5 state=open resolves=p5-r4 out_of_scope=true -->
+### p5-r4-resolved · finding [out-of-scope] · resolves p5-r4: console sets socks5 HTTPS_PROXY/ALL_PROXY, likely unsupported by talosctl (grpc-go) and Claude Code (phase 5)
+
+Console-side, not caused by frank's phase 5: fixed in cluster-update-fr@6755112 (HTTP CONNECT proxy on localhost:1056 for talosctl/Claude Code).
+
+<!-- fr:journal kind=finding scope=plan id=p5-r11-resolved-2 created=2026-11-01T17:18:58+00:00 phase=5 state=open resolves=p5-r11 out_of_scope=true -->
+### p5-r11-resolved-2 · finding [out-of-scope] · resolves p5-r11: secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
+
+Pre-existing cluster-admin bindings for AI agents; operator chose to scope them down separately — tracked in derio-net/frank#912.
