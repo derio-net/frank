@@ -104,7 +104,10 @@ def _validator():
     if exe:
         return [exe]
     if os.environ.get("CI") == "true" and shutil.which("npx"):
-        return ["npx", "--yes", "renovate@44.198.3", "renovate-config-validator"]
+        # --package + the bin name: `npx renovate@X renovate-config-validator` runs the MAIN
+        # renovate CLI with "renovate-config-validator" as a repository argument (it then
+        # demands a GitHub token and rejects --strict), never the validator itself.
+        return ["npx", "--yes", "--package", "renovate@44.198.3", "renovate-config-validator"]
     return None
 
 
@@ -114,10 +117,8 @@ def test_renovate_config_validator_passes():
         if os.environ.get("CI") == "true":
             pytest.fail("CI must validate renovate.json5: neither renovate-config-validator nor npx is available")
         pytest.skip("renovate-config-validator is not on PATH and CI is not set (no npm installs here)")
-    # Renovate 44's validator has no --strict ("error: unknown option '--strict'"), so the
-    # check --strict used to make — a config that needs migrating is a failure — is asserted
-    # here on the validator's own output instead of being silently dropped.
-    done = subprocess.run(cmd + [str(FILE)], capture_output=True, text=True, cwd=ROOT, timeout=900)
+    # --strict makes a config that needs migrating a failure; the output check backs it up.
+    done = subprocess.run(cmd + ["--strict", str(FILE)], capture_output=True, text=True, cwd=ROOT, timeout=900)
     out = done.stdout + done.stderr
     assert done.returncode == 0, out
     assert "migration" not in out.lower(), "renovate.json5 needs migrating:\n" + out
