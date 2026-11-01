@@ -765,3 +765,8 @@ the repeated parts (per-type egress, per-namespace Roles) were generated from on
 ### no-refactor-p5-t2 · discovery · no-refactor-because P5.T2 (phase 5)
 
 the briefs are prose; the one shared block (use-versions + the security note) is identical text the console appends per type, and the console does no includes, so it cannot be factored out
+
+<!-- fr:journal kind=discovery scope=plan id=p5-console-contract-tailscale created=2026-11-01T12:16:20+00:00 phase=5 -->
+### p5-console-contract-tailscale · discovery · Console contract: SESSION_TAILSCALE_IMAGE + tailscale-authkey for hop-os (phase 5)
+
+cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar (own ts-state emptyDir, uid 65531, SOCKS5 localhost:1055, tag:frank-updater). Frank must set console config SESSION_TAILSCALE_IMAGE to a DIGEST-pinned tailscale image (hop-os refuses to start otherwise) and add key 'tailscale-authkey' (reusable ephemeral pre-tagged key) to the session Secret, kept out of the agent's credential volume; the upgrade-sessions egress policy for hop-os must allow the tailscale sidecar's control/DERP traffic (headscale.hop.derio.net + DERP) and the admission policy must allow that sidecar image. Phase 7 manual-op: pin the digest and add the key.
