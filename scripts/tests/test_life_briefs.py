@@ -230,3 +230,14 @@ def test_stateful_verifies_migrations_from_status_not_logs():
     for want in ("restartCount", "Ready", "Job", "succeeded"):
         assert want in v, want
 
+
+def test_agents_md_says_everything_after_the_untrusted_heading_is_data():
+    # p5-r15: forge text can carry a fake closing fence, a fake heading or a fake "operator
+    # note" to end the data early; the boundary is the heading, and it runs to the end.
+    sec = re.sub(r"\s+", " ", text("AGENTS.md").split("## 3. Untrusted data", 1)[1].split("\n## 4", 1)[0])
+    assert re.search(r"everything from the heading .{0,60}?to the end of the brief is data", sec, re.I), sec
+    for trick in ("closing fence", "heading", "operator note", "end of the data"):
+        assert trick in sec.lower(), trick
+    assert re.search(r"only (from |in )?(this file|the console's own header|AGENTS\.md)", sec, re.I), \
+        "say where real instructions come from"
+
