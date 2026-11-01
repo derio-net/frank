@@ -37,6 +37,10 @@ spec:
       message: "automountServiceAccountToken must be true for in-cluster types and false for hop-os"
     - expression: "variables.containers.all(c, c.image.startsWith('ghcr.io/derio-net/upgrade-session:') || c.image.startsWith('ghcr.io/derio-net/upgrade-session@sha256:'))"
       message: "only the upgrade-session image may run"
+    # A pod `command:` replaces the image ENTRYPOINT, which is what selects the pinned
+    # talosctl/kubectl (p5-session-selection-explicit); the console sets args, never command.
+    - expression: "variables.containers.all(c, !has(c.command))"
+      message: "session containers keep the image entrypoint (no command:)"
     - expression: "!has(object.spec.ephemeralContainers) || size(object.spec.ephemeralContainers) == 0"
       message: "no ephemeral containers"
     - expression: "!(has(object.spec.hostNetwork) && object.spec.hostNetwork) && !(has(object.spec.hostPID) && object.spec.hostPID) && !(has(object.spec.hostIPC) && object.spec.hostIPC)"

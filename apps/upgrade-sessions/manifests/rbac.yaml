@@ -1,0 +1,46 @@
+# Read-only view for every in-cluster session type: rollout checks, ArgoCD's applied revision
+# (R16), node health for OS steps. No secrets, no configmaps, no logs, no exec/attach/port-forward.
+# The two scoped WRITES (stateful snapshots, Rollouts promote/abort) are static Roles in the
+# target app namespaces, generated into app-roles.yaml -- the console creates no RoleBindings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: upgrade-session-read
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "nodes", "persistentvolumeclaims", "persistentvolumes", "events", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "rollouts", "analysisruns"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["volumes", "replicas", "snapshots", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: upgrade-session-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: upgrade-session-read
+subjects:
+  - kind: ServiceAccount
+    name: upgrade-session-chart-major
+    namespace: upgrade-sessions
+  - kind: ServiceAccount
+    name: upgrade-session-stateful
+    namespace: upgrade-sessions
+  - kind: ServiceAccount
+    name: upgrade-session-rollouts
+    namespace: upgrade-sessions
+  - kind: ServiceAccount
+    name: upgrade-session-frank-os
+    namespace: upgrade-sessions

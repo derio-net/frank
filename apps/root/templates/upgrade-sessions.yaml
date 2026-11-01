@@ -1,0 +1,32 @@
+# Disposable upgrade-session infrastructure (plan 2026-10-31--life--update-security-lifecycle,
+# phase 5): the namespace the console launches session pods into, their per-type
+# ServiceAccounts and egress policies, and the static per-app Roles a session may use.
+# The pods and their Secrets are the console's (apps/cluster-update-fr), never git's.
+#
+# prune: true because app-roles.yaml is generated from the policy facts: when an app stops being
+# stateful its Role must leave the cluster, or a revoked grant keeps working. The namespace
+# carries a per-resource Prune=false,Delete=false.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: upgrade-sessions
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/upgrade-sessions/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: upgrade-sessions
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

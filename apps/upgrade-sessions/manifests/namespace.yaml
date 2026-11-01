@@ -1,0 +1,12 @@
+# Where the console launches disposable upgrade-session pods (plan 2026-10-31--life--update-security-lifecycle,
+# phase 5; spec Part 3). Restricted PodSecurity on top of the console's admission policies.
+# Prune=false,Delete=false: deleting the namespace would delete a live session mid-upgrade.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: upgrade-sessions
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted

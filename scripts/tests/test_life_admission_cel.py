@@ -6,12 +6,20 @@ which does not build on every interpreter; without it the tests skip and the pha
 check `life-admission-dry-run` is the evidence instead.
 """
 import copy
+import os
 from pathlib import Path
 
 import pytest
 import yaml
 
-celpy = pytest.importorskip("celpy")
+try:
+    import celpy
+except ImportError:  # cel-python does not build on Python 3.14 (the local venv); CI runs 3.12
+    if os.environ.get("CI") == "true":
+        raise RuntimeError("cel-python is missing in CI: the admission policies would go unevaluated "
+                           "(install the dev group: uv sync --group dev)")
+    pytest.skip("cel-python not installed (it does not build on this interpreter); CI evaluates "
+                "these, and manual op life-admission-dry-run checks them server-side", allow_module_level=True)
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = [d for d in yaml.safe_load_all((ROOT / "apps/cluster-update-fr/manifests/admission-policy.yaml").read_text()) if d]
@@ -119,6 +127,8 @@ HOSTILE = {
     "missing managed-by": pod(**{"metadata.labels": {"cluster-update.fr/type": "stateful"}}),
     "unknown type": pod(**{"metadata.labels": {"cluster-update.fr/type": "root", "app.kubernetes.io/managed-by": "cluster-update-fr"}}),
     "token on stateful off": pod(**{"spec.automountServiceAccountToken": False}),
+    # p5-session-selection-explicit: command replaces the entrypoint that selects the clients.
+    "command overrides the entrypoint": pod(**{"spec.containers": [{"name": "s", "image": IMAGE, "command": ["bash"]}]}),
 }
 
 

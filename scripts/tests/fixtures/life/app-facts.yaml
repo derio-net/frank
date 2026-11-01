@@ -1213,6 +1213,15 @@ apps:
       ports:
       - 4954
     stateful: true
+  frank/upgrade-sessions:
+    charts: []
+    images: []
+    paths:
+    - apps/root/templates/upgrade-sessions.yaml
+    - apps/upgrade-sessions/manifests/**
+    rollout: false
+    services: []
+    stateful: false
   frank/vcluster-staging:
     charts:
     - vcluster
