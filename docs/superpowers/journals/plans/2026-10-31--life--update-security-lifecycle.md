@@ -773,3 +773,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r1 created=2026-11-01T12:27:26+00:00 phase=5 state=open review_scope=in -->
 ### p5-r1 · finding [open] (reviewer: in scope) · admission policy denies the console's real hop-os pod (tailscale initContainer); CEL test uses a hand-made pod (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r2 created=2026-11-01T12:27:31+00:00 phase=5 state=open review_scope=in -->
+### p5-r2 · finding [open] (reviewer: in scope) · hop-os contract not wired: no SESSION_TAILSCALE_IMAGE, no tailscale-authkey projection (phase 5)
