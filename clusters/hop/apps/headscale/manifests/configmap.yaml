@@ -108,18 +108,20 @@ data:
 
   acl.yaml: |
     {
-      // Allow all traffic within the mesh for now — tighten later
+      // Allow all traffic within the mesh for now — tighten later. The src is every identity that
+      // has this access today (user `default`, tag:subnet-router, and tag:hop-node because a
+      // tagged hop-1 no longer matches its user) and deliberately NOT `*`, so the new
+      // tag:frank-updater is confined to its explicit grant below.
       "acls": [
         {
           "action": "accept",
-          "src": ["*"],
+          "src": ["default", "tag:subnet-router", "tag:hop-node"],
           "dst": ["*:*"]
         },
         // Life-cycle scanner (plan 2026-10-31--life--update-security-lifecycle, phase 3).
         // Frank's hop-scan pod joins as tag:frank-updater and may reach ONLY hop-1's
-        // kube API (6443). NOTE: the wildcard rule above still accepts
-        // everything; this entry records the intended grant and becomes the
-        // effective one the day the wildcard is tightened. hop-1 must carry
+        // kube API (6443). The wildcard rule above no longer matches
+        // this tag (its src is explicit), so this entry is its only access. hop-1 must carry
         // tag:hop-node (manual step, phase 7). Headscale never re-reads this
         // ConfigMap on its own: rollout restart deploy/headscale after it lands.
         {

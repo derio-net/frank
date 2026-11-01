@@ -11,7 +11,8 @@ MAN = ROOT / "apps/hop-scan/manifests"
 TEMPLATE = ROOT / "apps/root/templates/hop-scan.yaml"
 
 # The ACL as it was before this plan. The edit must leave every one of these untouched.
-OLD_ACLS = [{"action": "accept", "src": ["*"], "dst": ["*:*"]}]
+OLD_ACLS = [{"action": "accept", "src": ["default", "tag:subnet-router", "tag:hop-node"], "dst": ["*:*"]}]
+OLD_DST = ["*:*"]
 OLD_TAG_OWNERS = {"tag:subnet-router": ["default"]}
 OLD_AUTO_APPROVERS = {
     "routes": {
@@ -280,3 +281,21 @@ def test_p3_r6_trivy_cannot_eat_the_loop_input_and_the_scan_has_a_budget():
     assert run(0) == []
     ran = run(3600)
     assert len(ran) == 2 and all("--evil" not in l.split("--")[-1] for l in ran), ran
+
+
+def test_p3_r1_wildcard_is_narrowed_so_only_the_explicit_grant_reaches_frank_updater():
+    a = acl()
+    wildcard = a["acls"][0]
+    assert wildcard["dst"] == OLD_DST, "destinations unchanged"
+    assert "*" not in wildcard["src"]
+    # everyone who has the access today: the one user that registers nodes plus every other tag,
+    # minus the new tag. tag:hop-node is included because a tagged hop-1 stops matching its
+    # user (Caddy on hop-1 reaches Frank LB IPs over the mesh); tag-admin registers no nodes.
+    users = {"default"}
+    tags = set(a["tagOwners"]) - {"tag:frank-updater"}
+    assert set(wildcard["src"]) == users | tags
+    assert "tag-admin" not in wildcard["src"] and "group:tag-admins" not in wildcard["src"]
+    others = [r for r in a["acls"] if r is not a["acls"][-1]]
+    for r in others:
+        assert "tag:frank-updater" not in r["src"] and "*" not in r["src"]
+    assert a["acls"][-1]["src"] == ["tag:frank-updater"]
