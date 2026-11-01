@@ -643,3 +643,8 @@ Pod-level token automount off; projected SA token mounted only in the console co
 ### p4-r10-resolved · finding [out-of-scope] · resolves p4-r10: admission policy allows any upgrade-session tag; bind the exact digest once SESSION_IMAGE is pinned (phase 4)
 
 Not caused by this change: the admission policy cannot name the exact session image digest until phase 7 publishes and pins it; bind it via paramRef then.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-tests-evidence-unattributed created=2026-11-01T12:15:23+00:00 phase=5 -->
+### p5-tests-evidence-unattributed · discovery · Phase 5 suite ran green but fr could not attribute the log to the resumed executor (phase 5)
+
+The executor (resumed via SendMessage) ran the suite with a plain > redirect after its last code commit 2fdf6cac: 636 passed, 2 skipped (CEL tests: 31 pass in a 3.12 venv). fr refused the evidence twice ('no command of the unit's holder wrote it'), most likely because a resumed subagent's later turns are not in the transcript fr reads. The record omits tests per fr's own guidance; deliver runs the full suite independently.
