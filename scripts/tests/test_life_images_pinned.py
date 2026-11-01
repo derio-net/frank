@@ -6,13 +6,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from render_all_images import find_unpinned, is_ignored, is_unpinned  # noqa: E402
+from render_all_images import find_unpinned, image_repo, is_ignored, is_unpinned  # noqa: E402
 
 FIX = Path(__file__).parent / "fixtures" / "life"
 
 
 def _bad(name):
     return find_unpinned((FIX / name).read_text())
+
+
+def test_image_repo_strips_tag_and_digest_but_keeps_a_registry_port():
+    assert image_repo("ghcr.io/derio-net/blog:bb12c2922c03") == "ghcr.io/derio-net/blog"
+    assert image_repo("postgres:16-alpine@sha256:" + "a" * 64) == "postgres"
+    assert image_repo("zot.local:5000/x/y:1.2.3") == "zot.local:5000/x/y"
+    assert image_repo("zot.local:5000/x/y") == "zot.local:5000/x/y"
 
 
 def test_tag_ok():
@@ -169,7 +176,9 @@ def test_offline_images_are_in_the_snapshot_so_a_stale_snapshot_fails():
     import render_all_images as r
 
     images, _, _ = r.collect_offline()
-    assert sorted(images - _snapshot_images()) == [], "regenerate: scripts/render_all_images.py"
+    # Repositories, not refs: a tag moved by automation (blog deploys) is not drift.
+    snapshot = {image_repo(i) for i in _snapshot_images()}
+    assert sorted({image_repo(i) for i in images} - snapshot) == [], "regenerate: scripts/render_all_images.py"
 
 
 @pytest.mark.slow

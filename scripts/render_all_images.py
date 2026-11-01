@@ -179,6 +179,19 @@ def is_unpinned(image: str) -> bool:
     return not is_exact_tag(last.rsplit(":", 1)[1])
 
 
+def image_repo(image: str) -> str:
+    """The image's repository, without tag or digest (a registry port is kept).
+
+    Snapshot-drift checks compare repositories: automation moves tags on main all the
+    time (the blog's CI commits a new tag on every deploy), and pinning is already
+    asserted per image by is_unpinned, so a moved tag is not drift."""
+    repo = image.split("@", 1)[0]
+    head, _, last = repo.rpartition("/")
+    if ":" in last:
+        last = last.rsplit(":", 1)[0]
+    return f"{head}/{last}" if head else last
+
+
 def find_unpinned(rendered_yaml: str) -> list[str]:
     """Return the sorted unique unpinned images in a rendered manifest stream."""
     return sorted(

@@ -124,7 +124,26 @@ def test_facts_have_not_drifted_from_a_full_render():
         if os.environ.get("CI") == "true":
             raise
         pytest.skip(f"cannot render remote charts here: {exc}")
-    assert fresh == FACTS["apps"], "app-facts.yaml is stale: run scripts/life_policy.py --emit-facts"
+    assert _by_repo(fresh) == _by_repo(FACTS["apps"]), "app-facts.yaml is stale: run scripts/life_policy.py --emit-facts"
+
+
+def _by_repo(apps):
+    """Facts with images reduced to repositories: automation moves tags on main (blog
+    deploys), and a moved tag is not drift — pinning is asserted image by image elsewhere."""
+    from render_all_images import image_repo
+
+    return {
+        name: {**facts, "images": sorted({image_repo(i) for i in facts.get("images", [])})}
+        for name, facts in apps.items()
+    }
+
+
+def test_a_moved_tag_is_not_facts_drift_but_a_new_image_is():
+    base = {"hop/blog": {"images": ["ghcr.io/derio-net/blog:aaa1111"], "charts": []}}
+    moved = {"hop/blog": {"images": ["ghcr.io/derio-net/blog:bbb2222"], "charts": []}}
+    added = {"hop/blog": {"images": ["ghcr.io/derio-net/blog:aaa1111", "ghcr.io/x/new:1.2.3"], "charts": []}}
+    assert _by_repo(moved) == _by_repo(base)
+    assert _by_repo(added) != _by_repo(base)
 
 
 def test_a_source_in_another_repo_is_not_claimed_as_a_path_of_this_one():
