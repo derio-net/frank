@@ -575,3 +575,6 @@ one values file and one policy; the chart supplies everything else
 
 <!-- fr:journal kind=finding scope=plan id=p4-r9 created=2026-11-01T09:46:13+00:00 phase=4 state=open review_scope=in -->
 ### p4-r9 · finding [open] (reviewer: in scope) · console SA token (with write rights) is automounted into the tailscale sidecar (phase 4)
+
+<!-- fr:journal kind=finding scope=plan id=p4-r10 created=2026-11-01T09:46:17+00:00 phase=4 state=open review_scope=out -->
+### p4-r10 · finding [open] (reviewer: out of scope) · admission policy allows any upgrade-session tag; bind the exact digest once SESSION_IMAGE is pinned (phase 4)
