@@ -1,0 +1,61 @@
+# READ everywhere, WRITE only in upgrade-sessions. Console review: a write guard inside the
+# console is the first layer; this is the second and must hold on its own.
+#   - cluster-wide: get/list/watch only, on the kinds the inventory and the verifier read.
+#   - upgrade-sessions: create/get/list/delete on pods and secrets (launching and ending a
+#     session). NO rolebindings (frank pre-binds every session role), NO pods/exec, NO
+#     pods/ephemeralcontainers, NO patch/update.
+# The upgrade-sessions namespace itself is owned by the upgrade-sessions app (phase 5).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-update-fr-read
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "rollouts"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["aquasecurity.github.io"]
+    resources: ["vulnerabilityreports"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-update-fr-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-update-fr-read
+subjects:
+  - kind: ServiceAccount
+    name: cluster-update-fr
+    namespace: cluster-update-fr
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-update-fr-sessions
+  namespace: upgrade-sessions
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "secrets"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-update-fr-sessions
+  namespace: upgrade-sessions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-update-fr-sessions
+subjects:
+  - kind: ServiceAccount
+    name: cluster-update-fr
+    namespace: cluster-update-fr

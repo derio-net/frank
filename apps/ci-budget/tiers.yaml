@@ -36,6 +36,7 @@ orgs:
       presentation-craft:   {tier: github-preferred}
       vibe-kanban:          {tier: github-preferred}   # all jobs GitHub-pinned today; tier review #886
       runs-fr:              {tier: github-preferred}
+      cluster-update-fr:    {tier: github-preferred}
   derio-homelab:
     included_minutes: 2000
     threshold_pct: 85

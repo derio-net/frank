@@ -44,3 +44,4 @@ spec:
         - presentation-craft
         - vibe-kanban
         - runs-fr
+        - cluster-update-fr

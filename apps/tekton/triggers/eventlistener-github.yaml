@@ -308,7 +308,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr', 'derio-net/cluster-update-fr']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
@@ -333,7 +333,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr', 'derio-net/cluster-update-fr']
                 && body.action in ['opened', 'synchronize', 'reopened']
                 && has(body.pull_request.head.repo)
                 && body.pull_request.head.repo.full_name == body.repository.full_name

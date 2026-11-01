@@ -293,6 +293,87 @@ data:
           provider: !KeyOf provider-tekton-cluster
           meta_launch_url: https://tekton.cluster.derio.net
 
+      # Update console (cluster) proxy provider. The console verifies the signed JWT Authentik
+      # forwards in X-authentik-jwt, so: an asymmetric signing_key (RS256), a fixed client_id
+      # (the JWT audience, AUTHENTIK_AUDIENCE) and the profile scope (groups claim). Access is
+      # restricted to root-admins by the policy binding below.
+      # MANUAL (phase 7): add this provider to the embedded outpost, and decode a real
+      # X-authentik-jwt once to confirm issuer, audience and groups claim.
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Cluster Update Console (cluster)
+        id: provider-updates-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://updates.cluster.derio.net
+          client_id: cluster-update-console
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: updates-cluster
+        id: app-updates-cluster
+        attrs:
+          name: Cluster Update Console (cluster)
+          provider: !KeyOf provider-updates-cluster
+          meta_launch_url: https://updates.cluster.derio.net
+
+      - model: authentik_policies.policybinding
+        state: present
+        identifiers:
+          target: !KeyOf app-updates-cluster
+          group: !Find [authentik_core.group, [name, root-admins]]
+          order: 0
+        attrs:
+          negate: false
+          enabled: true
+          timeout: 30
+
+      # Upgrade Sessions (runs-fr) proxy provider. runs-fr does no authentication of its own, so
+      # this binding is a real control: only root-admins pass forward-auth.
+      # MANUAL (phase 7): add this provider to the embedded outpost.
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Upgrade Sessions (cluster)
+        id: provider-sessions-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://sessions.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: sessions-cluster
+        id: app-sessions-cluster
+        attrs:
+          name: Upgrade Sessions (cluster)
+          provider: !KeyOf provider-sessions-cluster
+          meta_launch_url: https://sessions.cluster.derio.net
+
+      - model: authentik_policies.policybinding
+        state: present
+        identifiers:
+          target: !KeyOf app-sessions-cluster
+          group: !Find [authentik_core.group, [name, root-admins]]
+          order: 0
+        attrs:
+          negate: false
+          enabled: true
+          timeout: 30
+
       # VK Remote (cluster) proxy provider
       - model: authentik_providers_proxy.proxyprovider
         state: present

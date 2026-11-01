@@ -125,3 +125,13 @@ def test_facts_have_not_drifted_from_a_full_render():
             raise
         pytest.skip(f"cannot render remote charts here: {exc}")
     assert fresh == FACTS["apps"], "app-facts.yaml is stale: run scripts/life_policy.py --emit-facts"
+
+
+def test_a_source_in_another_repo_is_not_claimed_as_a_path_of_this_one():
+    entry = {"app": {"spec": {"sources": [
+        {"repoURL": "https://github.com/derio-net/runs-fr.git", "path": "charts/runs-fr",
+         "helm": {"valueFiles": ["$values/apps/runs-fr/values.yaml"]}},
+        {"repoURL": "https://github.com/derio-net/frank.git", "path": "apps/runs-fr/manifests"},
+    ]}}}
+    assert life_policy.app_paths(entry, "apps/root/templates/runs-fr.yaml") == [
+        "apps/root/templates/runs-fr.yaml", "apps/runs-fr/manifests/**", "apps/runs-fr/values.yaml"]

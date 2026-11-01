@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No kustomize-level namespace: the Role/RoleBinding live in upgrade-sessions.
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - clustergenerators.yaml
+  - externalsecrets.yaml
+  - service.yaml
+  - ciliumnetworkpolicy.yaml
+  - vmpodscrape.yaml
+  - deployment.yaml
+configMapGenerator:
+  - name: cluster-update-fr-config
+    namespace: cluster-update-fr
+    envs:
+      - files/console.env
+# Name hash stays ON: the console reads its config once at boot, so a content change must change
+# the pod spec (config-reaches-the-process). The Application therefore runs prune: true.

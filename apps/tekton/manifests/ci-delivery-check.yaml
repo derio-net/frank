@@ -346,7 +346,7 @@ spec:
                     derio-homelab/omada-controller derio-homelab/homelab
                     derio-homelab/ansible-pihole
                     derio-net/willikins
-                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
+                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr derio-net/cluster-update-fr
                 - name: PR_REPOS
                   value: >-
                     agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
@@ -354,7 +354,7 @@ spec:
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
-                    derio-net/presentation-craft
+                    derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
               securityContext:
                 allowPrivilegeEscalation: false

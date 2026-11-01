@@ -1,0 +1,15 @@
+# The console's state file (approvals, session records, history). Losing it loses the audit
+# trail, so it is never pruned.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cluster-update-fr-state
+  namespace: cluster-update-fr
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

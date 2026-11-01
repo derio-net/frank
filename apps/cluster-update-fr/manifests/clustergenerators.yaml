@@ -1,0 +1,56 @@
+# Two SEPARATE GitHub Apps (plan 2026-10-31--life--update-security-lifecycle, phase 4):
+#   console   merges, retries CI, manages webhooks, posts statuses; its token never leaves the
+#             console pod.
+#   session   what an upgrade-session pod gets: it can push a branch and open a PR on frank,
+#             and nothing else. It cannot merge, so a compromised session cannot bypass the
+#             console as merger (main has no required checks).
+# Both tokens are scoped at mint time to derio-net/frank. ESO resolves privateKey.secretRef in
+# the CONSUMING ExternalSecret's namespace, so BOTH PEM Secrets live in cluster-update-fr
+# (applied out-of-band, phase 7). appID/installID are placeholders that make the generator fail
+# loudly rather than mint a wrong token; phase 7 fills them.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-cluster-update-console
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "PENDING-MANUAL-PHASE"
+      installID: "PENDING-MANUAL-PHASE"
+      repositories:
+        - frank
+      permissions:
+        contents: write
+        pull_requests: write
+        statuses: write
+        issues: write
+        repository_hooks: write
+        metadata: read
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-cluster-update-console-key
+            key: key
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-cluster-update-session
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "PENDING-MANUAL-PHASE"
+      installID: "PENDING-MANUAL-PHASE"
+      repositories:
+        - frank
+      permissions:
+        contents: write
+        pull_requests: write
+        metadata: read
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-cluster-update-session-key
+            key: key

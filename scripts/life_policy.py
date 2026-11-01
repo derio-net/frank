@@ -162,7 +162,9 @@ def app_paths(entry: dict, template: str | None) -> list[str]:
     spec = entry["app"]["spec"]
     paths: list[str] = [template] if template else []
     for s in spec.get("sources") or [spec["source"]]:
-        if "chart" not in s and s.get("path"):
+        # A path inside ANOTHER repo (runs-fr's chart) is not a file of this one; claiming it
+        # would let two apps own the same glob with different update paths.
+        if "chart" not in s and s.get("path") and "derio-net/frank" in s.get("repoURL", "derio-net/frank"):
             paths.append(s["path"].rstrip("/") + "/**")
         for vf in (s.get("helm") or {}).get("valueFiles", []):
             paths.append(vf.replace("$values/", ""))

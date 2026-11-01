@@ -40,3 +40,7 @@ exceptions:
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
   - image: openvino/model_server:2026.2.1-gpu
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
+  - image: ghcr.io/derio-net/cluster-update-fr:v0.1.0
+    reason: Stateful workload (PVC) on an exact tag because the first release is unpublished; phase 7 replaces it with the release's sha256 digest and DELETES this entry (the test fails on a stale one).
+  - image: tailscale/tailscale:v1.82.5
+    reason: Sidecar of a stateful workload (the console's PVC) on the same exact tag hop-scan pins; its node key lives in an emptyDir, not on the PVC.

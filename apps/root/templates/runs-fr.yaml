@@ -1,0 +1,38 @@
+# Production runs-fr: the browser attach to upgrade-session pods (plan
+# 2026-10-31--life--update-security-lifecycle, phase 4). Same chart as runs-fr-staging, but
+# pinned to a release tag (production never tracks main), watching ONLY the upgrade-sessions
+# namespace. The chart's Role lives in that namespace: pods get/list/watch + pods/exec create,
+# nothing else (no ephemeralcontainers). Values: apps/runs-fr/values.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: runs-fr
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://github.com/derio-net/runs-fr.git
+      targetRevision: v0.3.0
+      path: charts/runs-fr
+      helm:
+        releaseName: runs-fr
+        valueFiles:
+          - $values/apps/runs-fr/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: apps/runs-fr/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: runs-fr
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

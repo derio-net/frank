@@ -1,0 +1,38 @@
+# The UI trusts Authentik's signed JWT, but the console must not be the only thing standing
+# between a pod on the cluster network and its action endpoints. Ingress is allow-listed per
+# port: Traefik -> 8080 (UI, after forward-auth), vmagent -> 9090 (metrics + health), session
+# pods -> 8081 (step/finish/request-merge, each also bearer-authenticated). Kubelet probes are
+# host traffic, which Cilium always admits.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cluster-update-fr
+  namespace: cluster-update-fr
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-update-fr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik-system
+            app.kubernetes.io/name: traefik
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: vmagent
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: upgrade-sessions
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP

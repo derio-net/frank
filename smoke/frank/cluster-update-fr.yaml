@@ -1,0 +1,10 @@
+# Smoke declaration for frank/cluster-update-fr (spec R16/R17). The verifier runs these after every rollout.
+app: cluster-update-fr
+cluster: frank
+checks:
+- kind: exec-probe
+  target: deployment/cluster-update-fr
+  namespace: cluster-update-fr
+  expect:
+    available: true
+  reason: 'its ingress policy admits only Traefik, vmagent and session pods, so an HTTP probe from the verifier is refused by design; the deployment readiness probe is GET /healthz on the ops port'

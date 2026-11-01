@@ -1,0 +1,178 @@
+# SINGLE WRITER. The console is the only alarm owner and the only merger: replicas 1 and
+# strategy Recreate (an overlapping pod would fail its exclusive flock on STATE_DIR/state.lock
+# and exit, loudly, instead of racing the state file).
+#
+# The image is pinned to the tag v0.1.0 because the first release is not published yet. PHASE 7
+# MUST replace it with the `@sha256:` digest from the release notes (journal p4-image-digest).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-update-fr
+  namespace: cluster-update-fr
+  labels:
+    app.kubernetes.io/name: cluster-update-fr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-update-fr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-update-fr
+    spec:
+      serviceAccountName: cluster-update-fr
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Reaches Hop's kube API over the Headscale tailnet (spec: Reading Hop). Native sidecar,
+        # userspace networking, SOCKS5 on localhost:1055: the Hop kubeconfig names it with
+        # `proxy-url: socks5://localhost:1055`, so only that client uses the tunnel. Own uid and
+        # own state volume: the node key is mounted ONLY here.
+        - name: tailscale
+          image: tailscale/tailscale:v1.82.5
+          restartPolicy: Always
+          env:
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_STATE_DIR
+              value: /ts-state
+            - name: TS_SOCKET
+              value: /ts-state/tailscaled.sock
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_SOCKS5_SERVER
+              value: localhost:1055
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: frank-updater-tailscale
+                  key: authkey
+                  optional: true
+            - name: TS_EXTRA_ARGS
+              value: "--login-server=https://headscale.hop.derio.net --hostname=frank-update-console --advertise-tags=tag:frank-updater"
+          securityContext:
+            runAsUser: 65531
+            runAsGroup: 65531
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          volumeMounts:
+            - {name: ts-state, mountPath: /ts-state}
+      containers:
+        - name: console
+          image: ghcr.io/derio-net/cluster-update-fr:v0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cluster-update-fr-config
+          env:
+            - name: FRANK_UPDATER_TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-update-fr-telegram
+                  key: chat-id
+                  optional: true
+            - name: FRANK_UPDATER_TELEGRAM_SECURITY_THREAD_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-update-fr-telegram
+                  key: security-thread-id
+                  optional: true
+          ports:
+            - {name: ui, containerPort: 8080}
+            - {name: ops, containerPort: 9090}
+            - {name: session, containerPort: 8081}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /healthz, port: ops}
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: state, mountPath: /var/lib/cluster-update-fr}
+            - {name: tmp, mountPath: /tmp}
+            - {name: omni-status, mountPath: /var/run/omni-status}
+            - {name: cred-github, mountPath: /var/run/credentials/github, readOnly: true}
+            - {name: cred-gitea, mountPath: /var/run/credentials/gitea, readOnly: true}
+            - {name: cred-telegram, mountPath: /var/run/credentials/telegram, readOnly: true}
+            - {name: cred-hop, mountPath: /var/run/credentials/hop, readOnly: true}
+            - {name: session-credentials, mountPath: /var/run/session-credentials, readOnly: true}
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: cluster-update-fr-state
+        - name: tmp
+          emptyDir: {}
+        - name: ts-state
+          emptyDir: {}
+        # Omni's running version, written as JSON by a Reader-role omnictl sidecar. The sidecar
+        # needs an image that carries omnictl (the upgrade-session image, phase 5) and is added
+        # when that image is pinned; until then the file is absent and the console reports the
+        # version as unknown.
+        - name: omni-status
+          emptyDir: {}
+        - name: cred-github
+          secret: {secretName: cluster-update-fr-github, optional: true}
+        - name: cred-gitea
+          secret: {secretName: cluster-update-fr-gitea, optional: true}
+        - name: cred-telegram
+          secret:
+            secretName: cluster-update-fr-telegram
+            optional: true
+            items:
+              - {key: bot-token, path: bot-token}
+        - name: cred-hop
+          secret:
+            secretName: hop-readonly-kubeconfig
+            optional: true
+            items:
+              - {key: config, path: config}
+        # What the console copies into a session's own creds Secret: each upgrade type gets only
+        # its own files. github-token is the SESSION App's token, never the console's.
+        - name: session-credentials
+          projected:
+            sources:
+              - secret:
+                  name: cluster-update-fr-session-github
+                  optional: true
+                  items:
+                    - {key: token, path: github-token}
+              - secret:
+                  name: cluster-update-session-omni
+                  optional: true
+                  items:
+                    - {key: key, path: omni-sa-key}
+              - secret:
+                  name: cluster-update-session-talos
+                  optional: true
+                  items:
+                    - {key: talosconfig, path: talosconfig}
+              - secret:
+                  name: cluster-update-session-hop-talos
+                  optional: true
+                  items:
+                    - {key: talosconfig, path: hop-talosconfig}
+              - secret:
+                  name: cluster-update-session-hop-kube
+                  optional: true
+                  items:
+                    - {key: config, path: hop-kubeconfig}

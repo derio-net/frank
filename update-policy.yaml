@@ -21,6 +21,10 @@
 # Rules are first-match; `update:` restricts a rule to patch/minor/major. match is one of
 # app (cluster/name), image, chart or dep. Anything unmatched takes `defaults`.
 version: 1
+# Status contexts that must ALL be green before the console merges anything: exact names or
+# `prefix*`. The Gitea->GitHub status bridge posts gitea-actions/<job>. (Console contract.)
+required_ci_contexts:
+- gitea-actions/*
 defaults:
   patch: auto-merge
   minor: batch-approve
@@ -154,6 +158,14 @@ rules:
     app: frank/trivy-operator
   path: session
   reason: 'stateful: the Trivy server owns a PVC (a re-downloadable DB cache); the scanner that finds CVEs is itself upgraded in a session'
+- match:
+    app: frank/cluster-update-fr
+  path: session
+  reason: 'the update console is the only merger and alarm owner: it never updates itself unattended; a session upgrades it and the operator watches the new instance take over'
+- match:
+    app: frank/runs-fr
+  path: session
+  reason: 'runs-fr is the browser door into upgrade sessions and trusts a header; a change to it is reviewed in a session, never auto-merged'
 - match:
     app: frank/zot
   path: session

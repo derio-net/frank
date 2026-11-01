@@ -1,0 +1,28 @@
+# runs-fr (production) values, chart derio-net/runs-fr v0.3.0 (pinned in
+# apps/root/templates/runs-fr.yaml). Reaches ONLY upgrade-session pods.
+#
+# SECURITY: runs-fr performs NO authentication of its own; it trusts the two headers below.
+# Reachability is therefore the guard: (1) the Service is ClusterIP, (2) the CiliumNetworkPolicy
+# in apps/runs-fr/manifests admits only Traefik pods on 8080, (3) Traefik puts Authentik
+# forward-auth in front, restricted to the operator group (blueprint policy binding).
+image:
+  repository: ghcr.io/derio-net/runs-fr
+  tag: "0.3.0"
+replicaCount: 1
+# The gateway's Role (pods get/list/watch + pods/exec create) is created in THIS namespace.
+namespace: upgrade-sessions
+labelSelector: "fr.run/id"
+authHeader: "X-authentik-username"
+# Node shells are gated on role == owner. Authentik sets no role, and Traefik copies only the
+# authResponseHeaders, which overwrite anything a client sends. A header from that list can
+# never read "owner", so node shells stay off; X-Forwarded-Role (not overwritten) would let a
+# client assert owner.
+authRoleHeader: "X-authentik-meta-provider"
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: false
+# Off on purpose: the Cilium policy in manifests/ is the one statement of the rule.
+networkPolicy:
+  enabled: false

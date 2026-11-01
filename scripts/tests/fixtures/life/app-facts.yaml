@@ -240,6 +240,25 @@ apps:
       ports:
       - 80
     stateful: false
+  frank/cluster-update-fr:
+    charts: []
+    images:
+    - ghcr.io/derio-net/cluster-update-fr:v0.1.0
+    - tailscale/tailscale:v1.82.5
+    paths:
+    - apps/cluster-update-fr/manifests/**
+    - apps/root/templates/cluster-update-fr.yaml
+    rollout: false
+    services:
+    - name: cluster-update-fr
+      namespace: cluster-update-fr
+      ports:
+      - 8080
+    - name: cluster-update-fr-session
+      namespace: cluster-update-fr
+      ports:
+      - 8081
+    stateful: true
   frank/cnc-prod:
     charts: []
     images:
@@ -902,13 +921,22 @@ apps:
     rollout: false
     services: []
     stateful: false
+  frank/runs-fr:
+    charts: []
+    images: []
+    paths:
+    - apps/root/templates/runs-fr.yaml
+    - apps/runs-fr/manifests/**
+    - apps/runs-fr/values.yaml
+    rollout: false
+    services: []
+    stateful: false
   frank/runs-fr-staging:
     charts: []
     images: []
     paths:
     - apps/root/templates/runs-fr-staging.yaml
     - apps/staging-gate/runs-fr/staging-values.yaml
-    - charts/runs-fr/**
     rollout: false
     services: []
     stateful: false
@@ -968,7 +996,6 @@ apps:
     images: []
     paths:
     - apps/root/templates/stoa-live-mirror-sync.yaml
-    - stoa/ci/tekton/live-mirror-sync/**
     rollout: false
     services: []
     stateful: false
