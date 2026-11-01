@@ -972,3 +972,6 @@ life_tracks.py is one short loop mirroring the console's tracks.Next; nothing to
 ### no-refactor-p6-t2 · discovery · no-refactor-because P6.T2 (phase 6)
 
 two prose runbooks plus a test file; no duplicated parts (the briefs keep their own short rollback paragraph)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r1 created=2026-11-01T17:30:49+00:00 phase=6 state=open review_scope=in -->
+### p6-r1 · finding [open] (reviewer: in scope) · life-rollback.md git revert -m 1 fails on squash-merged PRs (phase 6)
