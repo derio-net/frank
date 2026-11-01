@@ -393,3 +393,6 @@ dashboard JSON generated once; rules reuse the existing group/rule shapes verbat
 
 <!-- fr:journal kind=finding scope=plan id=p3-r2 created=2026-11-01T05:43:49+00:00 phase=3 state=open review_scope=in -->
 ### p3-r2 · finding [open] (reviewer: in scope) · Pre-auth key described as ephemeral single-use cannot serve a daily CronJob registering a fresh node each run (phase 3)
+
+<!-- fr:journal kind=finding scope=plan id=p3-r3 created=2026-11-01T05:43:53+00:00 phase=3 state=open review_scope=in -->
+### p3-r3 · finding [open] (reviewer: in scope) · hop-scan heartbeat rule accepts status=skipped / scanned=0, so a blind scanner never alarms (phase 3)
