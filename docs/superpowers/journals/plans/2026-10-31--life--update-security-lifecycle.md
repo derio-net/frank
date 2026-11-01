@@ -1085,3 +1085,8 @@ Grouped follow-up (operator chose grouping).
 ### p2-r12-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p2-r12: ovms /v2/models/<name>/ready unverified against MediaPipe-graph servables (plan-prescribed; documented gotcha)
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=finding scope=plan id=p3-r7-resolved-2 created=2026-11-01T19:33:07+00:00 state=open resolves=p3-r7 tracked_by=derio-net/frank#914 -->
+### p3-r7-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p3-r7: trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync
+
+Grouped follow-up (operator chose grouping).
