@@ -40,6 +40,8 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import quote, quote_plus
 
+import yaml
+
 MIN_LITERAL = 8
 MIN_BASE64_RUN = 24
 
@@ -53,11 +55,40 @@ SECRET_KEYS = (r"(?:token|access_token|refresh_token|client-key-data|client-cert
 SEP = r"[ \t]*[:=][ \t]*(?:\r?\n[ \t]+)?"
 REFERENCE = re.compile(r"^(?:\{\{.*\}\}|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\(.*\)?)$", re.S)
 # Repository mode only: an unquoted value that is the NAME of a secret, not its value -- an
-# ENV/Infisical key (LITELLM_MASTER_KEY), a Secret key (talosconfig, bot-token), or a YAML flow
-# mapping ({secretName: ...}), or a nested mapping key on the next line (`secret:\n  secretName:`).
-# Letters/dots/hyphens only, or all-caps snake: no digits, so a
-# password-like value (hunter2hunter2) is still reported. A redaction never uses this.
-KEY_NAME = re.compile(r"^(?:[A-Z][A-Z0-9_]*|[a-z][a-z.-]*|[{\[].*|[A-Za-z][A-Za-z0-9_.-]*:)$")
+# ENV/Infisical key (LITELLM_MASTER_KEY), a Secret key (talosconfig, bot-token), or a nested
+# mapping key on the next line (`secret:\n  secretName:`). No digits anywhere (p5-sec-2):
+# ABC123DEF is a secret shape, not a key name. A flow collection ({...} / [...]) is parsed and
+# exempt only if every key and value in it is itself a key name (or a boolean). A redaction
+# never uses this.
+KEY_SCALAR = re.compile(r"^(?:[A-Z]+(?:_[A-Z]+)*|[a-z][A-Za-z.-]*)$")
+KEY_NAME = re.compile(r"^(?:[A-Z]+(?:_[A-Z]+)*|[a-z][a-z.-]*|[a-z][A-Za-z.-]*:)$")
+
+
+def _flow_of_key_names(text: str, start: int) -> bool:
+    """True if the flow collection opening at text[start] closes on its line and holds only
+    key names and booleans."""
+    end_of_line = text.find("\n", start)
+    line = text[start:] if end_of_line < 0 else text[start:end_of_line]
+    depth = 0
+    for i, ch in enumerate(line):
+        depth += ch in "{[" or -(ch in "}]")
+        if depth == 0:
+            break
+    else:
+        return False
+    try:
+        data = yaml.safe_load(line[:i + 1])
+    except yaml.YAMLError:
+        return False
+
+    def ok(node) -> bool:
+        if isinstance(node, dict):
+            return all(ok(k) and ok(v) for k, v in node.items())
+        if isinstance(node, list):
+            return all(ok(x) for x in node)
+        return isinstance(node, bool) or (isinstance(node, str) and bool(KEY_SCALAR.match(node)))
+
+    return isinstance(data, (dict, list)) and ok(data)
 
 
 def _classify_eyj(secret: str) -> str:
@@ -134,8 +165,9 @@ def _matches(p: Pattern, text: str, repository: bool = False) -> list[tuple[int,
         while p.trim_right and end > start and text[end - 1] in p.trim_right:
             end -= 1
         value = text[start:end]
-        if _is_marker(value) or (p.key_value and REFERENCE.match(value)) or \
-                (repository and p.unquoted and KEY_NAME.match(value)):
+        exempt_name = repository and p.unquoted and (
+            _flow_of_key_names(text, start) if value[:1] in "{[" else bool(KEY_NAME.match(value)))
+        if _is_marker(value) or (p.key_value and REFERENCE.match(value)) or exempt_name:
             pos = max(m.end(), pos + 1)
             continue
         if p.not_before and start > 0 and text[start - 1] in p.not_before:

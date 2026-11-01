@@ -274,6 +274,14 @@ def test_no_token_shaped_string_in_session_facing_files(path):
     ("    key: LITELLM_MASTER_KEY", None), ("  - {key: talosconfig, path: talosconfig}", None),
     ("secret: {secretName: x, optional: true}", None), ("password: hunter2hunter2", "yaml-secret"),
     ("password: " + "Zq" * 8, "yaml-secret"), ('key: "talosconfig-material"', "yaml-secret"),
+    # p5-sec-2: digits in an all-caps value are a secret shape, not an ENV key name
+    ("password: ABC123DEF", "yaml-secret"), ("token: AKIA" + "Q7" * 8, "yaml-secret"),
+    ("api_key: DB_PASSWORD", None), ("  key: FRANK_UPDATER_GITEA_TOKEN", None),
+    ("password: Zq9Zq9Zq9Zq9:", "yaml-secret"),
+    # flow collections: every element must be a key name, else it is reported
+    ("secret: {password: hunter2hunter2}", "yaml-secret"), ("secret: [ABC123DEF, x]", "yaml-secret"),
+    ("secret: {secretValue: Zq9Zq9Zq9Zq9}", "yaml-secret"), ("secret: {unclosed: talosconfig", "yaml-secret"),
+    ("secret: [talosconfig, bot-token]", None), ("secret: {secretName: x-y, optional: true}", None),
 ])
 def test_repository_mode_exempts_secret_names_but_not_values(text, kind):
     assert ls.find_tokens(text, repository=True) == ([kind] if kind else []), text
