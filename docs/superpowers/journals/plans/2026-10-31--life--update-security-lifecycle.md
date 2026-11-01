@@ -791,3 +791,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r7 created=2026-11-01T12:27:54+00:00 phase=5 state=open review_scope=in -->
 ### p5-r7 · finding [open] (reviewer: in scope) · smoke-check allowlist is L4 to unauthenticated write APIs; restrict to GET on checked paths via L7 (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r8 created=2026-11-01T12:27:59+00:00 phase=5 state=open review_scope=in -->
+### p5-r8 · finding [open] (reviewer: in scope) · scrubber REFERENCE regex exempts real secrets, also in scrub() (phase 5)
