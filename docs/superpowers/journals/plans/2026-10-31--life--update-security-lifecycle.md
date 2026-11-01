@@ -1005,3 +1005,63 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r11 created=2026-11-01T17:33:01+00:00 phase=6 state=open review_scope=out -->
 ### p6-r11 · finding [open] (reviewer: out of scope) · test_life_runbooks is keyword-grep only (phase 6)
+
+<!-- fr:journal kind=review scope=plan id=p6-review created=2026-11-01T17:36:06+00:00 phase=6 -->
+### p6-review · review · Phase 6 independent review: 11 findings (9 in, 2 out) (phase 6)
+
+Reviewer verified the support-matrix windows against the official Talos pages and the console parser shape; raised p6-r1..p6-r11. All 9 in-scope fixed (117 phase-6 tests pass). Omni v1.5 Talos-downgrade acceptance remains UNVERIFIED in the runbook (forward-fix only if refused).
+
+<!-- fr:journal kind=finding scope=plan id=p6-r1-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r1 -->
+### p6-r1-resolved · finding [fixed] · resolves p6-r1: life-rollback.md git revert -m 1 fails on squash-merged PRs (phase 6)
+
+git revert <sha> for squash merges; -m 1 only for true merge commits.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r2-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r2 -->
+### p6-r2-resolved · finding [fixed] · resolves p6-r2: Longhorn restore: selfHeal must always be suspended with the full automated map (phase 6)
+
+Longhorn restore suspends selfHeal (full automated map, root first), scales to 0, waits for detach, restores, then reverts and re-syncs.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r3-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r3 -->
+### p6-r3-resolved · finding [fixed] · resolves p6-r3: Frank Omni revert gives no exact omnictl/UI command and does not say whether Omni allows a Talos downgrade (phase 6)
+
+Exact omnictl get/edit spec.talosversion/apply sequence; Omni v1.5 downgrade acceptance marked UNVERIFIED; refused => forward-fix only.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r4-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r4 -->
+### p6-r4-resolved · finding [fixed] · resolves p6-r4: Talos rollbacks lack the check that the older Talos supports the running k8s minor (phase 6)
+
+Every Talos rollback first checks the running k8s minor against versions/support-matrix.yaml (worked example 1.13+1.36).
+
+<!-- fr:journal kind=finding scope=plan id=p6-r5-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r5 -->
+### p6-r5-resolved · finding [fixed] · resolves p6-r5: Hop talosctl rollback limits unstated and no exact invocation (phase 6)
+
+Hop section states A/B-slot limits (last upgrade only, does not undo upgrade-k8s) and the exact --talosconfig invocation.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r6-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r6 -->
+### p6-r6-resolved · finding [fixed] · resolves p6-r6: roll one node at a time is not operator-controllable under Omni; need sole-replica precondition and etcd check (phase 6)
+
+Frank revert preconditions: sole-replica check, talosctl etcd status, etcd snapshot.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r7-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r7 -->
+### p6-r7-resolved · finding [fixed] · resolves p6-r7: omni-upgrade.md backup copies live etcd/sqlite; stop briefly or snapshot; name the compose dir (phase 6)
+
+Omni backup = compose stop, copy, compose up -d in /opt/manual_install/omni.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r8-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r8 -->
+### p6-r8-resolved · finding [fixed] · resolves p6-r8: life_tracks patch-only branch emits a downgrade step; one_way on k8s patch contradicts the runbook (phase 6)
+
+Patch step only when the target patch is greater; one_way only for k8s minor moves; k8s patch = forward-fix, runbook agrees.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r9-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=fixed resolves=p6-r9 -->
+### p6-r9-resolved · finding [fixed] · resolves p6-r9: test_life_tracks misses patch-only, single-kind, .x-at-current-minor and lower-patch paths (phase 6)
+
+Tests for patch-only, single-kind minor moves, .x at current minor, lower-patch target and the convergence bound.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r10-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=open resolves=p6-r10 out_of_scope=true -->
+### p6-r10-resolved · finding [out-of-scope] · resolves p6-r10: support-matrix header cites verified pages without pinning patch release (cosmetic) (phase 6)
+
+Cosmetic: the matrix header cites the Talos support-matrix pages per minor; pinning the docs patch release adds nothing the console uses.
+
+<!-- fr:journal kind=finding scope=plan id=p6-r11-resolved created=2026-11-01T17:36:06+00:00 phase=6 state=open resolves=p6-r11 out_of_scope=true -->
+### p6-r11-resolved · finding [out-of-scope] · resolves p6-r11: test_life_runbooks is keyword-grep only (phase 6)
+
+Runbook executability is reviewed by humans and exercised live in phase 7; the keyword tests guard structure, which is what this change needs.
