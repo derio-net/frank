@@ -463,3 +463,8 @@ Trivy's own golden JSON as fixture for report.py incl. error rows; chart-render 
 ### p3-r7-resolved · finding [out-of-scope] · resolves p3-r7: trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync (phase 3)
 
 Not caused by this phase's manifests: the trailing manual phase creates both token Secrets from one source value.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-session-branch-format created=2026-11-01T08:41:19+00:00 phase=5 -->
+### p5-session-branch-format · discovery · Session branch format is cluster-update/session-<id>/<topic> (phase 5)
+
+Final console contract (cluster-update-fr#1 @ a830849): session PR branches are cluster-update/session-<upgrade-id>/<topic> ('/' cannot occur in an id, so prefixes never overlap; ids may contain '-' and '.', e.g. frank-os-talos-1.13.4). Briefs and AGENTS.md must use this exact form; the phase-7 ruleset pattern cluster-update/session-** is unchanged. Revert branches cluster-update/revert-<n>-* are console-bot only.
