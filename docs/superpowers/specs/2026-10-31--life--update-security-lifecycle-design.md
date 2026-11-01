@@ -283,8 +283,13 @@ read-only kubeconfig (bootstrap secret) that may read pods, ArgoCD
 Applications and Rollouts. Hop smoke tests for public services check the
 public endpoint; mesh-only services are checked over the tailnet.
 
-**CI signal across forges (R28).** Merges happen on GitHub; required-check
-statuses arrive from Gitea through the status bridge, which can drop events. If
+**CI signal (R28).** Merges happen on GitHub. **The CI source is declared per
+repo in the policy** (`ci_source`). `derio-net/frank` is public and runs its CI on
+GitHub-hosted runners, never mirrored to Gitea, so its gate is **GitHub
+check-runs** from the GitHub Actions app, with the required check names declared
+in `update-policy.yaml` (correction from review p4-r2; the original text assumed
+the stoa repos' Gitea path). For a repo whose CI authority is Gitea, the gate is
+the bridged `gitea-actions/*` statuses, which can drop events. If
 an auto-merge or batch PR has no conclusive CI status within a timeout, or its
 CI failed, the item becomes `held — CI` under Needs action; it never merges
 without a passing signal and never stalls silently.
@@ -297,6 +302,15 @@ causes in `docs/runbooks/frank-gotchas/tekton.md` need different remedies:
 | Ran, status lost | Gitea has a terminal status for the head SHA; GitHub does not | re-forward the status to GitHub (the `ci_status_backfill.py` logic, posted with the console's GitHub App token) |
 | Never ran | no Gitea run for the head SHA; check `mergeable` first | if conflicting: ask Renovate to rebase (checkbox); else redeliver the GitHub push webhook (GitHub API), which re-drives the mirror sync without any cluster write |
 | Ran and failed | Gitea run concluded `failure` | re-run the failed jobs through the Gitea API |
+
+For a `github-checks` repo (frank), the same three diagnoses apply against
+GitHub check-runs: *ran, result missing* is a check-run stuck `queued`/absent
+for the head SHA while its workflow run concluded; *never ran* is no workflow
+run for the head SHA (check `mergeable` first: a conflicting PR gets no
+`pull_request` run, tekton gotcha), fixed by the Renovate rebase checkbox;
+*ran and failed* is re-run with GitHub's `rerun-failed-jobs` API. Required
+check-runs must come from the GitHub Actions app (`app.slug == github-actions`),
+the equivalent of the status-creator check.
 
 The diagnosis and the action taken are shown on the item and kept in History.
 Re-running a genuine failure does not hide it: after **one** retry that fails
