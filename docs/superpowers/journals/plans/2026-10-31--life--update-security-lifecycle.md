@@ -322,3 +322,8 @@ slow marker, session-scoped render cache, memoised offline detection.
 ### p2-r12-resolved · finding [out-of-scope] · resolves p2-r12: ovms /v2/models/<name>/ready unverified against MediaPipe-graph servables (plan-prescribed; documented gotcha) (phase 2)
 
 Not caused by this change: the per-model ready endpoint is the plan's documented choice and a known gotcha; it is checked live (and /v1/config consulted) in the phase 7 handover.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-no-ephemeral-containers created=2026-11-01T05:13:28+00:00 phase=5 -->
+### p5-no-ephemeral-containers · discovery · No one but cluster-admin may add ephemeral containers or exec into session pods (phase 5)
+
+Console security review: kubectl debug can attach an ephemeral container to a verified session pod and read its credential volume. Frank phase 5: no Role/ClusterRole bound to anything except cluster-admin grants pods/ephemeralcontainers or pods/exec in upgrade-sessions — runs-fr is the one exception for pods/exec (it is how the operator attaches), and must not get pods/ephemeralcontainers; test it. Consider a ValidatingAdmissionPolicy denying ephemeralContainers updates on pods labelled cluster-update.fr/type in upgrade-sessions.
