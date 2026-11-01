@@ -1090,3 +1090,8 @@ Grouped follow-up (operator chose grouping).
 ### p3-r7-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p3-r7: trivy-server-token and trivy-operator-trivy-config are two hand-created Secrets with no sync
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=finding scope=plan id=p4-r10-resolved-2 created=2026-11-01T19:33:15+00:00 state=open resolves=p4-r10 tracked_by=derio-net/frank#914 -->
+### p4-r10-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p4-r10: admission policy allows any upgrade-session tag; bind the exact digest once SESSION_IMAGE is pinned
+
+Grouped follow-up (operator chose grouping).
