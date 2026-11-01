@@ -193,6 +193,11 @@ def test_residual_github_exfiltration_risk_is_stated(name):
     assert "Security note" in body
     assert "api.github.com" in body and re.search(r"exfiltrat", body, re.I)
     assert re.search(r"cannot (filter|see|inspect)", body, re.I), "say what the network policy cannot do"
+    # p5-r6: the policy pins the IPs AND the TLS server name; it is not blind to the host, and
+    # the note must not say it filters "by name only" (toFQDNs alone is IP-based).
+    flat = re.sub(r"\s*\n>?\s*", " ", body)
+    assert "SNI" in flat and "Host header" in flat and "fronting" in flat
+    assert not re.search(r"by name only", flat, re.I)
 
 
 @pytest.mark.parametrize("name", ALL)

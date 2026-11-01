@@ -33,9 +33,13 @@ TYPES = ("chart-major", "stateful", "rollouts", "frank-os", "hop-os")
 TYPE_LABEL = "cluster-update.fr/type"
 SEARCH = (f"{NS}.svc.cluster.local", "svc.cluster.local", "cluster.local")  # pod resolv.conf, ndots:5
 
-# p5-sec-3: the documented minimum, each host with its reason. Cilium filters by NAME only (no
-# TLS interception, so no paths): whatever is listed here is reachable for anything, which is
-# why the list is short. Residual risk of api.github.com: journal p5-github-egress-residual.
+# p5-sec-3: the documented minimum, each host with its reason. Each name gets its own rule:
+# toFQDNs allows the IPs it resolved to, and `serverNames` requires that exact TLS SNI on them
+# (p5-r6; Envoy reads the ClientHello, nothing is decrypted). Paths, Host headers and request
+# bodies stay invisible, so whatever is listed here is reachable for anything, and domain
+# fronting on a shared front end is not closed: the list is short. Residual risk:
+# journal p5-github-egress-residual-2. The OpenAI hosts serve Codex; the console does not yet
+# say which harness a session runs, so they cannot be opt-in per session (same journal entry).
 HOST_REASONS = {
     "api.github.com": "commits through the contents API / GraphQL createCommitOnBranch, PRs, reads of frank; "
                       "github.com is NOT needed (no git clone/push) and would add git/gist upload paths",
@@ -261,6 +265,14 @@ def _in_cluster(typ: str) -> bool:
     return VERIFIES[typ][0] == "frank"
 
 
+def _fqdn_rule(name, pairs):
+    """One external name: its resolved IPs, and on TCP its exact TLS server name (p5-r6)."""
+    tcp = [{"port": p, "protocol": proto} for p, proto in pairs if proto == "TCP"]
+    other = [{"port": p, "protocol": proto} for p, proto in pairs if proto != "TCP"]
+    to_ports = ([{"ports": tcp, "serverNames": [name]}] if tcp else []) + ([{"ports": other}] if other else [])
+    return {"toFQDNs": [_fqdn(name)], "toPorts": to_ports}
+
+
 def _dns_names(typ: str) -> list[str]:
     spec = ENDPOINTS[typ]
     names = [n for group, _ in spec["fqdns"] for n in group]
@@ -285,7 +297,7 @@ def type_policy(typ: str) -> dict:
                      "rules": {"dns": [_fqdn(n) for n in _dns_names(typ)]}}],
     }]
     for group, pairs in spec["fqdns"]:
-        egress.append({"toFQDNs": [_fqdn(n) for n in group], "toPorts": _ports(pairs)})
+        egress += [_fqdn_rule(n, pairs) for n in group]
     if _in_cluster(typ):
         egress.append({"toEntities": ["kube-apiserver"], "toPorts": _ports([("6443", "TCP")])})
     egress.append({"toEndpoints": [_ep(**{"k8s:io.kubernetes.pod.namespace": "cluster-update-fr",
@@ -300,7 +312,7 @@ def type_policy(typ: str) -> dict:
                        "toPorts": _ports([(str(p), "TCP") for p in nsports])})
     extra = [h for h in public_targets(typ) if h not in [n for g, _ in spec["fqdns"] for n in g]]
     if extra:
-        egress.append({"toFQDNs": [_fqdn(h) for h in extra], "toPorts": _ports([("443", "TCP")])})
+        egress += [_fqdn_rule(h, [("443", "TCP")]) for h in extra]
     return {"apiVersion": "cilium.io/v2", "kind": "CiliumNetworkPolicy",
             "metadata": {"name": f"upgrade-session-{typ}", "namespace": NS},
             "spec": {"endpointSelector": _ep(**{TYPE_LABEL: typ}), "egress": egress}}

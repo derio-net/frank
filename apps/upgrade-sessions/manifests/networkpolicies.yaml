@@ -75,16 +75,60 @@ spec:
         - matchName: kubernetes.default.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.github.com
+  - toFQDNs:
     - matchName: api.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.anthropic.com
+  - toFQDNs:
     - matchName: console.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - console.anthropic.com
+  - toFQDNs:
     - matchName: platform.claude.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - platform.claude.com
+  - toFQDNs:
     - matchName: api.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.openai.com
+  - toFQDNs:
     - matchName: auth.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - auth.openai.com
+  - toFQDNs:
     - matchName: chatgpt.com
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - chatgpt.com
   - toEntities:
     - kube-apiserver
     toPorts:
@@ -177,16 +221,60 @@ spec:
         - matchName: zot.zot.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.github.com
+  - toFQDNs:
     - matchName: api.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.anthropic.com
+  - toFQDNs:
     - matchName: console.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - console.anthropic.com
+  - toFQDNs:
     - matchName: platform.claude.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - platform.claude.com
+  - toFQDNs:
     - matchName: api.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.openai.com
+  - toFQDNs:
     - matchName: auth.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - auth.openai.com
+  - toFQDNs:
     - matchName: chatgpt.com
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - chatgpt.com
   - toEntities:
     - kube-apiserver
     toPorts:
@@ -373,16 +461,60 @@ spec:
         - matchName: kubernetes.default.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.github.com
+  - toFQDNs:
     - matchName: api.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.anthropic.com
+  - toFQDNs:
     - matchName: console.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - console.anthropic.com
+  - toFQDNs:
     - matchName: platform.claude.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - platform.claude.com
+  - toFQDNs:
     - matchName: api.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.openai.com
+  - toFQDNs:
     - matchName: auth.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - auth.openai.com
+  - toFQDNs:
     - matchName: chatgpt.com
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - chatgpt.com
   - toEntities:
     - kube-apiserver
     toPorts:
@@ -466,22 +598,68 @@ spec:
         - matchName: traefik.traefik-system.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.github.com
+  - toFQDNs:
     - matchName: api.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.anthropic.com
+  - toFQDNs:
     - matchName: console.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - console.anthropic.com
+  - toFQDNs:
     - matchName: platform.claude.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - platform.claude.com
+  - toFQDNs:
     - matchName: api.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.openai.com
+  - toFQDNs:
     - matchName: auth.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - auth.openai.com
+  - toFQDNs:
     - matchName: chatgpt.com
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - chatgpt.com
   - toFQDNs:
     - matchName: omni.frank.derio.net
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - omni.frank.derio.net
   - toEntities:
     - kube-apiserver
     toPorts:
@@ -580,22 +758,69 @@ spec:
         - matchName: cluster-update-fr-session.cluster-update-fr.svc.cluster.local
   - toFQDNs:
     - matchName: api.github.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.github.com
+  - toFQDNs:
     - matchName: api.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.anthropic.com
+  - toFQDNs:
     - matchName: console.anthropic.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - console.anthropic.com
+  - toFQDNs:
     - matchName: platform.claude.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - platform.claude.com
+  - toFQDNs:
     - matchName: api.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - api.openai.com
+  - toFQDNs:
     - matchName: auth.openai.com
+    toPorts:
+    - ports:
+      - port: '443'
+        protocol: TCP
+      serverNames:
+      - auth.openai.com
+  - toFQDNs:
     - matchName: chatgpt.com
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - chatgpt.com
   - toFQDNs:
     - matchName: headscale.hop.derio.net
     toPorts:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - headscale.hop.derio.net
+    - ports:
       - port: '3478'
         protocol: UDP
   - toEndpoints:
@@ -619,3 +844,5 @@ spec:
     - ports:
       - port: '443'
         protocol: TCP
+      serverNames:
+      - blog.derio.net

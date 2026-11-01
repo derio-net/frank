@@ -213,6 +213,27 @@ def test_no_type_reaches_an_upload_host_or_a_wildcard(typ):
 
 
 @pytest.mark.parametrize("typ", TYPES)
+def test_every_fqdn_rule_also_requires_its_tls_server_name(typ):
+    # p5-r6: toFQDNs allows the IPs a name resolved to, so any other host on those IPs (a CDN,
+    # a shared front end) would be reachable too. Cilium 1.17 `serverNames` (TLS parser, Envoy
+    # reads the ClientHello SNI, no decryption) pins the TCP connection to the allowed name.
+    # One name per rule, so a name's IPs accept only that name's SNI; exact names only (1.17
+    # serverNames take no wildcards); UDP (STUN) carries no TLS and sits in its own entry.
+    for rule in type_policy(typ)["spec"]["egress"]:
+        if "toFQDNs" not in rule:
+            continue
+        (name,) = [f["matchName"] for f in rule["toFQDNs"]]
+        assert all("matchPattern" not in f for f in rule["toFQDNs"])
+        for tp in rule["toPorts"]:
+            protos = {p["protocol"] for p in tp["ports"]}
+            assert len(protos) == 1, tp
+            if protos == {"TCP"}:
+                assert tp.get("serverNames") == [name], (typ, name, tp)
+            else:
+                assert "serverNames" not in tp and "rules" not in tp, (typ, name, tp)
+
+
+@pytest.mark.parametrize("typ", TYPES)
 def test_every_egress_rule_names_ports_and_no_rule_opens_ssh(typ):
     for rule in type_policy(typ)["spec"]["egress"]:
         assert ("22", "TCP") not in ports(rule), f"{typ}: no session gets SSH anywhere (no Omni host access)"
