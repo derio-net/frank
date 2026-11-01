@@ -996,3 +996,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r8 created=2026-11-01T17:32:20+00:00 phase=6 state=open review_scope=in -->
 ### p6-r8 · finding [open] (reviewer: in scope) · life_tracks patch-only branch emits a downgrade step; one_way on k8s patch contradicts the runbook (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r9 created=2026-11-01T17:32:33+00:00 phase=6 state=open review_scope=in -->
+### p6-r9 · finding [open] (reviewer: in scope) · test_life_tracks misses patch-only, single-kind, .x-at-current-minor and lower-patch paths (phase 6)
