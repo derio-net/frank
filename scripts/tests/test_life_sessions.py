@@ -652,7 +652,7 @@ def test_exec_attach_and_port_forward_into_sessions_are_refused_at_admission():
     pol = next(d for d in docs if d["metadata"]["name"] == "upgrade-session-no-exec")
     (rule,) = pol["spec"]["matchConstraints"]["resourceRules"]
     assert rule["operations"] == ["CONNECT"]
-    assert set(rule["resources"]) == {"pods/exec", "pods/attach", "pods/portforward"}
+    assert set(rule["resources"]) == {"pods/exec", "pods/attach", "pods/portforward", "pods/proxy"}
     assert pol["spec"]["failurePolicy"] == "Fail"
     binding = next(d for d in docs if d["kind"] == "ValidatingAdmissionPolicyBinding"
                    and d["spec"]["policyName"] == "upgrade-session-no-exec")

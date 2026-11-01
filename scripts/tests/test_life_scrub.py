@@ -317,6 +317,8 @@ def test_no_token_shaped_string_in_session_facing_files(path):
     ("secret: {password: correct-horse-battery}", "yaml-secret"), ("secret: {apiValue: CORRECTHORSE}", "yaml-secret"),
     ("  key: talosconfig-material", None), ("secret: {secretKey: bot-token, name: telegram-creds}", None),
     ("- {key: tailscale-authkey, path: tailscale-authkey}", None), ("password: DB_PASSWORD", None),
+    ("        - key: kubernetes.io/metadata.name", None), ("password: correct/horse-battery", "yaml-secret"),
+    ("key: a.b/c.d/e-f-g-h", "yaml-secret"),
 ])
 def test_repository_mode_exempts_secret_names_but_not_values(text, kind):
     assert ls.find_tokens(text, repository=True) == ([kind] if kind else []), text

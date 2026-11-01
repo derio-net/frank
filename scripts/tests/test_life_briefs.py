@@ -253,3 +253,15 @@ def test_client_selection_uses_the_consoles_minors(name):
     assert SELECT in flat, name
     assert "TALOSCTL_VERSION" not in flat and "KUBECTL_VERSION" not in flat, name
 
+
+def test_agents_md_states_the_trust_boundary():
+    # p5-trust-model (operator decision): humans with cluster-wide admin are trusted with session
+    # credentials; AI agents with cluster-admin are a known gap tracked by derio-net/frank#912.
+    sec = re.sub(r"\s+", " ", text("AGENTS.md").split("Trust boundary", 1)[1])
+    for want in ("root-devops", "system:masters", "root-admins", "read", "admission", "derio-net/frank#912",
+                 "secure-agent-pod", "root-agents"):
+        assert want in sec, want
+    session_header = (ROOT / "apps/upgrade-sessions/manifests/rbac.yaml").read_text().split("apiVersion:", 1)[0]
+    flat = re.sub(r"\s*\n#\s*", " ", session_header)
+    assert "Trust boundary" in flat and "derio-net/frank#912" in flat and "root-devops" in flat
+

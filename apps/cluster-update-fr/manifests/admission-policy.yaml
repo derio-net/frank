@@ -162,7 +162,11 @@ spec:
       - apiGroups: [""]
         apiVersions: ["v1"]
         operations: ["CONNECT"]
-        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+        resources: ["pods/exec", "pods/attach", "pods/portforward", "pods/proxy"]
+  # Impersonation cannot be refused here: the API server replaces userInfo with the impersonated
+  # identity and records no impersonator in userInfo.extra (Kubernetes 1.35 impersonation filter),
+  # so an admin impersonating runs-fr passes. Only `impersonate` RBAC grants it, and that sits in
+  # the trusted root-devops / root-admins boundary (journal p5-trust-model).
   matchConditions:
     - name: not-runs-fr-or-a-cluster-admin
       expression: "request.userInfo.username != 'system:serviceaccount:runs-fr:runs-fr' && !('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
@@ -181,6 +185,82 @@ spec:
     namespaceSelector:
       matchLabels:
         kubernetes.io/metadata.name: upgrade-sessions
+---
+# p5-trust-model: a TokenRequest for a session SA or for runs-fr is that identity's credentials
+# (runs-fr can exec into every session). Only the kubelet may request one, and only bound to a Pod
+# (its projected service-account token; NodeRestriction limits a node to its own pods), or a
+# cluster-admin proper. Anyone else with `serviceaccounts/token create` (admin/edit) is refused.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-sa-tokens
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["serviceaccounts/token"]
+  matchConditions:
+    - name: a-guarded-service-account
+      expression: "(request.namespace == 'upgrade-sessions' && request.name.startsWith('upgrade-session-')) || (request.namespace == 'runs-fr' && request.name == 'runs-fr')"
+    - name: not-a-cluster-admin
+      expression: "!('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "request.userInfo.username.startsWith('system:node:') && 'system:nodes' in request.userInfo.groups && has(object.spec.boundObjectRef) && object.spec.boundObjectRef.kind == 'Pod'"
+      message: "only the kubelet, for a pod it runs, may request a token for an upgrade-session or runs-fr ServiceAccount"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-sa-tokens
+spec:
+  policyName: upgrade-session-sa-tokens
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: ["upgrade-sessions", "runs-fr"]
+---
+# p5-trust-model: a pod running AS runs-fr holds its token, i.e. exec into every session. Its
+# Deployment's ReplicaSet controller creates those pods (Talos runs kube-controller-manager with
+# --use-service-account-credentials); nobody else may create one or change one (a pod's image is
+# mutable by UPDATE), except a cluster-admin proper.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: runs-fr-pods
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: runs-as-runs-fr
+      expression: "has(object.spec.serviceAccountName) && object.spec.serviceAccountName == 'runs-fr'"
+    - name: not-a-cluster-admin
+      expression: "!('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "request.userInfo.username == 'system:serviceaccount:kube-system:replicaset-controller'"
+      message: "only the ReplicaSet controller creates or changes pods running as runs-fr"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: runs-fr-pods
+spec:
+  policyName: runs-fr-pods
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: runs-fr
 ---
 # The console writes the per-session credential and brief Secrets. Without this it could create a
 # kubernetes.io/service-account-token Secret naming ANY ServiceAccount in the namespace (the

@@ -70,7 +70,7 @@ REFERENCE = re.compile(r"^(?:\{\{[^{}]*\}\}|\$\{[A-Za-z_]\w*\}|\$\([^()]*\))$")
 # staple` is a passphrase, and `token: PASSWORDPASSWORD` is not an ENV key.
 KEY_SCALAR = re.compile(r"^[a-z][A-Za-z.-]*$")  # a mapping KEY inside a flow collection
 UPPER_SNAKE = re.compile(r"^[A-Z]+(?:_[A-Z]+)+$")
-LOWER_NAME = re.compile(r"^[a-z][a-z.-]*$")
+LOWER_NAME = re.compile(r"^[a-z][a-z.-]*(?:/[a-z][a-z.-]*)?$")  # also a label key: kubernetes.io/metadata.name
 NEXT_LINE_KEY = re.compile(r"^[a-z][A-Za-z.-]*:$")  # `secret:\n  secretName:` -- a nested key
 NAME_KEYS = frozenset({"key", "secretkey", "secretname", "name", "path"})
 

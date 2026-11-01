@@ -1,3 +1,11 @@
+# Trust boundary (journal p5-trust-model): cluster-wide human admins (root-devops, root-admins,
+# system:masters) can read the session Secrets in this namespace; admission cannot block a read,
+# and they are trusted with session credentials by operator decision. Everyone else is refused,
+# by the policies in apps/cluster-update-fr/manifests/admission-policy.yaml, exec/attach/
+# port-forward/proxy into sessions, ephemeral containers, TokenRequests for the session and
+# runs-fr ServiceAccounts, and pods running as runs-fr. AI agents bound to cluster-admin
+# (secure-agent-pod agent-sa, root-agents) are a known gap: derio-net/frank#912.
+#
 # Read-only view for every in-cluster session type: rollout checks, ArgoCD's applied revision
 # (R16), node health for OS steps. No secrets, no configmaps, no logs, no exec/attach/port-forward.
 # The two scoped WRITES (stateful snapshots, Rollouts promote/abort) are static Roles in the

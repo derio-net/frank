@@ -78,10 +78,11 @@ def _eval(expr, activation):
     return prog.evaluate({k: _cel(v) for k, v in activation.items()})
 
 
-def decide(policy, obj, user=CONSOLE, groups=()):
+def decide(policy, obj, user=CONSOLE, groups=(), name="", namespace="upgrade-sessions", operation="CREATE"):
     """(allowed, failed messages) the way the API server applies matchConditions + validations."""
     spec = POLICIES[policy]["spec"]
-    act = {"object": obj, "request": {"userInfo": {"username": user, "groups": list(groups)}}}
+    act = {"object": obj, "request": {"userInfo": {"username": user, "groups": list(groups)},
+                                      "name": name, "namespace": namespace, "operation": operation}}
     for c in spec.get("matchConditions", []):
         if not bool(_eval(c["expression"], act)):
             return True, []
@@ -346,10 +347,71 @@ def test_only_cluster_admins_proper_may_exec_into_a_session(subject):
     assert allowed == (subject["kind"] == "Group" and subject["name"] == "root-admins"), subject
 
 
+def test_exec_policy_also_covers_pods_proxy():
+    rule = POLICIES["upgrade-session-no-exec"]["spec"]["matchConstraints"]["resourceRules"][0]
+    assert "pods/proxy" in rule["resources"]
+
+
 def test_runs_fr_and_system_masters_may_exec_and_the_console_may_not():
     assert decide("upgrade-session-no-exec", {}, user=RUNS_FR, groups=["system:serviceaccounts"])[0]
     assert decide("upgrade-session-no-exec", {}, user="kubernetes-admin", groups=["system:masters"])[0]
     assert not decide("upgrade-session-no-exec", {}, user=CONSOLE)[0]
     assert not decide("upgrade-session-no-exec", {}, user="system:serviceaccount:runs-fr-staging:runs-fr")[0]
     assert not decide("upgrade-session-no-exec", {}, user="alice", groups=["runs-fr"])[0]
+
+
+# --- trust model (p5-trust-model): tokens for the session and runs-fr ServiceAccounts
+NODE = ("system:node:gpu-1", ["system:nodes", "system:authenticated"])
+SESSION_SAS = ["upgrade-session-" + t for t in TYPES if t != "hop-os"]
+
+
+def token_request(kind="Pod"):
+    spec = {"audiences": ["https://kubernetes.default.svc"], "expirationSeconds": 3607}
+    if kind:
+        spec["boundObjectRef"] = {"apiVersion": "v1", "kind": kind, "name": "us-x-1", "uid": "u"}
+    return {"apiVersion": "authentication.k8s.io/v1", "kind": "TokenRequest", "spec": spec}
+
+
+GUARDED_SAS = [(sa, "upgrade-sessions") for sa in SESSION_SAS] + [("runs-fr", "runs-fr")]
+
+
+@pytest.mark.parametrize("sa,ns", GUARDED_SAS)
+def test_only_the_kubelet_mints_tokens_for_session_and_runs_fr_sas(sa, ns):
+    # the kubelet's projected token for the pod it runs (NodeRestriction pins the pod to its node)
+    assert decide("upgrade-session-sa-tokens", token_request(), user=NODE[0], groups=NODE[1], name=sa, namespace=ns)[0]
+    # ...but not a free-standing token, even from a node identity
+    assert not decide("upgrade-session-sa-tokens", token_request(kind=None), user=NODE[0], groups=NODE[1],
+                      name=sa, namespace=ns)[0]
+    assert not decide("upgrade-session-sa-tokens", token_request(kind="Secret"), user=NODE[0], groups=NODE[1],
+                      name=sa, namespace=ns)[0]
+    for user, groups in (("alice", ["root-devops"]), ("system:serviceaccount:secure-agent-pod:agent-sa", ["system:serviceaccounts"]),
+                         (CONSOLE, ["system:serviceaccounts"]), ("system:node-imposter", ["system:authenticated"]),
+                         ("system:node:gpu-1", ["system:authenticated"])):
+        assert not decide("upgrade-session-sa-tokens", token_request(), user=user, groups=groups, name=sa, namespace=ns)[0], user
+    for groups in (["root-admins"], ["system:masters"]):
+        assert decide("upgrade-session-sa-tokens", token_request(kind=None), user="op", groups=groups, name=sa, namespace=ns)[0]
+
+
+def test_other_service_accounts_are_not_the_token_policys_business():
+    assert decide("upgrade-session-sa-tokens", token_request(kind=None), user="alice", name="default", namespace="upgrade-sessions")[0]
+    assert decide("upgrade-session-sa-tokens", token_request(kind=None), user="alice", name="other", namespace="runs-fr")[0]
+    assert decide("upgrade-session-sa-tokens", token_request(kind=None), user="alice", name="runs-fr", namespace="elsewhere")[0]
+
+
+RS_CONTROLLER = "system:serviceaccount:kube-system:replicaset-controller"
+
+
+def runs_fr_pod(sa="runs-fr"):
+    return {"metadata": {"name": "runs-fr-abc"}, "spec": {"serviceAccountName": sa, "containers": [{"name": "c", "image": "x"}]}}
+
+
+@pytest.mark.parametrize("op", ["CREATE", "UPDATE"])
+def test_only_the_replicaset_controller_runs_pods_as_runs_fr(op):
+    d = lambda pod, user, groups=(): decide("runs-fr-pods", pod, user=user, groups=groups, namespace="runs-fr", operation=op)[0]
+    assert d(runs_fr_pod(), RS_CONTROLLER, ["system:serviceaccounts"])
+    assert d(runs_fr_pod(), "op", ["root-admins"]) and d(runs_fr_pod(), "op", ["system:masters"])
+    for user, groups in (("alice", ["root-devops"]), ("system:serviceaccount:argocd:argocd-application-controller", []),
+                         ("system:serviceaccount:secure-agent-pod:agent-sa", []), ("system:node:gpu-1", ["system:nodes"])):
+        assert not d(runs_fr_pod(), user, groups), user
+    assert d(runs_fr_pod("default"), "alice", ["root-devops"]), "another SA is not this policy's business"
 
