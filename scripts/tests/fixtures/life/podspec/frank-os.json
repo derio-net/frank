@@ -4,10 +4,10 @@
   "metadata": {
     "labels": {
       "app.kubernetes.io/managed-by": "cluster-update-fr",
-      "cluster-update.fr/type": "chart-major",
-      "fr.run/id": "upg-chart-major"
+      "cluster-update.fr/type": "frank-os",
+      "fr.run/id": "golden-frank-os"
     },
-    "name": "us-upg-chart-major-1ddd5f4d",
+    "name": "us-golden-frank-os-762984f4",
     "namespace": "upgrade-sessions"
   },
   "spec": {
@@ -21,19 +21,19 @@
           },
           {
             "name": "UPGRADE_TALOS_MINOR",
-            "value": "1.12"
+            "value": "1.13"
           },
           {
             "name": "UPGRADE_K8S_MINOR",
-            "value": "1.35"
+            "value": "1.36"
           },
           {
             "name": "UPGRADE_ID",
-            "value": "upg-chart-major"
+            "value": "golden-frank-os"
           },
           {
             "name": "UPGRADE_TYPE",
-            "value": "chart-major"
+            "value": "frank-os"
           },
           {
             "name": "UPGRADE_CLUSTER",
@@ -41,19 +41,19 @@
           },
           {
             "name": "UPGRADE_APP",
-            "value": "app"
+            "value": ""
           },
           {
             "name": "TALOSCTL_VERSION",
-            "value": "v1.12.6"
+            "value": "1.13.4"
           },
           {
             "name": "KUBECTL_VERSION",
-            "value": "v1.35.3"
+            "value": "1.36.2"
           },
           {
             "name": "CONSOLE_URL",
-            "value": "http://cluster-update-fr.cluster-update-fr.svc:8081"
+            "value": "http://cluster-update-fr.cluster-update.svc:8081"
           },
           {
             "name": "DISABLE_AUTOUPDATER",
@@ -64,7 +64,7 @@
             "value": "/run/credentials"
           }
         ],
-        "image": "ghcr.io/derio-net/upgrade-session@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "image": "ghcr.io/derio-net/upgrade-session:1.0.0@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "imagePullPolicy": "IfNotPresent",
         "name": "session",
         "resources": {
@@ -133,7 +133,7 @@
         "type": "RuntimeDefault"
       }
     },
-    "serviceAccountName": "upgrade-session-chart-major",
+    "serviceAccountName": "upgrade-session-frank-os",
     "volumes": [
       {
         "emptyDir": {
@@ -157,18 +157,26 @@
               "path": "github-token"
             },
             {
+              "key": "omni-sa-key",
+              "path": "omni-sa-key"
+            },
+            {
               "key": "session-step-token",
               "path": "session-step-token"
+            },
+            {
+              "key": "talosconfig",
+              "path": "talosconfig"
             }
           ],
-          "secretName": "us-upg-chart-major-1ddd5f4d-creds"
+          "secretName": "us-golden-frank-os-762984f4-creds"
         }
       },
       {
         "name": "brief",
         "secret": {
           "defaultMode": 292,
-          "secretName": "us-upg-chart-major-1ddd5f4d-brief"
+          "secretName": "us-golden-frank-os-762984f4-brief"
         }
       }
     ]

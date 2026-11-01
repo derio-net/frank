@@ -61,6 +61,16 @@ spec:
       message: "the tailscale sidecar mounts only ts-state / ts-tmp and takes no args or envFrom"
     - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !has(e.valueFrom) || (e.name == 'TS_AUTHKEY' && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == variables.creds && e.valueFrom.secretKeyRef.key == 'tailscale-authkey')))"
       message: "the tailscale sidecar reads only TS_AUTHKEY, from <pod>-creds/tailscale-authkey"
+    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, e.name in ['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']))"
+      message: "the tailscale sidecar takes only the env launch.go sets"
+    # Both proxies (SOCKS5 :1055, HTTP CONNECT :1056) listen on loopback only: the pod's other
+    # containers use them; nothing else may (cluster-update-fr@537f208).
+    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !(e.name in ['TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN']) || (has(e.value) && (e.value.startsWith('localhost:') || e.value.startsWith('127.0.0.1:')))))"
+      message: "the tailscale sidecar's proxies listen on loopback only"
+    # Joined as tag:frank-session alone (p5-r3), never hop-scan's tag:frank-updater, against
+    # Frank's own control server.
+    - expression: "variables.inits.all(c, has(c.env) && c.env.exists(e, e.name == 'TS_EXTRA_ARGS' && has(e.value) && e.value.matches('(^| )--advertise-tags=tag:frank-session( |$)') && !e.value.matches('--advertise-tags=.*--advertise-tags=') && e.value.matches('(^| )--login-server=https://headscale[.]hop[.]derio[.]net( |$)') && !e.value.matches('--login-server=.*--login-server=')))"
+      message: "the tailscale sidecar advertises tag:frank-session only, against headscale.hop.derio.net"
     # ...and the agent never reaches that key or the sidecar's node key.
     - expression: "object.spec.containers.all(c, !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom))) && (!has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in ['ts-state', 'ts-tmp']))))"
       message: "session containers take no env from Secrets and never mount the tailscale state"

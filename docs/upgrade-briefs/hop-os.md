@@ -11,7 +11,11 @@ This session moves Hop — the single-node Hetzner edge cluster — one step alo
 Talos minor or one Kubernetes minor, as named at the top of the brief. Hop is not Omni-managed:
 you use `talosctl` with `$CREDENTIALS_DIR/hop-talosconfig` and `kubectl` with
 `$CREDENTIALS_DIR/hop-kubeconfig`, reached over the tailnet. You have no Frank ServiceAccount
-token.
+token. The pod's `tailscale` sidecar joins the tailnet as `tag:frank-session`, which reaches only
+hop-1's Kubernetes API (6443) and Talos API (50000). It proxies on loopback only:
+`talosctl` uses `HTTPS_PROXY=http://localhost:1056` (HTTP CONNECT), the hop kubeconfig names
+`proxy-url: socks5://localhost:1055`, and `NO_PROXY` keeps the model API, GitHub and the console
+direct. Do not change these variables; if Hop is unreachable, stop and ask the operator.
 
 > **Security note.** This pod reaches GitHub only at `api.github.com`. Its network policy allows
 > the addresses that name resolves to and requires the TLS server name (SNI) `api.github.com` on

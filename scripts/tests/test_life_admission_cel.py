@@ -1,8 +1,8 @@
 """Evaluate the upgrade-session admission policies for real (p4-r3, p4-r7, p5-r1).
 
 Runs the CEL in apps/cluster-update-fr/manifests/admission-policy.yaml against the console's REAL
-pod shapes (scripts/tests/fixtures/life/session-pods/<type>.json, dumped from
-internal/session/launch.go podSpec; see that directory's README) and against hostile variants. Needs cel-python,
+pod shapes (scripts/tests/fixtures/life/podspec/<type>.json, byte copies of the console's golden
+testdata/podspec/<type>.json, built by launch.go podSpec) and against hostile variants. Needs cel-python,
 which does not build on every interpreter; without it the tests skip and the phase-7 manual
 check `life-admission-dry-run` is the evidence instead.
 """
@@ -30,7 +30,7 @@ POLICIES = {d["metadata"]["name"]: d for d in DOCS if d["kind"] == "ValidatingAd
 CONSOLE = "system:serviceaccount:cluster-update-fr:cluster-update-fr"
 IMAGE = "ghcr.io/derio-net/upgrade-session:3f2a9c1"
 TYPES = ["chart-major", "stateful", "rollouts", "frank-os", "hop-os"]
-PODS = ROOT / "scripts/tests/fixtures/life/session-pods"
+PODS = ROOT / "scripts/tests/fixtures/life/podspec"
 _env = celpy.Environment()
 
 
@@ -131,6 +131,10 @@ def _session(p):
     return p["spec"]["containers"][0]
 
 
+def _envvar(c, name):
+    return next(e for e in c["env"] if e["name"] == name)
+
+
 def _authkey(p):
     return next(e for e in _ts(p)["env"] if e["name"] == "TS_AUTHKEY")
 
@@ -151,6 +155,13 @@ HOP_HOSTILE = {
     "sidecar envFrom": lambda p: _ts(p).update(envFrom=[{"secretRef": {"name": p["metadata"]["name"] + "-creds"}}]),
     "sidecar command": lambda p: _ts(p).update(command=["sh"]),
     "sidecar args": lambda p: _ts(p).update(args=["-c", "x"]),
+    "sidecar unknown env": lambda p: _ts(p)["env"].append({"name": "TS_ROUTES", "value": "0.0.0.0/0"}),
+    "socks5 off loopback": lambda p: _envvar(_ts(p), "TS_SOCKS5_SERVER").update(value="0.0.0.0:1055"),
+    "http proxy off loopback": lambda p: _envvar(_ts(p), "TS_OUTBOUND_HTTP_PROXY_LISTEN").update(value=":1056"),
+    "scanner's tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("tag:frank-session", "tag:frank-updater")),
+    "extra tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
+        value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("tag:frank-session", "tag:frank-session,tag:hop-node")),
     "authkey from another secret": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(name="us-other-creds"),
     "authkey is another key": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(key="github-token"),
     "sidecar reads another key": lambda p: _ts(p)["env"].append({"name": "X", "valueFrom": {"secretKeyRef": {

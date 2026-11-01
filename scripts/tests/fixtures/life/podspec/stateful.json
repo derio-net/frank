@@ -5,9 +5,9 @@
     "labels": {
       "app.kubernetes.io/managed-by": "cluster-update-fr",
       "cluster-update.fr/type": "stateful",
-      "fr.run/id": "upg-stateful"
+      "fr.run/id": "golden-stateful"
     },
-    "name": "us-upg-stateful-f0959bd0",
+    "name": "us-golden-stateful-e339b36b",
     "namespace": "upgrade-sessions"
   },
   "spec": {
@@ -29,7 +29,7 @@
           },
           {
             "name": "UPGRADE_ID",
-            "value": "upg-stateful"
+            "value": "golden-stateful"
           },
           {
             "name": "UPGRADE_TYPE",
@@ -41,19 +41,19 @@
           },
           {
             "name": "UPGRADE_APP",
-            "value": "app"
+            "value": "paperclip-db"
           },
           {
             "name": "TALOSCTL_VERSION",
-            "value": "v1.12.6"
+            "value": "1.12.6"
           },
           {
             "name": "KUBECTL_VERSION",
-            "value": "v1.35.3"
+            "value": "1.35.3"
           },
           {
             "name": "CONSOLE_URL",
-            "value": "http://cluster-update-fr.cluster-update-fr.svc:8081"
+            "value": "http://cluster-update-fr.cluster-update.svc:8081"
           },
           {
             "name": "DISABLE_AUTOUPDATER",
@@ -64,7 +64,7 @@
             "value": "/run/credentials"
           }
         ],
-        "image": "ghcr.io/derio-net/upgrade-session@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "image": "ghcr.io/derio-net/upgrade-session:1.0.0@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "imagePullPolicy": "IfNotPresent",
         "name": "session",
         "resources": {
@@ -161,14 +161,14 @@
               "path": "session-step-token"
             }
           ],
-          "secretName": "us-upg-stateful-f0959bd0-creds"
+          "secretName": "us-golden-stateful-e339b36b-creds"
         }
       },
       {
         "name": "brief",
         "secret": {
           "defaultMode": 292,
-          "secretName": "us-upg-stateful-f0959bd0-brief"
+          "secretName": "us-golden-stateful-e339b36b-brief"
         }
       }
     ]

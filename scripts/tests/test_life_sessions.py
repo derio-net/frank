@@ -155,7 +155,17 @@ def test_one_egress_policy_per_type_selecting_its_label_and_nothing_else():
         assert of_kind("CiliumClusterwideNetworkPolicy") == []
 
 
-CONSOLE_PODS = ROOT / "scripts/tests/fixtures/life/session-pods"
+CONSOLE_PODS = ROOT / "scripts/tests/fixtures/life/podspec"
+CONSOLE_GOLDEN = Path.home() / ".cache/fr/worktrees/cluster-update-fr/feat__console-v0/testdata/podspec"
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_pod_fixtures_are_byte_copies_of_the_consoles_golden_files(typ):
+    src = CONSOLE_GOLDEN / f"{typ}.json"
+    if not src.exists():
+        pytest.skip("cluster-update-fr worktree not present; the copies were taken at 537f208")
+    assert (CONSOLE_PODS / f"{typ}.json").read_bytes() == src.read_bytes(), \
+        f"re-copy testdata/podspec/{typ}.json from cluster-update-fr"
 
 
 def _selects(selector, labels):

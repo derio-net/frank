@@ -4,10 +4,10 @@
   "metadata": {
     "labels": {
       "app.kubernetes.io/managed-by": "cluster-update-fr",
-      "cluster-update.fr/type": "frank-os",
-      "fr.run/id": "upg-frank-os"
+      "cluster-update.fr/type": "chart-major",
+      "fr.run/id": "golden-chart-major"
     },
-    "name": "us-upg-frank-os-aeba3338",
+    "name": "us-golden-chart-major-827bd099",
     "namespace": "upgrade-sessions"
   },
   "spec": {
@@ -29,11 +29,11 @@
           },
           {
             "name": "UPGRADE_ID",
-            "value": "upg-frank-os"
+            "value": "golden-chart-major"
           },
           {
             "name": "UPGRADE_TYPE",
-            "value": "frank-os"
+            "value": "chart-major"
           },
           {
             "name": "UPGRADE_CLUSTER",
@@ -41,19 +41,19 @@
           },
           {
             "name": "UPGRADE_APP",
-            "value": "app"
+            "value": "cilium"
           },
           {
             "name": "TALOSCTL_VERSION",
-            "value": "v1.12.6"
+            "value": "1.12.6"
           },
           {
             "name": "KUBECTL_VERSION",
-            "value": "v1.35.3"
+            "value": "1.35.3"
           },
           {
             "name": "CONSOLE_URL",
-            "value": "http://cluster-update-fr.cluster-update-fr.svc:8081"
+            "value": "http://cluster-update-fr.cluster-update.svc:8081"
           },
           {
             "name": "DISABLE_AUTOUPDATER",
@@ -64,7 +64,7 @@
             "value": "/run/credentials"
           }
         ],
-        "image": "ghcr.io/derio-net/upgrade-session@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "image": "ghcr.io/derio-net/upgrade-session:1.0.0@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "imagePullPolicy": "IfNotPresent",
         "name": "session",
         "resources": {
@@ -133,7 +133,7 @@
         "type": "RuntimeDefault"
       }
     },
-    "serviceAccountName": "upgrade-session-frank-os",
+    "serviceAccountName": "upgrade-session-chart-major",
     "volumes": [
       {
         "emptyDir": {
@@ -157,26 +157,18 @@
               "path": "github-token"
             },
             {
-              "key": "omni-sa-key",
-              "path": "omni-sa-key"
-            },
-            {
               "key": "session-step-token",
               "path": "session-step-token"
-            },
-            {
-              "key": "talosconfig",
-              "path": "talosconfig"
             }
           ],
-          "secretName": "us-upg-frank-os-aeba3338-creds"
+          "secretName": "us-golden-chart-major-827bd099-creds"
         }
       },
       {
         "name": "brief",
         "secret": {
           "defaultMode": 292,
-          "secretName": "us-upg-frank-os-aeba3338-brief"
+          "secretName": "us-golden-chart-major-827bd099-brief"
         }
       }
     ]

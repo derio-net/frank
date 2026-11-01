@@ -5,9 +5,9 @@
     "labels": {
       "app.kubernetes.io/managed-by": "cluster-update-fr",
       "cluster-update.fr/type": "hop-os",
-      "fr.run/id": "upg-hop-os"
+      "fr.run/id": "golden-hop-os"
     },
-    "name": "us-upg-hop-os-e006b824",
+    "name": "us-golden-hop-os-0805f53e",
     "namespace": "upgrade-sessions"
   },
   "spec": {
@@ -21,15 +21,15 @@
           },
           {
             "name": "UPGRADE_TALOS_MINOR",
-            "value": "1.12"
+            "value": "1.13"
           },
           {
             "name": "UPGRADE_K8S_MINOR",
-            "value": "1.35"
+            "value": "1.36"
           },
           {
             "name": "UPGRADE_ID",
-            "value": "upg-hop-os"
+            "value": "golden-hop-os"
           },
           {
             "name": "UPGRADE_TYPE",
@@ -37,23 +37,23 @@
           },
           {
             "name": "UPGRADE_CLUSTER",
-            "value": "frank"
+            "value": "hop"
           },
           {
             "name": "UPGRADE_APP",
-            "value": "app"
+            "value": ""
           },
           {
             "name": "TALOSCTL_VERSION",
-            "value": "v1.12.6"
+            "value": "1.13.4"
           },
           {
             "name": "KUBECTL_VERSION",
-            "value": "v1.35.3"
+            "value": "1.36.2"
           },
           {
             "name": "CONSOLE_URL",
-            "value": "http://cluster-update-fr.cluster-update-fr.svc:8081"
+            "value": "http://cluster-update-fr.cluster-update.svc:8081"
           },
           {
             "name": "DISABLE_AUTOUPDATER",
@@ -64,19 +64,19 @@
             "value": "/run/credentials"
           },
           {
+            "name": "HTTPS_PROXY",
+            "value": "http://localhost:1056"
+          },
+          {
             "name": "ALL_PROXY",
             "value": "socks5://localhost:1055"
           },
           {
-            "name": "HTTPS_PROXY",
-            "value": "socks5://localhost:1055"
-          },
-          {
             "name": "NO_PROXY",
-            "value": "localhost,127.0.0.1,.svc,.cluster.local,cluster-update-fr.cluster-update-fr.svc"
+            "value": "localhost,127.0.0.1,.svc,.cluster.local,.anthropic.com,.claude.ai,.claude.com,github.com,.github.com,.githubusercontent.com,cluster-update-fr.cluster-update.svc"
           }
         ],
-        "image": "ghcr.io/derio-net/upgrade-session@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "image": "ghcr.io/derio-net/upgrade-session:1.0.0@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "imagePullPolicy": "IfNotPresent",
         "name": "session",
         "resources": {
@@ -159,20 +159,24 @@
             "value": "localhost:1055"
           },
           {
+            "name": "TS_OUTBOUND_HTTP_PROXY_LISTEN",
+            "value": "localhost:1056"
+          },
+          {
             "name": "TS_AUTHKEY",
             "valueFrom": {
               "secretKeyRef": {
                 "key": "tailscale-authkey",
-                "name": "us-upg-hop-os-e006b824-creds"
+                "name": "us-golden-hop-os-0805f53e-creds"
               }
             }
           },
           {
             "name": "TS_EXTRA_ARGS",
-            "value": "--login-server=https://headscale.hop.derio.net --hostname=frank-upgrade-upg-hop-os --advertise-tags=tag:frank-updater"
+            "value": "--login-server=https://headscale.hop.derio.net --hostname=frank-upgrade-golden-hop-os --advertise-tags=tag:frank-session"
           }
         ],
-        "image": "ghcr.io/tailscale/tailscale@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "image": "tailscale/tailscale:v1.82.5@sha256:2222222222222222222222222222222222222222222222222222222222222222",
         "imagePullPolicy": "IfNotPresent",
         "name": "tailscale",
         "resources": {
@@ -254,14 +258,14 @@
               "path": "session-step-token"
             }
           ],
-          "secretName": "us-upg-hop-os-e006b824-creds"
+          "secretName": "us-golden-hop-os-0805f53e-creds"
         }
       },
       {
         "name": "brief",
         "secret": {
           "defaultMode": 292,
-          "secretName": "us-upg-hop-os-e006b824-brief"
+          "secretName": "us-golden-hop-os-0805f53e-brief"
         }
       },
       {

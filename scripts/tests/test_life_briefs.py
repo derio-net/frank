@@ -206,3 +206,12 @@ def test_briefs_never_send_the_agent_to_github_com(name):
     body = text(name)
     assert "git clone" not in body and "git fetch" not in body
     assert not re.search(r"(?<![\w.])github\.com(?!/derio-net/frank/blob)", body.replace("api.github.com", "")), name
+
+
+def test_hop_os_brief_matches_the_sidecar_proxy_contract():
+    # cluster-update-fr@537f208: SOCKS5 on localhost:1055, HTTP CONNECT on localhost:1056 for
+    # talosctl, joined as tag:frank-session (p5-r3).
+    flat = re.sub(r"\s+", " ", text("hop-os.md"))
+    for want in ("HTTPS_PROXY=http://localhost:1056", "socks5://localhost:1055", "tag:frank-session", "NO_PROXY"):
+        assert want in flat, want
+    assert "frank-updater" not in flat
