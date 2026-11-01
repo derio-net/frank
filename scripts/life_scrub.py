@@ -63,13 +63,25 @@ REFERENCE = re.compile(r"^(?:\{\{[^{}]*\}\}|\$\{[A-Za-z_]\w*\}|\$\([^()]*\))$")
 # ABC123DEF is a secret shape, not a key name. A flow collection ({...} / [...]) is parsed and
 # exempt only if every key and value in it is itself a key name (or a boolean). A redaction
 # never uses this.
-KEY_SCALAR = re.compile(r"^(?:[A-Z]+(?:_[A-Z]+)*|[a-z][A-Za-z.-]*)$")
-KEY_NAME = re.compile(r"^(?:[A-Z]+(?:_[A-Z]+)*|[a-z][a-z.-]*|[a-z][A-Za-z.-]*:)$")
+#
+# p5-r9: a value is a NAME only when its shape AND its key say so. UPPER_SNAKE with at least one
+# underscore (LITELLM_MASTER_KEY) is a name under any key; a lowercase/dash word (talosconfig,
+# bot-token) only under a key that names things (NAME_KEYS) -- `password: correct-horse-battery-
+# staple` is a passphrase, and `token: PASSWORDPASSWORD` is not an ENV key.
+KEY_SCALAR = re.compile(r"^[a-z][A-Za-z.-]*$")  # a mapping KEY inside a flow collection
+UPPER_SNAKE = re.compile(r"^[A-Z]+(?:_[A-Z]+)+$")
+LOWER_NAME = re.compile(r"^[a-z][a-z.-]*$")
+NEXT_LINE_KEY = re.compile(r"^[a-z][A-Za-z.-]*:$")  # `secret:\n  secretName:` -- a nested key
+NAME_KEYS = frozenset({"key", "secretkey", "secretname", "name", "path"})
 
 
-def _flow_of_key_names(text: str, start: int) -> bool:
-    """True if the flow collection opening at text[start] closes on its line and holds only
-    key names and booleans."""
+def _is_name(key: str, value: str) -> bool:
+    return bool(UPPER_SNAKE.match(value)) or (key.lower() in NAME_KEYS and bool(LOWER_NAME.match(value)))
+
+
+def _flow_of_key_names(text: str, start: int, key: str) -> bool:
+    """True if the flow collection opening at text[start] (the value of `key`) closes on its
+    line and holds only mapping keys, booleans, and values that are names under their key."""
     end_of_line = text.find("\n", start)
     line = text[start:] if end_of_line < 0 else text[start:end_of_line]
     depth = 0
@@ -84,14 +96,14 @@ def _flow_of_key_names(text: str, start: int) -> bool:
     except yaml.YAMLError:
         return False
 
-    def ok(node) -> bool:
+    def ok(node, under: str) -> bool:
         if isinstance(node, dict):
-            return all(ok(k) and ok(v) for k, v in node.items())
+            return all(isinstance(k, str) and KEY_SCALAR.match(k) and ok(v, k) for k, v in node.items())
         if isinstance(node, list):
-            return all(ok(x) for x in node)
-        return isinstance(node, bool) or (isinstance(node, str) and bool(KEY_SCALAR.match(node)))
+            return all(ok(x, under) for x in node)
+        return isinstance(node, bool) or (isinstance(node, str) and _is_name(under, node))
 
-    return isinstance(data, (dict, list)) and ok(data)
+    return isinstance(data, (dict, list)) and ok(data, key)
 
 
 def _classify_eyj(secret: str) -> str:
@@ -168,8 +180,10 @@ def _matches(p: Pattern, text: str, repository: bool = False) -> list[tuple[int,
         while p.trim_right and end > start and text[end - 1] in p.trim_right:
             end -= 1
         value = text[start:end]
+        key = re.match(r"[\w-]+", m.group(0)).group(0) if p.unquoted else ""
         exempt_name = repository and p.unquoted and (
-            _flow_of_key_names(text, start) if value[:1] in "{[" else bool(KEY_NAME.match(value)))
+            _flow_of_key_names(text, start, key) if value[:1] in "{[" else
+            _is_name(key, value) or bool(NEXT_LINE_KEY.match(value)))
         if _is_marker(value) or (repository and p.key_value and REFERENCE.match(value)) or exempt_name:
             pos = max(m.end(), pos + 1)
             continue
@@ -360,7 +374,8 @@ def find_tokens(text: str, literals: Literals | None = None, repository: bool = 
     """Kinds of credential present in text, without duplicates, in redaction order. [] = clean.
 
     repository=True is the CI guard over files in git: it does not report an unquoted value that
-    is the NAME of a secret (KEY_NAME). Never use it to decide what to redact.
+    is the NAME of a secret (_is_name), nor a value that is one closed reference. Never use it to
+    decide what to redact.
     """
     kinds: list[str] = []
 

@@ -309,7 +309,14 @@ def test_no_token_shaped_string_in_session_facing_files(path):
     # flow collections: every element must be a key name, else it is reported
     ("secret: {password: hunter2hunter2}", "yaml-secret"), ("secret: [ABC123DEF, x]", "yaml-secret"),
     ("secret: {secretValue: Zq9Zq9Zq9Zq9}", "yaml-secret"), ("secret: {unclosed: talosconfig", "yaml-secret"),
-    ("secret: [talosconfig, bot-token]", None), ("secret: {secretName: x-y, optional: true}", None),
+    ("secret: {secretName: x-y, optional: true}", None),
+    # p5-r9: a lowercase/dash or one-word all-caps value is a NAME only under a name-bearing key
+    # (key, secretKey, secretName, name, path) or as UPPER_SNAKE with an underscore.
+    ("password: correct-horse-battery-staple", "yaml-secret"), ("password: correcthorsebattery", "yaml-secret"),
+    ("token: PASSWORDPASSWORD", "yaml-secret"), ("secret: [talosconfig, bot-token]", "yaml-secret"),
+    ("secret: {password: correct-horse-battery}", "yaml-secret"), ("secret: {apiValue: CORRECTHORSE}", "yaml-secret"),
+    ("  key: talosconfig-material", None), ("secret: {secretKey: bot-token, name: telegram-creds}", None),
+    ("- {key: tailscale-authkey, path: tailscale-authkey}", None), ("password: DB_PASSWORD", None),
 ])
 def test_repository_mode_exempts_secret_names_but_not_values(text, kind):
     assert ls.find_tokens(text, repository=True) == ([kind] if kind else []), text
