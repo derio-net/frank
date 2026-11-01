@@ -975,3 +975,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r1 created=2026-11-01T17:30:49+00:00 phase=6 state=open review_scope=in -->
 ### p6-r1 · finding [open] (reviewer: in scope) · life-rollback.md git revert -m 1 fails on squash-merged PRs (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r2 created=2026-11-01T17:31:03+00:00 phase=6 state=open review_scope=in -->
+### p6-r2 · finding [open] (reviewer: in scope) · Longhorn restore: selfHeal must always be suspended with the full automated map (phase 6)
