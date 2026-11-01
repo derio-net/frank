@@ -1,0 +1,9 @@
+# Smoke declaration for frank/zot (spec R16/R17). The verifier runs these after every rollout.
+app: zot
+cluster: frank
+checks:
+- kind: tcp
+  target: zot.zot.svc.cluster.local:5000
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

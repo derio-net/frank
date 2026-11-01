@@ -1,0 +1,14 @@
+# Smoke declaration for hop/headscale (spec R16/R17). The verifier runs these after every rollout.
+app: headscale
+cluster: hop
+checks:
+- kind: http
+  target: https://headscale.hop.derio.net/health
+  expect:
+    status: 200
+    body: pass
+  public: true
+- kind: tcp
+  target: headscale.headscale-system.svc.cluster.local:8080
+  expect:
+    open: true

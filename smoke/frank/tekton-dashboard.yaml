@@ -1,0 +1,8 @@
+# Smoke declaration for frank/tekton-dashboard (spec R16/R17). The verifier runs these after every rollout.
+app: tekton-dashboard
+cluster: frank
+checks:
+- kind: http
+  target: http://tekton-dashboard.tekton-pipelines.svc.cluster.local:9097/readiness
+  expect:
+    status: 200

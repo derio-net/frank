@@ -1,0 +1,9 @@
+# Smoke declaration for frank/blackbox-exporter (spec R16/R17). The verifier runs these after every rollout.
+app: blackbox-exporter
+cluster: frank
+checks:
+- kind: tcp
+  target: blackbox-exporter.monitoring.svc.cluster.local:9115
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

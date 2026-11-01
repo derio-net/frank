@@ -1,0 +1,10 @@
+# Smoke declaration for frank/litellm-extras (spec R16/R17). The verifier runs these after every rollout.
+app: litellm-extras
+cluster: frank
+checks:
+- kind: exec-probe
+  target: rollout/litellm
+  namespace: litellm
+  expect:
+    phase: Healthy
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'

@@ -1609,3 +1609,176 @@ rows:
   status: not-implemented
   notes: ''
   verify: none
+- id: life-inventory-complete
+  capability: update-lifecycle
+  acceptance: The console inventory lists every dependency of Frank, Hop and Omni
+    (Talos, Kubernetes, Omni, every chart and image, per service) with declared, running
+    and latest version, and flags any declared-vs-running mismatch.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R1
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-every-version-pinned
+  capability: update-lifecycle
+  acceptance: No workload on either cluster runs a :latest or untagged image, and
+    Frank, Hop and Omni versions are declared in git.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R2
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-every-dep-has-path
+  capability: update-lifecycle
+  acceptance: Every dependency has exactly one update path, Renovate detects updates
+    for all dependency types, and CI rejects an unclassified dependency.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-automerge-and-batch
+  capability: update-lifecycle
+  acceptance: Auto-merge items show their merge time and can be held or merged now;
+    routine updates arrive as one editable batch approved with one click.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-vulns-jump-queue
+  capability: update-lifecycle
+  acceptance: Vulnerabilities in images running on either cluster are found with severity
+    and fix availability, listed first and approvable individually and immediately.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R8
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-telegram-quiet-alarm
+  capability: update-lifecycle
+  acceptance: 'The derio.net #security topic gets one immediate alarm per new qualifying
+    vulnerability, repeated only on a state change, plus one daily report.'
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R10
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-grafana-trend
+  capability: update-lifecycle
+  acceptance: A Grafana dashboard shows versions-behind and vulnerability counts over
+    time per cluster, plus alarm and report state.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R12
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-console-acts-via-forges
+  capability: update-lifecycle
+  acceptance: The console at updates.cluster.derio.net, behind Authentik, shows Needs
+    action, Inventory and History, and its actions change only the forges, never a
+    cluster.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R13
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-done-means-verified
+  capability: update-lifecycle
+  acceptance: An update is shown done only after ArgoCD applied its merge commit and
+    the real service's smoke test passed; every app has a smoke test.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R16
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-rollback-and-rollouts
+  capability: update-lifecycle
+  acceptance: Every update shows its rollback path before approval, and paused or
+    aborted Argo Rollouts appear under Needs action and are resolved through a session.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R18
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-disposable-session
+  capability: update-lifecycle
+  acceptance: Start session launches a locked-down pod with credentials scoped to
+    that upgrade, the operator attaches in the browser, and the pod and its credentials
+    are gone after it ends.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R20
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-os-tracks
+  capability: update-lifecycle
+  acceptance: Frank and Hop OS upgrades are shown as ordered Talos/Kubernetes sequences
+    approved one step at a time; Omni shows running vs latest with its runbook.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R24
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-no-credential-leak
+  capability: update-lifecycle
+  acceptance: No credential appears in logs, transcripts, PR bodies, Telegram or the
+    console.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R25
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-clean-failure-state
+  capability: update-lifecycle
+  acceptance: A failed update, killed pod or abandoned session ends in a named state
+    in the console with its leftovers removed.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R26
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-working-at-handover
+  capability: update-lifecycle
+  acceptance: At handover real updates have completed through auto-merge, batch, security
+    approval and an agent session, plus one OS step on each cluster.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R27
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-ci-recovery
+  capability: update-lifecycle
+  acceptance: An update held for CI shows whether the status was lost, never ran,
+    or failed, offers the matching recovery, and a repeated failure is marked failed.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R28
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: life-session-idempotent
+  capability: update-lifecycle
+  acceptance: Starting the same session twice attaches to the existing one, and two
+    sessions changing the same cluster OS or application cannot run at once.
+  origin:
+  - frank:docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md#R29
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live

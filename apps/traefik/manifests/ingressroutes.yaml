@@ -604,3 +604,56 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.cluster.derio.net"
+---
+# Update console (plan 2026-10-31--life--update-security-lifecycle, phase 4). Forward-auth
+# restricted to the operator group; the console additionally verifies the JWT Authentik forwards.
+# Only the UI port (8080) is routed; the session API and metrics are never reachable from here.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cluster-update-fr
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`updates.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: cluster-update-fr
+          namespace: cluster-update-fr
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+# Browser attach to upgrade-session pods. runs-fr trusts the identity header, so this route is
+# only safe behind forward-auth AND the Cilium policy that admits Traefik alone.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: runs-fr
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`sessions.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: runs-fr
+          namespace: runs-fr
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"

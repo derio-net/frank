@@ -105,7 +105,7 @@ spec:
           - {name: source}
         steps:
           - name: pytest
-            image: python:3.13-slim
+            image: python:3.13.18-slim
             workingDir: $(workspaces.source.path)/repo
             securityContext:
               allowPrivilegeEscalation: false

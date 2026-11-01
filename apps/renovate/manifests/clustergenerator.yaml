@@ -1,0 +1,35 @@
+# Scoped GitHub App installation-token generator for Renovate (plan
+# 2026-10-31--life--update-security-lifecycle, phase 2). A NEW GitHub App holding only
+# contents/pull_requests/issues write on derio-net/frank; the token is further
+# scoped at mint time to that one repo.
+#
+# NOTE: ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's namespace
+# and IGNORES secretRef.namespace, so Secret github-app-renovate-key must exist in
+# namespace `renovate` (applied out-of-band by the trailing manual phase). Until then
+# the ExternalSecret sits in SecretSyncedError and the CronJob's secretKeyRef is
+# optional: the job fails fast instead of blocking the sync.
+#
+# appID / installID are filled in when the App is created (manual phase); the
+# placeholders below make the generator fail loudly, never mint a wrong token.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-renovate
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "PENDING-MANUAL-PHASE"
+      installID: "PENDING-MANUAL-PHASE"
+      repositories:
+        - frank
+      permissions:
+        contents: write
+        pull_requests: write
+        issues: write
+        workflows: write
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-renovate-key
+            key: key

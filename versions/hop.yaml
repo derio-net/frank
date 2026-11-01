@@ -1,0 +1,7 @@
+# DECLARED OS versions for the Hop cluster (standalone talosctl, not Omni).
+# Git leads the cluster: declare the new version here, then apply it. Hop steps use
+# `talosctl upgrade --image ...` and `talosctl upgrade-k8s --to ...`, which change
+# versions without re-applying the (secret-bearing, non-git) machine-config patch.
+talos: 1.12.5
+kubernetes: 1.34.1
+managed_by: talosctl

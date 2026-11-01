@@ -1,0 +1,9 @@
+# Smoke declaration for frank/metrics-server (spec R16/R17). The verifier runs these after every rollout.
+app: metrics-server
+cluster: frank
+checks:
+- kind: tcp
+  target: metrics-server.kube-system.svc.cluster.local:443
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

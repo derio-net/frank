@@ -1,0 +1,14 @@
+# Severity SUMMARY series only (operator.metricsVulnIdEnabled=false in values.yaml): per-CVE
+# series would exceed promscrape.maxScrapeSize and the whole response would be dropped.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  endpoints:
+    - port: metrics
+      honorLabels: true

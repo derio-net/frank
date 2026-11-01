@@ -1,0 +1,9 @@
+# Smoke declaration for frank/awx (spec R16/R17). The verifier runs these after every rollout.
+app: awx
+cluster: frank
+checks:
+- kind: tcp
+  target: awx-operator-controller-manager-metrics-service.awx.svc.cluster.local:8443
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

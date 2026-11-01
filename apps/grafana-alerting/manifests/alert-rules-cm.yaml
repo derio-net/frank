@@ -3557,3 +3557,160 @@ data:
             annotations:
               summary: "pc-1 /var has under 15% free for 15m. The Gitea runner's DinD volume and Longhorn data live there."
               runbook: "talosctl -n 192.168.55.71 df; docker image/volume prune via a DinD restart (kubectl -n gitea-runner rollout restart deploy/act-runner); check Longhorn replicas on pc-1. Spec section 7."
+
+      # Update/security lifecycle dead-man's switches (plan
+      # 2026-10-31--life--update-security-lifecycle, phase 3). GRAFANA IS NEVER THE ALARM
+      # SOURCE: the update console raises security alarms and the daily report itself. These
+      # three rules only notice that a producer went quiet, and they route to health-bridge
+      # (health_bridge_only) -- never Telegram -- so they cannot become a second, noisier alarm
+      # path. 129600s = 36h: both producers run daily. The metric rules read `or vector(1e9)`
+      # so a VANISHED metric (console down) reads as stale instead of NoData, and fire. The
+      # LogsQL rule uses Frank's `_msg` field + queryType stats (a guaranteed 0-row when
+      # nothing matches); a VictoriaLogs outage is NoData -> OK (blindness != death). All uids
+      # are well under Grafana's 40-char limit (a longer one crash-loops Grafana).
+      - orgId: 1
+        name: life-lifecycle
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: life-scan-heartbeat-stale
+            title: Lifecycle scan heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '(time() - max(cluster_update_last_scan_timestamp_seconds)) or vector(1e9)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [129600] }
+            noDataState: Alerting
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+            annotations:
+              summary: "The update console has not completed a vulnerability scan in 36h (or its metrics vanished). New CVEs are going unseen."
+              runbook: "kubectl -n update-console get pods,cronjobs; check the console logs and cluster_update_last_scan_timestamp_seconds in VMUI. Spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md"
+
+          - uid: life-report-heartbeat-stale
+            title: Lifecycle report heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '(time() - max(cluster_update_last_report_timestamp_seconds)) or vector(1e9)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [129600] }
+            noDataState: Alerting
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+            annotations:
+              summary: "The update console has not sent its daily report in 36h (or its metrics vanished). The operator is not being told what needs action."
+              runbook: "kubectl -n update-console get pods; check the console logs for Telegram errors and cluster_update_last_report_timestamp_seconds in VMUI. Spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md"
+
+          - uid: life-hop-scan-heartbeat-stale
+            title: Hop image scan heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 129600, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND _msg:"\"healthy\": true" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 129600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 129600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+            annotations:
+              summary: "No HEALTHY hop-scan heartbeat (status ok and at least one image scanned) in VictoriaLogs for 36h: the daily Hop image scan (Frank CronJob hop-scan) is dead, blind or its logs are not arriving, so Hop's images are unscanned."
+              runbook: "kubectl -n hop-scan get cronjob,jobs,pods; read the last pod's logs (containers tailscale, list-images, scan, report). The heartbeat prints even when the job is blind (status=skipped: ...), so its absence means the job did not run to the end."
+          # A blind run (kubeconfig/tailnet/scanner failure) still prints a heartbeat, with
+          # healthy=false. Short 6h window: it alarms within a rule interval of the 03:17 run and
+          # clears the same day; persistent blindness is also caught by the 36h rule above.
+          - uid: life-hop-scan-unhealthy
+            title: Hop image scan ran blind
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND NOT _msg:"\"healthy\": true" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+            annotations:
+              summary: "The daily Hop image scan ran but was blind: its heartbeat reports status other than ok or no image scanned (no kubeconfig / tailnet down / trivy failing). Hop's images were not scanned."
+              runbook: "kubectl -n hop-scan logs job/<latest> -c report (status field says why); check Secrets frank-updater-tailscale, hop-readonly-kubeconfig, trivy-server-token and the headscale policy."

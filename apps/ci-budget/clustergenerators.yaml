@@ -61,6 +61,7 @@ spec:
         - presentation-craft
         - vibe-kanban
         - runs-fr
+        - cluster-update-fr
 ---
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: ClusterGenerator

@@ -15,7 +15,7 @@ spec:
       description: "The git repo"
   steps:
     - name: test
-      image: alpine:3.20
+      image: alpine:3.20.10
       workingDir: $(workspaces.source.path)
       securityContext:
         allowPrivilegeEscalation: false

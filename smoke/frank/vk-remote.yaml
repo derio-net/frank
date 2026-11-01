@@ -1,0 +1,9 @@
+# Smoke declaration for frank/vk-remote (spec R16/R17). The verifier runs these after every rollout.
+app: vk-remote
+cluster: frank
+checks:
+- kind: tcp
+  target: vk-remote.agents.svc.cluster.local:8081
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

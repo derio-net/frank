@@ -1,0 +1,198 @@
+# Daily scan of the images running on Hop, from Frank (spec: Vulnerability scanning, Reaching Hop).
+#
+# One pod, four steps, no RBAC and no service-account token:
+#   tailscale   native sidecar: userspace tailscale joined to the Headscale tailnet as
+#               tag:frank-updater (SOCKS5 on localhost:1055). Needs Secret
+#               frank-updater-tailscale/authkey (phase 7); optional so the job degrades to a
+#               heartbeat-only run before then.
+#   list-images read-only kubectl against Hop's kube API over the tailnet with the optional
+#               Secret hop-readonly-kubeconfig (phase 7).
+#   scan        trivy image against the shared in-cluster server (client/server mode).
+#   report      prints `hop-scan result {json}` lines + a `hop-scan heartbeat` line.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hop-scan
+  namespace: hop-scan
+spec:
+  schedule: "17 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      # 3000 = list/join wait (~180) + SCAN_BUDGET_S 2100 + one last image (300) + margin.
+      activeDeadlineSeconds: 3000
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: hop-scan
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: tailscale
+              image: tailscale/tailscale:v1.82.5
+              restartPolicy: Always
+              env:
+                - name: TS_USERSPACE
+                  value: "true"
+                - name: TS_STATE_DIR
+                  value: /ts-state
+                - name: TS_SOCKET
+                  value: /ts-state/tailscaled.sock
+                - name: TS_KUBE_SECRET
+                  value: ""
+                - name: TS_SOCKS5_SERVER
+                  value: localhost:1055
+                - name: TS_AUTHKEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: frank-updater-tailscale
+                      key: authkey
+                      optional: true
+                - name: TS_EXTRA_ARGS
+                  value: "--login-server=https://headscale.hop.derio.net --hostname=frank-hop-scan --advertise-tags=tag:frank-updater"
+              # Own uid and own state volume: the node key and the tailscaled socket are
+              # mounted ONLY here, so a compromised scanner cannot read or drive them.
+              securityContext:
+                runAsUser: 65531
+                runAsGroup: 65531
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 200m, memory: 256Mi}
+              volumeMounts:
+                - {name: ts-state, mountPath: /ts-state}
+            - name: list-images
+              image: bitnamilegacy/kubectl:1.33.4@sha256:ed0b31a0508da84ee655c5c6e01bd3897fc56ad6cf69debb27fa1893a06d2246
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  mkdir -p /work/results
+                  chmod 777 /work/results   # the scanner runs as another uid
+                  : > /work/images.txt
+                  if [ ! -s /kube/config ]; then
+                    echo "skipped: no hop-readonly-kubeconfig" > /work/status
+                    exit 0
+                  fi
+                  export KUBECONFIG=/kube/config
+                  n=0
+                  until kubectl get pods -A -o jsonpath='{range .items[*]}{range .spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' > /work/raw.txt 2> /work/err.txt; do
+                    n=$((n+1))
+                    if [ "$n" -ge 12 ]; then
+                      echo "skipped: hop kube API unreachable" > /work/status
+                      exit 0
+                    fi
+                    sleep 10
+                  done
+                  cp /work/raw.txt /work/images.txt
+                  echo ok > /work/status
+              env:
+                - name: HTTPS_PROXY
+                  value: socks5://localhost:1055
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 200m, memory: 256Mi}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: kubeconfig, mountPath: /kube, readOnly: true}
+            - name: scan
+              image: mirror.gcr.io/aquasec/trivy:0.76.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  # LC_ALL=C: report.py indexes results by the position in this sorted list.
+                  # Image lines come from a remote cluster: accept only image-reference shapes
+                  # (never a leading '-', so a line cannot become a trivy flag).
+                  LC_ALL=C sort -u /work/images.txt | grep -E '^[A-Za-z0-9][A-Za-z0-9._/:@-]*$' > /work/images.sorted || true
+                  # Total budget: stop starting new scans once SCAN_BUDGET_S has elapsed, so the
+                  # report container always runs (and prints its heartbeat) well inside
+                  # activeDeadlineSeconds. Unscanned images simply have no result file.
+                  start=$(date +%s)
+                  i=0
+                  while read -r image; do
+                    if [ $(( $(date +%s) - start )) -ge "$SCAN_BUDGET_S" ]; then
+                      echo "scan budget of ${SCAN_BUDGET_S}s exhausted; skipping the remaining images"
+                      break
+                    fi
+                    # </dev/null: trivy must not swallow the rest of the image list from stdin.
+                    # The token comes from the TRIVY_TOKEN env var, never from argv.
+                    trivy image --server http://trivy-service.trivy-system:4954 \
+                      --scanners vuln --format json --quiet --timeout 5m \
+                      --output "/work/results/$i.json" -- "$image" </dev/null || true
+                    i=$((i+1))
+                  done < /work/images.sorted
+                  exit 0
+              env:
+                - name: TRIVY_CACHE_DIR
+                  value: /scan-tmp/trivy
+                - name: SCAN_BUDGET_S
+                  value: "2100"
+                - name: TRIVY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: trivy-server-token
+                      key: token
+                      optional: true
+                - name: TRIVY_NO_PROGRESS
+                  value: "true"
+              securityContext:
+                runAsUser: 65534
+                runAsGroup: 65534
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 100m, memory: 256Mi}
+                limits: {cpu: "1", memory: 1Gi}
+              volumeMounts:
+                - {name: work, mountPath: /work}
+                - {name: scan-tmp, mountPath: /scan-tmp}
+          containers:
+            - name: report
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              command: ["python3", "/app/report.py"]
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {cpu: 200m, memory: 128Mi}
+              volumeMounts:
+                - {name: work, mountPath: /work, readOnly: true}
+                - {name: report, mountPath: /app, readOnly: true}
+          volumes:
+            - name: ts-state
+              emptyDir: {}
+            - name: scan-tmp
+              emptyDir: {}
+            - name: work
+              emptyDir: {}
+            - name: kubeconfig
+              secret:
+                secretName: hop-readonly-kubeconfig
+                optional: true
+                items:
+                  - {key: config, path: config}
+            - name: report
+              configMap:
+                name: hop-scan-report

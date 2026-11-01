@@ -1,0 +1,9 @@
+# Smoke declaration for frank/hermes-agent-shell (spec R16/R17). The verifier runs these after every rollout.
+app: hermes-agent-shell
+cluster: frank
+checks:
+- kind: tcp
+  target: hermes-agent-shell-dashboard.hermes-agent-shell.svc.cluster.local:9119
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

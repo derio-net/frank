@@ -1,0 +1,13 @@
+# Smoke declaration for hop/caddy (spec R16/R17). The verifier runs these after every rollout.
+app: caddy
+cluster: hop
+checks:
+- kind: http
+  target: https://blog.derio.net/
+  public: true
+  expect:
+    status: 301
+    headers:
+      strict-transport-security: max-age=\d+
+      content-security-policy: default-src
+  note: 'a different vhost than hop/www, so this proves Caddy itself: the redirect plus the security headers it must add to every response'

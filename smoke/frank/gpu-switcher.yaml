@@ -1,0 +1,9 @@
+# Smoke declaration for frank/gpu-switcher (spec R16/R17). The verifier runs these after every rollout.
+app: gpu-switcher
+cluster: frank
+checks:
+- kind: tcp
+  target: gpu-switcher.gpu-switcher.svc.cluster.local:8080
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

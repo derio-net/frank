@@ -1,0 +1,10 @@
+# Smoke declaration for frank/runs-fr (spec R16/R17). The verifier runs these after every rollout.
+app: runs-fr
+cluster: frank
+checks:
+- kind: exec-probe
+  target: deployment/runs-fr
+  namespace: runs-fr
+  expect:
+    available: true
+  reason: 'its ingress policy admits only Traefik (behind forward-auth), so an HTTP probe from the verifier is refused by design; the deployment readiness probe is GET /readyz'

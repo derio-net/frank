@@ -1,0 +1,812 @@
+{
+  "_comment": [
+    "Shared credential-scrub fixtures for cluster-update-fr (Go) and derio-net/frank scripts/life_scrub.py.",
+    "This repository is PUBLIC, so no fixture is stored as a literal token: each `in` is a list of",
+    "segments joined in order. A segment is a string, {\"repeat\": s, \"times\": n}, or {\"base64\": s}",
+    "(standard encoding of s). `kinds` lists every kind that must be reported and redacted to",
+    "«redacted:<kind>»; `leaks` lists literal substrings of the input that must not survive (in addition to every repeat/base64 segment of 16+ chars). `benign` inputs must come back",
+    "byte-identical."
+  ],
+  "cases": [
+    {
+      "name": "installation token",
+      "kinds": [
+        "github-token"
+      ],
+      "in": [
+        "auth ",
+        "gh",
+        "s_",
+        {
+          "repeat": "A1b2",
+          "times": 9
+        },
+        " ok"
+      ]
+    },
+    {
+      "name": "classic pat",
+      "kinds": [
+        "github-token"
+      ],
+      "in": [
+        "gh",
+        "p_",
+        {
+          "repeat": "Zz09",
+          "times": 9
+        }
+      ]
+    },
+    {
+      "name": "oauth token",
+      "kinds": [
+        "github-token"
+      ],
+      "in": [
+        "gh",
+        "o_",
+        {
+          "repeat": "Qq12",
+          "times": 9
+        }
+      ]
+    },
+    {
+      "name": "fine-grained pat",
+      "kinds": [
+        "github-pat"
+      ],
+      "in": [
+        "github",
+        "_pat_",
+        {
+          "repeat": "11AB",
+          "times": 6
+        },
+        "_",
+        {
+          "repeat": "cd34",
+          "times": 12
+        }
+      ]
+    },
+    {
+      "name": "gitea token",
+      "kinds": [
+        "gitea-token"
+      ],
+      "in": [
+        "Authorization: token ",
+        {
+          "repeat": "0a1b2c3d4e",
+          "times": 4
+        }
+      ]
+    },
+    {
+      "name": "telegram",
+      "kinds": [
+        "telegram-bot-token"
+      ],
+      "in": [
+        "bot",
+        "123456789:",
+        "AA",
+        {
+          "repeat": "Bc_-d",
+          "times": 6
+        },
+        "xyz"
+      ]
+    },
+    {
+      "name": "telegram adjacent comma",
+      "kinds": [
+        "telegram-bot-token"
+      ],
+      "in": [
+        "123456789:",
+        "AA",
+        {
+          "repeat": "Bc_-d",
+          "times": 6
+        },
+        "xyz",
+        ",",
+        "987654321:",
+        "ZZ",
+        {
+          "repeat": "Yx_-w",
+          "times": 6
+        },
+        "uvw"
+      ]
+    },
+    {
+      "name": "telegram adjacent no separator",
+      "kinds": [
+        "telegram-bot-token"
+      ],
+      "in": [
+        "123456789:",
+        "AA",
+        {
+          "repeat": "Bc_-d",
+          "times": 6
+        },
+        "xy9",
+        "987654321:",
+        "ZZ",
+        {
+          "repeat": "Yx_-w",
+          "times": 6
+        },
+        "uvw"
+      ]
+    },
+    {
+      "name": "telegram adjacent space",
+      "kinds": [
+        "telegram-bot-token"
+      ],
+      "in": [
+        "123456789:",
+        "AA",
+        {
+          "repeat": "Bc_-d",
+          "times": 6
+        },
+        "xyz",
+        " ",
+        "987654321:",
+        "ZZ",
+        {
+          "repeat": "Yx_-w",
+          "times": 6
+        },
+        "uvw"
+      ]
+    },
+    {
+      "name": "anthropic",
+      "kinds": [
+        "api-key"
+      ],
+      "in": [
+        "sk-",
+        "ant-api03-",
+        {
+          "repeat": "Xy9_",
+          "times": 10
+        }
+      ]
+    },
+    {
+      "name": "openai",
+      "kinds": [
+        "api-key"
+      ],
+      "in": [
+        "sk-",
+        "proj-",
+        {
+          "repeat": "Ab12",
+          "times": 10
+        }
+      ]
+    },
+    {
+      "name": "two api keys adjacent",
+      "kinds": [
+        "api-key"
+      ],
+      "in": [
+        "sk-",
+        {
+          "repeat": "Ab12",
+          "times": 6
+        },
+        ",sk-",
+        {
+          "repeat": "Cd34",
+          "times": 6
+        }
+      ]
+    },
+    {
+      "name": "bearer",
+      "kinds": [
+        "bearer"
+      ],
+      "in": [
+        "Authorization: Bearer ",
+        {
+          "repeat": "abc.DEF_123-",
+          "times": 3
+        }
+      ]
+    },
+    {
+      "name": "pem",
+      "kinds": [
+        "private-key"
+      ],
+      "in": [
+        "-----BEGIN RSA ",
+        "PRIVATE KEY-----\nMIIEow",
+        {
+          "repeat": "AB",
+          "times": 30
+        },
+        "\n-----END RSA ",
+        "PRIVATE KEY-----"
+      ]
+    },
+    {
+      "name": "kubeconfig token",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "users:\n- user:\n    token: ",
+        {
+          "repeat": "kT9",
+          "times": 12
+        }
+      ]
+    },
+    {
+      "name": "kubeconfig token trailing comment",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "    token: ",
+        {
+          "repeat": "kT9",
+          "times": 12
+        },
+        " # rotated monthly"
+      ]
+    },
+    {
+      "name": "kubeconfig client key",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "    client-key-data: ",
+        {
+          "repeat": "LS0t",
+          "times": 12
+        }
+      ]
+    },
+    {
+      "name": "talosconfig key",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "contexts:\n  frank:\n    key: ",
+        {
+          "repeat": "TFMw",
+          "times": 12
+        }
+      ]
+    },
+    {
+      "name": "json key value",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "{\"token\": \"",
+        {
+          "repeat": "kT9",
+          "times": 12
+        },
+        "\", \"user\": \"x\"}"
+      ]
+    },
+    {
+      "name": "json compact",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "{\"password\":\"",
+        {
+          "repeat": "pW7",
+          "times": 12
+        },
+        "\"}"
+      ]
+    },
+    {
+      "name": "inline comma",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "token: ",
+        {
+          "repeat": "kT9",
+          "times": 12
+        },
+        ", other: 1"
+      ]
+    },
+    {
+      "name": "env assignment",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "PASSWORD=",
+        {
+          "repeat": "pW7",
+          "times": 12
+        },
+        " next"
+      ]
+    },
+    {
+      "name": "two yaml secrets one line",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "{token: ",
+        {
+          "repeat": "kT9",
+          "times": 12
+        },
+        ", secret: ",
+        {
+          "repeat": "sE5",
+          "times": 12
+        },
+        "}"
+      ]
+    },
+    {
+      "name": "omni sa key",
+      "kinds": [
+        "omni-sa-key"
+      ],
+      "in": [
+        "OMNI_SERVICE_ACCOUNT_KEY=",
+        {
+          "base64": "{\"name\":\"console-reader\",\"pgp_key\":\"-----BEGIN PGP PRIVATE KEY BLOCK-----xyz\"}"
+        }
+      ]
+    },
+    {
+      "name": "jwt",
+      "kinds": [
+        "jwt"
+      ],
+      "in": [
+        "id ",
+        "eyJ",
+        "hbGciOiJSUzI1NiJ9.",
+        {
+          "repeat": "eyJzdWIi",
+          "times": 4
+        },
+        ".",
+        {
+          "repeat": "sig_",
+          "times": 8
+        }
+      ]
+    },
+    {
+      "name": "unquoted hash early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab#cd"
+      ],
+      "in": [
+        "password: ab#cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        }
+      ]
+    },
+    {
+      "name": "unquoted comma early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab,cd"
+      ],
+      "in": [
+        "password: ab,cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        }
+      ]
+    },
+    {
+      "name": "unquoted brace early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab}cd"
+      ],
+      "in": [
+        "secret: ab}cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        }
+      ]
+    },
+    {
+      "name": "unquoted short with hash",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "p#ss1234"
+      ],
+      "in": [
+        "password: p#ss",
+        "1234"
+      ]
+    },
+    {
+      "name": "unquoted then real comment",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab#cd"
+      ],
+      "in": [
+        "password: ab#cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        },
+        " # keep this comment"
+      ]
+    },
+    {
+      "name": "double quoted hash early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab#cd"
+      ],
+      "in": [
+        "{\"password\": \"ab#cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        },
+        "\"}"
+      ]
+    },
+    {
+      "name": "double quoted comma early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab,cd"
+      ],
+      "in": [
+        "{\"password\":\"ab,cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        },
+        "\",\"u\":1}"
+      ]
+    },
+    {
+      "name": "double quoted brace early",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "ab}cd"
+      ],
+      "in": [
+        "token: \"ab}cd",
+        {
+          "repeat": "xY7",
+          "times": 4
+        },
+        "\""
+      ]
+    },
+    {
+      "name": "single quoted hash comma brace",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "a#b,c}d"
+      ],
+      "in": [
+        "secret: 'a#",
+        "b,c}d",
+        {
+          "repeat": "xY7",
+          "times": 4
+        },
+        "'"
+      ]
+    },
+    {
+      "name": "quoted with spaces",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "correct horse"
+      ],
+      "in": [
+        "password: \"correct horse battery staple\""
+      ]
+    },
+    {
+      "name": "block style next line",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "token:\n    ",
+        {
+          "repeat": "kT9",
+          "times": 6
+        },
+        "\nuser: x"
+      ]
+    },
+    {
+      "name": "block style crlf",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "password:\r\n  ",
+        {
+          "repeat": "pW7",
+          "times": 6
+        }
+      ]
+    },
+    {
+      "name": "block style quoted next line",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "secret:\n  \"",
+        {
+          "repeat": "sE5",
+          "times": 6
+        },
+        "\""
+      ]
+    },
+    {
+      "name": "unclosed double quote",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "in": [
+        "token: \"",
+        {
+          "repeat": "kT9",
+          "times": 6
+        },
+        " and more"
+      ]
+    },
+    {
+      "name": "unclosed single quote",
+      "kinds": [
+        "yaml-secret"
+      ],
+      "leaks": [
+        "and more"
+      ],
+      "in": [
+        "secret: '",
+        {
+          "repeat": "sE5",
+          "times": 6
+        },
+        " and more"
+      ]
+    }
+  ],
+  "benign": [
+    [
+      "commit ",
+      {
+        "repeat": "a1b2c3d4e5",
+        "times": 4
+      }
+    ],
+    [
+      "merged 3f2a1b0 into main"
+    ],
+    [
+      "image: ghcr.io/derio-net/cluster-update-fr:0.1.0"
+    ],
+    [
+      "token: «redacted:yaml-secret»"
+    ],
+    [
+      "key: short"
+    ],
+    [
+      "the token expired"
+    ],
+    [
+      "sha256:",
+      {
+        "repeat": "ab",
+        "times": 32
+      }
+    ],
+    [
+      "replicas: 3"
+    ],
+    [
+      "task-",
+      {
+        "repeat": "abcd",
+        "times": 6
+      }
+    ],
+    [
+      "monkey: ",
+      {
+        "repeat": "banana",
+        "times": 4
+      }
+    ]
+  ],
+  "_comment_literal": [
+    "`literal` cases exercise the first layer: `secret` (segments) is registered in a redaction set under",
+    "`kind`; `in` may then use {\"ref\": F} segments where F is raw | base64 | base64url | rawbase64 | query |",
+    "line:N (the Nth line of a multi-line secret) | line-base64:N. After redaction no form of the secret",
+    "(and no line of 8+ chars) may survive, and «redacted:<kind>» must appear. These shapes match no pattern."
+  ],
+  "literal": [
+    {
+      "name": "inside a sentence",
+      "kind": "gitea-token",
+      "secret": [
+        {
+          "repeat": "q7Zm",
+          "times": 4
+        }
+      ],
+      "in": [
+        "the runner said ",
+        {
+          "ref": "raw"
+        },
+        " was rejected"
+      ]
+    },
+    {
+      "name": "base64 encoded",
+      "kind": "github-token",
+      "secret": [
+        {
+          "repeat": "Hn3p",
+          "times": 5
+        }
+      ],
+      "in": [
+        "data: {\"auth\": \"",
+        {
+          "ref": "base64"
+        },
+        "\"}"
+      ]
+    },
+    {
+      "name": "url-safe base64 unpadded",
+      "kind": "github-token",
+      "secret": [
+        {
+          "repeat": "Hn3p?>",
+          "times": 5
+        }
+      ],
+      "in": [
+        "x=",
+        {
+          "ref": "rawbase64url"
+        }
+      ]
+    },
+    {
+      "name": "url escaped",
+      "kind": "telegram-bot-token",
+      "secret": [
+        "bot/",
+        {
+          "repeat": "a+b c",
+          "times": 4
+        }
+      ],
+      "in": [
+        "GET /path?t=",
+        {
+          "ref": "query"
+        },
+        "&x=1"
+      ]
+    },
+    {
+      "name": "split across a yaml block",
+      "kind": "talosconfig",
+      "secret": [
+        "line-one-",
+        {
+          "repeat": "Aa1",
+          "times": 6
+        },
+        "\nline-two-",
+        {
+          "repeat": "Bb2",
+          "times": 6
+        }
+      ],
+      "in": [
+        "contexts:\n  frank:\n    material: |\n      ",
+        {
+          "ref": "line:1"
+        },
+        "\n      ",
+        {
+          "ref": "line:2"
+        },
+        "\n"
+      ]
+    },
+    {
+      "name": "one line base64",
+      "kind": "omni-sa-key",
+      "secret": [
+        "first-",
+        {
+          "repeat": "Cc3",
+          "times": 6
+        },
+        "\nsecond-",
+        {
+          "repeat": "Dd4",
+          "times": 6
+        }
+      ],
+      "in": [
+        "blob ",
+        {
+          "ref": "line-base64:2"
+        },
+        " end"
+      ]
+    }
+  ]
+}

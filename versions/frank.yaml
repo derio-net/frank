@@ -1,0 +1,8 @@
+# DECLARED OS versions for the Frank cluster (Omni-managed). Git leads the
+# cluster: a version step is declared here first, then applied by changing ONLY
+# the cluster's version fields in Omni; the inventory compares declared vs running.
+# This is versions-only and is NOT an Omni cluster template: a template sync would
+# own every ConfigPatch (patches/phase*) and could drop or rewrite node config.
+talos: 1.12.6
+kubernetes: 1.35.3
+managed_by: omni

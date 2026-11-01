@@ -1,0 +1,10 @@
+# Smoke declaration for frank/gpu-operator (spec R16/R17). The verifier runs these after every rollout.
+app: gpu-operator
+cluster: frank
+checks:
+- kind: exec-probe
+  target: daemonset/gpu-operator-node-feature-discovery-worker
+  namespace: gpu-operator
+  expect:
+    ready: all
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'
