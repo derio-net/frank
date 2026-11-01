@@ -47,7 +47,9 @@ HOST_REASONS = {
     "auth.openai.com": "Codex device-code login and token refresh",
     "chatgpt.com": "Codex signed in with a ChatGPT plan sends its model requests to chatgpt.com/backend-api",
     "omni.frank.derio.net": "frank-os only: the Omni API (version change of the cluster); never the Omni host",
-    "headscale.hop.derio.net": "hop-os only: tailnet control server and its DERP region (443 + STUN 3478/udp)",
+    "headscale.hop.derio.net": "hop-os only: tailnet control server and its embedded DERP region 999 (443 + STUN "
+                               "3478/udp); hop-1's Kubernetes and Talos APIs are reached THROUGH the tailnet as "
+                               "tag:frank-session (Headscale grants only 6443,50000), never directly",
     "derp*.tailscale.com": "hop-os only: Tailscale's DERP relays from headscale's default DERP map",
 }
 GITHUB = ("api.github.com",)

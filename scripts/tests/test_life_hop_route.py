@@ -52,19 +52,36 @@ def test_old_acl_entries_are_unchanged():
     assert a["autoApprovers"] == OLD_AUTO_APPROVERS
 
 
-def test_the_edit_is_minimal_one_entry_and_two_owners():
+NEW_TAGS = {"tag:frank-updater", "tag:frank-session"}
+
+
+def _grant(tag):
+    (entry,) = [r for r in acl()["acls"][len(OLD_ACLS):] if r["src"] == [tag]]
+    return entry
+
+
+def test_the_edit_is_minimal_two_entries_and_three_owners():
     a = acl()
     new = a["acls"][len(OLD_ACLS):]
-    assert len(new) == 1
-    assert set(a["tagOwners"]) - set(OLD_TAG_OWNERS) == {"tag:frank-updater", "tag:hop-node"}
+    assert len(new) == 2
+    assert {tuple(r["src"]) for r in new} == {(t,) for t in NEW_TAGS}
+    assert set(a["tagOwners"]) - set(OLD_TAG_OWNERS) == NEW_TAGS | {"tag:hop-node"}
 
 
-def test_frank_updater_reaches_only_hop_kube_and_talos_apis():
-    (entry,) = acl()["acls"][len(OLD_ACLS):]
+def test_frank_updater_reaches_only_hop_kube_api():
+    entry = _grant("tag:frank-updater")
     assert entry["action"] == "accept"
-    assert entry["src"] == ["tag:frank-updater"]
     assert entry["dst"] == ["tag:hop-node:6443"], "the scanner needs only the kube API"
     assert acl()["tagOwners"]["tag:frank-updater"], "the tag needs an owner"
+
+
+def test_frank_session_reaches_only_hop_kube_and_talos_apis():
+    # p5-r3: hop-os sessions upgrade Hop's Talos and Kubernetes; they join as their OWN tag so
+    # the scanner's 6443-only grant stays narrow and a session never borrows it.
+    entry = _grant("tag:frank-session")
+    assert entry["action"] == "accept"
+    assert entry["dst"] == ["tag:hop-node:6443,50000"]
+    assert acl()["tagOwners"]["tag:frank-session"] == ["group:tag-admins"]
 
 
 def test_application_is_a_frank_path_app_in_its_own_namespace():
@@ -187,7 +204,7 @@ def test_p3_sec_1_tag_owners_are_an_admin_group_not_default():
     other_users |= {m for g, ms in a["groups"].items() if g != "group:tag-admins" for m in ms}
     assert not set(admins) & other_users, "disjoint from every user that owns nodes/other tags"
     assert "default" not in admins
-    for tag in ("tag:frank-updater", "tag:hop-node"):
+    for tag in ("tag:frank-updater", "tag:frank-session", "tag:hop-node"):
         assert a["tagOwners"][tag] == ["group:tag-admins"], tag
     # the old entry is still exactly as it was
     assert a["tagOwners"]["tag:subnet-router"] == ["default"]
@@ -292,10 +309,11 @@ def test_p3_r1_wildcard_is_narrowed_so_only_the_explicit_grant_reaches_frank_upd
     # minus the new tag. tag:hop-node is included because a tagged hop-1 stops matching its
     # user (Caddy on hop-1 reaches Frank LB IPs over the mesh); tag-admin registers no nodes.
     users = {"default"}
-    tags = set(a["tagOwners"]) - {"tag:frank-updater"}
+    tags = set(a["tagOwners"]) - NEW_TAGS
     assert set(wildcard["src"]) == users | tags
     assert "tag-admin" not in wildcard["src"] and "group:tag-admins" not in wildcard["src"]
-    others = [r for r in a["acls"] if r is not a["acls"][-1]]
-    for r in others:
-        assert "tag:frank-updater" not in r["src"] and "*" not in r["src"]
-    assert a["acls"][-1]["src"] == ["tag:frank-updater"]
+    for tag in NEW_TAGS:
+        grants = [r for r in a["acls"] if tag in r["src"]]
+        assert grants == [_grant(tag)], f"{tag}: its explicit grant is its only access"
+    for r in a["acls"]:
+        assert "*" not in r["src"]

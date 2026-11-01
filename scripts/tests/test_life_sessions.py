@@ -264,6 +264,18 @@ def test_tailnet_only_for_hop_os():
     assert stun, "DERP/STUN needs UDP 3478"
 
 
+def test_hop_os_reaches_hop_only_through_the_tailnet():
+    # p5-r3: hop-1's Kubernetes (6443) and Talos (50000) APIs are reached through the tailscale
+    # sidecar as tag:frank-session (Headscale grants exactly those), never directly: no CIDR,
+    # no Talos port, and the tailnet is headscale's control + embedded DERP region alone.
+    rules = type_policy("hop-os")["spec"]["egress"]
+    assert not any("toCIDR" in r or "toCIDRSet" in r for r in rules)
+    assert not any(("50000", "TCP") in ports(r) for r in rules)
+    (tailnet,) = [r for r in rules if any(f.get("matchName") in TAILNET for f in r.get("toFQDNs", []))]
+    assert [f["matchName"] for f in tailnet["toFQDNs"]] == sorted(TAILNET)
+    assert ports(tailnet) == {("443", "TCP"), ("3478", "UDP")}
+
+
 def _ns_targets(t):
     """{namespace: allowed pod ports} of the target-service rules (not the common rules)."""
     out = {}
