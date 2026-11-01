@@ -22,6 +22,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      # 3000 = list/join wait (~180) + SCAN_BUDGET_S 2100 + one last image (300) + margin.
       activeDeadlineSeconds: 3000
       template:
         metadata:
@@ -119,17 +120,29 @@ spec:
                   # Image lines come from a remote cluster: accept only image-reference shapes
                   # (never a leading '-', so a line cannot become a trivy flag).
                   LC_ALL=C sort -u /work/images.txt | grep -E '^[A-Za-z0-9][A-Za-z0-9._/:@-]*$' > /work/images.sorted || true
+                  # Total budget: stop starting new scans once SCAN_BUDGET_S has elapsed, so the
+                  # report container always runs (and prints its heartbeat) well inside
+                  # activeDeadlineSeconds. Unscanned images simply have no result file.
+                  start=$(date +%s)
                   i=0
                   while read -r image; do
-                    trivy image --server http://trivy-service.trivy-system:4954 --token "$TRIVY_TOKEN" \
-                      --scanners vuln --format json --quiet --timeout 10m \
-                      --output "/work/results/$i.json" -- "$image" || true
+                    if [ $(( $(date +%s) - start )) -ge "$SCAN_BUDGET_S" ]; then
+                      echo "scan budget of ${SCAN_BUDGET_S}s exhausted; skipping the remaining images"
+                      break
+                    fi
+                    # </dev/null: trivy must not swallow the rest of the image list from stdin.
+                    # The token comes from the TRIVY_TOKEN env var, never from argv.
+                    trivy image --server http://trivy-service.trivy-system:4954 \
+                      --scanners vuln --format json --quiet --timeout 5m \
+                      --output "/work/results/$i.json" -- "$image" </dev/null || true
                     i=$((i+1))
                   done < /work/images.sorted
                   exit 0
               env:
                 - name: TRIVY_CACHE_DIR
                   value: /scan-tmp/trivy
+                - name: SCAN_BUDGET_S
+                  value: "2100"
                 - name: TRIVY_TOKEN
                   valueFrom:
                     secretKeyRef:

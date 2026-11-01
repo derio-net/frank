@@ -174,6 +174,7 @@ def test_every_image_is_pinned_and_workloads_are_bounded():
 
 
 # ---- security review (p3-sec-1..4) ----------------------------------------------------------
+import os  # noqa: E402
 import subprocess  # noqa: E402
 
 
@@ -245,4 +246,37 @@ def test_p3_sec_4_trivy_token_reaches_the_scanner_from_an_optional_secret():
     env = {e["name"]: e for e in scan["env"]}
     ref = env["TRIVY_TOKEN"]["valueFrom"]["secretKeyRef"]
     assert ref["name"] == "trivy-server-token" and ref["optional"] is True
-    assert '--token "$TRIVY_TOKEN"' in _scan_script()
+    assert "--token" not in _scan_script(), "the token is read from TRIVY_TOKEN, not argv (visible in /proc)"
+
+
+def test_p3_r6_trivy_cannot_eat_the_loop_input_and_the_scan_has_a_budget():
+    script = _scan_script()
+    assert re.search(r'trivy image[^\n]*\\?\n?[^\n]*</dev/null|</dev/null', script), "trivy must not read the loop's stdin"
+    assert '-- "$image" </dev/null' in script
+    cj, pod = _cronjob()
+    (scan,) = [c for c in _all_containers(pod) if c["name"] == "scan"]
+    env = {e["name"]: e.get("value") for e in scan["env"]}
+    budget = int(env["SCAN_BUDGET_S"])
+    assert "SCAN_BUDGET_S" in script and "date +%s" in script and "break" in script
+    m = re.search(r"--timeout (\d+)m", script)
+    per_image = int(m.group(1)) * 60
+    deadline = cj["spec"]["jobTemplate"]["spec"]["activeDeadlineSeconds"]
+    waits = 12 * 10 + 60  # list-images retry loop + tailscale join slack
+    assert budget + per_image + waits + 300 <= deadline, "margin so the report container always prints"
+    # behavioural: run the real script body with a fake trivy that also drains stdin
+    import tempfile
+
+    def run(budget):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "results").mkdir()
+            Path(d, "images.txt").write_text("a/one:1\n--evil\n\nb/two:2\n")
+            body = script.replace("/work", d)
+            fake = f'trivy(){{ cat >/dev/null; echo "$@" >> {d}/log; }}\n'
+            subprocess.run(["sh", "-c", fake + body], env={"PATH": os.environ["PATH"], "SCAN_BUDGET_S": str(budget)},
+                           capture_output=True, text=True, timeout=30)
+            log = Path(d, "log")
+            return log.read_text().splitlines() if log.exists() else []
+
+    assert run(0) == []
+    ran = run(3600)
+    assert len(ran) == 2 and all("--evil" not in l.split("--")[-1] for l in ran), ran
