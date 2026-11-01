@@ -1070,3 +1070,8 @@ Runbook executability is reviewed by humans and exercised live in phase 7; the k
 ### p5-r11-resolved-3 · finding [deferred → derio-net/frank#912] · resolves p5-r11: secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
 
 AI agents holding cluster-admin can read session Secrets; operator chose to scope them down separately.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r4-resolved-2 created=2026-11-01T17:38:23+00:00 phase=5 state=open resolves=p5-r4 tracked_by=derio-net/cluster-update-fr#1 -->
+### p5-r4-resolved-2 · finding [deferred → derio-net/cluster-update-fr#1] · resolves p5-r4: console sets socks5 HTTPS_PROXY/ALL_PROXY, likely unsupported by talosctl (grpc-go) and Claude Code (phase 5)
+
+Console-side: HTTP CONNECT proxy for hop-os added in cluster-update-fr@6755112; lands with that PR.
