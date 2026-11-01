@@ -785,3 +785,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r5 created=2026-11-01T12:27:45+00:00 phase=5 state=open review_scope=in -->
 ### p5-r5 · finding [open] (reviewer: in scope) · derp*.tailscale.com egress unnecessary and a public-relay exfil channel (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r6 created=2026-11-01T12:27:50+00:00 phase=5 state=open review_scope=in -->
+### p5-r6 · finding [open] (reviewer: in scope) · toFQDNs is IP-based so other hosts on the same IPs are reachable; residual note false; add serverNames (phase 5)
