@@ -128,12 +128,13 @@ data:
           "dst": ["tag:hop-node:6443,50000"]
         }
       ],
-      // Dedicated owner group for the lifecycle tags, so they are NOT claimable by any
-      // user: only members of group:tag-admins may advertise them. The frank-updater auth
+      // Dedicated owner group for the lifecycle tags. `tag-admin` is an operator-only Headscale
+      // user that never registers nodes (ordinary nodes live under `default`), so the tags are
+      // NOT claimable by ordinary nodes: only members of group:tag-admins may advertise them. The frank-updater auth
       // key must be ephemeral, single-use and pre-tagged (minted by the operator in
       // phase 7), so the node never needs to claim the tag itself.
       "groups": {
-        "group:tag-admins": ["default"]
+        "group:tag-admins": ["tag-admin"]
       },
       "tagOwners": {
         "tag:subnet-router": ["default"],

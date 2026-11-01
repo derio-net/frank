@@ -180,7 +180,11 @@ import subprocess  # noqa: E402
 def test_p3_sec_1_tag_owners_are_an_admin_group_not_default():
     a = acl()
     admins = a["groups"]["group:tag-admins"]
-    assert admins and "*" not in admins
+    assert admins == ["tag-admin"], "a dedicated user that never registers nodes"
+    other_users = {o for owners in a["tagOwners"].values() for o in owners if not o.startswith("group:")}
+    other_users |= {m for g, ms in a["groups"].items() if g != "group:tag-admins" for m in ms}
+    assert not set(admins) & other_users, "disjoint from every user that owns nodes/other tags"
+    assert "default" not in admins
     for tag in ("tag:frank-updater", "tag:hop-node"):
         assert a["tagOwners"][tag] == ["group:tag-admins"], tag
     # the old entry is still exactly as it was
