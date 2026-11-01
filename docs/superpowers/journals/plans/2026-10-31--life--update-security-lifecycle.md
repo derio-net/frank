@@ -776,3 +776,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r2 created=2026-11-01T12:27:31+00:00 phase=5 state=open review_scope=in -->
 ### p5-r2 · finding [open] (reviewer: in scope) · hop-os contract not wired: no SESSION_TAILSCALE_IMAGE, no tailscale-authkey projection (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r3 created=2026-11-01T12:27:35+00:00 phase=5 state=open review_scope=in -->
+### p5-r3 · finding [open] (reviewer: in scope) · hop-os cannot reach Hop Talos API; sessions share hop-scan's tag (phase 5)
