@@ -27,8 +27,6 @@ targets:
   - 5678
   ollama.ollama.svc.cluster.local:11434:
   - 11434
-  ovms-retrieval.retrieval.svc.cluster.local:8000:
-  - 8000
   paperclip-lb.paperclip-system.svc.cluster.local:3100:
   - 3100
   staging.vcluster-staging.svc.cluster.local:443:
