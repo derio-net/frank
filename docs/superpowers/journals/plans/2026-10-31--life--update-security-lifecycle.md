@@ -843,3 +843,8 @@ Operator decision, relayed by the orchestrator. TRUSTED with session credentials
 ### p5-r11-resolved · finding [deferred → derio-net/frank#912] · resolves p5-r11: secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
 
 Valid, and not this change's to fix: secure-agent-pod agent-sa and root-agents hold cluster-admin (pre-existing) and can read every session credential. Operator decision p5-trust-model: AI agents are not trusted; scoping them down is derio-net/frank#912. This phase narrows them (no exec/attach/port-forward/proxy into sessions, no TokenRequests for session or runs-fr SAs, no runs-fr pods) but reads stay open until #912.
+
+<!-- fr:journal kind=finding scope=plan id=p5-console-pod-env-mismatch-resolved created=2026-11-01T17:17:45+00:00 phase=5 state=fixed resolves=p5-console-pod-env-mismatch -->
+### p5-console-pod-env-mismatch-resolved · finding [fixed] · resolves p5-console-pod-env-mismatch: Console session pod env does not match the upgrade-session image interface (phase 5)
+
+Fixed on the console side (cluster-update-fr@6ebe748): session pod uid/HOME/emptyDirs/args-only and UPGRADE_*_MINOR match the upgrade-session image; frank briefs use UPGRADE_*_MINOR (p5-r17); golden podspecs pin it.
