@@ -418,3 +418,8 @@ The frank-updater pre-auth key is reusable + ephemeral + pre-tagged, short expir
 ### p4-console-contract-v2 · discovery · Console contract v2 (cluster-update-fr#1 after review fixes) (phase 4)
 
 Supersedes parts of p4-console-contract. Console runs single-writer: replicas 1, strategy Recreate. New env: SESSION_BOT_LOGIN (a THIRD, separate GitHub App for sessions; its token file 'github-token' lives under SESSION_SECRET_DIR), STATUS_CREATOR_LOGINS (the status bridge's GitHub identity; unset → nothing passes CI), plus session timing/cap vars listed in the console README. update-policy.yaml gains required_ci_contexts (default gitea-actions/*). Branch prefixes: cluster-update/session-<id>/ or -<id>- (session bot; separator being changed to avoid prefix collision — follow the console's final form) and cluster-update/revert- (console bot); the phase-7 ruleset must cover both. New endpoint POST /api/sessions/{id}/request-merge on 8081; ports unchanged (8080 UI from Traefik only, 9090 metrics, 8081 session API from upgrade-sessions only). RBAC: console needs get/list/create/delete on pods and secrets in upgrade-sessions, no RoleBindings; frank pre-binds session roles and denies pods/ephemeralcontainers.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-briefs-open-and-request created=2026-11-01T08:16:14+00:00 phase=5 -->
+### p5-briefs-open-and-request · discovery · Briefs: sessions open PRs and request merge; never merge (phase 5)
+
+Console contract: session briefs and AGENTS.md/CLAUDE.md must instruct the agent to open PRs on its session branch prefix and call POST /api/sessions/{id}/request-merge, then wait for the operator's click in the console — never merge, never push to main. Test the brief templates for that wording.
