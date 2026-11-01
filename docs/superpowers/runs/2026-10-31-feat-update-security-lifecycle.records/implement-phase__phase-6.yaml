@@ -1,0 +1,32 @@
+schema_version: 10
+run: 2026-10-31-feat-update-security-lifecycle
+step: implement-phase
+item: phase/6
+outcome: done
+ticks: [P6.T1.S1, P6.T1.S2, P6.T2.S1, P6.T2.S2]
+refactor:
+  P6.T1: "life_tracks.py is one short loop mirroring the console's tracks.Next; nothing to merge or simplify"
+  P6.T2: "two prose runbooks plus a test file; no duplicated parts (the briefs keep their own short rollback paragraph)"
+journal:
+  - kind: discovery
+    id: p6-talos-k8s-windows
+    phase: 6
+    title: Talos to Kubernetes support windows, verified against the official docs
+    body: |
+      versions/support-matrix.yaml: Talos 1.12 -> k8s 1.30-1.35, 1.13 -> 1.31-1.36, 1.14 -> 1.33-1.37.
+      Sources (Kubernetes row of the latest-release column):
+      https://docs.siderolabs.com/talos/v1.12/getting-started/support-matrix
+      https://docs.siderolabs.com/talos/v1.13/getting-started/support-matrix
+      https://docs.siderolabs.com/talos/v1.14/getting-started/support-matrix
+      Shape matches the console's frankrepo.Matrix (`talos: {"<minor>": [k8s minors]}`).
+      Hop 1.12.5/1.34.1 is inside Talos 1.13's window, so the real matrix puts Talos first for Hop;
+      the Kubernetes-first case is covered with a synthetic matrix (matrix-driven, not hard-coded).
+  - kind: discovery
+    id: p6-rollback-and-omni-runbooks
+    phase: 6
+    title: Rollback and Omni runbooks agree with the phase 5 briefs
+    body: |
+      docs/runbooks/life-rollback.md (revert PR, Longhorn restore, Frank Talos revert via Omni, Hop talosctl
+      rollback, Kubernetes one-way) and docs/runbooks/omni-upgrade.md (laptop-only, willikins#528). The frank-os
+      and hop-os briefs already say the same, so no brief change was needed; test_life_briefs still passes.
+evidence: {tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/6e5115b5-7008-498c-9028-3ac060fab4bd/scratchpad/phase6-tests.log}
