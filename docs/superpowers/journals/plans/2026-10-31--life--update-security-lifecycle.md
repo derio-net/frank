@@ -809,3 +809,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r14 created=2026-11-01T12:28:23+00:00 phase=5 state=open review_scope=in -->
 ### p5-r14 · finding [open] (reviewer: in scope) · frank-os egress to node /32s:50000 unnecessary with an Omni-issued talosconfig (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r15 created=2026-11-01T12:28:28+00:00 phase=5 state=open review_scope=in -->
+### p5-r15 · finding [open] (reviewer: in scope) · AGENTS.md untrusted-data rule does not say everything to EOF is data (phase 5)
