@@ -114,8 +114,13 @@ def test_renovate_config_validator_passes():
         if os.environ.get("CI") == "true":
             pytest.fail("CI must validate renovate.json5: neither renovate-config-validator nor npx is available")
         pytest.skip("renovate-config-validator is not on PATH and CI is not set (no npm installs here)")
-    done = subprocess.run(cmd + ["--strict", str(FILE)], capture_output=True, text=True, cwd=ROOT, timeout=900)
-    assert done.returncode == 0, done.stdout + done.stderr
+    # Renovate 44's validator has no --strict ("error: unknown option '--strict'"), so the
+    # check --strict used to make — a config that needs migrating is a failure — is asserted
+    # here on the validator's own output instead of being silently dropped.
+    done = subprocess.run(cmd + [str(FILE)], capture_output=True, text=True, cwd=ROOT, timeout=900)
+    out = done.stdout + done.stderr
+    assert done.returncode == 0, out
+    assert "migration" not in out.lower(), "renovate.json5 needs migrating:\n" + out
 
 
 def _walk(node, path=""):
