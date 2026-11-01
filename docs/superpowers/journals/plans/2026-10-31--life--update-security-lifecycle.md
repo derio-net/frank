@@ -1065,3 +1065,8 @@ Cosmetic: the matrix header cites the Talos support-matrix pages per minor; pinn
 ### p6-r11-resolved · finding [out-of-scope] · resolves p6-r11: test_life_runbooks is keyword-grep only (phase 6)
 
 Runbook executability is reviewed by humans and exercised live in phase 7; the keyword tests guard structure, which is what this change needs.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r11-resolved-3 created=2026-11-01T17:38:10+00:00 phase=5 state=open resolves=p5-r11 tracked_by=derio-net/frank#912 -->
+### p5-r11-resolved-3 · finding [deferred → derio-net/frank#912] · resolves p5-r11: secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
+
+AI agents holding cluster-admin can read session Secrets; operator chose to scope them down separately.
