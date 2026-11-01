@@ -943,3 +943,32 @@ Console-side, not caused by frank's phase 5: fixed in cluster-update-fr@6755112 
 ### p5-r11-resolved-2 · finding [out-of-scope] · resolves p5-r11: secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
 
 Pre-existing cluster-admin bindings for AI agents; operator chose to scope them down separately — tracked in derio-net/frank#912.
+
+<!-- fr:journal kind=discovery scope=plan id=p6-talos-k8s-windows created=2026-11-01T17:26:56+00:00 phase=6 -->
+### p6-talos-k8s-windows · discovery · Talos to Kubernetes support windows, verified against the official docs (phase 6)
+
+versions/support-matrix.yaml: Talos 1.12 -> k8s 1.30-1.35, 1.13 -> 1.31-1.36, 1.14 -> 1.33-1.37.
+Sources (Kubernetes row of the latest-release column):
+https://docs.siderolabs.com/talos/v1.12/getting-started/support-matrix
+https://docs.siderolabs.com/talos/v1.13/getting-started/support-matrix
+https://docs.siderolabs.com/talos/v1.14/getting-started/support-matrix
+Shape matches the console's frankrepo.Matrix (`talos: {"<minor>": [k8s minors]}`).
+Hop 1.12.5/1.34.1 is inside Talos 1.13's window, so the real matrix puts Talos first for Hop;
+the Kubernetes-first case is covered with a synthetic matrix (matrix-driven, not hard-coded).
+
+<!-- fr:journal kind=discovery scope=plan id=p6-rollback-and-omni-runbooks created=2026-11-01T17:26:56+00:00 phase=6 -->
+### p6-rollback-and-omni-runbooks · discovery · Rollback and Omni runbooks agree with the phase 5 briefs (phase 6)
+
+docs/runbooks/life-rollback.md (revert PR, Longhorn restore, Frank Talos revert via Omni, Hop talosctl
+rollback, Kubernetes one-way) and docs/runbooks/omni-upgrade.md (laptop-only, willikins#528). The frank-os
+and hop-os briefs already say the same, so no brief change was needed; test_life_briefs still passes.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p6-t1 created=2026-11-01T17:26:56+00:00 phase=6 -->
+### no-refactor-p6-t1 · discovery · no-refactor-because P6.T1 (phase 6)
+
+life_tracks.py is one short loop mirroring the console's tracks.Next; nothing to merge or simplify
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p6-t2 created=2026-11-01T17:26:56+00:00 phase=6 -->
+### no-refactor-p6-t2 · discovery · no-refactor-because P6.T2 (phase 6)
+
+two prose runbooks plus a test file; no duplicated parts (the briefs keep their own short rollback paragraph)

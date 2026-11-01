@@ -223,7 +223,7 @@ steps:
           visual: none
           findings: p5-console-pod-env-mismatch,p5-console-scrub-adjacent-github-token,p5-session-network-scope-per-type,p5-staging-gate-generators-baseline,p5-r1,p5-r2,p5-r3,p5-r4,p5-r5,p5-r6,p5-r7,p5-r8,p5-r9,p5-r10,p5-r11,p5-r13,p5-r14,p5-r15,p5-r16,p5-r17
       phase/6/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-01T17:19:17+00:00'
           agent: a57ee30bac58b9529
@@ -233,6 +233,11 @@ steps:
           tier: standard
           bound: sonnet
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-11-01T17:27:11+00:00'
+          outcome: done
+        evidence:
+          tests: phase6-tests.log@03e100b1a3e4;tree=18ef11c69f61e88338be19beb3b2eb0a3fc8fd0adec50d073b1e2932db2ca7a2
+          visual: none
   journal-check:
     state: pending
   deliver:
