@@ -1075,3 +1075,8 @@ AI agents holding cluster-admin can read session Secrets; operator chose to scop
 ### p5-r4-resolved-2 · finding [deferred → derio-net/cluster-update-fr#1] · resolves p5-r4: console sets socks5 HTTPS_PROXY/ALL_PROXY, likely unsupported by talosctl (grpc-go) and Claude Code (phase 5)
 
 Console-side: HTTP CONNECT proxy for hop-os added in cluster-update-fr@6755112; lands with that PR.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7-resolved-2 created=2026-11-01T19:32:52+00:00 state=open resolves=p1-r7 tracked_by=derio-net/frank#914 -->
+### p1-r7-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p1-r7: operator-created workloads (AWX sclorg postgresql-15-c9s:latest) are invisible to a render audit
+
+Grouped follow-up (operator chose grouping).
