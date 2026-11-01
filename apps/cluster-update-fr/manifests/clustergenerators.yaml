@@ -30,6 +30,8 @@ spec:
         statuses: write
         issues: write
         repository_hooks: write
+        checks: read
+        actions: write   # includes read; a key cannot be listed twice
         metadata: read
       auth:
         privateKey:

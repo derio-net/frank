@@ -57,6 +57,7 @@ ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
 ghcr.io/derio-net/openrgb:1.0rc2
 ghcr.io/derio-net/ovms-retrieval-models:2
 ghcr.io/derio-net/secure-agent-kali:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
 ghcr.io/derio-net/vk-local:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
 ghcr.io/derio-net/vk-remote:7cebcbb
 ghcr.io/external-secrets/external-secrets:v2.1.0

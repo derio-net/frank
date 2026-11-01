@@ -23,6 +23,7 @@ static-exempt gcr.io/tekton-releases/catalog/upstream/ :: Tekton bundle-resolver
 static-exempt gcr.io/tekton-releases/catalog/upstream/git-clone :: Tekton bundle-resolver docs text in vendored release.yaml
 static-exempt ghcr.io/agentic-stoa/site :: shell variable base in site-promotion script; tag appended at run time
 static-exempt ghcr.io/derio-net/runs-fr :: staging-gate contract; the gated sha tag is substituted at run time
+static-exempt ghcr.io/derio-net/upgrade-session :: prefix inside the upgrade-session admission policy CEL (a delimiter check, not a deployed image); the real image is pinned in the console config
 static-exempt mirror.gcr.io/aquasec/trivy :: trivy-operator ConfigMap repository field; the scan image tag is joined from trivy.tag (pinned in values)
 static-exempt mirror.gcr.io/aquasec/trivy-checks:1 :: Trivy policy bundle: an OCI data artifact (not a container) that rolls on its major tag by design
 static-exempt mirror.gcr.io/aquasec/trivy-db :: Trivy vulnerability DB artifact: data downloaded at run time, the DB is the thing that must stay fresh

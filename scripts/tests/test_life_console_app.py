@@ -667,3 +667,13 @@ def test_phase_7_carries_every_manual_step_this_phase_creates():
     assert "LAST" in mirror["when"] or "last" in " ".join(mirror["commands"]).lower()
     pins = " ".join(blocks["life-console-pins"]["commands"])
     assert "PENDING-PHASE-7" in pins and "pin-exceptions.yaml" in pins and "v0.1.0" in pins
+
+
+def test_console_app_can_read_checks_and_rerun_jobs():
+    perms = {g["metadata"]["name"]: g["spec"]["generator"]["githubAccessTokenSpec"]["permissions"]
+             for g in of_kind("ClusterGenerator")}["github-app-cluster-update-console"]
+    assert perms["checks"] == "read" and perms["actions"] == "write"
+    plan = yaml.safe_load((PLAN / "07.yaml").read_text())
+    s2 = next(s["text"] for t_ in plan["tasks"] for s in t_["steps"] if s["id"] == "P7.T1.S2")
+    for needle in ("checks:read", "actions:read", "actions:write"):
+        assert needle in s2, needle

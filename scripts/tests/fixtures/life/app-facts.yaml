@@ -244,6 +244,7 @@ apps:
     charts: []
     images:
     - ghcr.io/derio-net/cluster-update-fr:v0.1.0
+    - ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
     - tailscale/tailscale:v1.82.5
     paths:
     - apps/cluster-update-fr/manifests/**
