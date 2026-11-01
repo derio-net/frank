@@ -58,8 +58,13 @@ ARGOCD_READ_GENERATOR = "github-app-derio-argocd-read"
 # BASELINE | {ARGOCD_READ_GENERATOR} is a generator this plan did not intend.
 # github-app-derio-mirror (2026-10-18, github-preferred mirroring) is a SEPARATE,
 # repo-scoped generator for the Tekton mirror; github-app-derio stays unscoped.
+# The update & security lifecycle (plan 2026-10-31--life--update-security-lifecycle) adds three
+# SEPARATE, repo-scoped generators, one per GitHub App; none touches github-app-derio.
 BASELINE_GENERATORS = {
     "github-app-derio", "github-app-derio-homelab", "github-app-stoa", "github-app-derio-mirror",
+    "github-app-renovate",                 # phase 2: Renovate opens update PRs on frank (never merges)
+    "github-app-cluster-update-console",   # phase 4: the console, the only merger of update PRs
+    "github-app-cluster-update-session",   # phase 4: upgrade sessions; contents+PRs on frank only
 }
 MANUAL_OP_ID = "cicd-staging-gate-argocd-runs-fr-repo-key"
 
