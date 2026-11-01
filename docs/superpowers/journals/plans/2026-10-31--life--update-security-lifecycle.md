@@ -468,3 +468,8 @@ Not caused by this phase's manifests: the trailing manual phase creates both tok
 ### p5-session-branch-format · discovery · Session branch format is cluster-update/session-<id>/<topic> (phase 5)
 
 Final console contract (cluster-update-fr#1 @ a830849): session PR branches are cluster-update/session-<upgrade-id>/<topic> ('/' cannot occur in an id, so prefixes never overlap; ids may contain '-' and '.', e.g. frank-os-talos-1.13.4). Briefs and AGENTS.md must use this exact form; the phase-7 ruleset pattern cluster-update/session-** is unchanged. Revert branches cluster-update/revert-<n>-* are console-bot only.
+
+<!-- fr:journal kind=discovery scope=plan id=p5-briefs-verified-commits created=2026-11-01T08:55:23+00:00 phase=5 -->
+### p5-briefs-verified-commits · discovery · Briefs: commit through the GitHub API so commits are verified; session App gets no PR-body edits beyond its own (phase 5)
+
+Console delta review c1d-r6/r3/r11: (1) session briefs must tell the agent to create commits through the GitHub API (contents API or GraphQL createCommitOnBranch) on cluster-update/session-<id>/<topic> — a plain git push yields unsigned commits the console refuses; (2) the session App's permissions should be the minimum: contents write + pull_requests write on derio-net/frank only (the console no longer trusts PR bodies for classification, but keep scope minimal); (3) sessions share one App credential, so branch ownership is a naming rule — the phase-7 ruleset restricting session-** pushes to the session App is the boundary, and the console's per-session scope + SHA pin bound the damage. Test the brief templates for the API-commit instruction and the '/' branch form.
