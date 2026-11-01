@@ -221,40 +221,92 @@ def test_tailnet_only_for_hop_os():
 
 
 def _ns_targets(t):
+    """{namespace: allowed pod ports} of the target-service rules (not the common rules)."""
     out = {}
     for r in type_policy(t)["spec"]["egress"]:
         for e in r.get("toEndpoints", []):
             n = e["matchLabels"].get("k8s:io.kubernetes.pod.namespace")
-            if n not in ("cluster-update-fr", "gitea", "kube-system"):
-                out[n] = sorted(int(p) for p, _ in ports(r))
+            if r.get("toPorts") and n not in ("cluster-update-fr", "kube-system") and \
+                    not (n == "gitea" and ports(r) == {("3000", "TCP")}):
+                out.setdefault(n, set()).update(int(p) for p, _ in ports(r))
     return out
 
 
-def test_target_app_services_only_for_stateful_and_rollouts_on_their_service_ports():
-    import life_policy
+# p5-sec-1: the ONE never-list. A session never reaches these, whatever a smoke file says.
+NEVER_NAMESPACES = {"infisical", "authentik", "secure-agent-pod", "hermes-agent-shell", "agents",
+                    "cluster-update-fr", "kube-system", "longhorn-system", "monitoring", NS}
+DB_PORTS = {22, 3306, 5432, 6379, 27017}
+
+
+def test_never_lists_are_stated_once_in_the_generator():
     import life_sessions as ls
 
-    facts = life_policy.load_facts()
-    for t, flag in (("stateful", "stateful"), ("rollouts", "rollout")):
-        got = _ns_targets(t)
-        namespaces = set(ls.app_namespaces(flag)) - ls.UNREACHABLE
-        want = {}
-        for k, f in facts.items():
-            for s in f["services"] if k.startswith("frank/") else []:
-                if s["namespace"] in namespaces:
-                    want.setdefault(s["namespace"], set()).update(p for p in s["ports"] if p != 22)
-        assert got == {ns: sorted(p) for ns, p in want.items()}, t
-    assert "paperclip-system" in _ns_targets("stateful")
-    assert "litellm" in _ns_targets("rollouts"), "the Rollout's Services live in the sibling app"
-    for t in ("chart-major", "frank-os", "hop-os"):
-        assert _ns_targets(t) == {}, t
+    assert ls.NEVER_NAMESPACES == NEVER_NAMESPACES
+    assert ls.NEVER_PORTS == DB_PORTS
 
 
-def test_infrastructure_with_unauthenticated_admin_apis_is_never_a_network_target():
-    # Longhorn's manager API deletes volumes without auth; VictoriaMetrics/Logs serve delete APIs.
-    for t in TYPES:
-        for ns in ("longhorn-system", "monitoring", NS, "argocd"):
-            assert ns not in _ns_targets(t), (t, ns)
+@pytest.mark.parametrize("typ", TYPES)
+def test_no_session_reaches_a_database_port_or_a_never_list_namespace(typ):
+    for ns, nsports in _ns_targets(typ).items():
+        assert ns not in NEVER_NAMESPACES, (typ, ns)
+        assert not nsports & DB_PORTS, (typ, ns, nsports)
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_target_services_are_exactly_the_smoke_checks_of_the_apps_the_type_verifies(typ):
+    import life_sessions as ls
+
+    want = {}
+    for host, port in ls.smoke_targets(typ):
+        m = re.match(r"([\w-]+)\.([\w-]+)\.svc\.cluster\.local$", host)
+        if not m or m.group(2) in NEVER_NAMESPACES or port in DB_PORTS:
+            continue
+        backends = set(ls.load_target_ports()[f"{host}:{port}"])
+        if m.group(2) == "gitea":
+            backends -= {3000}  # already a common rule for every type
+        if backends:
+            want.setdefault(m.group(2), set()).update(backends)
+    assert _ns_targets(typ) == want, typ
+
+
+def test_smoke_targets_come_only_from_the_verified_apps_smoke_files():
+    import life_sessions as ls
+
+    stateful = ls.smoke_targets("stateful")
+    assert ("paperclip-lb.paperclip-system.svc.cluster.local", 3100) in stateful
+    assert ("paperclip-db-postgresql.paperclip-system.svc.cluster.local", 5432) in stateful  # listed...
+    assert 5432 not in _ns_targets("stateful").get("paperclip-system", set())               # ...never allowed
+    # a Service port of a stateful app that no smoke check names is not reachable
+    assert "zot" in _ns_targets("stateful") and _ns_targets("stateful")["zot"] == {5000}
+    assert ls.smoke_targets("chart-major") == []
+    assert {h for h, _ in ls.smoke_targets("frank-os")} >= {"argocd-server.argocd.svc.cluster.local"}
+    assert set(_ns_targets("frank-os")) == {"argocd", "traefik-system"}, "longhorn/cilium are never-listed"
+    assert _ns_targets("rollouts") == {}, "litellm-extras verifies through the kube API only"
+
+
+def test_target_ports_are_backend_ports_resolved_from_the_render():
+    # Cilium enforces egress on the POD port after service translation; argocd-server is :80 on
+    # the Service and :8080 on the pod, so a rule on 80 would refuse the smoke check.
+    import life_sessions as ls
+
+    tp = ls.load_target_ports()
+    assert tp["argocd-server.argocd.svc.cluster.local:80"] == [8080]
+    assert set(_ns_targets("frank-os")["argocd"]) == {8080}
+
+
+@pytest.mark.slow
+def test_target_ports_fixture_matches_a_fresh_render():
+    import life_sessions as ls
+
+    assert ls.load_target_ports() == ls.resolve_target_ports()
+
+
+def test_hop_os_reaches_only_its_public_smoke_hosts_beyond_the_tailnet():
+    import life_sessions as ls
+
+    hosts = {h for h, _ in ls.smoke_targets("hop-os") if not h.endswith(".svc.cluster.local")}
+    assert hosts and hosts <= {"blog.derio.net", "headscale.hop.derio.net", "www.derio.net"}
+    assert _ns_targets("hop-os") == {}
 
 
 @pytest.mark.parametrize("typ", TYPES)
@@ -275,6 +327,7 @@ def test_dns_answers_only_the_names_the_type_may_reach(typ):
     for name in allowed:
         base = re.sub(r"\.(upgrade-sessions\.svc\.cluster\.local|svc\.cluster\.local|cluster\.local)$", "", name)
         assert base in fqdns(type_policy(typ)) or name.endswith(".svc.cluster.local"), f"{typ}: stray DNS name {name}"
+        assert "*" not in name or name.startswith("derp"), f"{typ}: wildcard DNS name {name}"
 
 
 def test_network_policies_equal_the_generator():
