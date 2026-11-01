@@ -86,8 +86,16 @@ Run this after the operator has merged your PR:
 1. ArgoCD applied the merge commit:
    `kubectl -n argocd get application <app> -o jsonpath='{.status.operationState.operation.sync.revision}'`
    must equal the merge commit SHA. `Synced` alone never counts.
-2. The migrations finished: the app's log shows them complete and the pod is Ready, not
-   restarting.
+2. The migrations finished. You cannot read pod output (your role has no `pods/log`), so judge
+   from status, which you can read:
+   - every pod of the app is Ready and its `restartCount` did not grow since the sync:
+     `kubectl -n <ns> get pods -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[*].ready,RESTARTS:.status.containerStatuses[*].restartCount`
+     (a pod that runs migrations on boot and crashes on one shows as restarting, never Ready);
+   - if the chart runs migrations as a Job (or a hook Job), it has `succeeded` 1 and no
+     `failed`: `kubectl -n <ns> get jobs -o custom-columns=NAME:.metadata.name,SUCCEEDED:.status.succeeded,FAILED:.status.failed`;
+   - `kubectl -n <ns> get events --sort-by=.lastTimestamp` shows no BackOff or failed probe.
+   If none of these can show the migrations finished, stop and ask the operator to check the
+   app's own output; do not try to obtain it yourself.
 3. `smoke/frank/<app>.yaml` passes: run each check it lists against the live service.
 
 ## Gotchas

@@ -215,3 +215,18 @@ def test_hop_os_brief_matches_the_sidecar_proxy_contract():
     for want in ("HTTPS_PROXY=http://localhost:1056", "socks5://localhost:1055", "tag:frank-session", "NO_PROXY"):
         assert want in flat, want
     assert "frank-updater" not in flat
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_verification_never_needs_pod_logs(typ):
+    # p5-r13: session RBAC has no pods/log (logs are where secrets leak), so a step that reads
+    # an app's log cannot be performed.
+    v = sections(text(f"{typ}.md"))["Verification"].replace("`pods/log`", "")
+    assert not re.search(r"\blogs?\b", v, re.I), typ
+
+
+def test_stateful_verifies_migrations_from_status_not_logs():
+    v = re.sub(r"\s+", " ", sections(text("stateful.md"))["Verification"])
+    for want in ("restartCount", "Ready", "Job", "succeeded"):
+        assert want in v, want
+
