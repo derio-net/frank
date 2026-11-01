@@ -556,3 +556,16 @@ def test_the_service_account_token_is_mounted_only_in_the_console_container():
     assert [m["mountPath"] for m in mounts["console"]] == ["/var/run/secrets/kubernetes.io/serviceaccount"]
     assert mounts["console"][0]["readOnly"] is True
     assert all(not m for name, m in mounts.items() if name != "console"), mounts
+
+
+def test_session_secrets_are_confined_by_an_admission_policy():
+    p, b = vap("upgrade-session-secrets")
+    assert b["spec"]["validationActions"] == ["Deny"]
+    assert b["spec"]["matchResources"]["namespaceSelector"]["matchLabels"] == {
+        "kubernetes.io/metadata.name": SESSIONS}
+    (rule,) = p["spec"]["matchConstraints"]["resourceRules"]
+    assert rule["resources"] == ["secrets"] and set(rule["operations"]) == {"CREATE", "UPDATE"}
+    assert CONSOLE_USER in p["spec"]["matchConditions"][0]["expression"]
+    expr = _all_expressions(p)
+    for needle in ("'Opaque'", "startsWith('us-')", "app.kubernetes.io/managed-by", "kubernetes.io/service-account.name"):
+        assert needle in expr, needle

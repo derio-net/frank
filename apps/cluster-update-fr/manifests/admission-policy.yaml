@@ -43,7 +43,7 @@ spec:
       message: "no host namespaces"
     - expression: "!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))"
       message: "no hostPath volumes"
-    - expression: "variables.containers.all(c, !has(c.securityContext) || ((!has(c.securityContext.privileged) || !c.securityContext.privileged) && (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0)))"
+    - expression: "variables.containers.all(c, !has(c.securityContext) || ((!has(c.securityContext.privileged) || c.securityContext.privileged == false) && (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0)))"
       message: "no privileged containers and no added capabilities"
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -86,6 +86,46 @@ metadata:
   name: upgrade-session-no-ephemeral-containers
 spec:
   policyName: upgrade-session-no-ephemeral-containers
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions
+---
+# The console writes the per-session credential and brief Secrets. Without this it could create a
+# kubernetes.io/service-account-token Secret naming ANY ServiceAccount in the namespace (the
+# controller fills in a live token), which defeats the pod policy above.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-secrets
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["secrets"]
+  matchConditions:
+    - name: created-by-the-console
+      expression: "request.userInfo.username == 'system:serviceaccount:cluster-update-fr:cluster-update-fr'"
+  validations:
+    - expression: "!has(object.type) || object.type == 'Opaque'"
+      message: "session Secrets must be Opaque (no service-account-token or other typed Secrets)"
+    - expression: "object.metadata.name.startsWith('us-')"
+      message: "session Secret names start with us-"
+    - expression: "has(object.metadata.labels) && 'app.kubernetes.io/managed-by' in object.metadata.labels && object.metadata.labels['app.kubernetes.io/managed-by'] == 'cluster-update-fr'"
+      message: "Secrets must carry app.kubernetes.io/managed-by=cluster-update-fr"
+    - expression: "!has(object.metadata.annotations) || !('kubernetes.io/service-account.name' in object.metadata.annotations)"
+      message: "no kubernetes.io/service-account.name annotation"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-secrets
+spec:
+  policyName: upgrade-session-secrets
   validationActions: ["Deny"]
   matchResources:
     namespaceSelector:
