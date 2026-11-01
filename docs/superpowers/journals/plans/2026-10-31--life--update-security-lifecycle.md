@@ -1100,3 +1100,8 @@ Grouped follow-up (operator chose grouping).
 ### p5-session-network-scope-per-type-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p5-session-network-scope-per-type: Session target-service egress is per type, not per app
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=finding scope=plan id=p6-r10-resolved-2 created=2026-11-01T19:33:32+00:00 state=open resolves=p6-r10 tracked_by=derio-net/frank#914 -->
+### p6-r10-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p6-r10: support-matrix header cites verified pages without pinning patch release (cosmetic)
+
+Grouped follow-up (operator chose grouping).
