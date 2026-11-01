@@ -250,10 +250,11 @@ def test_omni_and_talos_api_only_for_frank_os():
             rule = next(r for r in type_policy(t)["spec"]["egress"]
                         if any(f.get("matchName") == OMNI for f in r.get("toFQDNs", [])))
             assert ports(rule) == {("443", "TCP")}, "Omni API only; never the Omni host itself"
-            assert {str(ipaddress.ip_network(c).network_address) for c in cidrs} == FRANK_NODES
-            assert all(c.endswith("/32") for c in cidrs)
-            talos = [r for r in type_policy(t)["spec"]["egress"] if "toCIDR" in r]
-            assert all(ports(r) == {("50000", "TCP")} for r in talos)
+            # p5-r14: the talosconfig is Omni-issued, so talosctl goes through Omni's API
+            # (omni.frank.derio.net:443), never to a node's apid on 50000.
+            assert cidrs == [], "no direct Talos API on the nodes"
+            assert not any(("50000", "TCP") in ports(r) for r in type_policy(t)["spec"]["egress"])
+            assert not FRANK_NODES & {str(ipaddress.ip_network(c).network_address) for c in cidrs}
         else:
             assert not any("omni" in n for n in names), t
             assert cidrs == [], f"{t}: no CIDR egress"
