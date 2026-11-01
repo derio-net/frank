@@ -803,3 +803,6 @@ cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar
 
 <!-- fr:journal kind=finding scope=plan id=p5-r11 created=2026-11-01T12:28:13+00:00 phase=5 state=open review_scope=out -->
 ### p5-r11 · finding [open] (reviewer: out of scope) · secure-agent-pod agent-sa and root-agents are cluster-admin and can read every session credential (phase 5)
+
+<!-- fr:journal kind=finding scope=plan id=p5-r13 created=2026-11-01T12:28:18+00:00 phase=5 state=open review_scope=in -->
+### p5-r13 · finding [open] (reviewer: in scope) · stateful brief verification reads app logs but sessions have no pods/log (phase 5)
