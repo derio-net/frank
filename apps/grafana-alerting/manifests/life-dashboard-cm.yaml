@@ -1,0 +1,243 @@
+# Lifecycle view: how far behind each cluster is and what is vulnerable. Plan
+# 2026-10-31--life--update-security-lifecycle, phase 3. Data comes from the update console
+# (cluster_update_* on its /metrics) and the Trivy Operator summary series. This board is a VIEW:
+# alarms are raised by the console, never by Grafana (see the life-*-heartbeat-stale rules,
+# which only watch that the producers are alive). Needs BOTH mounts in
+# apps/victoria-metrics/values.yaml (provider yaml + dashboard json).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-life-dashboard
+  namespace: monitoring
+data:
+  life-dashboard-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: life
+        folder: life
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/life
+  life-dashboard.json: |
+    {
+      "uid": "life-update-security",
+      "title": "Frank Life - updates and vulnerabilities",
+      "tags": [
+        "life",
+        "updates",
+        "security"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "1m",
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Versions behind, per cluster",
+          "type": "bargauge",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "max by (cluster, component) (cluster_update_versions_behind)",
+              "legendFormat": "{{cluster}} / {{component}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "description": "From the update console. 0 = current."
+        },
+        {
+          "id": 2,
+          "title": "Open vulnerabilities by severity (console)",
+          "type": "bargauge",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "sum by (cluster, severity) (cluster_update_vulns_open)",
+              "legendFormat": "{{cluster}} {{severity}}",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 3,
+          "title": "Frank image vulnerabilities by severity (Trivy)",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "sum by (severity) (trivy_image_vulnerabilities)",
+              "legendFormat": "{{severity}}",
+              "refId": "A",
+              "instant": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          },
+          "description": "Trivy Operator summary series. Per-CVE series are off by design (scrape size)."
+        },
+        {
+          "id": 4,
+          "title": "Last report",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 8
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "cluster_update_last_report_timestamp_seconds * 1000",
+              "legendFormat": "last report",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dateTimeFromNow"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 5,
+          "title": "Last scan",
+          "type": "stat",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 8
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "cluster_update_last_scan_timestamp_seconds * 1000",
+              "legendFormat": "last scan",
+              "refId": "A",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dateTimeFromNow"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "id": 6,
+          "title": "Updates and alarms by state",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 12
+          },
+          "datasource": {
+            "uid": "P4169E866C3094E38",
+            "type": "prometheus"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "sum by (state) (cluster_update_updates)",
+              "legendFormat": "updates {{state}}",
+              "refId": "A",
+              "instant": false
+            },
+            {
+              "datasource": {
+                "uid": "P4169E866C3094E38",
+                "type": "prometheus"
+              },
+              "expr": "sum by (state) (cluster_update_alarms)",
+              "legendFormat": "alarms {{state}}",
+              "refId": "B",
+              "instant": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        }
+      ]
+    }

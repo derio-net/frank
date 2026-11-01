@@ -214,6 +214,17 @@ grafana:
       subPath: etcd-dashboard.json
       configMap: grafana-etcd-dashboard
       readOnly: true
+    # Update/security lifecycle view (plan 2026-10-31--life--update-security-lifecycle, phase 3).
+    - name: life-dashboard-provider
+      mountPath: /etc/grafana/provisioning/dashboards/life-provider.yaml
+      subPath: life-dashboard-provider.yaml
+      configMap: grafana-life-dashboard
+      readOnly: true
+    - name: life-dashboard-json
+      mountPath: /var/lib/grafana/dashboards/life/life-dashboard.json
+      subPath: life-dashboard.json
+      configMap: grafana-life-dashboard
+      readOnly: true
   # Authentik OIDC SSO (Phase 13) + Alerting secrets (Telegram, Health Bridge)
   envFromSecrets:
     - name: grafana-oidc-secret

@@ -66,6 +66,10 @@ STATIC_EXEMPT = {
     "nvcr.io/nvidia/cloud-native": "repository prefix field joined with image+version by the NVIDIA operator",
     "nvcr.io/nvidia/driver": "repository prefix field joined with image+version by the NVIDIA operator",
     "nvcr.io/nvidia/k8s": "repository prefix field joined with image+version by the NVIDIA operator",
+    "mirror.gcr.io/aquasec/trivy": "trivy-operator ConfigMap repository field; the scan image tag is joined from trivy.tag (pinned in values)",
+    "mirror.gcr.io/aquasec/trivy-checks:1": "Trivy policy bundle: an OCI data artifact (not a container) that rolls on its major tag by design",
+    "mirror.gcr.io/aquasec/trivy-db": "Trivy vulnerability DB artifact: data downloaded at run time, the DB is the thing that must stay fresh",
+    "mirror.gcr.io/aquasec/trivy-java-db": "Trivy Java DB artifact: data downloaded at run time, the DB is the thing that must stay fresh",
 }
 
 

@@ -1,0 +1,54 @@
+# trivy-operator chart 0.38.1 (app 0.36.1), pinned in apps/root/templates/trivy-operator.yaml.
+# Keys confirmed with `helm show values aquasecurity/trivy-operator --version 0.38.1`.
+#
+# Metrics scrape budget: promscrape.maxScrapeSize is 32MB and an oversized response is dropped
+# WHOLE (frank-gotchas). Per-CVE series would blow it, so metricsVulnIdEnabled stays false and
+# only the per-image severity SUMMARY series are kept. Measure the endpoint size after merge.
+operator:
+  metricsVulnIdEnabled: false
+  metricsFindingsEnabled: true
+  # Run one in-cluster trivy server (client/server mode): the DB is downloaded once and the
+  # hop-scan CronJob reuses the same server (trivy-service.trivy-system).
+  builtInTrivyServer: true
+  scanJobsConcurrentLimit: 3
+  # Config audit / RBAC / infra / compliance reports are not part of this lifecycle: only
+  # image vulnerabilities are, and those extra scanners multiply the object count.
+  configAuditScannerEnabled: false
+  rbacAssessmentScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  clusterComplianceEnabled: false
+  exposedSecretScannerEnabled: false
+
+# Scraping is a VMServiceScrape in apps/trivy-operator/manifests (the repo convention; a chart
+# ServiceMonitor would need the prometheus CRD, which Frank does not install).
+serviceMonitor:
+  enabled: false
+
+trivy:
+  mode: ClientServer
+  # scan job containers
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  server:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  # The server's DB cache is a re-downloadable cache: keep it small.
+  storageSize: 5Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

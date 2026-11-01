@@ -151,6 +151,10 @@ rules:
   path: session
   reason: 'stateful: owns persistent data; a Longhorn snapshot is taken inside the session before the upgrade'
 - match:
+    app: frank/trivy-operator
+  path: session
+  reason: 'stateful: the Trivy server owns a PVC (a re-downloadable DB cache); the scanner that finds CVEs is itself upgraded in a session'
+- match:
     app: frank/zot
   path: session
   reason: 'stateful: owns persistent data; a Longhorn snapshot is taken inside the session before the upgrade'
