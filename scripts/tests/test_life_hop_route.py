@@ -62,7 +62,7 @@ def test_frank_updater_reaches_only_hop_kube_and_talos_apis():
     (entry,) = acl()["acls"][len(OLD_ACLS):]
     assert entry["action"] == "accept"
     assert entry["src"] == ["tag:frank-updater"]
-    assert entry["dst"] == ["tag:hop-node:6443,50000"]
+    assert entry["dst"] == ["tag:hop-node:6443"], "the scanner needs only the kube API"
     assert acl()["tagOwners"]["tag:frank-updater"], "the tag needs an owner"
 
 
