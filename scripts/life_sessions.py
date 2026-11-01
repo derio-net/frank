@@ -141,6 +141,32 @@ def _parse_target(target: str) -> tuple[str, int] | None:
     return (host, int(port)) if host and port.isdigit() else None
 
 
+def smoke_checks(typ: str) -> list[dict]:
+    """Every network smoke check of the apps this type verifies, with what a rule needs:
+    host, Service port, namespace (in-cluster only), kind, and for http/functional the method
+    and path the check sends."""
+    cluster, apps = _verified_apps(typ)
+    out = []
+    for app in apps:
+        path = ROOT / "smoke" / cluster / f"{app}.yaml"
+        if not path.exists():
+            continue
+        for c in yaml.safe_load(path.read_text())["checks"]:
+            if c["kind"] not in ("http", "tcp", "functional"):
+                continue
+            hp = _parse_target(c["target"])
+            if not hp or (cluster != "frank" and SVC_HOST.match(hp[0])):
+                continue
+            m = SVC_HOST.match(hp[0])
+            check = {"host": hp[0], "port": hp[1], "ns": m.group(2) if m else None, "kind": c["kind"]}
+            if c["kind"] != "tcp":
+                words = c["target"].split()
+                check["method"] = words[0].upper() if len(words) > 1 else "GET"
+                check["path"] = urlsplit(words[-1]).path or "/"
+            out.append(check)
+    return out
+
+
 def smoke_targets(typ: str) -> list[tuple[str, int]]:
     """(host, Service port) of every network smoke check of the apps this type verifies."""
     cluster, apps = _verified_apps(typ)
@@ -224,21 +250,27 @@ def load_target_ports() -> dict[str, list[int]]:
     return yaml.safe_load(TARGET_PORTS_FILE.read_text())["targets"]
 
 
-def app_targets(typ: str) -> dict[str, list[int]]:
-    """{namespace: pod ports} a session of this type may reach: its verified apps' smoke checks,
-    minus the never-lists. gitea's HTTP port is already a common rule."""
+def app_targets(typ: str) -> dict[str, dict[int, list[tuple[str, str]] | None]]:
+    """{namespace: {pod port: [(method, path)] or None}} a session of this type may reach: its
+    verified apps' smoke checks, minus the never-lists. gitea's HTTP port is already a common
+    rule. None means L4: a tcp check only opens the listener, so no request can be named
+    (p5-r7: those ports stay open for anything); otherwise exactly the checked requests."""
     resolved = load_target_ports()
-    out: dict[str, set[int]] = {}
-    for host, port in smoke_targets(typ):
-        if not _allowed(host, port):
+    out: dict[str, dict[int, set | None]] = {}
+    for c in smoke_checks(typ):
+        if not _allowed(c["host"], c["port"]):
             continue
-        ns = SVC_HOST.match(host).group(2)
-        backends = set(resolved[f"{host}:{port}"]) - NEVER_PORTS
-        if ns == "gitea":
+        backends = set(resolved[f"{c['host']}:{c['port']}"]) - NEVER_PORTS
+        if c["ns"] == "gitea":
             backends -= {3000}
-        if backends:
-            out.setdefault(ns, set()).update(backends)
-    return {ns: sorted(p) for ns, p in sorted(out.items())}
+        for bp in backends:
+            ports = out.setdefault(c["ns"], {})
+            if c["kind"] == "tcp" or (bp in ports and ports[bp] is None):
+                ports[bp] = None
+            else:
+                ports.setdefault(bp, set()).add((c["method"], c["path"]))
+    return {ns: {p: (sorted(r) if r is not None else None) for p, r in sorted(ps.items())}
+            for ns, ps in sorted(out.items())}
 
 
 def public_targets(typ: str) -> list[str]:
@@ -263,6 +295,12 @@ def _in_cluster(typ: str) -> bool:
     """Types that run with an in-cluster token and talk to Frank's API server. hop-os has no
     token (automount off) and reaches Hop through the tailnet (p5-r16)."""
     return VERIFIES[typ][0] == "frank"
+
+
+def _exact_path(path: str) -> str:
+    """Cilium's http `path` is a regex Envoy matches against the WHOLE :path (query included),
+    so an escaped literal admits that path and nothing else."""
+    return re.sub(r"([.^$*+?()\[\]{}|\\])", r"\\\1", path)
 
 
 def _fqdn_rule(name, pairs):
@@ -307,9 +345,15 @@ def type_policy(typ: str) -> dict:
                    "toPorts": _ports([("3000", "TCP")])})
     # The smoke checks R16 asks the session to run (allowlist, p5-sec-1): one rule per
     # namespace, bound to the pod ports of exactly the Services those checks name.
+    # http/functional checks get L7 rules: exactly their method and path (p5-r7).
     for ns, nsports in app_targets(typ).items():
-        egress.append({"toEndpoints": [_ep(**{"k8s:io.kubernetes.pod.namespace": ns})],
-                       "toPorts": _ports([(str(p), "TCP") for p in nsports])})
+        l4 = [p for p, reqs in nsports.items() if reqs is None]
+        to_ports = _ports([(str(p), "TCP") for p in l4]) if l4 else []
+        for p, reqs in nsports.items():
+            if reqs is not None:
+                to_ports.append({"ports": [{"port": str(p), "protocol": "TCP"}],
+                                 "rules": {"http": [{"method": m, "path": _exact_path(path)} for m, path in reqs]}})
+        egress.append({"toEndpoints": [_ep(**{"k8s:io.kubernetes.pod.namespace": ns})], "toPorts": to_ports})
     extra = [h for h in public_targets(typ) if h not in [n for g, _ in spec["fqdns"] for n in g]]
     if extra:
         egress += [_fqdn_rule(h, [("443", "TCP")]) for h in extra]

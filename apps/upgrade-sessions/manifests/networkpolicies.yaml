@@ -303,6 +303,10 @@ spec:
     - ports:
       - port: '8090'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /healthz
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: awx
@@ -342,6 +346,12 @@ spec:
     - ports:
       - port: '8188'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /
+        - method: GET
+          path: /object_info
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: goatcounter-system
@@ -349,6 +359,10 @@ spec:
     - ports:
       - port: '8080'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /status
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: litellm
@@ -356,6 +370,12 @@ spec:
     - ports:
       - port: '4000'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /health/readiness
+        - method: POST
+          path: /v1/chat/completions
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: n8n-01
@@ -363,6 +383,10 @@ spec:
     - ports:
       - port: '5678'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /healthz
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: ollama
@@ -370,6 +394,10 @@ spec:
     - ports:
       - port: '11434'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: paperclip-system
@@ -688,6 +716,10 @@ spec:
     - ports:
       - port: '8080'
         protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /healthz
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: traefik-system

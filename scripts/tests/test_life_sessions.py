@@ -354,6 +354,87 @@ def test_target_services_are_exactly_the_smoke_checks_of_the_apps_the_type_verif
     assert _ns_targets(typ) == want, typ
 
 
+def _allows(typ, ns, port, method, path):
+    """Would the type's policy let `method path` reach pod port `port` in `ns`?"""
+    for r in type_policy(typ)["spec"]["egress"]:
+        if [e["matchLabels"].get("k8s:io.kubernetes.pod.namespace") for e in r.get("toEndpoints", [])] != [ns]:
+            continue
+        for tp in r.get("toPorts", []):
+            if str(port) not in {p["port"] for p in tp["ports"]}:
+                continue
+            http = (tp.get("rules") or {}).get("http")
+            if http is None:
+                return True  # L4: anything goes
+            if any(h["method"] == method and re.fullmatch(h["path"], path) for h in http):
+                return True
+    return False
+
+
+def _backend(host, port):
+    import life_sessions as ls
+
+    return ls.load_target_ports()[f"{host}:{port}"][0]
+
+
+OLLAMA = ("ollama", _backend("ollama.ollama.svc.cluster.local", 11434))
+COMFYUI = ("comfyui", _backend("comfyui.comfyui.svc.cluster.local", 8188))
+ALERT_AGENT = ("alert-agent", _backend("alert-agent.alert-agent.svc.cluster.local", 8080))
+LITELLM = ("litellm", _backend("litellm.litellm.svc.cluster.local", 4000))
+ZOT = ("zot", _backend("zot.zot.svc.cluster.local", 5000))
+
+
+def test_http_smoke_targets_admit_only_the_checked_request():
+    # p5-r7: the smoke allowlist reached unauthenticated WRITE APIs at L4 (push a model to
+    # ollama, queue a ComfyUI job, post to alert-agent). An http/functional check now gets an L7
+    # rule for exactly its method and path; nothing else on that port passes.
+    t = "stateful"
+    assert _allows(t, *OLLAMA, "GET", "/")
+    for method, path in (("POST", "/api/push"), ("POST", "/api/pull"), ("DELETE", "/api/delete"),
+                         ("GET", "/api/tags"), ("POST", "/")):
+        assert not _allows(t, *OLLAMA, method, path), (method, path)
+    assert _allows(t, *COMFYUI, "GET", "/object_info") and _allows(t, *COMFYUI, "GET", "/")
+    for method, path in (("POST", "/prompt"), ("GET", "/prompt"), ("POST", "/upload/image"),
+                         ("GET", "/object_info/x"), ("GET", "/object_info?x=1")):
+        assert not _allows(t, *COMFYUI, method, path), (method, path)
+    assert _allows(t, *ALERT_AGENT, "GET", "/healthz")
+    for method, path in (("POST", "/healthz"), ("POST", "/"), ("POST", "/webhook"), ("GET", "/")):
+        assert not _allows(t, *ALERT_AGENT, method, path), (method, path)
+    assert _allows(t, *LITELLM, "POST", "/v1/chat/completions")
+    assert _allows(t, *LITELLM, "GET", "/health/readiness")
+    for method, path in (("POST", "/v1/embeddings"), ("POST", "/key/generate"), ("GET", "/v1/chat/completions"),
+                         ("POST", "/v1/chat/completionsX")):
+        assert not _allows(t, *LITELLM, method, path), (method, path)
+
+
+@pytest.mark.parametrize("typ", TYPES)
+def test_every_target_rule_is_l7_for_http_checks_and_l4_only_for_tcp_checks(typ):
+    import life_sessions as ls
+
+    kinds = {}
+    for c in ls.smoke_checks(typ):
+        if ls._allowed(c["host"], c["port"]):
+            for bp in set(ls.load_target_ports()[f"{c['host']}:{c['port']}"]) - DB_PORTS:
+                kinds.setdefault((c["ns"], bp), set()).add(c["kind"])
+    for r in type_policy(typ)["spec"]["egress"]:
+        ns = [e["matchLabels"].get("k8s:io.kubernetes.pod.namespace") for e in r.get("toEndpoints", [])]
+        if ns in (["kube-system"], ["cluster-update-fr"]) or (ns == ["gitea"] and ports(r) == {("3000", "TCP")}):
+            continue
+        if not ns:
+            continue
+        for tp in r["toPorts"]:
+            for p in tp["ports"]:
+                k = kinds[(ns[0], int(p["port"]))]
+                if "tcp" in k:
+                    assert "rules" not in tp, (typ, ns, p)
+                else:
+                    assert set(tp["rules"]) == {"http"}, (typ, ns, p)
+                    for h in tp["rules"]["http"]:
+                        assert set(h) == {"method", "path"} and h["method"] in ("GET", "POST"), h
+    if typ == "stateful":
+        # a listener-only (tcp) check stays L4: the port is open for anything (journal p5-r7)
+        assert _allows(typ, *ZOT, "PUT", "/v2/x/blobs/uploads/")
+
+
 def test_smoke_targets_come_only_from_the_verified_apps_smoke_files():
     import life_sessions as ls
 
