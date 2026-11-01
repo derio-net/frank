@@ -7,7 +7,7 @@
 # in-cluster smoke-test. Do NOT hand-edit `image.tag` — it is gate-owned.
 image:
   repository: ghcr.io/derio-net/runs-fr
-  tag: staging
+  tag: sha-5936fdf
 # The gateway watches its own namespace in staging.
 namespace: runs-fr
 service:
