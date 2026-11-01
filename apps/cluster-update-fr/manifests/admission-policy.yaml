@@ -145,6 +145,43 @@ spec:
       matchLabels:
         kubernetes.io/metadata.name: upgrade-sessions
 ---
+# p5-r10: RBAC grants pods/exec into session pods to more than runs-fr: the admin ClusterRole
+# (bound to root-devops) and every cluster-admin binding (root-agents, secure-agent-pod's
+# agent-sa). A shell or a port-forward into a session is that session's credentials and its
+# tailscale proxies. Only runs-fr (the operator's attach path) and cluster-admins proper
+# (system:masters, root-admins) may CONNECT. The VAP plugin handles CONNECT (Kubernetes 1.35);
+# a cluster-admin can still delete this policy, so it narrows, it does not contain (p5-r11).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-no-exec
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CONNECT"]
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+  matchConditions:
+    - name: not-runs-fr-or-a-cluster-admin
+      expression: "request.userInfo.username != 'system:serviceaccount:runs-fr:runs-fr' && !('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "false"
+      message: "only runs-fr and cluster-admins may exec into, attach to or port-forward an upgrade session"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-no-exec
+spec:
+  policyName: upgrade-session-no-exec
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions
+---
 # The console writes the per-session credential and brief Secrets. Without this it could create a
 # kubernetes.io/service-account-token Secret naming ANY ServiceAccount in the namespace (the
 # controller fills in a live token), which defeats the pod policy above.

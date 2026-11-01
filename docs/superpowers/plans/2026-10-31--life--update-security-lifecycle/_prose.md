@@ -204,7 +204,7 @@ plan: 2026-10-31--life--update-security-lifecycle
 when: "[POST-MERGE] once the admission policies are applied; also covers environments without a CEL engine"
 why_manual: "the policies were evaluated offline with cel-python only; the API server's CEL is the authority"
 commands:
-  - "as the console SA (kubectl --as=system:serviceaccount:cluster-update-fr:cluster-update-fr) kubectl apply --dry-run=server -n upgrade-sessions -f <pod>: a pod with a foreign image, another ServiceAccount, a hostPath, privileged, hop-os with a token, an ephemeral container; and a service-account-token Secret, a Secret with the service-account.name annotation, a Secret not named us-*"
+  - "as the console SA (kubectl --as=system:serviceaccount:cluster-update-fr:cluster-update-fr) kubectl apply --dry-run=server -n upgrade-sessions -f <pod>: a pod with a foreign image, another ServiceAccount, a hostPath, privileged, hop-os with a token, an ephemeral container; and a service-account-token Secret, a Secret with the service-account.name annotation, a Secret not named us-*; a hop-os pod whose tailscale sidecar smuggles an extra TS_EXTRA_ARGS flag, carries a second TS_EXTRA_ARGS, or binds a proxy on 0.0.0.0; and `kubectl exec`/`attach`/`port-forward` into a session pod as a root-devops user (--as=x --as-group=root-devops) and as secure-agent-pod's agent-sa"
 verify:
   - "every hostile object is refused with the policy's message; a pod shaped like the console's own is admitted"
 status: pending

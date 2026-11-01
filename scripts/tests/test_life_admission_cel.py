@@ -299,3 +299,57 @@ def test_ephemeral_containers_need_a_cluster_admin():
     assert not decide("upgrade-session-no-ephemeral-containers", {}, user=CONSOLE)[0]
     assert decide("upgrade-session-no-ephemeral-containers", {}, user="op", groups=["root-admins"])[0]
     assert decide("upgrade-session-no-ephemeral-containers", {}, user="x", groups=["system:masters"])[0]
+
+
+# --- exec / attach / port-forward (p5-r10)
+RUNS_FR = "system:serviceaccount:runs-fr:runs-fr"
+
+
+def _admin_subjects():
+    """Every subject the repo binds to admin / edit / cluster-admin: RBAC lets each of them exec
+    into a session pod, so the admission policy is what stops them."""
+    out = []
+    for f in list((ROOT / "apps").rglob("*.yaml")) + list((ROOT / "clusters/hop/apps").rglob("*.yaml")):
+        if "/vendor/" in str(f) or "/chart/" in str(f):
+            continue
+        try:
+            docs = list(yaml.safe_load_all(f.read_text()))
+        except yaml.YAMLError:
+            continue
+        for d in docs:
+            if isinstance(d, dict) and d.get("kind") in ("RoleBinding", "ClusterRoleBinding") and \
+                    (d.get("roleRef") or {}).get("name") in ("admin", "edit", "cluster-admin") and \
+                    (d["kind"] == "ClusterRoleBinding" or d["metadata"].get("namespace") == "upgrade-sessions"):
+                out += d.get("subjects", [])
+    return out
+
+
+def _identity(subject):
+    if subject["kind"] == "ServiceAccount":
+        return (f"system:serviceaccount:{subject['namespace']}:{subject['name']}",
+                ["system:serviceaccounts", f"system:serviceaccounts:{subject['namespace']}", "system:authenticated"])
+    if subject["kind"] == "Group":
+        return "someone@derio.net", [subject["name"], "system:authenticated"]
+    return subject["name"], ["system:authenticated"]
+
+
+def test_the_repo_binds_these_admin_subjects():
+    got = {(s["kind"], s.get("namespace"), s["name"]) for s in _admin_subjects()}
+    assert got == {("Group", None, "root-admins"), ("Group", None, "root-devops"), ("Group", None, "root-agents"),
+                   ("ServiceAccount", "secure-agent-pod", "agent-sa")}, "a new admin binding: decide its exec rights"
+
+
+@pytest.mark.parametrize("subject", _admin_subjects(), ids=lambda s: s["name"])
+def test_only_cluster_admins_proper_may_exec_into_a_session(subject):
+    user, groups = _identity(subject)
+    allowed = decide("upgrade-session-no-exec", {}, user=user, groups=groups)[0]
+    assert allowed == (subject["kind"] == "Group" and subject["name"] == "root-admins"), subject
+
+
+def test_runs_fr_and_system_masters_may_exec_and_the_console_may_not():
+    assert decide("upgrade-session-no-exec", {}, user=RUNS_FR, groups=["system:serviceaccounts"])[0]
+    assert decide("upgrade-session-no-exec", {}, user="kubernetes-admin", groups=["system:masters"])[0]
+    assert not decide("upgrade-session-no-exec", {}, user=CONSOLE)[0]
+    assert not decide("upgrade-session-no-exec", {}, user="system:serviceaccount:runs-fr-staging:runs-fr")[0]
+    assert not decide("upgrade-session-no-exec", {}, user="alice", groups=["runs-fr"])[0]
+

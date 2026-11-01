@@ -644,6 +644,23 @@ def test_nothing_outside_cluster_admin_may_add_ephemeral_containers_or_exec_into
                 assert not _grants(rule, "pods/exec"), (f, d["metadata"]["name"], "only runs-fr may exec into sessions")
 
 
+def test_exec_attach_and_port_forward_into_sessions_are_refused_at_admission():
+    # p5-r10: RBAC outside this repo's Roles (root-devops -> admin, the cluster-admin agents)
+    # grants pods/exec into session pods; a CONNECT admission policy closes it (the VAP plugin
+    # handles CONNECT on Kubernetes 1.35). Evaluated in test_life_admission_cel.
+    docs = [d for d in yaml.safe_load_all((CONSOLE_MAN / "admission-policy.yaml").read_text()) if d]
+    pol = next(d for d in docs if d["metadata"]["name"] == "upgrade-session-no-exec")
+    (rule,) = pol["spec"]["matchConstraints"]["resourceRules"]
+    assert rule["operations"] == ["CONNECT"]
+    assert set(rule["resources"]) == {"pods/exec", "pods/attach", "pods/portforward"}
+    assert pol["spec"]["failurePolicy"] == "Fail"
+    binding = next(d for d in docs if d["kind"] == "ValidatingAdmissionPolicyBinding"
+                   and d["spec"]["policyName"] == "upgrade-session-no-exec")
+    assert binding["spec"]["validationActions"] == ["Deny"]
+    assert binding["spec"]["matchResources"]["namespaceSelector"] == {
+        "matchLabels": {"kubernetes.io/metadata.name": NS}}
+
+
 def test_runs_fr_is_the_one_exec_into_sessions_and_has_no_ephemeral_containers():
     values = (ROOT / "apps/runs-fr/values.yaml").read_text()
     assert yaml.safe_load(values)["namespace"] == NS
