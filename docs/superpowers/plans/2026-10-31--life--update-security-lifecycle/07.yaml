@@ -19,7 +19,7 @@ tasks:
       Run the spec's `life-telegram-derio-net-group` manual operation (Telegram group derio.net, #security topic, @frank_updater_bot, three Infisical keys).
   - id: P7.T1.S2
     text: |-
-      Create two GitHub Apps (renovate: contents/PRs/issues RW on derio-net/frank; console: PRs RW + statuses RW + issues RW + webhooks redeliver on derio-net/frank) and a session App (contents/PRs RW on frank only); apply each PEM via SOPS into the CONSUMER namespace (renovate, cluster-update-fr, upgrade-sessions). Then replace the PENDING-MANUAL-PHASE appID/installID in apps/renovate/manifests/clustergenerator.yaml and the RENOVATE_GIT_AUTHOR placeholders in cronjob.yaml (form `<app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>`, verify live), and set the Renovate CronJob `suspend: false` in the same commit (a test pins suspend to the placeholder state). Create a Gitea token limited to Actions on the frank mirror. Mint a Hop read-only ServiceAccount kubeconfig, an Omni Reader SA and an Omni upgrade SA; the Headscale frank-updater pre-auth key (reusable + ephemeral + pre-tagged tag:frank-updater, short expiry, rotated; a daily CronJob registers a fresh node each run, so single-use cannot work) under the dedicated user tag-admin, plus the trivy token Secrets (trivy-operator-trivy-config and trivy-server-token). Apply all via SOPS; record each as a manual-operation block in this phase's prose and run /sync-runbook.
+      Create two GitHub Apps (renovate: contents/PRs/issues RW on derio-net/frank; console: contents/PRs/statuses/issues/webhooks RW + metadata read + checks:read + actions:write on derio-net/frank, checks:read to read the required check-runs and actions:write to re-run failed jobs) and a session App (contents/PRs RW on frank only); apply each PEM via SOPS into the namespace of the ExternalSecret that CONSUMES it (ESO ignores secretRef.namespace): renovate -> renovate; console AND session -> cluster-update-fr (both ClusterGenerators are used by ExternalSecrets there; NOT upgrade-sessions). Then replace the PENDING-MANUAL-PHASE appID/installID in apps/renovate/manifests/clustergenerator.yaml and the RENOVATE_GIT_AUTHOR placeholders in cronjob.yaml (form `<app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>`, verify live), and set the Renovate CronJob `suspend: false` in the same commit (a test pins suspend to the placeholder state). Create a Gitea token limited to Actions on the frank mirror. Mint a Hop read-only ServiceAccount kubeconfig, an Omni Reader SA and an Omni upgrade SA; the Headscale frank-updater pre-auth key (reusable + ephemeral + pre-tagged tag:frank-updater, short expiry, rotated; a daily CronJob registers a fresh node each run, so single-use cannot work) under the dedicated user tag-admin, plus the trivy token Secrets (trivy-operator-trivy-config and trivy-server-token). Apply all via SOPS; record each as a manual-operation block in this phase's prose and run /sync-runbook.
   - id: P7.T1.S3
     text: |-
       Assign the two new Authentik proxy providers (updates, sessions) to the embedded outpost (frank-argocd.md Django ORM step). Run the Headscale manual operations IN ORDER (see the `life-hop-headscale-*` blocks in _prose.md): create user tag-admin; mint the reusable ephemeral tagged key under it; tag hop-1 tag:hop-node; THEN `kubectl -n headscale-system rollout restart deploy/headscale`, gated on live ConfigMap content.
@@ -29,6 +29,21 @@ tasks:
   - id: P7.T1.S5
     text: |-
       Create the GitHub ruleset on derio-net/frank `main` (manual operation `life-main-ruleset`): require a pull request; required status check `cluster-update/approved` whose expected source is the console App (only it can post that context); bypass actors = the operator and the console App only; block force-push and deletion. The session App and the Renovate App can open PRs but can neither push to main nor satisfy the required check. Verify: a session-App token push to main and a session-App merge attempt are both refused. The console must post `cluster-update/approved` on the head SHA right before it merges (or merge as a bypass actor).
+  - id: P7.T1.S6
+    text: |-
+      Run manual operation `life-console-pins` BEFORE merging frank: replace the console tag v0.1.0 with the release's @sha256 digest and delete its pin-exceptions.yaml entry; replace PENDING-PHASE-7 (omni-status sidecar) and set SESSION_IMAGE to the same published upgrade-session tag/digest and delete that entry too; regenerate the fixtures.
+  - id: P7.T1.S7
+    text: |-
+      Run manual operation `life-console-trust`: fill RENOVATE_BOT_LOGIN, CONSOLE_BOT_LOGIN and SESSION_BOT_LOGIN in apps/cluster-update-fr/manifests/files/console.env from the three Apps (STATUS_CREATOR_LOGINS stays empty: frank's gate is GitHub check-runs, not bridged statuses).
+  - id: P7.T1.S8
+    text: |-
+      Run manual operation `life-console-secrets`: the Secrets the console namespace needs (frank-updater-tailscale, hop-readonly-kubeconfig with `proxy-url: socks5://localhost:1055`, the cluster-update-session-* Secrets, cluster-update-omni-reader) and the Infisical keys.
+  - id: P7.T1.S9
+    text: |-
+      Run manual operation `life-admission-dry-run`: prove the upgrade-session admission policies refuse each hostile pod and Secret with `kubectl apply --dry-run=server` as the console service account.
+  - id: P7.T1.S10
+    text: |-
+      Run manual operation `life-console-mirror` LAST and trigger-first: the listener allowlists, mirror-reconcile and webhooks.yaml for derio-net/cluster-update-fr are already merged; create the Gitea mirror repo, make sure the derio-fr-automation App installation includes the repo, THEN create the GitHub push + pull_request webhook.
 - number: 2
   title: Merge order (operator)
   steps:
@@ -66,6 +81,26 @@ state:
       ticked_at: null
       note: null
     P7.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S9:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S10:
       state: ' '
       ticked_at: null
       note: null

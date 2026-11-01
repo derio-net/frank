@@ -622,3 +622,48 @@ def test_an_omni_status_sidecar_writes_the_file_the_console_reads():
     cred = next(v for v in pod()["volumes"] if v["name"] == mounts["omni-reader"]["name"])
     assert cred["secret"]["optional"] is True
     assert "omni-reader" not in cmounts, "the Reader credential belongs to the sidecar alone"
+
+
+# ------------------------------------------------------------------ p4-r1 / p4-r5: the manual operations that finish the deploy
+
+
+def _blocks():
+    text = (PLAN / "_prose.md").read_text()
+    out = {}
+    for m in re.finditer(r"```yaml\n# manual-operation\n(.*?)```", text, re.S):
+        d = yaml.safe_load(m.group(1))
+        out[d["id"]] = d
+    return out
+
+
+def test_hop_kubeconfig_goes_through_the_tailscale_socks_proxy_the_console_supports():
+    ts = next(c for c in pod()["initContainers"] if c["name"] == "tailscale")
+    env = {e["name"]: e.get("value") for e in ts["env"]}
+    assert env["TS_SOCKS5_SERVER"] == "localhost:1055"
+    secrets = _blocks()["life-console-secrets"]
+    text = " ".join(secrets["commands"])
+    assert "proxy-url: socks5://localhost:1055" in text
+    assert "hop-readonly-kubeconfig" in text and "frank-updater-tailscale" in text
+    # the file the console reads is the one the Secret's `config` key becomes
+    hop = next(v for v in pod()["volumes"] if v["name"] == "cred-hop")
+    assert hop["secret"]["secretName"] == "hop-readonly-kubeconfig" and hop["secret"]["items"][0]["key"] == "config"
+
+
+def test_phase_7_carries_every_manual_step_this_phase_creates():
+    blocks = _blocks()
+    for bid in ("life-console-pins", "life-console-trust", "life-console-secrets", "life-console-mirror",
+                "life-admission-dry-run", "life-main-ruleset"):
+        assert bid in blocks, bid
+        assert blocks[bid]["status"] == "pending" and blocks[bid]["verify"]
+    plan = yaml.safe_load((PLAN / "07.yaml").read_text())
+    ids = {s["id"] for t in plan["tasks"] for s in t["steps"]}
+    assert ids <= set(plan["state"]["steps"]) and len(ids) == len(plan["state"]["steps"])
+    text = " ".join(s["text"] for t in plan["tasks"] for s in t["steps"])
+    for needle in ("checks:read", "actions:write", "life-console-pins", "life-console-secrets", "life-console-mirror"):
+        assert needle in text, needle
+    s2 = next(s["text"] for t in plan["tasks"] for s in t["steps"] if s["id"] == "P7.T1.S2")
+    assert "(renovate, cluster-update-fr, upgrade-sessions)" not in s2, "the session App PEM lives in cluster-update-fr (ESO consumer namespace)"
+    mirror = blocks["life-console-mirror"]
+    assert "LAST" in mirror["when"] or "last" in " ".join(mirror["commands"]).lower()
+    pins = " ".join(blocks["life-console-pins"]["commands"])
+    assert "PENDING-PHASE-7" in pins and "pin-exceptions.yaml" in pins and "v0.1.0" in pins
