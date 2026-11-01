@@ -327,3 +327,63 @@ Not caused by this change: the per-model ready endpoint is the plan's documented
 ### p5-no-ephemeral-containers · discovery · No one but cluster-admin may add ephemeral containers or exec into session pods (phase 5)
 
 Console security review: kubectl debug can attach an ephemeral container to a verified session pod and read its credential volume. Frank phase 5: no Role/ClusterRole bound to anything except cluster-admin grants pods/ephemeralcontainers or pods/exec in upgrade-sessions — runs-fr is the one exception for pods/exec (it is how the operator attaches), and must not get pods/ephemeralcontainers; test it. Consider a ValidatingAdmissionPolicy denying ephemeralContainers updates on pods labelled cluster-update.fr/type in upgrade-sessions.
+
+<!-- fr:journal kind=decision scope=plan id=p3-trivy-scrape-vmservicescrape created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-trivy-scrape-vmservicescrape · decision · Trivy metrics scraped by a VMServiceScrape, chart ServiceMonitor off (phase 3)
+
+Frank has no ServiceMonitor CRD convention (all scrapes are VMServiceScrape). The trivy-operator Application has a third source, apps/trivy-operator/manifests, holding the trivy-system Namespace and the VMServiceScrape. operator.metricsVulnIdEnabled=false keeps per-CVE series out. POST-MERGE MEASURE: size of the trivy-operator /metrics response (kubectl exec wget, wc -c) must stay well under promscrape.maxScrapeSize (32MB); trivy_image_vulnerabilities is per image x severity.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-trivy-server-port created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-trivy-server-port · discovery · Built-in Trivy server is trivy-service.trivy-system:4954 and is a StatefulSet with a 5Gi PVC (phase 3)
+
+Confirmed by helm template of chart 0.38.1 (app 0.36.1). The PVC makes the app stateful in the facts, so update-policy.yaml resolves frank/trivy-operator to session. The chart also renders OCI repo strings (trivy-db, trivy-java-db, trivy-checks:1, trivy repository) into a ConfigMap; those are data artifacts / joined-at-runtime fields and are registered as static exemptions in render_all_images.py with reasons.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-headscale-acl-still-wildcard created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-headscale-acl-still-wildcard · discovery · Headscale ACL edit records the grant but the wildcard accept still allows everything (phase 3)
+
+Added one acl entry (tag:frank-updater -> tag:hop-node:6443,50000) and tagOwners for tag:frank-updater and tag:hop-node; the existing accept-all rule is untouched (test pins it), so the grant is not yet restrictive. It becomes effective the day the wildcard is tightened. MANUAL (phase 7): (1) kubectl -n headscale-system rollout restart deploy/headscale after the ConfigMap lands, gating on live ConfigMap content (headscale-config never rolls); (2) hop-1 must carry tag:hop-node (advertise-tags on its tailscale DaemonSet or retag in Headplane); (3) mint an ephemeral reusable pre-auth key for tag:frank-updater into Secret frank-updater-tailscale/authkey in ns hop-scan; (4) a read-only kubeconfig for Hop (server = hop-1 tailnet IP:6443) into Secret hop-readonly-kubeconfig key `config` in ns hop-scan; (5) allow the hop-scan pod to reach Talos/kube APIs only if the cluster-wide wildcard is ever removed.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-hop-scan-contract created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-hop-scan-contract · discovery · hop-scan stdout contract for the console (phase 3)
+
+Per distinct image: `hop-scan result {json}` with keys cluster (hop), image, scanned_at (UTC ISO), critical/high/medium/low/unknown (int, or null on failure) and error (null or reason). Every run also prints `hop-scan heartbeat {json}` (cluster, at, status, images, scanned, failed) even when blind (status `skipped: no hop-readonly-kubeconfig` / `skipped: hop kube API unreachable`). Daily 03:17 UTC. Frank-side Grafana rule life-hop-scan-heartbeat-stale watches the heartbeat in VictoriaLogs (namespace hop-scan, _msg field).
+
+<!-- fr:journal kind=discovery scope=plan id=p3-grafana-rules-metric-absent created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-grafana-rules-metric-absent · discovery · Metric dead-man rules read `or vector(1e9)` so a vanished console metric fires (phase 3)
+
+life-scan-heartbeat-stale and life-report-heartbeat-stale (36h, feature-health, health_bridge_only, severity critical, NOT telegram_direct) compute time()-max(metric) or vector(1e9) with noDataState Alerting. life-hop-scan-heartbeat-stale is LogsQL stats with noDataState OK. Dashboard grafana-life-dashboard is mounted via two new entries in apps/victoria-metrics/values.yaml. Console alarms remain the only alarm source.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-hop-scan-unverified created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-hop-scan-unverified · discovery · hop-scan pod behaviour verified only offline (phase 3)
+
+Not run on a cluster: native-sidecar tailscale in userspace as uid 65532 with TS_STATE_DIR=/tmp/tailscale, kubectl over socks5 HTTPS_PROXY (Go honours socks5), and trivy client pulling images from registries (needs egress 443, allowed). Confirm in phase 7 when the Secrets exist. report.py was exercised with a synthetic trivy JSON.
+
+<!-- fr:journal kind=decision scope=plan id=p3-sec-fixes created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-sec-fixes · decision · Security review fixes p3-sec-1..4 (phase 3)
+
+(1) tag:frank-updater and tag:hop-node are owned by group:tag-admins (sole member: dedicated Headscale user tag-admin, never used to register nodes; default is not a member); the frank-updater auth key must be ephemeral, single-use and pre-tagged. (2) scan only runs on image lines matching an image-reference regex, with `--` before the image. (3) tailscale has its own emptyDir ts-state (TS_STATE_DIR, TS_SOCKET), uid 65531, mounted only there; scan uses scan-tmp and uid 65534. (4) Trivy server token: trivy.existingSecret=true; ingress NetworkPolicy trivy-server-ingress admits only scan-job pods (label trivy-operator.scan-job=true), the operator and namespace hop-scan on 4954.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-phase7-trivy-token created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-phase7-trivy-token · discovery · Phase 7: create the Trivy token Secrets (the app is unhealthy until they exist) (phase 3)
+
+Generate one random token T. (a) ns trivy-system Secret `trivy-operator-trivy-config` with keys trivy.serverToken=T and TRIVY_TOKEN=T (the chart no longer renders this Secret; the server's envFrom and the scan jobs are non-optional, so trivy-server and the operator sit in CreateContainerConfigError until it exists). (b) ns hop-scan Secret `trivy-server-token` key `token`=T (optional on the pod; without it hop-scan scans fail and the heartbeat reports failed>0). Also the tailscale/kubeconfig Secrets listed in p3-headscale-acl-still-wildcard.
+
+<!-- fr:journal kind=discovery scope=plan id=p3-phase7-tag-admin created=2026-11-01T05:40:44+00:00 phase=3 -->
+### p3-phase7-tag-admin · discovery · Phase 7 manual operation: tag-admin user, tagged keys, headscale restart (phase 3)
+
+1) headscale users create tag-admin (operator only; never register nodes under it except via tagged keys). 2) Mint the frank-updater pre-auth key under tag-admin: headscale preauthkeys create --user tag-admin --ephemeral --tags tag:frank-updater --expiration 24h (single-use, i.e. no --reusable), into Secret frank-updater-tailscale/authkey in ns hop-scan. 3) Give hop-1 tag:hop-node via that user (headscale nodes tag -i <hop-1 id> -t tag:hop-node, or re-register with a tag-admin key). 4) After the ConfigMap lands, gate on live content (kubectl -n headscale-system get cm headscale-config -o jsonpath='{.data.acl\.yaml}' | grep tag-admin) THEN kubectl -n headscale-system rollout restart deploy/headscale (config never rolls).
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t1 created=2026-11-01T05:40:44+00:00 phase=3 -->
+### no-refactor-p3-t1 · discovery · no-refactor-because P3.T1 (phase 3)
+
+new app, values written once against the chart's own keys; nothing duplicated to tidy
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t2 created=2026-11-01T05:40:44+00:00 phase=3 -->
+### no-refactor-p3-t2 · discovery · no-refactor-because P3.T2 (phase 3)
+
+one ACL edit and one small app; the report script is the only logic and has no twin
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p3-t3 created=2026-11-01T05:40:44+00:00 phase=3 -->
+### no-refactor-p3-t3 · discovery · no-refactor-because P3.T3 (phase 3)
+
+dashboard JSON generated once; rules reuse the existing group/rule shapes verbatim

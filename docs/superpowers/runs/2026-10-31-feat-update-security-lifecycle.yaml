@@ -131,7 +131,7 @@ steps:
           visual: none
           findings: p2-r1,p2-r2,p2-r3,p2-r4,p2-r10,p2-r11,p2-r12,p2-r5,p2-r6,p2-r7,p2-r8,p2-r9
       phase/3/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-01T05:00:25+00:00'
           agent: a3302bd6fa05d9bc9
@@ -141,6 +141,11 @@ steps:
           tier: standard
           bound: sonnet
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-11-01T05:40:48+00:00'
+          outcome: done
+        evidence:
+          tests: phase3-tests.log@696f306aebb7;tree=20a15dad93e9fe789b030697d60dbf87d805f192f9ef587396ee36c39cef8b8b
+          visual: none
   journal-check:
     state: pending
   deliver:
