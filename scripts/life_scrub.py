@@ -21,9 +21,10 @@ journal p5-scrub-*):
     the end of its line;
   - redaction repeats until stable; over-redaction is preferred to under-redaction.
 
-One frank-only addition: a key/value whose value is a REFERENCE ({{ .x }}, ${X}, $(cmd)) is not a
-secret. Manifests are full of ESO templates and env references, and the repository guard must
-not cry wolf on them. A literal secret is never reference-shaped, so this cannot hide one.
+One frank-only addition, for the repository guard ONLY (find_tokens(repository=True)): a
+key/value whose whole value is ONE closed REFERENCE ({{ .x }}, ${X}, $(cmd)) is not reported.
+Manifests are full of ESO templates and env references, and the guard must not cry wolf on them.
+scrub() never applies it (p5-r8): a transcript is redacted whatever a value looks like.
 
 The pattern fixtures are shared with the console: scripts/tests/fixtures/life/scrub-cases.json.
 
@@ -53,7 +54,9 @@ B64_CHARS = ALNUM + "_+/-"
 SECRET_KEYS = (r"(?:token|access_token|refresh_token|client-key-data|client-certificate-data|key|crt|ca|"
                r"password|passwd|pass|secret|client_secret|private_key|api_key|apikey)")
 SEP = r"[ \t]*[:=][ \t]*(?:\r?\n[ \t]+)?"
-REFERENCE = re.compile(r"^(?:\{\{.*\}\}|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$\(.*\)?)$", re.S)
+# Exactly ONE template, env reference or command substitution, closed (p5-r8): `{{.*}}` spanned
+# two templates with a secret between them, and `$(.*)?` passed anything starting `$(`.
+REFERENCE = re.compile(r"^(?:\{\{[^{}]*\}\}|\$\{[A-Za-z_]\w*\}|\$\([^()]*\))$")
 # Repository mode only: an unquoted value that is the NAME of a secret, not its value -- an
 # ENV/Infisical key (LITELLM_MASTER_KEY), a Secret key (talosconfig, bot-token), or a nested
 # mapping key on the next line (`secret:\n  secretName:`). No digits anywhere (p5-sec-2):
@@ -159,7 +162,7 @@ def _matches(p: Pattern, text: str, repository: bool = False) -> list[tuple[int,
         if m is None or m.start(1) < 0:
             break
         start, end = m.start(1), m.end(1)
-        if p.key_value and REFERENCE.match(text[start:end]):
+        if repository and p.key_value and REFERENCE.match(text[start:end]):
             pos = max(m.end(), pos + 1)
             continue
         while p.trim_right and end > start and text[end - 1] in p.trim_right:
@@ -167,7 +170,7 @@ def _matches(p: Pattern, text: str, repository: bool = False) -> list[tuple[int,
         value = text[start:end]
         exempt_name = repository and p.unquoted and (
             _flow_of_key_names(text, start) if value[:1] in "{[" else bool(KEY_NAME.match(value)))
-        if _is_marker(value) or (p.key_value and REFERENCE.match(value)) or exempt_name:
+        if _is_marker(value) or (repository and p.key_value and REFERENCE.match(value)) or exempt_name:
             pos = max(m.end(), pos + 1)
             continue
         if p.not_before and start > 0 and text[start - 1] in p.not_before:

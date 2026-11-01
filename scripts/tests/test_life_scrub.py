@@ -243,7 +243,35 @@ def test_short_values_are_not_registered():
     "secretKey: token",
 ])
 def test_reference_shaped_values_are_not_tokens(text):
-    assert ls.find_tokens(text) == [], text
+    assert ls.find_tokens(text, repository=True) == [], text
+
+
+@pytest.mark.parametrize("text", [
+    'token: "{{ .token }}"', "password: ${POSTGRES_PASSWORD}", 'key: "$(cat /run/credentials/x)"',
+])
+def test_scrub_never_trusts_a_reference_shape(text):
+    # p5-r8: the reference exemption is the repository guard's (manifests are full of ESO
+    # templates); a transcript is redacted whatever the value looks like.
+    assert "redacted" in ls.scrub(text), text
+    assert ls.find_tokens(text) != [], text
+
+
+@pytest.mark.parametrize("text", [
+    # p5-r8: `{{.*}}` spanned two templates, so a literal secret between them was "a reference"
+    'password: "{{ a }}hunter2hunter2Zq9{{ b }}"',
+    "password: {{a}}hunter2hunter2Zq9{{b}}",
+    # p5-r8: `\$\(.*\)?` made the closing paren optional, so any value starting `$(` passed
+    "password: $(hunter2hunter2Zq9",
+    "token: ${A}ghp_" + "Zq9" * 12,
+    "password: $(a)hunter2hunter2Zq9$(b)",
+])
+def test_a_secret_dressed_as_a_reference_is_still_reported(text):
+    assert ls.find_tokens(text, repository=True) != [], text
+    assert "redacted" in ls.scrub(text), text
+
+
+def test_reference_pattern_is_the_reviewed_one():
+    assert ls.REFERENCE.pattern == r"^(?:\{\{[^{}]*\}\}|\$\{[A-Za-z_]\w*\}|\$\([^()]*\))$"
 
 
 # ------------------------------------------------------------------ repo-wide guard (R25)
