@@ -987,3 +987,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r5 created=2026-11-01T17:31:41+00:00 phase=6 state=open review_scope=in -->
 ### p6-r5 · finding [open] (reviewer: in scope) · Hop talosctl rollback limits unstated and no exact invocation (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r6 created=2026-11-01T17:31:54+00:00 phase=6 state=open review_scope=in -->
+### p6-r6 · finding [open] (reviewer: in scope) · roll one node at a time is not operator-controllable under Omni; need sole-replica precondition and etcd check (phase 6)
