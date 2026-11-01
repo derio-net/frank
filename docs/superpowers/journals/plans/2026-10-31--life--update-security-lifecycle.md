@@ -548,3 +548,6 @@ two route/provider/tile triples copied the existing per-service shape verbatim; 
 ### no-refactor-p4-t3 · discovery · no-refactor-because P4.T3 (phase 4)
 
 one values file and one policy; the chart supplies everything else
+
+<!-- fr:journal kind=finding scope=plan id=p4-r1 created=2026-11-01T09:45:36+00:00 phase=4 state=open review_scope=in -->
+### p4-r1 · finding [open] (reviewer: in scope) · Hop kubeconfig relies on proxy-url socks5 but the console kube client ignores proxy-url and has no Proxy func (phase 4)
