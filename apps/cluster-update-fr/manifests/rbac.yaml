@@ -4,6 +4,10 @@
 #   - upgrade-sessions: create/get/list/delete on pods and secrets (launching and ending a
 #     session). NO rolebindings (frank pre-binds every session role), NO pods/exec, NO
 #     pods/ephemeralcontainers, NO patch/update.
+# `list` on secrets/pods stays because the console's orphan reconciliation lists the objects it
+# labelled managed-by=cluster-update-fr to find sessions whose record is gone (README: an
+# unverifiable pod is deleted if the console made it). Which pods it may CREATE is narrowed by
+# the ValidatingAdmissionPolicies in admission-policy.yaml.
 # The upgrade-sessions namespace itself is owned by the upgrade-sessions app (phase 5).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

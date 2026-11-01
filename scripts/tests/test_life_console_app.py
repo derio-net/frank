@@ -482,3 +482,64 @@ def test_phase_7_creates_the_main_ruleset_with_the_console_only_check():
     assert "P7.T1.S5" in plan["state"]["steps"]
     prose = (PLAN / "_prose.md").read_text()
     assert "id: life-main-ruleset" in prose
+
+
+# ------------------------------------------------------------------ p4-sec-2: what the console may launch
+
+CONSOLE_USER = "system:serviceaccount:cluster-update-fr:cluster-update-fr"
+
+
+def vap(name):
+    (p,) = [d for d in of_kind("ValidatingAdmissionPolicy") if d["metadata"]["name"] == name]
+    (b,) = [d for d in of_kind("ValidatingAdmissionPolicyBinding") if d["spec"]["policyName"] == name]
+    return p, b
+
+
+def _all_expressions(p):
+    return " ".join(v["expression"] for v in p["spec"]["validations"])
+
+
+def test_pods_the_console_creates_are_confined_by_an_admission_policy():
+    p, b = vap("upgrade-session-pods")
+    assert b["spec"]["validationActions"] == ["Deny"]
+    assert b["spec"]["matchResources"]["namespaceSelector"]["matchLabels"] == {
+        "kubernetes.io/metadata.name": SESSIONS}
+    (rule,) = p["spec"]["matchConstraints"]["resourceRules"]
+    assert rule["resources"] == ["pods"] and set(rule["operations"]) == {"CREATE", "UPDATE"}
+    assert p["spec"]["failurePolicy"] == "Fail"
+    conds = " ".join(c["expression"] for c in p["spec"]["matchConditions"])
+    assert CONSOLE_USER in conds
+    expr = _all_expressions(p) + " " + " ".join(v["expression"] for v in p["spec"]["variables"])
+    for needle in (
+        "upgrade-session-", "'hop-os'", "serviceAccountName", "automountServiceAccountToken",
+        "ghcr.io/derio-net/upgrade-session:", "ghcr.io/derio-net/upgrade-session@sha256:",
+        "app.kubernetes.io/managed-by", "cluster-update-fr", "cluster-update.fr/type",
+        "hostPath", "hostNetwork", "hostPID", "hostIPC", "privileged", "capabilities", "ephemeralContainers",
+        "initContainers",
+    ):
+        assert needle in expr, needle
+    for t in ("chart-major", "stateful", "rollouts", "frank-os", "hop-os"):
+        assert f"'{t}'" in expr, t
+
+
+def test_the_session_image_prefix_cannot_be_spoofed_by_a_longer_name():
+    p, _ = vap("upgrade-session-pods")
+    expr = _all_expressions(p)
+    assert "startsWith('ghcr.io/derio-net/upgrade-session')" not in expr, "needs the : or @ delimiter"
+
+
+def test_nobody_but_cluster_admin_may_add_ephemeral_containers_to_session_pods():
+    p, b = vap("upgrade-session-no-ephemeral-containers")
+    assert b["spec"]["validationActions"] == ["Deny"]
+    assert b["spec"]["matchResources"]["namespaceSelector"]["matchLabels"] == {
+        "kubernetes.io/metadata.name": SESSIONS}
+    (rule,) = p["spec"]["matchConstraints"]["resourceRules"]
+    assert rule["resources"] == ["pods/ephemeralcontainers"]
+    conds = " ".join(c["expression"] for c in p["spec"]["matchConditions"])
+    assert "system:masters" in conds and "root-admins" in conds
+    assert [v["expression"] for v in p["spec"]["validations"]] == ["false"]
+
+
+def test_secrets_list_stays_only_for_orphan_reconciliation_and_says_so():
+    text = (MAN / "rbac.yaml").read_text()
+    assert "orphan" in text and "list" in text.split("orphan", 1)[0][-600:] + text.split("orphan", 1)[1][:600]

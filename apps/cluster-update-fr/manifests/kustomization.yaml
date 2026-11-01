@@ -10,6 +10,7 @@ resources:
   - externalsecrets.yaml
   - service.yaml
   - ciliumnetworkpolicy.yaml
+  - admission-policy.yaml
   - vmpodscrape.yaml
   - deployment.yaml
 configMapGenerator:
