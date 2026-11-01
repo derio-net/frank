@@ -993,3 +993,6 @@ two prose runbooks plus a test file; no duplicated parts (the briefs keep their 
 
 <!-- fr:journal kind=finding scope=plan id=p6-r7 created=2026-11-01T17:32:07+00:00 phase=6 state=open review_scope=in -->
 ### p6-r7 · finding [open] (reviewer: in scope) · omni-upgrade.md backup copies live etcd/sqlite; stop briefly or snapshot; name the compose dir (phase 6)
+
+<!-- fr:journal kind=finding scope=plan id=p6-r8 created=2026-11-01T17:32:20+00:00 phase=6 state=open review_scope=in -->
+### p6-r8 · finding [open] (reviewer: in scope) · life_tracks patch-only branch emits a downgrade step; one_way on k8s patch contradicts the runbook (phase 6)
