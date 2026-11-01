@@ -190,7 +190,9 @@ def test_p3_sec_1_tag_owners_are_an_admin_group_not_default():
     # the old entry is still exactly as it was
     assert a["tagOwners"]["tag:subnet-router"] == ["default"]
     text = yaml.safe_load(HEADSCALE_CM.read_text())["data"]["acl.yaml"]
-    assert "ephemeral" in text and "single-use" in text and "pre-tagged" in text
+    assert "reusable" in text and "ephemeral" in text and "pre-tagged" in text
+    assert "single-use" not in text.replace("NOT single-use", ""), "a daily CronJob registers a fresh node each run"
+    assert "short expiry" in text and "rotat" in text
 
 
 def _scan_script():

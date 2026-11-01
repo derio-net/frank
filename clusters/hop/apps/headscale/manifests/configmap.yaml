@@ -131,8 +131,10 @@ data:
       // Dedicated owner group for the lifecycle tags. `tag-admin` is an operator-only Headscale
       // user that never registers nodes (ordinary nodes live under `default`), so the tags are
       // NOT claimable by ordinary nodes: only members of group:tag-admins may advertise them. The frank-updater auth
-      // key must be ephemeral, single-use and pre-tagged (minted by the operator in
-      // phase 7), so the node never needs to claim the tag itself.
+      // key must be reusable (a daily CronJob registers a fresh node every run, so it is
+      // NOT single-use), ephemeral (each run's node disappears after it), pre-tagged
+      // tag:frank-updater (the node never claims the tag itself), with a short expiry and
+      // rotated on a schedule. Minted by the operator in phase 7.
       "groups": {
         "group:tag-admins": ["tag-admin"]
       },
