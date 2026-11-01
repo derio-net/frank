@@ -47,6 +47,7 @@ def next_steps(cluster_versions: dict, target: dict, matrix: dict) -> list[Step]
         nonlocal talos, k8s
         goal = t_goal if kind == "talos" else k_goal
         exact = str(target[kind if kind == "talos" else "kubernetes"])
+        minor_move = to != (talos if kind == "talos" else k8s)
         label = exact if to == goal else f"{_s(to)}.x"
         if kind == "talos":
             talos = to
@@ -55,8 +56,8 @@ def next_steps(cluster_versions: dict, target: dict, matrix: dict) -> list[Step]
         steps.append(Step(
             cluster=cluster, kind=kind, position=len(steps) + 1, to_minor=_s(to), to=label,
             talos_minor=_s(talos), k8s_minor=_s(k8s),
-            one_way=kind == "kubernetes",
-            rollback="one-way" if kind == "kubernetes" else talos_rollback,
+            one_way=minor_move and kind == "kubernetes",
+            rollback=talos_rollback if kind == "talos" else ("one-way" if minor_move else "forward-fix"),
         ))
 
     # Patch-level move inside the current minor (target patch differs): one step.
@@ -82,11 +83,18 @@ def next_steps(cluster_versions: dict, target: dict, matrix: dict) -> list[Step]
     else:
         raise ValueError("track did not converge")
 
-    # Same-minor patch bump: the declared patch differs from the target's.
-    declared = {"talos": str(cluster_versions["talos"]), "kubernetes": str(cluster_versions["kubernetes"])}
-    for kind in ("talos", "kubernetes"):
-        if not any(s.kind == kind for s in steps) and not str(target[kind]).endswith(".x") \
-                and str(target[kind]) != declared[kind]:
-            add_minor = talos if kind == "talos" else k8s
-            add(kind, add_minor)
+    # Patch-only move at the current minor: only when the target patch is numerically greater.
+    for kind, cur in (("talos", talos), ("kubernetes", k8s)):
+        if any(s.kind == kind for s in steps):
+            continue
+        want = str(target[kind])
+        if want.endswith(".x") or not _patch_greater(want, cluster_versions[kind]):
+            continue
+        add(kind, cur)
     return steps
+
+
+def _patch_greater(want: str, have: str) -> bool:
+    w = [int(x) for x in str(want).split(".")[:3]]
+    h = [int(x) for x in str(have).split(".")[:3]]
+    return len(w) == 3 and w > h

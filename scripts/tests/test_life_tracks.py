@@ -127,3 +127,45 @@ def test_matrix_shape_and_sources():
         tm = ".".join(str(v["talos"]).split(".")[:2])
         km = ".".join(str(v["kubernetes"]).split(".")[:2])
         assert km in MATRIX["talos"][tm], f
+
+
+# --- p6-r8 / p6-r9: patch moves, partial moves, bounds ---------------------------------
+def _go(cur_t, cur_k, tgt_t, tgt_k, cluster="frank", matrix=MATRIX):
+    return life_tracks.next_steps(
+        {"cluster": cluster, "talos": cur_t, "kubernetes": cur_k},
+        {"talos": tgt_t, "kubernetes": tgt_k}, matrix)
+
+
+def test_patch_only_talos_step_is_not_one_way():
+    steps = _go("1.12.6", "1.35.3", "1.12.8", "1.35.3")
+    assert [(s.kind, s.to_minor, s.to, s.one_way) for s in steps] == [("talos", "1.12", "1.12.8", False)]
+    assert steps[0].rollback == "omni-revert"
+
+
+def test_patch_only_kubernetes_step_is_not_one_way():
+    steps = _go("1.12.6", "1.35.3", "1.12.6", "1.35.5")
+    assert [(s.kind, s.to_minor, s.to, s.one_way) for s in steps] == [("kubernetes", "1.35", "1.35.5", False)]
+    assert steps[0].rollback != "one-way"
+
+
+def test_talos_only_and_kubernetes_only_minor_moves():
+    t = _go("1.12.6", "1.35.3", "1.13.x", "1.35.3")
+    assert _kinds(t) == [("talos", "1.13")]
+    k = _go("1.13.1", "1.35.3", "1.13.1", "1.36.x")
+    assert _kinds(k) == [("kubernetes", "1.36")]
+    with pytest.raises(ValueError):  # 1.36 is outside Talos 1.12's window
+        _go("1.12.6", "1.35.3", "1.12.6", "1.36.x")
+
+
+def test_x_at_the_current_minor_is_no_step():
+    assert _go("1.12.6", "1.35.3", "1.12.x", "1.35.x") == []
+
+
+def test_lower_patch_target_is_no_step():
+    assert _go("1.12.6", "1.35.3", "1.12.2", "1.35.1") == []
+
+
+def test_track_longer_than_the_bound_raises():
+    matrix = {"talos": {"1.12": [f"1.{n}" for n in range(35, 120)]}}
+    with pytest.raises(ValueError, match="converge"):
+        _go("1.12.6", "1.35.3", "1.12.x", "1.100.x", matrix=matrix)
