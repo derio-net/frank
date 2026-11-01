@@ -569,3 +569,6 @@ one values file and one policy; the chart supplies everything else
 
 <!-- fr:journal kind=finding scope=plan id=p4-r7 created=2026-11-01T09:46:03+00:00 phase=4 state=open review_scope=in -->
 ### p4-r7 · finding [open] (reviewer: in scope) · admission-policy tests are substring checks, not CEL evaluation against good/hostile pods (phase 4)
+
+<!-- fr:journal kind=finding scope=plan id=p4-r8 created=2026-11-01T09:46:08+00:00 phase=4 state=open review_scope=in -->
+### p4-r8 · finding [open] (reviewer: in scope) · state PVC/namespace have Prune=false but not Delete=false; Application deletion loses the audit trail (phase 4)
