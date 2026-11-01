@@ -1080,3 +1080,8 @@ Console-side: HTTP CONNECT proxy for hop-os added in cluster-update-fr@6755112; 
 ### p1-r7-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p1-r7: operator-created workloads (AWX sclorg postgresql-15-c9s:latest) are invisible to a render audit
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r12-resolved-2 created=2026-11-01T19:32:59+00:00 state=open resolves=p2-r12 tracked_by=derio-net/frank#914 -->
+### p2-r12-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p2-r12: ovms /v2/models/<name>/ready unverified against MediaPipe-graph servables (plan-prescribed; documented gotcha)
+
+Grouped follow-up (operator chose grouping).
