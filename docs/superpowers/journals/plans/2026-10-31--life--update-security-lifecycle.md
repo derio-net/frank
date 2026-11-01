@@ -557,3 +557,6 @@ one values file and one policy; the chart supplies everything else
 
 <!-- fr:journal kind=finding scope=plan id=p4-r3 created=2026-11-01T09:45:44+00:00 phase=4 state=open review_scope=in -->
 ### p4-r3 · finding [open] (reviewer: in scope) · console can create service-account-token Secrets in upgrade-sessions and mint permanent session-SA tokens (phase 4)
+
+<!-- fr:journal kind=finding scope=plan id=p4-r4 created=2026-11-01T09:45:49+00:00 phase=4 state=open review_scope=in -->
+### p4-r4 · finding [open] (reviewer: in scope) · R24 Omni running version not delivered: omni-status emptyDir has no writer and no later step owns the sidecar (phase 4)
