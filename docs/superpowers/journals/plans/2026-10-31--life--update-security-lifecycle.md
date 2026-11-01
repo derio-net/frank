@@ -770,3 +770,6 @@ the briefs are prose; the one shared block (use-versions + the security note) is
 ### p5-console-contract-tailscale · discovery · Console contract: SESSION_TAILSCALE_IMAGE + tailscale-authkey for hop-os (phase 5)
 
 cluster-update-fr@d36ea1b: hop-os session pods get a userspace tailscale sidecar (own ts-state emptyDir, uid 65531, SOCKS5 localhost:1055, tag:frank-updater). Frank must set console config SESSION_TAILSCALE_IMAGE to a DIGEST-pinned tailscale image (hop-os refuses to start otherwise) and add key 'tailscale-authkey' (reusable ephemeral pre-tagged key) to the session Secret, kept out of the agent's credential volume; the upgrade-sessions egress policy for hop-os must allow the tailscale sidecar's control/DERP traffic (headscale.hop.derio.net + DERP) and the admission policy must allow that sidecar image. Phase 7 manual-op: pin the digest and add the key.
+
+<!-- fr:journal kind=finding scope=plan id=p5-r1 created=2026-11-01T12:27:26+00:00 phase=5 state=open review_scope=in -->
+### p5-r1 · finding [open] (reviewer: in scope) · admission policy denies the console's real hop-os pod (tailscale initContainer); CEL test uses a hand-made pod (phase 5)
