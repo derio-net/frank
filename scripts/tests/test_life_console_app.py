@@ -569,3 +569,32 @@ def test_session_secrets_are_confined_by_an_admission_policy():
     expr = _all_expressions(p)
     for needle in ("'Opaque'", "startsWith('us-')", "app.kubernetes.io/managed-by", "kubernetes.io/service-account.name"):
         assert needle in expr, needle
+
+
+# ------------------------------------------------------------------ p4-r4: Omni's running version
+
+
+def test_an_omni_status_sidecar_writes_the_file_the_console_reads():
+    side = next(c for c in pod()["containers"] if c["name"] == "omni-status")
+    assert side["image"].startswith("ghcr.io/derio-net/upgrade-session:"), "the image that ships omnictl"
+    assert side["command"][:2] == ["/bin/sh", "-c"]
+    body = " ".join(side["command"][1:] + side.get("args", []))
+    assert "omnictl get sysversion -o json" in body
+    assert "mv " in body, "atomic replace, so the console never reads a half-written file"
+    status = env_file()["OMNI_STATUS_FILE"]
+    assert status in body, "writes exactly the path the console is told to read"
+    env = {e["name"]: e for e in side["env"]}
+    assert env["OMNICONFIG"]["value"].startswith("/var/run/omni/")
+    s = side["securityContext"]
+    assert s["readOnlyRootFilesystem"] is True and s["allowPrivilegeEscalation"] is False
+    assert s["capabilities"]["drop"] == ["ALL"]
+    # its own scratch, the shared status dir read-write here and READ-ONLY in the console
+    mounts = {m["name"]: m for m in side["volumeMounts"]}
+    cmounts = {m["name"]: m for m in container()["volumeMounts"]}
+    assert mounts["omni-status"].get("readOnly") is not True
+    assert cmounts["omni-status"]["readOnly"] is True
+    assert cmounts["omni-status"]["mountPath"] == status.rsplit("/", 1)[0]
+    assert "tmp" not in mounts or mounts["tmp"]["name"] != "tmp", "must not share the console's /tmp"
+    cred = next(v for v in pod()["volumes"] if v["name"] == mounts["omni-reader"]["name"])
+    assert cred["secret"]["optional"] is True
+    assert "omni-reader" not in cmounts, "the Reader credential belongs to the sidecar alone"

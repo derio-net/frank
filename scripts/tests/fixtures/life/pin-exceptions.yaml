@@ -44,3 +44,5 @@ exceptions:
     reason: Stateful workload (PVC) on an exact tag because the first release is unpublished; phase 7 replaces it with the release's sha256 digest and DELETES this entry (the test fails on a stale one).
   - image: tailscale/tailscale:v1.82.5
     reason: Sidecar of a stateful workload (the console's PVC) on the same exact tag hop-scan pins; its node key lives in an emptyDir, not on the PVC.
+  - image: ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
+    reason: Placeholder tag for the omni-status sidecar until agent-images publishes the session image (merge order puts it first); phase 7 pins the same tag/digest as SESSION_IMAGE and DELETES this entry (the test fails on a stale one).

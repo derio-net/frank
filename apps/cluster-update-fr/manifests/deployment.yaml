@@ -114,13 +114,49 @@ spec:
           volumeMounts:
             - {name: state, mountPath: /var/lib/cluster-update-fr}
             - {name: tmp, mountPath: /tmp}
-            - {name: omni-status, mountPath: /var/run/omni-status}
+            - {name: omni-status, mountPath: /var/run/omni-status, readOnly: true}
             - {name: kube-api-access, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
             - {name: cred-github, mountPath: /var/run/credentials/github, readOnly: true}
             - {name: cred-gitea, mountPath: /var/run/credentials/gitea, readOnly: true}
             - {name: cred-telegram, mountPath: /var/run/credentials/telegram, readOnly: true}
             - {name: cred-hop, mountPath: /var/run/credentials/hop, readOnly: true}
             - {name: session-credentials, mountPath: /var/run/session-credentials, readOnly: true}
+        # Omni's running version for the inventory. omnictl ships in the upgrade-session image
+        # (agent-images#171); the Reader-role service-account omniconfig is an optional Secret,
+        # so before the manual phase this loop just logs and the console shows the version as
+        # unknown. Writes omnictl's own JSON (the console accepts {"version"} or
+        # spec.backendversion) by atomic rename. PHASE 7: replace PENDING-PHASE-7 with the
+        # tag/digest that SESSION_IMAGE gets (same image, one pin).
+        - name: omni-status
+          image: ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              while true; do
+                if omnictl get sysversion -o json > /var/run/omni-status/status.json.tmp; then
+                  mv /var/run/omni-status/status.json.tmp /var/run/omni-status/status.json
+                else
+                  echo "omni-status: omnictl failed (no Reader omniconfig yet?)" >&2
+                fi
+                sleep 300
+              done
+          env:
+            - {name: OMNICONFIG, value: /var/run/omni/omniconfig}
+            - {name: HOME, value: /tmp/omni-home}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: omni-status, mountPath: /var/run/omni-status}
+            - {name: omni-scratch, mountPath: /tmp}
+            - {name: omni-reader, mountPath: /var/run/omni, readOnly: true}
       volumes:
         - name: state
           persistentVolumeClaim:
@@ -139,12 +175,17 @@ spec:
                   items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]
         - name: ts-state
           emptyDir: {}
-        # Omni's running version, written as JSON by a Reader-role omnictl sidecar. The sidecar
-        # needs an image that carries omnictl (the upgrade-session image, phase 5) and is added
-        # when that image is pinned; until then the file is absent and the console reports the
-        # version as unknown.
+        # Written by the omni-status sidecar, read by the console (read-only there).
         - name: omni-status
           emptyDir: {}
+        - name: omni-scratch
+          emptyDir: {}
+        - name: omni-reader
+          secret:
+            secretName: cluster-update-omni-reader
+            optional: true
+            items:
+              - {key: omniconfig, path: omniconfig}
         - name: cred-github
           secret: {secretName: cluster-update-fr-github, optional: true}
         - name: cred-gitea
