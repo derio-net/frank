@@ -848,3 +848,8 @@ Valid, and not this change's to fix: secure-agent-pod agent-sa and root-agents h
 ### p5-console-pod-env-mismatch-resolved · finding [fixed] · resolves p5-console-pod-env-mismatch: Console session pod env does not match the upgrade-session image interface (phase 5)
 
 Fixed on the console side (cluster-update-fr@6ebe748): session pod uid/HOME/emptyDirs/args-only and UPGRADE_*_MINOR match the upgrade-session image; frank briefs use UPGRADE_*_MINOR (p5-r17); golden podspecs pin it.
+
+<!-- fr:journal kind=finding scope=plan id=p5-console-scrub-adjacent-github-token-resolved created=2026-11-01T17:18:11+00:00 phase=5 state=fixed resolves=p5-console-scrub-adjacent-github-token -->
+### p5-console-scrub-adjacent-github-token-resolved · finding [fixed] · resolves p5-console-scrub-adjacent-github-token: Console scrubber leaks the body of a second GitHub token adjacent with no separator (phase 5)
+
+Fixed on the console side (cluster-update-fr@d36ea1b, then e09d720/9d1813f): adjacency audit across every pattern, fail-closed caps; frank's life_scrub.py shares the console's scrub-cases fixtures.
