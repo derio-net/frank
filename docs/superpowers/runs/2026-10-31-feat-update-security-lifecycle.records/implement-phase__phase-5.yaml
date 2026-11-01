@@ -95,14 +95,14 @@ journal:
     id: p5-staging-gate-generators-baseline
     phase: 5
     review_scope: in
-    title: test_staging_gate_manifests fails on this branch's three new ClusterGenerators
+    state: fixed
+    title: test_staging_gate_manifests failed on this branch's three new ClusterGenerators
     body: |
-      scripts/tests/test_staging_gate_manifests.py::test_no_unintended_cluster_generator_is_added reports
-      github-app-cluster-update-console, github-app-cluster-update-session and github-app-renovate (added by
-      phases 2 and 4, not phase 5). Frank CI runs scripts/tests, so the PR will be red until that guard's
-      BASELINE_GENERATORS acknowledges them with a reason. Left for the orchestrator: it is another phase's
-      guard and the fix is a one-line baseline entry. Not in this phase's tests_log, which covers test_life_*
-      and the files phase 5 touched.
+      test_no_unintended_cluster_generator_is_added reported github-app-cluster-update-console,
+      github-app-cluster-update-session and github-app-renovate (added by phases 2 and 4). Fixed in 2fdf6cac
+      (p5-staging-gate): all three are declared in BASELINE_GENERATORS with a reason each. The check itself is
+      unchanged (any other new generator still fails; github-app-derio must stay unscoped). The file is now
+      in the phase tests_log.
   - kind: discovery
     id: p5-scrub-shared-fixtures
     phase: 5
