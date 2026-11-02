@@ -1505,8 +1505,8 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: ci-budget-flips-at-threshold
   capability: CI budget fallback
