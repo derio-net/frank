@@ -1203,9 +1203,8 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_paperclip_pure_upstream.py#test_lb_preserves_client_source_ip
-  status: not-implemented
-  notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
-    the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: retrieval-batch-job-survives-pool-watchdog
   capability: Retrieval models
