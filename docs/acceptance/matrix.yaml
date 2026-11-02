@@ -1514,8 +1514,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#934
   verify: live
+  issues:
+  - derio-net/frank#934
 - id: ci-budget-flips-at-threshold
   capability: CI budget fallback
   acceptance: When an org reaches 85% of its included GitHub minutes, its github-preferred
