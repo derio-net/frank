@@ -1551,8 +1551,8 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: runner-memory-and-placement
   capability: CI runner
