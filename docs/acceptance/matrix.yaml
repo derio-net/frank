@@ -1589,8 +1589,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#933
   verify: live
+  issues:
+  - derio-net/frank#933
 - id: obs-telegram-firing-compact
   capability: obs
   acceptance: A firing Grafana alert reaches the Frank C&C Telegram chat as a compact
