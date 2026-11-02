@@ -1487,8 +1487,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#929
   verify: live
+  issues:
+  - derio-net/frank#929
 - id: gate-coverage-checker-flags-gaps
   capability: CI forge tiers
   acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
