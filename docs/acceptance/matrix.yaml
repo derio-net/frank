@@ -1273,8 +1273,8 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R7
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: stor-pc1-hdd-health-gated
   capability: storage
