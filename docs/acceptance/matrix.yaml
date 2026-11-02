@@ -1181,8 +1181,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R8
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#930
   verify: live
+  issues:
+  - derio-net/frank#930
 - id: paperclip-docs-describe-fresh-start
   capability: Paperclip fresh start
   acceptance: Frank's operator docs (Layer 15 posts, README, infrastructure table,
