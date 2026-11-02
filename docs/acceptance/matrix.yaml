@@ -1595,8 +1595,8 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: obs-telegram-group-cap
   capability: obs
