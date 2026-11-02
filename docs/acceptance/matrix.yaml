@@ -1475,8 +1475,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#928
   verify: live
+  issues:
+  - derio-net/frank#928
 - id: ci-tier-monthly-report
   capability: CI forge tiers
   acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
