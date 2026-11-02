@@ -499,3 +499,48 @@ Step 8 RAN 2026-10-19 17:27-17:29Z (recorded owed earlier): two ci-budget-report
 ### d6d3e42c7e59 · finding [fixed] · Go-live derio-homelab (#894)
 
 2026-10-19 20:01Z: ArgoCD op revision = merge commit 5968049c, deployed tiers.yaml mode live for derio-net and derio-homelab; first live tick verdict=flipped org=derio-homelab pct=91.6. CI_AUTHORITY=gitea on proxmox-cluster, omada-controller, homelab, ansible-pihole on BOTH forges (gh variable get + Gitea API); kid-laptops unchanged (gitea-only); four flip: keys in state.sent (messages sent once); derio-net verdict=ok, no change; agentic-stoa still dry-run (no github-preferred repos). Both orgs with github-preferred repos are now live.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-2-resolved created=2026-11-02T22:01:50+00:00 state=open resolves=test-plan-step-2 filed_as=derio-net/frank#936 -->
+### test-plan-step-2-resolved · finding [filed → derio-net/frank#936] · resolves test-plan-step-2: Test Plan step 2 owed
+
+Filed at archive as derio-net/frank#936; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-3-resolved created=2026-11-02T22:01:50+00:00 state=open resolves=test-plan-step-3 filed_as=derio-net/frank#937 -->
+### test-plan-step-3-resolved · finding [filed → derio-net/frank#937] · resolves test-plan-step-3: Test Plan step 3 owed
+
+Filed at archive as derio-net/frank#937; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-4-resolved created=2026-11-02T22:01:50+00:00 state=open resolves=test-plan-step-4 filed_as=derio-net/frank#938 -->
+### test-plan-step-4-resolved · finding [filed → derio-net/frank#938] · resolves test-plan-step-4: Test Plan step 4 owed
+
+Filed at archive as derio-net/frank#938; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-5-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-5 filed_as=derio-net/frank#939 -->
+### test-plan-step-5-resolved · finding [filed → derio-net/frank#939] · resolves test-plan-step-5: Test Plan step 5 owed
+
+Filed at archive as derio-net/frank#939; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-6-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-6 filed_as=derio-net/frank#940 -->
+### test-plan-step-6-resolved · finding [filed → derio-net/frank#940] · resolves test-plan-step-6: Test Plan step 6 owed
+
+Filed at archive as derio-net/frank#940; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-7-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-7 filed_as=derio-net/frank#941 -->
+### test-plan-step-7-resolved · finding [filed → derio-net/frank#941] · resolves test-plan-step-7: Test Plan step 7 owed
+
+Filed at archive as derio-net/frank#941; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-8-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-8 filed_as=derio-net/frank#942 -->
+### test-plan-step-8-resolved · finding [filed → derio-net/frank#942] · resolves test-plan-step-8: Test Plan step 8 owed
+
+Filed at archive as derio-net/frank#942; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-9-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-9 filed_as=derio-net/frank#943 -->
+### test-plan-step-9-resolved · finding [filed → derio-net/frank#943] · resolves test-plan-step-9: Test Plan step 9 owed
+
+Filed at archive as derio-net/frank#943; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-10-resolved created=2026-11-02T22:01:51+00:00 state=open resolves=test-plan-step-10 filed_as=derio-net/frank#935 -->
+### test-plan-step-10-resolved · finding [filed → derio-net/frank#935] · resolves test-plan-step-10: Test Plan step 10 owed
+
+Filed at archive as derio-net/frank#935; still owed until discharged.

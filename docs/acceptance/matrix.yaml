@@ -1445,9 +1445,9 @@ rows:
     and its Gitea-mirrored read-only secrets are declared in one config in git, and
     only check jobs are eligible to fall back.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
   levels:
     unit:
     - frank:scripts/tests/test_ci_budget_tiers.py
@@ -1461,8 +1461,8 @@ rows:
     or derio-homelab is mirrored to Frank's Gitea, including PR heads, and missed
     syncs are repaired.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#927
@@ -1474,7 +1474,7 @@ rows:
   acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
     the matching GitHub commit as gitea-actions statuses.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#928
@@ -1486,7 +1486,7 @@ rows:
   acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
     tier changes, updated in place if regenerated.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#929
@@ -1498,7 +1498,7 @@ rows:
   acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
     forge gate, or would queue forever on Gitea, are reported.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
   levels:
     unit:
     - frank:scripts/tests/test_ci_gate_coverage.py
@@ -1511,7 +1511,7 @@ rows:
   acceptance: The nine github-preferred repos and the cnc-frd/cnc-fru release workflows
     pass the gate-coverage check.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#934
@@ -1524,11 +1524,11 @@ rows:
     repos move to Gitea for the rest of the month and return to GitHub at the monthly
     reset, never leaving a window where neither forge runs.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#925
@@ -1540,7 +1540,7 @@ rows:
   acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
     ten minutes and its pull request is re-run on Gitea.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#924
@@ -1552,7 +1552,7 @@ rows:
   acceptance: The operator is told on Telegram about every authority change, would-change
     and refusal, and is paged if the budget watcher stops running.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#926
@@ -1564,7 +1564,7 @@ rows:
   acceptance: The current CI authority of every github-preferred repo can be read
     from GitHub alone.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#923
@@ -1576,7 +1576,7 @@ rows:
   acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
     memory limit.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
   levels:
     unit:
     - frank:scripts/tests/test_gitea_runner_capacity.py
@@ -1588,7 +1588,7 @@ rows:
   acceptance: An alert fires when the Gitea runner is offline, when jobs wait too
     long for it, or when pc-1 /var runs low.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
   levels: {}
   status: walk-owed
   notes: tracked by derio-net/frank#933
