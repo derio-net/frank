@@ -1521,8 +1521,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#925
   verify: live
+  issues:
+  - derio-net/frank#925
 - id: ci-budget-backstop-spending-limit
   capability: CI budget fallback
   acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
