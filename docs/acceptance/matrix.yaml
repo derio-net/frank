@@ -1545,8 +1545,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#926
   verify: live
+  issues:
+  - derio-net/frank#926
 - id: ci-authority-readable-on-github
   capability: CI budget fallback
   acceptance: The current CI authority of every github-preferred repo can be read
