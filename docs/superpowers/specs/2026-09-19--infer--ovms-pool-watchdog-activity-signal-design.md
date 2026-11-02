@@ -332,7 +332,9 @@ If Rule 1 does begin firing during indexes once it measures `memory.current`,
 that is a real signal about the ceiling and is the moment to revisit direction 2
 with the transient headroom measured. Not before.
 
-## Test Plan (post-merge, operator-driven)
+## Test Plan
+
+_(post-merge, operator-driven)_
 
 | # | Check | Pass |
 |---|---|---|
