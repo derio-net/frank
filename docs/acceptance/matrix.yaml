@@ -1601,8 +1601,10 @@ rows:
   - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#931
   verify: live
+  issues:
+  - derio-net/frank#931
 - id: obs-telegram-resolved-oneline
   capability: obs
   acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
