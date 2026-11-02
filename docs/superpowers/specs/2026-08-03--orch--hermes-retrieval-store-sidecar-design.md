@@ -325,7 +325,9 @@ alongside the one-time CLI install, which is manual by decision 2.
   its stated runtime. Substituting a runtime the tool does not target trades a
   ~40 MB binary for an unbounded compatibility problem.
 
-## Test Plan (post-merge, operator-driven)
+## Test Plan
+
+_(post-merge, operator-driven)_
 
 | # | Step | Pass condition | Owner |
 |---|---|---|---|
