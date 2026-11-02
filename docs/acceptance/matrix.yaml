@@ -1551,8 +1551,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#923
   verify: live
+  issues:
+  - derio-net/frank#923
 - id: runner-memory-and-placement
   capability: CI runner
   acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
