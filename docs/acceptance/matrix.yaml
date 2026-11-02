@@ -1159,8 +1159,8 @@ rows:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R5
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R6
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: paperclip-claude-agent-completes-task
   capability: Paperclip fresh start
