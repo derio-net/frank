@@ -1463,8 +1463,10 @@ rows:
   - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
   levels: {}
   status: walk-owed
-  notes: post-merge walk owed (gate backfill)
+  notes: tracked by derio-net/frank#927
   verify: live
+  issues:
+  - derio-net/frank#927
 - id: ci-fallback-status-reaches-github
   capability: CI forge tiers
   acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
