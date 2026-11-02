@@ -429,3 +429,29 @@ helm template apps/root: renders clean (2745 lines). Admission dry-run (kubectl 
 ### manual-phases-resolved-not-implemented · discovery · Phases 11-12 resolved as done means NO agentic work, not implemented
 
 The shipped fr-goal shape iterates for_each: phase with no manual filter, so the cursor offers an fr-phase-executor brief for phases 11 and 12 even though both are tag: manual. The fr-goal skill forbids dispatching an executor at a manual phase (back-loaded manual work ships unimplemented; the operator pushes to the PR), and fr run resolve accepts only done|failed — there is no skipped state, and failed parks the cursor. Both members of phases 11 and 12 are therefore resolved done WITHOUT any agent running, meaning "no agentic work remains here". Phase 11 (register the vCluster, seed the shared secret, make the smoke image public, copy the PEM, run the green/red Test Plan) and phase 12 (post-deploy checklist) are UNIMPLEMENTED and operator-owned. The PR body says so. Possible super-fr gap: either for_each should skip manual phases, or resolve should carry a skipped state.
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-11 created=2026-11-02T22:01:30+00:00 phase=11 -->
+### manual-phase-11 · owed · 2026-06-15-staging-vcluster-gate: manual phase 11 is not ticked (phase 11)
+
+what: do manual phase 11 of 2026-06-15-staging-vcluster-gate and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 11 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+owed_key: plan:2026-06-15-staging-vcluster-gate#p11
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-12 created=2026-11-02T22:01:30+00:00 phase=12 -->
+### manual-phase-12 · owed · 2026-06-15-staging-vcluster-gate: manual phase 12 is not ticked (phase 12)
+
+what: do manual phase 12 of 2026-06-15-staging-vcluster-gate and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 12 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-06-15-staging-vcluster-gate
+owed_key: plan:2026-06-15-staging-vcluster-gate#p12
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-11-resolved created=2026-11-02T22:01:51+00:00 phase=11 state=open resolves=manual-phase-11 filed_as=derio-net/frank#917 -->
+### manual-phase-11-resolved · finding [filed → derio-net/frank#917] · resolves manual-phase-11: 2026-06-15-staging-vcluster-gate: manual phase 11 is not ticked (phase 11)
+
+Filed at archive as derio-net/frank#917; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-12-resolved created=2026-11-02T22:01:51+00:00 phase=12 state=open resolves=manual-phase-12 filed_as=derio-net/frank#918 -->
+### manual-phase-12-resolved · finding [filed → derio-net/frank#918] · resolves manual-phase-12: 2026-06-15-staging-vcluster-gate: manual phase 12 is not ticked (phase 12)
+
+Filed at archive as derio-net/frank#918; still owed until discharged.

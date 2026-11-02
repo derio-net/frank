@@ -263,3 +263,16 @@ df44f5cd contains 22 files; docs/acceptance/matrix.yaml, its three generated rep
 ### p6-followup · decision · f6 filed as frank#821 rather than patched in the close-out (phase 6)
 
 The page-cache finding changes a safety rule's numerator, and the 53% it interacts with was an explicit operator decision in this plan's Q&A. So it is filed with the measurement and the one-term fix (frank#821) instead of being patched inside a documentation close-out. The shipped state errs in the safe direction - Rule 1 fires early, never late - so there is no OOM exposure to race. Phase 6 therefore stays OPEN with P6.T1.S6 (Test Plan row 5, the consumer's 40-batch index) unticked, and the plan is NOT archived: archiving would bury the one outstanding obligation this work still owes.
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-6 created=2026-11-02T22:01:30+00:00 phase=6 -->
+### manual-phase-6 · owed · 2026-09-19--infer--ovms-pool-watchdog-activity-signal: manual phase 6 is not ticked (phase 6)
+
+what: do manual phase 6 of 2026-09-19--infer--ovms-pool-watchdog-activity-signal and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 6 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-09-19--infer--ovms-pool-watchdog-activity-signal
+owed_key: plan:2026-09-19--infer--ovms-pool-watchdog-activity-signal#p6
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-6-resolved created=2026-11-02T22:01:52+00:00 phase=6 state=open resolves=manual-phase-6 filed_as=derio-net/frank#921 -->
+### manual-phase-6-resolved · finding [filed → derio-net/frank#921] · resolves manual-phase-6: 2026-09-19--infer--ovms-pool-watchdog-activity-signal: manual phase 6 is not ticked (phase 6)
+
+Filed at archive as derio-net/frank#921; still owed until discharged.
