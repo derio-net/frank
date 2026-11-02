@@ -1169,8 +1169,8 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R7
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: companies-mirror-paused
   capability: Paperclip fresh start
