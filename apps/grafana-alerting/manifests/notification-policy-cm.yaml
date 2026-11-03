@@ -98,6 +98,21 @@ data:
               - receiver: "Telegram - Willikins"
                 continue: true
               - receiver: "Health Bridge Webhook"
+          # CI outcome (layer-25 pipeline-failing / pipelinerun-timeout): the
+          # 24h failure window keeps an alert firing up to a day after the
+          # cause, and only a fix + a green run clears it. Through the
+          # severity route it re-paged every 3m (kid-laptops-ci, 2026-11-02).
+          # Same shape as pvc_capacity: 4h parent, children replicate the
+          # severity (Telegram) + feature-health (Health Bridge) delivery.
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - ci_outcome="true"
+            repeat_interval: 4h
+            continue: false
+            routes:
+              - receiver: "Telegram - Willikins"
+                continue: true
+              - receiver: "Health Bridge Webhook"
           - receiver: "Telegram - Willikins"
             matchers:
               - severity=critical

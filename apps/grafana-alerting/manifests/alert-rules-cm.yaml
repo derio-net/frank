@@ -2510,9 +2510,12 @@ data:
             labels:
               severity: warning
               github_issue: "frank-ops#25"
+              # 24h window: stays firing up to a day, so route via the 4h
+              # ci_outcome repeat instead of re-paging every 3m.
+              ci_outcome: "true"
             annotations:
               summary: "L25 pipeline failing: {{ $labels.pipeline }} has {{ $values.B.Value | printf \"%.0f\" }} failure(s) in 24h with zero successes"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; tkn pipeline logs {{ $labels.pipeline }} -n tekton-pipelines --last"
+              runbook: "kubectl get pipelinerun -A -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; then tkn pipelinerun logs NAME -n NAMESPACE for the newest failed run (kid-laptops-ci runs in its own namespace)"
 
           # Compare real work: 30m mirror grace, 10m forwarded-status grace
           # in the checker; an additional 10m here absorbs one delayed sample.
@@ -2731,9 +2734,10 @@ data:
             labels:
               severity: warning
               github_issue: "frank-ops#25"
+              ci_outcome: "true"
             annotations:
               summary: "L25 pipeline timed out: {{ $labels.pipeline }} had {{ $values.B.Value | printf \"%.0f\" }} run(s) fail after > 30m in the last hour (timeout or never scheduled)"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail; for a PipelineRunTimeout, check .status.childReferences / skippedTasks and whether its TaskRun pods sat Pending on a workspace PVC (see layer-25-ci-workspace-pvc-pending)."
+              runbook: "kubectl get pipelinerun -A -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail; for a PipelineRunTimeout, check .status.childReferences / skippedTasks and whether its TaskRun pods sat Pending on a workspace PVC (see layer-25-ci-workspace-pvc-pending)."
 
           # (c) Mirror syncs failing FAST — the class neither rule above sees.
           # layer-25-pipelinerun-timeout counts only failures that ran > 30m,

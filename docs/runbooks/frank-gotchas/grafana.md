@@ -1193,3 +1193,11 @@ Nothing alerted on PVC fill until frank#722 (the hermes tool-home expansion in #
 - **Replacement.** The temporary 6h → 24h increase still assumed required human activity. Both idle rules are now retired with deletion tombstones. `test_pipelinerun_outcome_alerting.py` pins real-work predicates and absent telemetry, not dated traffic floors.
 - **Measure gaps, not rates.** An average (148/day) hides a bursty source. Exact gaps come from `creationTimestamp` of the retained runs; for a longer base, `increase(...[1h])` over 30d from `vmsingle` and count consecutive empty buckets. The retained PipelineRuns reach back only ~3.4 days.
 - **Detection.** A missed mirror ref warns after its 30m grace, the next five-minute check, and Grafana's 10m hold; a missed forwarded status uses a 10m grace plus the same check/hold. Ordinary quiet stays healthy indefinitely.
+
+## Repeat interval: 3m by default, 4h only by label (2026-11-03)
+
+The root notification policy sets `repeat_interval: 3m`, and the `severity=critical` / `severity=warning` routes do not override it. Any firing alert that reaches Telegram through them is re-sent every three minutes for as long as it fires. That is tolerable for a sharp, fast-clearing rule and unbearable for one with a long evaluation window: `layer-25-pipeline-failing` asks "three failures and zero successes in 24h", so after kid-laptops-ci failed three times on 2026-11-02 it would have kept re-paging the same text until a run succeeded or the failures aged out.
+
+Two labels opt a rule into a 4h repeat: `pvc_capacity="true"` (frank#722) and `ci_outcome="true"` (`layer-25-pipeline-failing`, `layer-25-pipelinerun-timeout`). Both routes sit before the severity routes with `continue: false`, and their children re-create the normal delivery: Telegram (`continue: true`) then Health Bridge. A child must not set its own matchers or `repeat_interval`, or it silently drops a receiver or undoes the throttle. Guards: `scripts/tests/test_pvc_capacity_alert.py`, `scripts/tests/test_ci_outcome_alert_repeat.py`, and the route-order pin in `scripts/tests/test_cert_expiry_canary.py`.
+
+The same fix corrected both rules' runbook hints, which hard-coded `-n tekton-pipelines`: kid-laptops-ci runs in its own namespace (#791), so the suggested command listed nothing. They now use `kubectl get pipelinerun -A`.

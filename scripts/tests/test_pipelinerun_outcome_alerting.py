@@ -85,7 +85,7 @@ def test_failure_ratio_retains_unless_and_query_noise_floor():
     assert 'status="failed"' in query and 'status="success"' in query
     assert query.count('sum by (pipeline)') >= 2
     assert rule['data'][2]['model']['conditions'][0]['evaluator'] == {'type':'gt','params':[0]}
-    assert rule['labels'] == {'severity':'warning','github_issue':'frank-ops#25'}
+    assert rule['labels'] == {'severity':'warning','github_issue':'frank-ops#25','ci_outcome':'true'}
 
 
 def test_controller_scrape_port_cardinality_and_outcome_metrics():
