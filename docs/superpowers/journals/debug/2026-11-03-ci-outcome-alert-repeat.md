@@ -15,3 +15,8 @@ The only repeat override in notification-policy-cm.yaml is the pvc_capacity rout
 ### 4a51701f6362 · root-cause · Warning-route inheritance of root repeat_interval 3m, plus a namespace-pinned runbook
 
 The rule is severity=warning with no routing label, so it matches the severity=warning route (continue:true) and repeats every 3m. Its 24h failure window keeps it firing up to a day, giving ~480 identical pages. Separately, the runbook hard-codes -n tekton-pipelines, which is wrong since kid-laptops-ci moved to its own namespace (#791). layer-25-pipelinerun-timeout has the same runbook defect.
+
+<!-- fr:journal kind=finding scope=debug id=ac9e8269b389 created=2026-11-03T08:47:38+00:00 state=fixed -->
+### ac9e8269b389 · finding [fixed] · ci_outcome label + 4h route; runbooks use -A
+
+Both layer-25 outcome rules carry ci_outcome="true"; a new route (same shape as pvc_capacity, before the severity routes) repeats every 4h and fans out to Telegram + Health Bridge. Runbooks list with `kubectl get pipelinerun -A`. Pinned by scripts/tests/test_ci_outcome_alert_repeat.py (written failing first); test_cert_expiry_canary.py route-order pin updated to 11 routes.
