@@ -20,3 +20,8 @@ The rule is severity=warning with no routing label, so it matches the severity=w
 ### ac9e8269b389 · finding [fixed] · ci_outcome label + 4h route; runbooks use -A
 
 Both layer-25 outcome rules carry ci_outcome="true"; a new route (same shape as pvc_capacity, before the severity routes) repeats every 4h and fans out to Telegram + Health Bridge. Runbooks list with `kubectl get pipelinerun -A`. Pinned by scripts/tests/test_ci_outcome_alert_repeat.py (written failing first); test_cert_expiry_canary.py route-order pin updated to 11 routes.
+
+<!-- fr:journal kind=review scope=debug id=14a4092d0c48 created=2026-11-03T08:49:21+00:00 -->
+### 14a4092d0c48 · review · Self-review before PR #946: no findings
+
+Checked YAML loads, route order (new route after health_bridge_only, before severity routes), children carry no matchers/repeat_interval, annotations contain no < > &. Two exact pins updated deliberately.
