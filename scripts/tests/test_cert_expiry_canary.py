@@ -137,7 +137,7 @@ def test_canary_mute_route_is_second():
 def test_existing_routes_preserved_in_order():
     # pin the total so a stray route inserted between the canary pair and the
     # tail can't hide in the [2:] slice
-    assert len(_routes()) == 10
+    assert len(_routes()) == 11
     tail = _routes()[2:]
     expected = [
         # Dead-man's-switch direct page — must precede blog-edge (see policy comment)
@@ -152,6 +152,8 @@ def test_existing_routes_preserved_in_order():
         ("Health Bridge Webhook", ['health_bridge_only="true"'], False),
         # PVC capacity (frank#722): 4h-repeat parent, must precede the severity routes.
         ("Telegram - Willikins", ['pvc_capacity="true"'], False),
+        # CI outcome (layer-25 failing/timeout): same 4h-repeat shape as PVC.
+        ("Telegram - Willikins", ['ci_outcome="true"'], False),
         ("Telegram - Willikins", ["severity=critical"], True),
         ("Telegram - Willikins", ["severity=warning"], True),
         ("Health Bridge Webhook", ['grafana_folder="feature-health"'], False),
