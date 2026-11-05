@@ -1,0 +1,8 @@
+# Smoke declaration for frank/infisical-redis (spec R16/R17). The verifier runs these after every rollout.
+app: infisical-redis
+cluster: frank
+checks:
+- kind: tcp
+  target: redis-master.infisical.svc.cluster.local:6379
+  expect:
+    open: true

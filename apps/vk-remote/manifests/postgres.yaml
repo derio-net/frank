@@ -29,7 +29,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          # Stateful: pinned by the digest running on 2026-10-31 (tag 16-alpine); update only via a snapshot session.
+          image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
           ports:
             - containerPort: 5432
           env:

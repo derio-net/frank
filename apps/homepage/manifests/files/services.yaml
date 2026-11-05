@@ -92,3 +92,13 @@
         href: https://awx.cluster.derio.net
         description: Ansible automation controller
         siteMonitor: http://awx-service.awx:80
+    # No siteMonitor on the next two: their network policies admit Traefik only, so a probe from
+    # the homepage pod would (correctly) fail and show a permanent red tile.
+    - Updates:
+        icon: mdi-update
+        href: https://updates.cluster.derio.net
+        description: Update console - versions, vulnerabilities, approvals
+    - Upgrade Sessions:
+        icon: mdi-console-network
+        href: https://sessions.cluster.derio.net
+        description: Attach to a running upgrade session

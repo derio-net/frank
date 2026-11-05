@@ -1,0 +1,9 @@
+# Smoke declaration for frank/cnc-staging (spec R16/R17). The verifier runs these after every rollout.
+app: cnc-staging
+cluster: frank
+checks:
+- kind: tcp
+  target: cnc-fru.cnc-staging.svc.cluster.local:80
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

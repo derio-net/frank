@@ -1,0 +1,106 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Renovate, update policy and smoke-test declarations
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - life-every-dep-has-path
+  - life-done-means-verified
+  tier: standard
+  files:
+  - apps/renovate/**
+  - apps/root/templates/renovate.yaml
+  - renovate.json5
+  - update-policy.yaml
+  - smoke/**
+  - scripts/life_policy.py
+  - scripts/tests/test_life_*.py
+  - scripts/tests/fixtures/life/**
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 1400
+tasks:
+- number: 1
+  title: Update policy covers every dependency (red → green)
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Write scripts/tests/test_life_policy.py: load update-policy.yaml (schema: `version: 1`, `defaults:` per update type, `rules:` list of {match: {app|image|chart|dep}, path, reason}); assert every path is one of auto-merge, batch-approve, session, operator-runbook; assert every Application in both root charts, every image in fixtures/life/rendered-images.txt, talos/kubernetes for frank and hop, and omni resolve to exactly one path via scripts/life_policy.py `resolve(dep) -> str`; assert stateful apps (paperclip, paperclip-db, authentik, gitea, longhorn and every app owning a PVC — detect PVCs/volumeClaimTemplates in rendered output) and every app with an argoproj.io Rollout resolve to `session` for ALL update types (operator decision stateful-always-session); assert omni resolves to operator-runbook. Run: FAILS.
+  - id: P2.T1.S2
+    text: |-
+      Write update-policy.yaml per spec Part 1 table (header comment: the four paths, why stateful/Rollouts are always session, that the console — not Renovate — merges) and scripts/life_policy.py. Run the test: passes.
+- number: 2
+  title: Renovate configuration (red → green)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Write scripts/tests/test_life_renovate.py: parse renovate.json5 (json5 via a minimal comment-stripping loader); assert `automerge` is false globally and in every packageRule; `dependencyDashboard: true`; `dependencyDashboardApproval` true for session and operator-runbook deps; `vulnerabilityAlerts.enabled: true` with labels ["security"]; managers include argocd, helm-values, kubernetes, kustomize; customManagers exist whose fileMatch covers versions/frank.yaml, versions/hop.yaml and omni/omni/omni.env.template with datasource github-releases for siderolabs/talos, kubernetes/kubernetes, siderolabs/omni; batch-approve deps share a groupName. Also assert `renovate-config-validator` passes when the binary is on PATH (skip otherwise, with a reason). Run: FAILS.
+  - id: P2.T2.S2
+    text: |-
+      Write renovate.json5 generated from update-policy.yaml by `scripts/life_policy.py --emit-renovate` (so the two can't drift; the test also asserts the committed file equals the emitted one). Run the test: passes.
+- number: 3
+  title: Renovate runs on Frank (red → green)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Write scripts/tests/test_life_renovate_app.py asserting: apps/root/templates/renovate.yaml is single-source path apps/renovate/manifests, ServerSideApply=true, prune false, selfHeal true; apps/renovate/manifests has a CronJob (schedule hourly, concurrencyPolicy Forbid, image renovate/renovate pinned to an exact tag, non-root, capabilities drop ALL, resources limits), an ExternalSecret using a GithubAccessToken ClusterGenerator whose auth.privateKey.secretRef lives in namespace `renovate` (ESO gotcha: resolved in the CONSUMER's namespace), env RENOVATE_PLATFORM=github, RENOVATE_REPOSITORIES=derio-net/frank, RENOVATE_ONBOARDING=false, and DISABLE_AUTOUPDATER not needed; no Secret data in git. Run: FAILS.
+  - id: P2.T3.S2
+    text: |-
+      Write apps/renovate/manifests/{namespace,cronjob,clustergenerator,externalsecret}.yaml and apps/root/templates/renovate.yaml following apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml's shape, referencing a PEM Secret `github-app-renovate-key` in ns renovate, provided out-of-band by the trailing manual phase. Run the test: passes.
+- number: 4
+  title: Smoke declarations for every application (red → green → refactor)
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Write scripts/tests/test_life_smoke_decls.py: every Application in both root charts has smoke/<app>.yaml with schema {app, cluster: frank|hop, checks: [{kind: http|tcp|exec-probe|functional, target, expect}]} where http expect has a status and optionally a body regex; known functional checks are required for litellm (chat completion on a local alias), comfyui (/object_info non-empty), ovms-retrieval (/v2/models/<name>/ready per servable), grafana (provisioned dashboards count > 0), argocd (application list), and every Hop public service checks its PUBLIC URL. Apps with no network surface may declare `kind: exec-probe` with a reason. Run: FAILS.
+  - id: P2.T4.S2
+    text: |-
+      Generate a first smoke/<app>.yaml per Application (HTTP check on the app's Service or IngressRoute host from the rendered manifests), then hand-write the functional ones listed above. Run the test: passes.
+  - id: P2.T4.S3
+    text: |-
+      Refactor: move the Application enumeration shared by test_life_policy.py and test_life_smoke_decls.py into scripts/life_policy.py. Re-run all scripts/tests/test_life_*.py: pass.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T4.S1:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T4.S2:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+    P2.T4.S3:
+      state: x
+      ticked_at: '2026-10-31T20:00:28+00:00'
+      note: null
+  completion:
+    at: '2026-10-31T20:00:28+00:00'
+    note: null
+    observed_prs: []

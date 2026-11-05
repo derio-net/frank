@@ -1,0 +1,8 @@
+# Smoke declaration for frank/fluent-bit (spec R16/R17). The verifier runs these after every rollout.
+app: fluent-bit
+cluster: frank
+checks:
+- kind: http
+  target: http://fluent-bit.monitoring.svc.cluster.local:2020/api/v1/health
+  expect:
+    status: 200

@@ -1,0 +1,8 @@
+# Smoke declaration for frank/secure-agent-pod (spec R16/R17). The verifier runs these after every rollout.
+app: secure-agent-pod
+cluster: frank
+checks:
+- kind: tcp
+  target: secure-agent-ssh.secure-agent-pod.svc.cluster.local:22
+  expect:
+    open: true

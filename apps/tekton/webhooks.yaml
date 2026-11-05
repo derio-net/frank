@@ -264,6 +264,20 @@ webhooks:
 
   - forge: github
     scope: repo
+    target: derio-net/cluster-update-fr
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [derio-net-main-sync, derio-net-pr-sync]
+    note: >-
+      Mirror webhook for the update console repo (plan
+      2026-10-31--life--update-security-lifecycle, phase 4). TRIGGER-FIRST: the
+      repo is already in the listener allowlists (derio-net-main-sync,
+      derio-net-pr-sync, gitea-status-bridge) and in mirror-reconcile, so the
+      hook is created LAST, by the phase 7 manual op, once those are live.
+      Needs the derio-fr-automation App installation to include the repo.
+
+  - forge: github
+    scope: repo
     target: agentic-stoa/hum
     listener: github-listener
     events: [push, pull_request]

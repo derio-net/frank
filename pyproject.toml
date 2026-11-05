@@ -22,6 +22,10 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
+    # Evaluates the upgrade-session ValidatingAdmissionPolicies offline
+    # (scripts/tests/test_life_admission_cel.py). It does not build on 3.14, so
+    # the local venv skips those tests; CI (3.12) must run them and fails if absent.
+    "cel-python==0.5.0; python_version < '3.14'",
 ]
 
 [tool.pytest.ini_options]
@@ -29,3 +33,6 @@ dev = [
 # explicit testpaths it walks from the repo root into blog/public and the
 # vendored .venv.
 testpaths = ["scripts/tests"]
+markers = [
+    "slow: renders every Argo CD Application with helm/kustomize (minutes); CI still runs them, select locally with -m 'not slow'",
+]

@@ -1,0 +1,74 @@
+# Self-hosted Renovate. It only OPENS PRs and updates the Dependency Dashboard: the
+# repo's renovate.json5 sets automerge:false everywhere, because the update console is
+# the only merger (it holds on CI and the countdown; main has no required checks).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: renovate
+  namespace: renovate
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  # Suspended while appID/installID are placeholders (the job would fail hourly). Phase 7
+  # fills them and flips this to false in the same commit; a test pins the relation.
+  suspend: true
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 12021
+            runAsGroup: 12021
+            fsGroup: 12021
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: renovate
+              image: renovate/renovate:44.198.3@sha256:bf344aa39d5b592ec728e1db5c3e1d940a5093a89a4598073efcb18d592d121c
+              env:
+                - name: RENOVATE_PLATFORM
+                  value: github
+                - name: RENOVATE_REPOSITORIES
+                  value: derio-net/frank
+                - name: RENOVATE_ONBOARDING
+                  value: "false"
+                - name: RENOVATE_REQUIRE_CONFIG
+                  value: required
+                # Keep this identity consistent with the console's RENOVATE_BOT_LOGIN (<app-slug>[bot]);
+                # both come from the App created in phase 7.
+                # GitHub App bot identity: <app-slug>[bot] <<app-id>+<app-slug>[bot]@users.noreply.github.com>.
+                # Placeholders until the App exists (phase 7). Needs a LIVE check that commits are
+                # attributed to the App and signed off as expected.
+                - name: RENOVATE_GIT_AUTHOR
+                  value: "PENDING-MANUAL-PHASE[bot] <PENDING-MANUAL-PHASE+PENDING-MANUAL-PHASE[bot]@users.noreply.github.com>"
+                - name: RENOVATE_BASE_DIR
+                  value: /tmp/renovate
+                - name: RENOVATE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: renovate-github-token
+                      key: token
+                      optional: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,11 @@
+# Smoke declaration for frank/stoa-live-mirror-sync (spec R16/R17). The verifier runs these after every rollout.
+app: stoa-live-mirror-sync
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/stoa-live-mirror-sync
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application: no workload of its own; proves the objects were applied and are healthy'

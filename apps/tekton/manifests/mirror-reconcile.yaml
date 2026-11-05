@@ -407,7 +407,7 @@ spec:
                     derio-homelab/omada-controller derio-homelab/homelab
                     derio-homelab/ansible-pihole
                     derio-net/willikins
-                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
+                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr derio-net/cluster-update-fr
                 # == every PR trigger that writes sync-pr-<N> (guarded)
                 - name: PR_REPOS
                   value: >-
@@ -416,7 +416,7 @@ spec:
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
-                    derio-net/presentation-craft
+                    derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
               securityContext: &no-priv
                 allowPrivilegeEscalation: false
@@ -430,7 +430,7 @@ spec:
                 - {name: plan, mountPath: /plan}
                 - {name: tmp, mountPath: /tmp}
             - name: plan
-              image: python:3.13-slim
+              image: python:3.13.18-slim
               command: ["python3", "/scripts/plan.py"]
               env:
                 - {name: HOME, value: /tmp/home}
@@ -444,7 +444,7 @@ spec:
                     derio-homelab/omada-controller derio-homelab/homelab
                     derio-homelab/ansible-pihole
                     derio-net/willikins
-                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr
+                    derio-net/presentation-craft derio-net/vibe-kanban derio-net/runs-fr derio-net/cluster-update-fr
                 - name: PR_REPOS
                   value: >-
                     agentic-stoa/cnc-fr agentic-stoa/cnc-frd agentic-stoa/cnc-fru
@@ -452,7 +452,7 @@ spec:
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
-                    derio-net/presentation-craft
+                    derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/vibe-kanban derio-net/willikins
                 - {name: GRACE_MINUTES, value: "10"}
                 - name: GITHUB_TOKEN

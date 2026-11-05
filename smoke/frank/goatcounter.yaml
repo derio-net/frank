@@ -1,0 +1,8 @@
+# Smoke declaration for frank/goatcounter (spec R16/R17). The verifier runs these after every rollout.
+app: goatcounter
+cluster: frank
+checks:
+- kind: http
+  target: http://goatcounter.goatcounter-system.svc.cluster.local:8080/status
+  expect:
+    status: 200

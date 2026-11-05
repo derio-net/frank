@@ -1,0 +1,11 @@
+# Smoke declaration for frank/staging-gate (spec R16/R17). The verifier runs these after every rollout.
+app: staging-gate
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/staging-gate
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application: no workload of its own; proves the objects were applied and are healthy'

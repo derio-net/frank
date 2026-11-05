@@ -77,7 +77,7 @@ spec:
           - {name: quality-command, type: string}
         steps:
           - name: smoke
-            image: busybox:1.37
+            image: busybox:1.37.0
             computeResources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
             script: |
               #!/bin/sh

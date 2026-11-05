@@ -1,0 +1,10 @@
+# Smoke declaration for hop/headplane (spec R16/R17). The verifier runs these after every rollout.
+app: headplane
+cluster: hop
+checks:
+- kind: http
+  target: https://headplane.hop.derio.net/admin/
+  expect:
+    status: 200
+  public: false
+  note: 'mesh-only vhost: answers 200 on the tailnet and 403 elsewhere, so the verifier needs the Hop tailnet sidecar'

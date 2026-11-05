@@ -1,0 +1,285 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "labels": {
+      "app.kubernetes.io/managed-by": "cluster-update-fr",
+      "cluster-update.fr/type": "hop-os",
+      "fr.run/id": "golden-hop-os"
+    },
+    "name": "us-golden-hop-os-0805f53e",
+    "namespace": "upgrade-sessions"
+  },
+  "spec": {
+    "automountServiceAccountToken": false,
+    "containers": [
+      {
+        "env": [
+          {
+            "name": "HOME",
+            "value": "/home/claude"
+          },
+          {
+            "name": "UPGRADE_TALOS_MINOR",
+            "value": "1.13"
+          },
+          {
+            "name": "UPGRADE_K8S_MINOR",
+            "value": "1.36"
+          },
+          {
+            "name": "UPGRADE_ID",
+            "value": "golden-hop-os"
+          },
+          {
+            "name": "UPGRADE_TYPE",
+            "value": "hop-os"
+          },
+          {
+            "name": "UPGRADE_CLUSTER",
+            "value": "hop"
+          },
+          {
+            "name": "UPGRADE_APP",
+            "value": ""
+          },
+          {
+            "name": "TALOSCTL_VERSION",
+            "value": "1.13.4"
+          },
+          {
+            "name": "KUBECTL_VERSION",
+            "value": "1.36.2"
+          },
+          {
+            "name": "CONSOLE_URL",
+            "value": "http://cluster-update-fr.cluster-update.svc:8081"
+          },
+          {
+            "name": "DISABLE_AUTOUPDATER",
+            "value": "1"
+          },
+          {
+            "name": "CREDENTIALS_DIR",
+            "value": "/run/credentials"
+          },
+          {
+            "name": "HTTPS_PROXY",
+            "value": "http://localhost:1056"
+          },
+          {
+            "name": "ALL_PROXY",
+            "value": "socks5://localhost:1055"
+          },
+          {
+            "name": "NO_PROXY",
+            "value": "localhost,127.0.0.1,.svc,.cluster.local,.anthropic.com,.claude.ai,.claude.com,github.com,.github.com,.githubusercontent.com,cluster-update-fr.cluster-update.svc"
+          }
+        ],
+        "image": "ghcr.io/derio-net/upgrade-session:1.0.0@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "session",
+        "resources": {
+          "limits": {
+            "cpu": "2",
+            "memory": "4Gi"
+          },
+          "requests": {
+            "cpu": "100m",
+            "memory": "512Mi"
+          }
+        },
+        "securityContext": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "readOnlyRootFilesystem": true
+        },
+        "stdin": true,
+        "tty": true,
+        "volumeMounts": [
+          {
+            "mountPath": "/home/claude",
+            "name": "home"
+          },
+          {
+            "mountPath": "/tmp",
+            "name": "tmp"
+          },
+          {
+            "mountPath": "/run/credentials",
+            "name": "credentials",
+            "readOnly": true
+          },
+          {
+            "mountPath": "/home/claude/brief",
+            "name": "brief",
+            "readOnly": true
+          },
+          {
+            "mountPath": "/home/claude/AGENTS.md",
+            "name": "brief",
+            "readOnly": true,
+            "subPath": "AGENTS.md"
+          },
+          {
+            "mountPath": "/home/claude/CLAUDE.md",
+            "name": "brief",
+            "readOnly": true,
+            "subPath": "CLAUDE.md"
+          }
+        ]
+      }
+    ],
+    "enableServiceLinks": false,
+    "initContainers": [
+      {
+        "env": [
+          {
+            "name": "TS_USERSPACE",
+            "value": "true"
+          },
+          {
+            "name": "TS_STATE_DIR",
+            "value": "/ts-state"
+          },
+          {
+            "name": "TS_SOCKET",
+            "value": "/ts-state/tailscaled.sock"
+          },
+          {
+            "name": "TS_KUBE_SECRET",
+            "value": ""
+          },
+          {
+            "name": "TS_SOCKS5_SERVER",
+            "value": "localhost:1055"
+          },
+          {
+            "name": "TS_OUTBOUND_HTTP_PROXY_LISTEN",
+            "value": "localhost:1056"
+          },
+          {
+            "name": "TS_AUTHKEY",
+            "valueFrom": {
+              "secretKeyRef": {
+                "key": "tailscale-authkey",
+                "name": "us-golden-hop-os-0805f53e-creds"
+              }
+            }
+          },
+          {
+            "name": "TS_EXTRA_ARGS",
+            "value": "--login-server=https://headscale.hop.derio.net --hostname=frank-upgrade-golden-hop-os --advertise-tags=tag:frank-session"
+          }
+        ],
+        "image": "tailscale/tailscale:v1.82.5@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "tailscale",
+        "resources": {
+          "limits": {
+            "cpu": "200m",
+            "memory": "256Mi"
+          },
+          "requests": {
+            "cpu": "20m",
+            "memory": "64Mi"
+          }
+        },
+        "restartPolicy": "Always",
+        "securityContext": {
+          "allowPrivilegeEscalation": false,
+          "capabilities": {
+            "drop": [
+              "ALL"
+            ]
+          },
+          "readOnlyRootFilesystem": true,
+          "runAsGroup": 65531,
+          "runAsUser": 65531
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/ts-state",
+            "name": "ts-state"
+          },
+          {
+            "mountPath": "/tmp",
+            "name": "ts-tmp"
+          }
+        ]
+      }
+    ],
+    "restartPolicy": "Never",
+    "securityContext": {
+      "fsGroup": 1000,
+      "runAsGroup": 1000,
+      "runAsNonRoot": true,
+      "runAsUser": 1000,
+      "seccompProfile": {
+        "type": "RuntimeDefault"
+      }
+    },
+    "volumes": [
+      {
+        "emptyDir": {
+          "sizeLimit": "4Gi"
+        },
+        "name": "home"
+      },
+      {
+        "emptyDir": {
+          "sizeLimit": "1Gi"
+        },
+        "name": "tmp"
+      },
+      {
+        "name": "credentials",
+        "secret": {
+          "defaultMode": 256,
+          "items": [
+            {
+              "key": "github-token",
+              "path": "github-token"
+            },
+            {
+              "key": "hop-kubeconfig",
+              "path": "hop-kubeconfig"
+            },
+            {
+              "key": "hop-talosconfig",
+              "path": "hop-talosconfig"
+            },
+            {
+              "key": "session-step-token",
+              "path": "session-step-token"
+            }
+          ],
+          "secretName": "us-golden-hop-os-0805f53e-creds"
+        }
+      },
+      {
+        "name": "brief",
+        "secret": {
+          "defaultMode": 292,
+          "secretName": "us-golden-hop-os-0805f53e-brief"
+        }
+      },
+      {
+        "emptyDir": {
+          "sizeLimit": "64Mi"
+        },
+        "name": "ts-state"
+      },
+      {
+        "emptyDir": {
+          "sizeLimit": "64Mi"
+        },
+        "name": "ts-tmp"
+      }
+    ]
+  }
+}

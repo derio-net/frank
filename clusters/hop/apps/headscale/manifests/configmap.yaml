@@ -108,16 +108,52 @@ data:
 
   acl.yaml: |
     {
-      // Allow all traffic within the mesh for now — tighten later
+      // Allow all traffic within the mesh for now — tighten later. The src is every identity that
+      // has this access today (user `default`, tag:subnet-router, and tag:hop-node because a
+      // tagged hop-1 no longer matches its user) and deliberately NOT `*`, so the new
+      // tag:frank-updater and tag:frank-session are confined to their explicit grants below.
       "acls": [
         {
           "action": "accept",
-          "src": ["*"],
+          "src": ["default", "tag:subnet-router", "tag:hop-node"],
           "dst": ["*:*"]
+        },
+        // Life-cycle scanner (plan 2026-10-31--life--update-security-lifecycle, phase 3).
+        // Frank's hop-scan pod joins as tag:frank-updater and may reach ONLY hop-1's
+        // kube API (6443). The wildcard rule above no longer matches
+        // this tag (its src is explicit), so this entry is its only access. hop-1 must carry
+        // tag:hop-node (manual step, phase 7). Headscale never re-reads this
+        // ConfigMap on its own: rollout restart deploy/headscale after it lands.
+        {
+          "action": "accept",
+          "src": ["tag:frank-updater"],
+          "dst": ["tag:hop-node:6443"]
+        },
+        // Frank's hop-os upgrade sessions (phase 5) join as tag:frank-session through their
+        // tailscale sidecar and may reach ONLY hop-1's kube API (6443) and Talos API (50000).
+        // A tag of their own, so the scanner's grant above stays 6443-only.
+        {
+          "action": "accept",
+          "src": ["tag:frank-session"],
+          "dst": ["tag:hop-node:6443,50000"]
         }
       ],
+      // Dedicated owner group for the lifecycle tags. `tag-admin` is an operator-only Headscale
+      // user that never registers nodes (ordinary nodes live under `default`), so the tags are
+      // NOT claimable by ordinary nodes: only members of group:tag-admins may advertise them. The frank-updater auth
+      // key must be reusable (a daily CronJob registers a fresh node every run, so it is
+      // NOT single-use), ephemeral (each run's node disappears after it), pre-tagged
+      // tag:frank-updater (the node never claims the tag itself), with a short expiry and
+      // rotated on a schedule. Minted by the operator in phase 7. The tag:frank-session key is
+      // a SEPARATE key of the same shape (manual op life-session-tailscale).
+      "groups": {
+        "group:tag-admins": ["tag-admin"]
+      },
       "tagOwners": {
-        "tag:subnet-router": ["default"]
+        "tag:subnet-router": ["default"],
+        "tag:frank-updater": ["group:tag-admins"],
+        "tag:frank-session": ["group:tag-admins"],
+        "tag:hop-node": ["group:tag-admins"]
       },
       "autoApprovers": {
         "routes": {

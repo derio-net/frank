@@ -1,0 +1,13 @@
+# Talos minor -> the Kubernetes minors it supports. The console reads this file
+# (internal/frankrepo Matrix: `talos: {"<minor>": [<k8s minors>]}`) and so does
+# scripts/life_tracks.py; the OS track never leaves these windows and moves one
+# minor per step. Verified 2026-11-01 against the official Talos support matrices
+# (the "Kubernetes" row of the latest-release column):
+#   Talos 1.12: https://docs.siderolabs.com/talos/v1.12/getting-started/support-matrix
+#   Talos 1.13: https://docs.siderolabs.com/talos/v1.13/getting-started/support-matrix
+#   Talos 1.14: https://docs.siderolabs.com/talos/v1.14/getting-started/support-matrix
+# Re-verify against those pages when a new Talos minor is added.
+talos:
+  "1.12": ["1.30", "1.31", "1.32", "1.33", "1.34", "1.35"]
+  "1.13": ["1.31", "1.32", "1.33", "1.34", "1.35", "1.36"]
+  "1.14": ["1.33", "1.34", "1.35", "1.36", "1.37"]

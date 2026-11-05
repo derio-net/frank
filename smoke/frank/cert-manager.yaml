@@ -1,0 +1,8 @@
+# Smoke declaration for frank/cert-manager (spec R16/R17). The verifier runs these after every rollout.
+app: cert-manager
+cluster: frank
+checks:
+- kind: tcp
+  target: cert-manager-webhook.cert-manager.svc.cluster.local:443
+  expect:
+    open: true

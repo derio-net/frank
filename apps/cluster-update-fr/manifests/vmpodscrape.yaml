@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: cluster-update-fr
+  namespace: cluster-update-fr
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-update-fr
+  podMetricsEndpoints:
+    - port: ops
+      path: /metrics

@@ -1,0 +1,20 @@
+# runs-fr trusts a header, so anything that can reach the pod can claim any identity and attach
+# to a session. Only Traefik (which runs forward-auth first) may reach the UI port.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: runs-fr
+  namespace: runs-fr
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: runs-fr
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik-system
+            app.kubernetes.io/name: traefik
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

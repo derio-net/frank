@@ -1,0 +1,9 @@
+# Smoke declaration for frank/n8n-01 (spec R16/R17). The verifier runs these after every rollout.
+app: n8n-01
+cluster: frank
+checks:
+- kind: http
+  target: http://n8n-01.n8n-01.svc.cluster.local:5678/healthz
+  expect:
+    status: 200
+    body: '"status":\s*"ok"'

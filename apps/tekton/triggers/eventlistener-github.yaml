@@ -308,7 +308,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr', 'derio-net/cluster-update-fr']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
@@ -333,7 +333,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr']
+                body.repository.full_name in ['derio-net/willikins', 'derio-net/presentation-craft', 'derio-net/vibe-kanban', 'derio-net/runs-fr', 'derio-net/cluster-update-fr']
                 && body.action in ['opened', 'synchronize', 'reopened']
                 && has(body.pull_request.head.repo)
                 && body.pull_request.head.repo.full_name == body.repository.full_name
@@ -426,7 +426,7 @@ spec:
         - {name: gitea-repo, value: agentic-stoa/cnc-fru, kind: TriggerBinding}
         - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
         - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
-        - {name: test-image, value: node:22-alpine, kind: TriggerBinding}
+        - {name: test-image, value: node:22.23.3-alpine, kind: TriggerBinding}
         - {name: test-command, value: npm ci && npm test, kind: TriggerBinding}
       template: {ref: cnc-fru-ci-template}
     # A repository_dispatch from the CNC release workflow starts promotion.

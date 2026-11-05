@@ -1,0 +1,89 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Disposable upgrade-session infrastructure
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+  acceptance:
+  - life-disposable-session
+  - life-no-credential-leak
+  - life-session-idempotent
+  tier: hard
+  files:
+  - apps/upgrade-sessions/**
+  - .github/workflows/agent-images-bump.yml
+  - apps/root/templates/upgrade-sessions.yaml
+  - docs/upgrade-briefs/**
+  - scripts/life_scrub.py
+  - scripts/tests/test_life_*.py
+  - scripts/tests/fixtures/life/**
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 1200
+tasks:
+- number: 1
+  title: Session namespace, network and credential scaffolding (red → green)
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Write scripts/tests/test_life_sessions.py: namespace upgrade-sessions with PodSecurity restricted; a default-deny CiliumNetworkPolicy plus one named egress policy per upgrade type (chart-major, stateful, rollouts, frank-os, hop-os) selecting pods by label `cluster-update.fr/type`, each allowing only: GitHub + Gitea + model-provider FQDNs (all types), kube API (all), Omni endpoint + Frank Talos API 50000 (frank-os only), the tailnet/DERP (hop-os only), target app Services (stateful, rollouts); per-type ServiceAccounts with Roles: stateful → create snapshots.longhorn.io / volumesnapshots in the app namespace only (bound per app at launch by the console via a RoleBinding template — the template is in git, the binding name derives from the upgrade id), rollouts → patch rollouts/status in the app namespace only; ExternalSecret for the session GitHub App token; NO Secret carries the Omni host, and no type grants access to it (operator decision omni-runbook). Run: FAILS.
+  - id: P5.T1.S2
+    text: |-
+      Write apps/upgrade-sessions/manifests/* and the root template. Run: passes.
+- number: 2
+  title: Briefs and agent instruction files (red → green)
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Write scripts/tests/test_life_briefs.py: docs/upgrade-briefs/ holds AGENTS.md + CLAUDE.md (identical content; SKILL.md is loaded by nothing — gotcha) and one template per upgrade type with required sections: Target, Sequence position, Release notes, Migration count, Rollback path, Verification (R16 — operationState SHA + smoke/<app>.yaml; OS: running == declared + node health + smoke), Gotchas. Each type's Gotchas section must cite the matching per-topic files: frank-os → omni.md (silent wedge, rollback race), storage-secrets-ssa.md (last-replica drain, nodeDrainPolicy), omni.md etcd extraArgs-on-reboot; hop-os → edge downtime + hop-gotchas Caddy/Headscale restarts; stateful → snapshot-before-merge + paperclip migration count method; rollouts → `pause: {}` never expires. Run: FAILS.
+  - id: P5.T2.S2
+    text: |-
+      Write the brief templates. Run: passes.
+- number: 3
+  title: Credential scrubbing guard (red → green → refactor)
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Write scripts/tests/test_life_scrub.py for scripts/life_scrub.py `scrub(text) -> str` and `find_tokens(text) -> list[str]`: fixtures containing a GitHub App installation token (ghs_…), a fine-grained PAT (github_pat_…), a Gitea token (40 hex after `token `), a Telegram bot token (\d+:[A-Za-z0-9_-]{35}), an Omni service-account key (base64 JSON with `"name"` + `"pgp_key"`), a talosconfig `key:` block, a kubeconfig `token:`/`client-key-data:`, an Anthropic/OpenAI key; all are redacted to `«redacted:<kind>»`; benign hex (git SHAs in context `commit `) is NOT redacted. And a repo-wide test that every file under docs/upgrade-briefs/, smoke/, update-policy.yaml, renovate.json5 and apps/cluster-update-fr|upgrade-sessions|renovate has `find_tokens() == []`. Run: FAILS.
+  - id: P5.T3.S2
+    text: |-
+      Implement scripts/life_scrub.py (the console repo vendors the same patterns; note the shared fixture list in the plan journal for the console plan). Run: passes.
+  - id: P5.T3.S3
+    text: |-
+      Refactor: one pattern table, one fixture loader. Re-run scripts/tests/test_life_*.py: pass.
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T2.S1:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T2.S2:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T3.S1:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T3.S2:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+    P5.T3.S3:
+      state: x
+      ticked_at: '2026-11-01T12:15:28+00:00'
+      note: null
+  completion:
+    at: '2026-11-01T12:15:29+00:00'
+    note: null
+    observed_prs: []

@@ -1,0 +1,9 @@
+# Smoke declaration for frank/longhorn-extras (spec R16/R17). The verifier runs these after every rollout.
+app: longhorn-extras
+cluster: frank
+checks:
+- kind: tcp
+  target: longhorn-ui-lb.longhorn-system.svc.cluster.local:80
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

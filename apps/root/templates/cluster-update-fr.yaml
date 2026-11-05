@@ -1,0 +1,35 @@
+# The update console (plan 2026-10-31--life--update-security-lifecycle, phase 4): the one place
+# that lists every dependency of both clusters, alarms on security findings, merges approved
+# update PRs and launches upgrade sessions. Image: derio-net/cluster-update-fr.
+#
+# prune: true because the console config is a Kustomize configMapGenerator (hash-suffixed name,
+# so a config change rolls the pod -- the config is read once at boot); the superseded
+# ConfigMap must be pruned. The state PVC and the namespace carry a per-resource Prune=false.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-update-fr
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/cluster-update-fr/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: cluster-update-fr
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data

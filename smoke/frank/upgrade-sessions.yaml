@@ -1,0 +1,11 @@
+# Smoke declaration for frank/upgrade-sessions (spec R16/R17). The verifier runs these after every rollout.
+app: upgrade-sessions
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/upgrade-sessions
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application (namespace, ServiceAccounts, RBAC, network policies): no workload of its own; session pods are the console''s and come and go'

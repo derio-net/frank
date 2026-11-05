@@ -1,0 +1,9 @@
+# Smoke declaration for frank/cilium-config (spec R16/R17). The verifier runs these after every rollout.
+app: cilium-config
+cluster: frank
+checks:
+- kind: tcp
+  target: hubble-ui-lb.kube-system.svc.cluster.local:80
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

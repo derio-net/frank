@@ -204,7 +204,7 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
         + [f"derio-homelab/{r}" for r in ("proxmox-cluster", "omada-controller", "homelab",
                                           "ansible-pihole")]
         + [f"derio-net/{r}" for r in ("willikins", "presentation-craft",
-                                      "vibe-kanban", "runs-fr")]
+                                      "vibe-kanban", "runs-fr", "cluster-update-fr")]
     )
 
 

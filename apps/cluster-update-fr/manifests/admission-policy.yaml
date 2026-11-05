@@ -1,0 +1,303 @@
+# RBAC says the console may create pods in upgrade-sessions; it cannot say WHICH pods. Without
+# this, a compromised console could launch a pod under any ServiceAccount there (the
+# stateful / rollouts types hold cross-namespace rights) from any image. These policies are the
+# second wall: for pods the console creates, only the session image, only the SA that matches
+# the declared type, only the labels the console's own cleanup selects on, and no host access.
+# Requires nothing from the console beyond what its README already promises.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-pods
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: created-by-the-console
+      expression: "request.userInfo.username == 'system:serviceaccount:cluster-update-fr:cluster-update-fr'"
+  variables:
+    - name: type
+      expression: "has(object.metadata.labels) && 'cluster-update.fr/type' in object.metadata.labels ? object.metadata.labels['cluster-update.fr/type'] : ''"
+    - name: sa
+      expression: "has(object.spec.serviceAccountName) ? object.spec.serviceAccountName : 'default'"
+    - name: inits
+      expression: "has(object.spec.initContainers) ? object.spec.initContainers : []"
+    - name: containers
+      expression: "object.spec.containers + variables.inits"
+    - name: creds
+      expression: "object.metadata.name + '-creds'"
+    # hop-os only: the console's userspace tailscale sidecar (p5-console-contract-tailscale). The
+    # SAME digest as console config SESSION_TAILSCALE_IMAGE (files/console.env); a test holds
+    # the two equal, and bumping it is a phase-7 style manual op (life-session-tailscale).
+    - name: runId
+      expression: "has(object.metadata.labels) && 'fr.run/id' in object.metadata.labels ? object.metadata.labels['fr.run/id'] : ''"
+    - name: tsEnvNames
+      expression: "['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']"
+    - name: tsFixedEnv
+      expression: "{'TS_USERSPACE': 'true', 'TS_STATE_DIR': '/ts-state', 'TS_SOCKET': '/ts-state/tailscaled.sock', 'TS_KUBE_SECRET': '', 'TS_SOCKS5_SERVER': 'localhost:1055', 'TS_OUTBOUND_HTTP_PROXY_LISTEN': 'localhost:1056'}"
+    # tag:frank-session alone (p5-r3; never hop-scan's tag:frank-updater), Frank's own control
+    # server, and the hostname of THIS session.
+    - name: tsArgs
+      expression: "['--login-server=https://headscale.hop.derio.net', '--hostname=frank-upgrade-' + variables.runId, '--advertise-tags=tag:frank-session']"
+    - name: tailscaleImage
+      expression: "'tailscale/tailscale:v1.82.5@sha256:9a1f2640beecac3ad42ed8ef03d75adcb7165600f5131b17f9a2a3da68505928'"
+  validations:
+    - expression: "variables.type in ['chart-major', 'stateful', 'rollouts', 'frank-os', 'hop-os']"
+      message: "cluster-update.fr/type must be one of the five upgrade types"
+    - expression: "has(object.metadata.labels) && 'app.kubernetes.io/managed-by' in object.metadata.labels && object.metadata.labels['app.kubernetes.io/managed-by'] == 'cluster-update-fr'"
+      message: "pods must carry app.kubernetes.io/managed-by=cluster-update-fr"
+    - expression: "variables.type == 'hop-os' ? variables.sa == 'default' : variables.sa == 'upgrade-session-' + variables.type"
+      message: "serviceAccountName must be upgrade-session-<type> (hop-os has none)"
+    - expression: "has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == (variables.type != 'hop-os')"
+      message: "automountServiceAccountToken must be true for in-cluster types and false for hop-os"
+    - expression: "object.spec.containers.all(c, c.image.startsWith('ghcr.io/derio-net/upgrade-session:') || c.image.startsWith('ghcr.io/derio-net/upgrade-session@sha256:'))"
+      message: "only the upgrade-session image may run"
+    # p5-r1: the one init container any session may carry is hop-os's tailscale sidecar, exactly
+    # as launch.go builds it: native sidecar, the pinned image, its own uid, only its own state
+    # volumes, and the auth key from this session's creds Secret and nothing else.
+    - expression: "size(variables.inits) == 0 || variables.type == 'hop-os'"
+      message: "only hop-os sessions carry an init container"
+    - expression: "variables.type != 'hop-os' || (size(variables.inits) == 1 && variables.inits[0].name == 'tailscale' && has(variables.inits[0].restartPolicy) && variables.inits[0].restartPolicy == 'Always')"
+      message: "hop-os carries exactly one init container, the native sidecar `tailscale`"
+    - expression: "variables.inits.all(c, c.image == variables.tailscaleImage)"
+      message: "the tailscale sidecar runs the digest pinned here (same as SESSION_TAILSCALE_IMAGE)"
+    - expression: "variables.inits.all(c, has(c.securityContext) && has(c.securityContext.runAsUser) && c.securityContext.runAsUser == 65531)"
+      message: "the tailscale sidecar runs as uid 65531"
+    - expression: "variables.inits.all(c, !has(c.args) && !has(c.envFrom) && has(c.volumeMounts) && c.volumeMounts.all(m, m.name in ['ts-state', 'ts-tmp']))"
+      message: "the tailscale sidecar mounts only ts-state / ts-tmp and takes no args or envFrom"
+    - expression: "variables.inits.all(c, !has(c.env) || c.env.all(e, !has(e.valueFrom) || (e.name == 'TS_AUTHKEY' && has(e.valueFrom.secretKeyRef) && e.valueFrom.secretKeyRef.name == variables.creds && e.valueFrom.secretKeyRef.key == 'tailscale-authkey')))"
+      message: "the tailscale sidecar reads only TS_AUTHKEY, from <pod>-creds/tailscale-authkey"
+    # The sidecar's env is exactly launch.go's (cluster-update-fr@537f208 golden hop-os pod):
+    # each variable once (Kubernetes honours the LAST of duplicate names, so `exists` over env
+    # can be satisfied by a decoy), fixed values exact (both proxies on loopback only), and
+    # TS_EXTRA_ARGS tokenized and allowlisted, so no flag can ride along.
+    - expression: "variables.inits.all(c, has(c.env) && c.env.all(e, e.name in variables.tsEnvNames) && variables.tsEnvNames.all(n, size(c.env.filter(e, e.name == n)) == 1))"
+      message: "the tailscale sidecar sets each of launch.go's variables exactly once and nothing else"
+    - expression: "variables.inits.all(c, c.env.all(e, !(e.name in variables.tsFixedEnv) || (has(e.value) ? e.value : '') == variables.tsFixedEnv[e.name]))"
+      message: "the tailscale sidecar runs userspace, keeps its state in ts-state, and proxies on localhost:1055 / localhost:1056 only"
+    - expression: "variables.inits.all(c, c.env.all(e, e.name != 'TS_EXTRA_ARGS' || (has(e.value) && size(e.value.split(' ')) == size(variables.tsArgs) && e.value.split(' ').all(t, t in variables.tsArgs) && variables.tsArgs.all(a, size(e.value.split(' ').filter(t, t == a)) == 1))))"
+      message: "TS_EXTRA_ARGS is exactly --login-server=https://headscale.hop.derio.net --hostname=frank-upgrade-<run id> --advertise-tags=tag:frank-session"
+    # ...and the agent never reaches that key or the sidecar's node key.
+    - expression: "object.spec.containers.all(c, !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom))) && (!has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in ['ts-state', 'ts-tmp']))))"
+      message: "session containers take no env from Secrets and never mount the tailscale state"
+    - expression: "!has(object.spec.volumes) || object.spec.volumes.all(v, (!has(v.secret) || !has(v.secret.secretName) || v.secret.secretName != variables.creds || (has(v.secret.items) && v.secret.items.all(i, i.key != 'tailscale-authkey'))) && (!has(v.projected) || !has(v.projected.sources) || v.projected.sources.all(s, !has(s.secret) || !has(s.secret.name) || s.secret.name != variables.creds)))"
+      message: "the creds volume projects named keys only, never tailscale-authkey"
+    # A pod `command:` replaces the image ENTRYPOINT, which is what selects the pinned
+    # talosctl/kubectl (p5-session-selection-explicit); the console sets args, never command.
+    - expression: "variables.containers.all(c, !has(c.command))"
+      message: "session containers keep the image entrypoint (no command:)"
+    - expression: "!has(object.spec.ephemeralContainers) || size(object.spec.ephemeralContainers) == 0"
+      message: "no ephemeral containers"
+    - expression: "!(has(object.spec.hostNetwork) && object.spec.hostNetwork) && !(has(object.spec.hostPID) && object.spec.hostPID) && !(has(object.spec.hostIPC) && object.spec.hostIPC)"
+      message: "no host namespaces"
+    - expression: "!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))"
+      message: "no hostPath volumes"
+    - expression: "variables.containers.all(c, !has(c.securityContext) || ((!has(c.securityContext.privileged) || c.securityContext.privileged == false) && (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0)))"
+      message: "no privileged containers and no added capabilities"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-pods
+spec:
+  policyName: upgrade-session-pods
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions
+---
+# Ephemeral containers bypass every pod-level check above (they are added later, by update, with
+# their own image and securityContext) and an interactive debug container in a session pod is a
+# shell with that session's credentials. Only cluster-admins may add one.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-no-ephemeral-containers
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods/ephemeralcontainers"]
+  matchConditions:
+    - name: not-a-cluster-admin
+      expression: "!('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "false"
+      message: "only cluster-admins may add ephemeral containers to an upgrade session"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-no-ephemeral-containers
+spec:
+  policyName: upgrade-session-no-ephemeral-containers
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions
+---
+# p5-r10: RBAC grants pods/exec into session pods to more than runs-fr: the admin ClusterRole
+# (bound to root-devops) and every cluster-admin binding (root-agents, secure-agent-pod's
+# agent-sa). A shell or a port-forward into a session is that session's credentials and its
+# tailscale proxies. Only runs-fr (the operator's attach path) and cluster-admins proper
+# (system:masters, root-admins) may CONNECT. The VAP plugin handles CONNECT (Kubernetes 1.35);
+# a cluster-admin can still delete this policy, so it narrows, it does not contain (p5-r11).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-no-exec
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CONNECT"]
+        resources: ["pods/exec", "pods/attach", "pods/portforward", "pods/proxy"]
+  # Impersonation cannot be refused here: the API server replaces userInfo with the impersonated
+  # identity and records no impersonator in userInfo.extra (Kubernetes 1.35 impersonation filter),
+  # so an admin impersonating runs-fr passes. Only `impersonate` RBAC grants it, and that sits in
+  # the trusted root-devops / root-admins boundary (journal p5-trust-model).
+  matchConditions:
+    - name: not-runs-fr-or-a-cluster-admin
+      expression: "request.userInfo.username != 'system:serviceaccount:runs-fr:runs-fr' && !('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "false"
+      message: "only runs-fr and cluster-admins may exec into, attach to or port-forward an upgrade session"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-no-exec
+spec:
+  policyName: upgrade-session-no-exec
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions
+---
+# p5-trust-model: a TokenRequest for a session SA or for runs-fr is that identity's credentials
+# (runs-fr can exec into every session). Only the kubelet may request one, and only bound to a Pod
+# (its projected service-account token; NodeRestriction limits a node to its own pods), or a
+# cluster-admin proper. Anyone else with `serviceaccounts/token create` (admin/edit) is refused.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-sa-tokens
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["serviceaccounts/token"]
+  matchConditions:
+    - name: a-guarded-service-account
+      expression: "(request.namespace == 'upgrade-sessions' && request.name.startsWith('upgrade-session-')) || (request.namespace == 'runs-fr' && request.name == 'runs-fr')"
+    - name: not-a-cluster-admin
+      expression: "!('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "request.userInfo.username.startsWith('system:node:') && 'system:nodes' in request.userInfo.groups && has(object.spec.boundObjectRef) && object.spec.boundObjectRef.kind == 'Pod'"
+      message: "only the kubelet, for a pod it runs, may request a token for an upgrade-session or runs-fr ServiceAccount"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-sa-tokens
+spec:
+  policyName: upgrade-session-sa-tokens
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: ["upgrade-sessions", "runs-fr"]
+---
+# p5-trust-model: a pod running AS runs-fr holds its token, i.e. exec into every session. Its
+# Deployment's ReplicaSet controller creates those pods (Talos runs kube-controller-manager with
+# --use-service-account-credentials); nobody else may create one or change one (a pod's image is
+# mutable by UPDATE), except a cluster-admin proper.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: runs-fr-pods
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: runs-as-runs-fr
+      expression: "has(object.spec.serviceAccountName) && object.spec.serviceAccountName == 'runs-fr'"
+    - name: not-a-cluster-admin
+      expression: "!('system:masters' in request.userInfo.groups) && !('root-admins' in request.userInfo.groups)"
+  validations:
+    - expression: "request.userInfo.username == 'system:serviceaccount:kube-system:replicaset-controller'"
+      message: "only the ReplicaSet controller creates or changes pods running as runs-fr"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: runs-fr-pods
+spec:
+  policyName: runs-fr-pods
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: runs-fr
+---
+# The console writes the per-session credential and brief Secrets. Without this it could create a
+# kubernetes.io/service-account-token Secret naming ANY ServiceAccount in the namespace (the
+# controller fills in a live token), which defeats the pod policy above.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: upgrade-session-secrets
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["secrets"]
+  matchConditions:
+    - name: created-by-the-console
+      expression: "request.userInfo.username == 'system:serviceaccount:cluster-update-fr:cluster-update-fr'"
+  validations:
+    - expression: "!has(object.type) || object.type == 'Opaque'"
+      message: "session Secrets must be Opaque (no service-account-token or other typed Secrets)"
+    - expression: "object.metadata.name.startsWith('us-')"
+      message: "session Secret names start with us-"
+    - expression: "has(object.metadata.labels) && 'app.kubernetes.io/managed-by' in object.metadata.labels && object.metadata.labels['app.kubernetes.io/managed-by'] == 'cluster-update-fr'"
+      message: "Secrets must carry app.kubernetes.io/managed-by=cluster-update-fr"
+    - expression: "!has(object.metadata.annotations) || !('kubernetes.io/service-account.name' in object.metadata.annotations)"
+      message: "no kubernetes.io/service-account.name annotation"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: upgrade-session-secrets
+spec:
+  policyName: upgrade-session-secrets
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: upgrade-sessions

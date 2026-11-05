@@ -1,0 +1,10 @@
+# Smoke declaration for frank/hop-scan (spec R16/R17). The verifier runs these after every rollout.
+app: hop-scan
+cluster: frank
+checks:
+- kind: exec-probe
+  target: cronjob/hop-scan
+  namespace: hop-scan
+  expect:
+    last_job_succeeded: true
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'

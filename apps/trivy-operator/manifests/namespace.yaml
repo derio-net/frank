@@ -1,0 +1,9 @@
+# Scan jobs run here and need a writable cache; baseline PodSecurity is enough.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+  labels:
+    app.kubernetes.io/name: trivy-operator
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline

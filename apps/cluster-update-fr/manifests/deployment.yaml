@@ -1,0 +1,241 @@
+# SINGLE WRITER. The console is the only alarm owner and the only merger: replicas 1 and
+# strategy Recreate (an overlapping pod would fail its exclusive flock on STATE_DIR/state.lock
+# and exit, loudly, instead of racing the state file).
+#
+# The image is pinned to the tag v0.1.0 because the first release is not published yet. PHASE 7
+# MUST replace it with the `@sha256:` digest from the release notes (journal p4-image-digest).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-update-fr
+  namespace: cluster-update-fr
+  labels:
+    app.kubernetes.io/name: cluster-update-fr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-update-fr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-update-fr
+    spec:
+      serviceAccountName: cluster-update-fr
+      # No pod-wide token: the tailscale sidecar (a network-facing process holding a tailnet key)
+      # must not carry the console's cluster credentials. The console gets its token through a
+      # projected volume mounted in that container alone.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Reaches Hop's kube API over the Headscale tailnet (spec: Reading Hop). Native sidecar,
+        # userspace networking, SOCKS5 on localhost:1055: the Hop kubeconfig names it with
+        # `proxy-url: socks5://localhost:1055`, so only that client uses the tunnel. Own uid and
+        # own state volume: the node key is mounted ONLY here.
+        - name: tailscale
+          image: tailscale/tailscale:v1.82.5
+          restartPolicy: Always
+          env:
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_STATE_DIR
+              value: /ts-state
+            - name: TS_SOCKET
+              value: /ts-state/tailscaled.sock
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_SOCKS5_SERVER
+              value: localhost:1055
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: frank-updater-tailscale
+                  key: authkey
+                  optional: true
+            - name: TS_EXTRA_ARGS
+              value: "--login-server=https://headscale.hop.derio.net --hostname=frank-update-console --advertise-tags=tag:frank-updater"
+          securityContext:
+            runAsUser: 65531
+            runAsGroup: 65531
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 256Mi}
+          volumeMounts:
+            - {name: ts-state, mountPath: /ts-state}
+      containers:
+        - name: console
+          image: ghcr.io/derio-net/cluster-update-fr:v0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cluster-update-fr-config
+          env:
+            - name: FRANK_UPDATER_TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-update-fr-telegram
+                  key: chat-id
+                  optional: true
+            - name: FRANK_UPDATER_TELEGRAM_SECURITY_THREAD_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-update-fr-telegram
+                  key: security-thread-id
+                  optional: true
+          ports:
+            - {name: ui, containerPort: 8080}
+            - {name: ops, containerPort: 9090}
+            - {name: session, containerPort: 8081}
+          livenessProbe:
+            httpGet: {path: /healthz, port: ops}
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /healthz, port: ops}
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: state, mountPath: /var/lib/cluster-update-fr}
+            - {name: tmp, mountPath: /tmp}
+            - {name: omni-status, mountPath: /var/run/omni-status, readOnly: true}
+            - {name: kube-api-access, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+            - {name: cred-github, mountPath: /var/run/credentials/github, readOnly: true}
+            - {name: cred-gitea, mountPath: /var/run/credentials/gitea, readOnly: true}
+            - {name: cred-telegram, mountPath: /var/run/credentials/telegram, readOnly: true}
+            - {name: cred-hop, mountPath: /var/run/credentials/hop, readOnly: true}
+            - {name: session-credentials, mountPath: /var/run/session-credentials, readOnly: true}
+        # Omni's running version for the inventory. omnictl ships in the upgrade-session image
+        # (agent-images#171); the Reader-role service-account omniconfig is an optional Secret,
+        # so before the manual phase this loop just logs and the console shows the version as
+        # unknown. Writes omnictl's own JSON (the console accepts {"version"} or
+        # spec.backendversion) by atomic rename. PHASE 7: replace PENDING-PHASE-7 with the
+        # tag/digest that SESSION_IMAGE gets (same image, one pin).
+        - name: omni-status
+          image: ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              while true; do
+                if omnictl get sysversion -o json > /var/run/omni-status/status.json.tmp; then
+                  mv /var/run/omni-status/status.json.tmp /var/run/omni-status/status.json
+                else
+                  echo "omni-status: omnictl failed (no Reader omniconfig yet?)" >&2
+                fi
+                sleep 300
+              done
+          env:
+            - {name: OMNICONFIG, value: /var/run/omni/omniconfig}
+            - {name: HOME, value: /tmp/omni-home}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: omni-status, mountPath: /var/run/omni-status}
+            - {name: omni-scratch, mountPath: /tmp}
+            - {name: omni-reader, mountPath: /var/run/omni, readOnly: true}
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: cluster-update-fr-state
+        - name: tmp
+          emptyDir: {}
+        - name: kube-api-access
+          projected:
+            defaultMode: 0444
+            sources:
+              - serviceAccountToken: {path: token, expirationSeconds: 3607}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+              - downwardAPI:
+                  items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]
+        - name: ts-state
+          emptyDir: {}
+        # Written by the omni-status sidecar, read by the console (read-only there).
+        - name: omni-status
+          emptyDir: {}
+        - name: omni-scratch
+          emptyDir: {}
+        - name: omni-reader
+          secret:
+            secretName: cluster-update-omni-reader
+            optional: true
+            items:
+              - {key: omniconfig, path: omniconfig}
+        - name: cred-github
+          secret: {secretName: cluster-update-fr-github, optional: true}
+        - name: cred-gitea
+          secret: {secretName: cluster-update-fr-gitea, optional: true}
+        - name: cred-telegram
+          secret:
+            secretName: cluster-update-fr-telegram
+            optional: true
+            items:
+              - {key: bot-token, path: bot-token}
+        - name: cred-hop
+          secret:
+            secretName: hop-readonly-kubeconfig
+            optional: true
+            items:
+              - {key: config, path: config}
+        # What the console copies into a session's own creds Secret: each upgrade type gets only
+        # its own files. github-token is the SESSION App's token, never the console's.
+        - name: session-credentials
+          projected:
+            sources:
+              - secret:
+                  name: cluster-update-fr-session-github
+                  optional: true
+                  items:
+                    - {key: token, path: github-token}
+              - secret:
+                  name: cluster-update-session-omni
+                  optional: true
+                  items:
+                    - {key: key, path: omni-sa-key}
+              - secret:
+                  name: cluster-update-session-talos
+                  optional: true
+                  items:
+                    - {key: talosconfig, path: talosconfig}
+              - secret:
+                  name: cluster-update-session-hop-talos
+                  optional: true
+                  items:
+                    - {key: talosconfig, path: hop-talosconfig}
+              - secret:
+                  name: cluster-update-session-hop-kube
+                  optional: true
+                  items:
+                    - {key: config, path: hop-kubeconfig}
+              # hop-os: the reusable ephemeral pre-tagged tag:frank-session key the console puts
+              # in the session Secret for the tailscale sidecar only (never the agent's volume).
+              - secret:
+                  name: cluster-update-session-tailscale
+                  optional: true
+                  items:
+                    - {key: authkey, path: tailscale-authkey}

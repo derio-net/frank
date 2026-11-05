@@ -1,0 +1,6 @@
+schema_version: 2
+plan: 2026-10-31--life--update-security-lifecycle
+spec: 2026-10-31--life--update-security-lifecycle-design.md
+target_repo: derio-net/frank
+fr_version: '>=4.20.0,<7.0.0'
+created: '2026-10-31'
