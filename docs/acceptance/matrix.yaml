@@ -1724,11 +1724,30 @@ rows:
   status: not-implemented
   notes: ''
   verify: live
+- id: kali-image-retired
+  capability: ci
+  acceptance: secure-agent-kali is no longer built, and bumps succeed for every remaining
+    image.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R12
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
 - id: no-vk-references-remain
   capability: repo
   acceptance: No Frank workload, secret or client config still expects VK or the pod.
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R13
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: none
+- id: vk-tooling-retired
+  capability: repo
+  acceptance: VK-only tooling, tests and docs are removed or marked historical.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R8
   levels: {}
   status: not-implemented
   notes: ''
