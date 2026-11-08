@@ -1,0 +1,192 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Retire VK from Frank's git state, leaving the pod untouched
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - vk-alerts-retired
+  - vk-remote-removed
+  - vk-surface-removed
+  - vk-mirror-retired
+  - vk-images-retired
+  - gitops-push-token-continuity
+  - pod-undisturbed-phase-1
+  - vk-tooling-retired
+  tier: standard
+  files:
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - apps/grafana-alerting/manifests/dashboard-cm.yaml
+  - apps/grafana-alerting/manifests/notification-policy-cm.yaml
+  - apps/vk-remote/**
+  - apps/root/templates/vk-remote.yaml
+  - apps/traefik/manifests/ingressroutes.yaml
+  - apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml
+  - apps/homepage/manifests/files/services.yaml
+  - apps/tekton/**
+  - apps/ci-budget/**
+  - apps/secure-agent-pod/manifests/clustergenerator-github-app.yaml
+  - .github/workflows/agent-images-bump.yml
+  - scripts/render_bump_body.py
+  - scripts/phase5-soak-daily.sh
+  - scripts/tests/**
+  - agents/skills/bump-image/SKILL.md
+  - agents/rules/plan-post-deploy-checklist.md
+  - agents/rules/repo-workflows.md
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/**
+  - docs/superpowers/plans/**
+  - README.md
+  - docs/acceptance/**
+  estimate_lines: 1100
+tasks:
+- number: 1
+  title: Guard test for the retired state (red)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tests/test_vk_retired.py asserting: apps/vk-remote and apps/root/templates/vk-remote.yaml are absent; the three VK rule UIDs are not defined in alert-rules-cm.yaml and each is listed in its deleteRules; no alert-rules-cm.yaml expression selects job="vk_issue_bridge"; `vibe-kanban` appears in no repo list under apps/tekton or apps/ci-budget; no apps/ file references vk.cluster.derio.net or a vk-remote image; the VK Authentik entries carry `state: absent`; agent-images-bump.yml has no VKR_SHA and no vk-remote; ClusterGenerator github-app-derio is defined under apps/tekton/manifests and not under apps/secure-agent-pod/manifests; and the secure-agent-pod Deployment still pins both kali and vk-local (the Phase 1 invariant, with a comment that Phase 2 removes this assertion).
+  - id: P1.T1.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_vk_retired.py -q` and confirm it FAILS on the current tree, once per assertion group, except the Deployment pin assertion, which already passes.
+- number: 2
+  title: Remove the VK alarms (green)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      In apps/grafana-alerting/manifests/alert-rules-cm.yaml, delete the groups for vk-bridge-stale, vk-bridge-failures and vk-executor-pool-wedged, and add `{orgId: 1, uid: <uid>}` entries for all three to deleteRules, following the existing tombstones at the top of the file. Remove the `vk_issue_bridge` line from layer-18-persistent-agent-degraded's expression and its mention in that rule's text. Keep the remaining three heartbeats of that rule unchanged; Phase 2 owns them.
+  - id: P1.T2.S2
+    text: |-
+      Remove the vk_issue_bridge selector from apps/grafana-alerting/manifests/dashboard-cm.yaml without disturbing the other heartbeat selectors, delete scripts/tests/test_vk_wedge_alert.py, and refresh the now-stale "First user" comments in notification-policy-cm.yaml and test_cert_expiry_canary.py. The health_bridge_only route stays, because other rules use it.
+- number: 3
+  title: Remove the vk-remote stack and its public surface (green)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Delete apps/root/templates/vk-remote.yaml and apps/vk-remote/. Update any Layer 15 `agents` namespace regex and comment in alert-rules-cm.yaml that exists only for this stack.
+  - id: P1.T3.S2
+    text: |-
+      Remove the vk-remote IngressRoute from apps/traefik/manifests/ingressroutes.yaml, and the VK Remote tile from apps/homepage/manifests/files/services.yaml. In apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml, replace the VK provider and application with `state: absent` tombstones, copying the existing Ruflo tombstones' shape.
+- number: 4
+  title: Move the shared token generator (green)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Move apps/secure-agent-pod/manifests/clustergenerator-github-app.yaml to apps/tekton/manifests/clustergenerator-github-app-derio.yaml with `git mv`, keeping the object name github-app-derio and its spec byte-identical, and update its comment to say Tekton owns it because frank-gitops-push depends on it. Do not touch any other file under apps/secure-agent-pod.
+- number: 5
+  title: Drop the fork from mirrors and CI budget (green)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Remove vibe-kanban from the repository lists and comments in apps/tekton/manifests/clustergenerator-derio-net-mirror-github-app.yaml, apps/tekton/manifests/ci-delivery-check.yaml, apps/tekton/manifests/mirror-reconcile.yaml, apps/tekton/triggers/eventlistener.yaml, apps/tekton/triggers/eventlistener-github.yaml and apps/tekton/webhooks.yaml, and from apps/ci-budget/clustergenerators.yaml and apps/ci-budget/tiers.yaml.
+  - id: P1.T5.S2
+    text: |-
+      Update the fixtures and assertions that name it: scripts/tests/fixtures/ci_budget/usage.json, test_ci_budget_tiers.py, test_ci_budget_watcher.py, test_ci_mirror_resilience.py and test_ci_status_backfill.py. Run those files and confirm they pass. A changed count in a test must match a removed repo, not be loosened.
+- number: 6
+  title: Stop bumping VK and the pod's images (green)
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      In .github/workflows/agent-images-bump.yml remove VKR_SHA from Resolve SHAs, Update manifests, Open PR, the branch name, commit message and the PR title. Keep the branch name unique per run once its -vkr- suffix is gone. Read OLD_AI_SHA from the multi-agent-shell pin in apps/alert-agent/manifests/deployment.yaml instead of the secure-agent-kali pin.
+  - id: P1.T6.S2
+    text: |-
+      Remove secure-agent-kali and vk-local from AGENT_IMAGES and add an explicit named exclusion for both to the coverage check, with a comment saying Phase 2 removes it. Give scripts/tests/test_agent_images_bump_coverage.py the same explicit exclusion. Make sure no workflow comment contains a literal `ghcr.io/derio-net/<img>:` reference for either image, which would satisfy that test's regex by accident. Refresh the stale coverage comment.
+  - id: P1.T6.S3
+    text: |-
+      Remove vk-remote handling from scripts/render_bump_body.py and scripts/tests/test_render_bump_body.py. Run both test files plus test_vk_retired.py and confirm they pass.
+- number: 7
+  title: Retire VK tooling and docs
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Delete scripts/phase5-soak-daily.sh. Update agents/skills/bump-image/SKILL.md, README.md, agents/rules/plan-post-deploy-checklist.md (replace the vk.cluster.derio.net example with a live service), agents/rules/repo-workflows.md (drop VK as an execution path) and docs/runbooks/ci-forge-tiers.md. References to the live secure-agent-pod stay until Phase 2.
+  - id: P1.T7.S2
+    text: |-
+      Mark VK-only gotchas in agents/rules/frank-gotchas.md and docs/runbooks/frank-gotchas/*.md with `HISTORICAL (retired 2026-11)`, following the Paperclip entries. Add a one-line gotcha plus full prose recording that a ClusterGenerator's owning Application can differ from its consumers, so removing that Application breaks them about an hour later while everything reports green.
+  - id: P1.T7.S3
+    text: |-
+      Mark retired VK manual operations such as vibe-kanban-dispatch-pat as retired in their plan blocks and in docs/runbooks/manual-operations.yaml, then sync this plan's manual-operation blocks into the runbook following the sync-runbook procedure.
+- number: 8
+  title: REFACTOR and quality gate
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Search the tree with `git grep -nIiE 'vibe.?kanban|vk-remote|vk\.cluster|postgres-vk|vk_issue_bridge' -- apps scripts .github agents` and account for every hit: it is either removed, marked historical, or a deliberate Phase 2 leftover. Confirm `git diff --stat origin/main -- apps/secure-agent-pod` shows only the generator file moving out and apps/secure-agent-pod/manifests/deployment.yaml has no diff. Remove any duplication the edits introduced.
+  - id: P1.T8.S2
+    text: |-
+      Run the scripts/tests suite, excluding the hugo-driven blog test files that hang locally, and confirm it passes. If a test fails on origin/main too, record that baseline as a discovery rather than changing it.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

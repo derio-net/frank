@@ -278,3 +278,9 @@ Post-merge, Phase 2:
 8. `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
 9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound.
 10. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-11-08--agents--retire-vk | `derio-net/frank` | `2026-11-08--agents--retire-vk` | — |
