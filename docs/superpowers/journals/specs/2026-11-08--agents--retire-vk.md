@@ -203,3 +203,8 @@ run_kind: live
 ### d-phase1-only · decision · This run ships Phase 1 only; Phase 2 is tracked in #950
 
 Operator's words, in chat rather than an answered question: 'approved. Run it with fr-goal (only Phase 1)'. R9-R15 ship in a later PR, once the triage run on the pod has ended.
+
+<!-- fr:journal kind=decision scope=spec id=d-phase1-only-filed created=2026-11-08T22:51:00+00:00 gate=owner narrows=derio-net/frank#950 remainder_tracked_by=https://github.com/derio-net/frank/issues/951 -->
+### d-phase1-only-filed · decision [filed → https://github.com/derio-net/frank/issues/951] · files d-phase1-only: This run ships Phase 1 only; Phase 2 is tracked in #950
+
+Filed the rest of `d-phase1-only` at deliver as https://github.com/derio-net/frank/issues/951.
