@@ -1747,8 +1747,10 @@ rows:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R13
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: Phase 2, tracked in derio-net/frank#950
   verify: none
+  issues:
+  - derio-net/frank#950
 - id: vk-tooling-retired
   capability: repo
   acceptance: VK-only tooling, tests and docs are removed or marked historical.
