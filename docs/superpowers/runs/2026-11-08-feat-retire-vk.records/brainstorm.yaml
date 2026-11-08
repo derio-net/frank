@@ -1,0 +1,99 @@
+schema_version: 10
+run: 2026-11-08-feat-retire-vk
+step: brainstorm
+outcome: done
+journal:
+  - kind: decision
+    id: d-pod-end-state
+    title: Archive then delete the pod
+    body: The operator's interactive triage run is the only temporary use. Archive the files worth keeping, then delete the Application, namespace, PVC, LoadBalancers and cluster-admin binding.
+  - kind: decision
+    id: d-chorebot
+    title: Let chorebot stop
+    body: No migration. Its data in Notion and code in willikins allow later revival.
+  - kind: decision
+    id: d-images
+    title: Stop builds, archive the fork, keep GHCR packages
+    body: The agent-images legs are removed, derio-net/vibe-kanban is archived, and published packages are retained so old commits still resolve.
+  - kind: decision
+    id: d-shipping
+    title: Two PRs with live checks
+    body: vk-local stays until Phase 2 so Phase 1 never rolls the pod. Phase 2 is held until the triage run ends and the archive verifies.
+resolves: []
+acceptance:
+  - id: vk-alerts-retired
+    capability: alerting
+    acceptance: The VK bridge and executor alerts are gone from Grafana and cannot fire.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R1"]
+    status: not-implemented
+    verify: live
+  - id: vk-remote-removed
+    capability: agents
+    acceptance: The vk-remote stack is gone from the cluster, and its database dump was verified first.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R2"]
+    status: not-implemented
+    verify: live
+  - id: vk-surface-removed
+    capability: ingress
+    acceptance: vk.cluster.derio.net has no route, Authentik has no VK provider, and the homepage has no VK tile.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R3"]
+    status: not-implemented
+    verify: live
+  - id: vk-mirror-retired
+    capability: ci
+    acceptance: Frank no longer mirrors or budgets derio-net/vibe-kanban, and that repo is archived.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R4"]
+    status: not-implemented
+    verify: live
+  - id: vk-images-retired
+    capability: ci
+    acceptance: vk-local and secure-agent-kali are no longer built or bumped, and bumps succeed for every remaining image.
+    origin:
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R5"
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R12"
+    status: not-implemented
+    verify: live
+  - id: gitops-push-token-continuity
+    capability: ci
+    acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting tokens before and after the pod is gone.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R6"]
+    status: not-implemented
+    verify: live
+  - id: pod-undisturbed-phase-1
+    capability: agents
+    acceptance: Retiring VK's dependencies does not restart the secure-agent-pod or end a session running on it.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R7"]
+    status: not-implemented
+    verify: live
+  - id: pod-removed-after-archive
+    capability: agents
+    acceptance: The secure-agent-pod and its storage, addresses and cluster-admin binding are gone, only after its unique files were archived and verified. Its crons, including chorebot, stop with it.
+    origin:
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R9"
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R10"
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R15"
+    status: not-implemented
+    verify: live
+  - id: pod-removal-silent
+    capability: alerting
+    acceptance: Removing the pod raises no alert, and no dashboard or scrape depends on it.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R11"]
+    status: not-implemented
+    verify: live
+  - id: no-vk-references-remain
+    capability: repo
+    acceptance: No Frank workload, secret or client config still expects VK or the pod.
+    origin:
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R8"
+      - "frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R13"
+    status: not-implemented
+    verify: none
+  - id: vk-posts-superseded
+    capability: blog
+    acceptance: Readers of a VK or secure-agent-pod post see that it is superseded, with the post still published.
+    origin: ["frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R14"]
+    status: not-implemented
+    verify: none
+emitted:
+  spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md
+evidence: {}
