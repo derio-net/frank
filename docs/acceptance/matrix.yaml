@@ -1736,8 +1736,10 @@ rows:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R12
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: Phase 2, tracked in derio-net/frank#950
   verify: live
+  issues:
+  - derio-net/frank#950
 - id: no-vk-references-remain
   capability: repo
   acceptance: No Frank workload, secret or client config still expects VK or the pod.
