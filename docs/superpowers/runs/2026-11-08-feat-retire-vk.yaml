@@ -64,8 +64,10 @@ steps:
         state: running
         attempts:
         - dispatched: '2026-11-08T21:51:39+00:00'
+          agent: aed370d2ca8d7865a
           agent_type: super-fr:fr-phase-executor
           harness: claude-code
+          model: sonnet
           tier: standard
           bound: sonnet
           session: 2d4b35d9-7fc2-47cd-a625-c38bceed594d
