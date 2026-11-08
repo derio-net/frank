@@ -79,7 +79,7 @@ data:
           # Generic "critical for health-bridge, but do not page" escape hatch
           # (same trick as canary_watchdog above: severity=critical drives the
           # dead→bug-issue lifecycle, this route keeps it off Telegram). MUST
-          # precede the severity routes. Users: layer-8 collectors and workload-unexpectedly-scaled-to-zero (the original
+          # precede the severity routes. Users: workload-unexpectedly-scaled-to-zero and the layer-2-etcd rules (the original
           # first user, vk-executor-pool-wedged, was retired 2026-11).
           - receiver: "Health Bridge Webhook"
             matchers:

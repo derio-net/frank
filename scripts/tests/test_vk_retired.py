@@ -9,7 +9,9 @@ assertion pins the Deployment as untouched. Phase 2 deletes the pod, the exempt
 paths and that pin together.
 """
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -21,6 +23,7 @@ PROVIDERS = APPS / "authentik-extras/manifests/blueprints-cluster-proxy-provider
 BUMP = REPO / ".github/workflows/agent-images-bump.yml"
 POD_DEPLOYMENT = APPS / "secure-agent-pod/manifests/deployment.yaml"
 
+POD_PIN = "dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91"
 VK_RULE_UIDS = ("vk-bridge-stale", "vk-bridge-failures", "vk-executor-pool-wedged")
 
 
@@ -46,11 +49,13 @@ def test_vk_remote_stack_is_gone():
 
 
 def test_nothing_in_apps_advertises_vk_or_ships_its_image():
-    # apps/secure-agent-pod is exempt until Phase 2 (live Recreate Deployment).
+    # Only the pod's Deployment is exempt until Phase 2 (live Recreate workload).
     offenders = []
-    for f in _apps_files():
+    for f in _apps_files(skip_pod=False):
+        if f == POD_DEPLOYMENT:
+            continue
         text = f.read_text(errors="replace")
-        if "vk.cluster.derio.net" in text and "state: absent" not in text:
+        if "vk.cluster.derio.net" in text:
             offenders.append(f"{f.relative_to(REPO)}: vk.cluster.derio.net")
         if "ghcr.io/derio-net/vk-remote" in text:
             offenders.append(f"{f.relative_to(REPO)}: vk-remote image")
@@ -120,6 +125,46 @@ def test_bump_workflow_has_no_vk_remote():
     assert "vk-remote" not in text
 
 
+def _bump_step_script():
+    wf = yaml.safe_load(BUMP.read_text())
+    for job in wf["jobs"].values():
+        for step in job["steps"]:
+            if step.get("id") == "bump":
+                return step["run"]
+    raise AssertionError("no step with id: bump")
+
+
+def test_bump_step_exits_zero_when_nothing_is_skipped(tmp_path):
+    # Runs the step for real, the way Actions does (bash -e): text guards cannot
+    # see an exit status. A trailing `[ -n "$SKIPPED" ] && echo` exits 1 on every
+    # normal bump, and "Verify coverage" and "Open PR" then never run.
+    script = re.sub(r'AGENT_IMAGES="[^"]*"', 'AGENT_IMAGES=""', _bump_step_script())
+    assert 'AGENT_IMAGES=""' in script
+    env = {
+        **os.environ,
+        "AI_SHA": "a" * 40,
+        "GITHUB_OUTPUT": str(tmp_path / "out"),
+        "GH_TOKEN": "unused",
+    }
+    run = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-e", "-c", script],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr
+
+
+def test_bump_baseline_reads_a_pin_that_keeps_moving():
+    # The kali pin is frozen by R5, so a baseline read from it grows without bound.
+    text = BUMP.read_text()
+    match = re.search(r"OLD_AI_SHA=\$\(grep -oE '([^']+)'\s*\\?\s*(\S+)", text)
+    assert match, "OLD_AI_SHA assignment not found"
+    assert match.group(1).startswith("multi-agent-shell:")
+    assert match.group(2) == "apps/alert-agent/manifests/deployment.yaml"
+
+
 # --- R6: the shared token generator ----------------------------------------
 
 def _generator_files(sub):
@@ -145,5 +190,8 @@ def test_github_app_derio_generator_is_owned_by_tekton():
 def test_pod_deployment_still_pins_both_containers():
     # PHASE 1 INVARIANT. Phase 2 removes the pod and deletes this assertion.
     text = POD_DEPLOYMENT.read_text()
-    assert re.search(r"ghcr\.io/derio-net/secure-agent-kali:[a-f0-9]{40}", text)
-    assert re.search(r"ghcr\.io/derio-net/vk-local:[a-f0-9]{40}", text)
+    # Pinned to the exact SHA: an accidental bump here rolls the pod.
+    for image in ("secure-agent-kali", "vk-local"):
+        assert f"ghcr.io/derio-net/{image}:{POD_PIN}" in text
+
+

@@ -68,7 +68,6 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
 | Hermes Agent Shell | Hermes Agent (Nous Research) | Standalone SSH/Mosh shell pod on gpu-1 (`hermes-agent-shell` image), BYOK → in-cluster LiteLLM virtual key; sshd env-scrub bridged via profile.d shim; provider pinned in `~/.hermes/config.yaml` (PVC state, manual-op) |
 | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
-| VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
 | CI/CD Platform | Gitea + Gitea Actions + Tekton + Zot | Self-hosted git forge (GitHub mirror), Actions-compatible CI on the mirrors (act_runner + DinD), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |

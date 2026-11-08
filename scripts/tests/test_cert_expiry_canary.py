@@ -148,7 +148,7 @@ def test_existing_routes_preserved_in_order():
         # gpu_timeshare alert never pages. See frank-gotchas "gpu_timeshare".
         ("Health Bridge Webhook", ['gpu_timeshare="true"'], False),
         # Generic critical-without-paging escape hatch — must also precede the
-        # severity routes. Users: layer-8 collectors and scale-to-zero (the original
+        # severity routes. Users: scale-to-zero and the layer-2-etcd rules (the original
         # first user, vk-executor-pool-wedged, was retired 2026-11).
         ("Health Bridge Webhook", ['health_bridge_only="true"'], False),
         # PVC capacity (frank#722): 4h-repeat parent, must precede the severity routes.

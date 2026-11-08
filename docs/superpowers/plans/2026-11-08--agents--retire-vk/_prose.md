@@ -44,7 +44,7 @@ commands:
   - mkdir -p "$HOME/frank-retire-vk-archive"
   - kubectl -n agents exec deploy/postgres-vk -- sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$HOME/frank-retire-vk-archive/postgres-vk.dump"
   - pg_restore --list "$HOME/frank-retire-vk-archive/postgres-vk.dump" | head
-  - kubectl -n secure-agent-pod get pod -o jsonpath='{.items[0].metadata.uid} {.items[0].status.containerStatuses[*].restartCount}' > "$HOME/frank-retire-vk-archive/pod-baseline.txt"
+  - kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].metadata.uid} {.items[0].status.containerStatuses[?(@.name=="kali")].restartCount}' > "$HOME/frank-retire-vk-archive/pod-baseline.txt"
   - argocd app diff secure-agent-pod --port-forward --port-forward-namespace argocd
   - gh pr list -R derio-net/frank --state open --search 'head:bump/agent-images'
 verify:
@@ -65,7 +65,8 @@ why_manual: prune false leaves the deleted IngressRoute serving, Grafana reads p
 commands:
   - Compare status.operationState.operation.sync.revision with the merge SHA on root, grafana-alerting, traefik-extras, tekton-extras, authentik-extras, homepage and ci-budget. Sync any that lag, passing ServerSideApply=true and RespectIgnoreDifferences=true.
   - kubectl -n traefik-system delete ingressroute vk-remote
-  - kubectl -n monitoring get cm grafana-alerting-rules -o yaml | grep -c vk-bridge-stale
+  - |-
+    kubectl -n monitoring get cm grafana-alerting-rules -o yaml | grep 'orgId: 1, uid: vk-bridge-stale'  # the tombstone proves the sync; restart only once this matches
   - kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana
   - Delete the retained job=vk_issue_bridge group from pushgateway if it persists (DELETE /metrics/job/vk_issue_bridge on the pushgateway Service).
   - kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push force-sync=$(date +%s) --overwrite

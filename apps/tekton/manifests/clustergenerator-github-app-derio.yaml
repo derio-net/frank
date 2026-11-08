@@ -15,10 +15,10 @@
 # compromise yields at most a ~1h token, not the key.
 #
 # NOTE: ESO (v2.1.0) resolves this generator's privateKey.secretRef in the CONSUMING
-# ExternalSecret's namespace (secure-agent-pod) and IGNORES secretRef.namespace — so
-# the key Secret must live in secure-agent-pod. That namespace is moot for the threat
-# model (secure-agent-pod's SA is cluster-admin, so the key's ns doesn't change API
-# read access); the real protection is that the key is never mounted into a container.
+# ExternalSecret's namespace and IGNORES secretRef.namespace — so the key Secret must
+# exist in EVERY consumer's namespace: tekton-pipelines (frank-gitops-push) and, until
+# Phase 2 of retire-vk removes it, secure-agent-pod. The real protection is that the
+# key is never mounted into a container.
 #
 # To tighten further, scope the minted token with `repositories:` / `permissions:`
 # (omitted here = the App's full install: repository_selection ALL derio-net repos,

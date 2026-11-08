@@ -132,7 +132,7 @@ sees it read-only while Frank is still configured for it.
 **Images (R5).** In `agent-images-bump.yml`, `VKR_SHA` is not a separate step: it runs
 through Resolve SHAs, Update manifests and Open PR, the branch name, the commit
 message and the hard-coded PR title. Remove it from all of them, and keep the branch
-name unique per run once its `-vkr-` suffix is gone. Remove the two pod images from
+name unique per agent-images SHA once its `-vkr-` suffix is gone; the existing guard skips a SHA whose PR is already open. Remove the two pod images from
 `AGENT_IMAGES`, and add an explicit exclusion for `secure-agent-kali` and `vk-local`
 to the coverage check (trap 4), with a comment saying Phase 2 removes it. The local
 twin, `scripts/tests/test_agent_images_bump_coverage.py`, gets the same explicit
@@ -162,7 +162,8 @@ Leaving the file untouched does not prove no roll. The generator move is the one
 Phase 1 change inside this Application's path, so it can trigger an auto-sync, and a
 stale Application would then apply any existing drift. A pre-merge manual operation
 therefore records the pod UID and container restart counts, and confirms
-`argocd app diff secure-agent-pod` shows no Deployment change.
+`argocd app diff secure-agent-pod` shows no Deployment change, with the Application's
+Deployment resource reporting `Synced` as the scripted check.
 
 **Tooling and docs (R8).** Remove `scripts/phase5-soak-daily.sh`. Update
 `agents/skills/bump-image/SKILL.md`, `README.md`,

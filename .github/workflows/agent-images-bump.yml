@@ -64,9 +64,9 @@ jobs:
           # empty input.
           #
           # PER-IMAGE EXISTENCE GATE: agent-images can now bump frank even when a
-          # flaky leg (e.g. secure-agent-kali on a Kali-rolling t64 break) did NOT
-          # publish at this SHA — its build leg is soft and dispatch-frank no
-          # longer waits on the kali smoke (see agent-images build.yaml). A blind
+          # flaky leg (a soft build leg that broke upstream) did NOT
+          # publish at this SHA — dispatch-frank does not wait on every leg (see
+          # agent-images build.yaml). A blind
           # pin would then point an app at a non-existent ghcr tag →
           # ImagePullBackOff. So only pin an image whose
           # ghcr.io/derio-net/<img>:<AI_SHA> tag actually exists. tag_exists:
@@ -107,7 +107,11 @@ jobs:
               | xargs -0 -r sed -i "s|ghcr.io/derio-net/$img:[a-f0-9]\+|ghcr.io/derio-net/$img:$AI_SHA|g"
           done
           echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
-          [ -n "$SKIPPED" ] && echo "Left un-bumped (not published at ${AI_SHA}): $SKIPPED"
+          # An `if`, not `[ ... ] && echo`: this is the step's last command, and a
+          # false `&&` list would become its exit status on every normal bump.
+          if [ -n "$SKIPPED" ]; then
+            echo "Left un-bumped (not published at ${AI_SHA}): $SKIPPED"
+          fi
 
       - name: Verify coverage
         env:
@@ -121,8 +125,8 @@ jobs:
           # is an uncovered agent-image. `blog` is built by frank, not agent-images.
           #
           # Images intentionally left un-bumped this run by the per-image
-          # existence gate above (no ghcr tag at AI_SHA — e.g. a flaky kali that
-          # didn't publish) are ALLOWED to remain at their prior SHA; exclude them
+          # existence gate above (no ghcr tag at AI_SHA, because that leg didn't
+          # publish) are ALLOWED to remain at their prior SHA; exclude them
           # so a skipped image doesn't fail the very bump the gate was built to let
           # through. This is NOT a coverage hole: an uncovered image (missing from
           # AGENT_IMAGES) is never in SKIPPED, so it still trips the error below.
