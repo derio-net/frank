@@ -1,20 +1,50 @@
 schema_version: 2
 ops:
+- id: premerge-dump
+  summary: Dump the postgres-vk database to the Mac and prove it lists
+  phase: pre-merge
+  apply: mkdir -p "$HOME/frank-retire-vk-archive" && kubectl -n agents exec deploy/postgres-vk -- sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$HOME/frank-retire-vk-archive/postgres-vk.dump"
+  mutating: true
+  check: test -s "$HOME/frank-retire-vk-archive/postgres-vk.dump" && pg_restore --list "$HOME/frank-retire-vk-archive/postgres-vk.dump" | grep -q 'TABLE'
+- id: premerge-pod-baseline
+  summary: Record the pod UID and kali restart count
+  phase: pre-merge
+  apply: mkdir -p "$HOME/frank-retire-vk-archive" && kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].metadata.uid} {.items[0].status.containerStatuses[?(@.name=="kali")].restartCount}' > "$HOME/frank-retire-vk-archive/pod-baseline.txt"
+  mutating: true
+  check: test -s "$HOME/frank-retire-vk-archive/pod-baseline.txt"
+- id: premerge-no-bump-pr
+  summary: No agent-images bump PR is open against Frank
+  phase: pre-merge
+  apply: gh pr list -R derio-net/frank --state open --search 'head:bump/agent-images' --json number,title
+  mutating: false
+  check: test "$(gh pr list -R derio-net/frank --state open --search 'head:bump/agent-images' --json number --jq length)" = 0
+- id: sweep-ingressroute
+  summary: Delete the IngressRoute that prune false leaves serving
+  phase: post-merge
+  apply: kubectl -n traefik-system delete ingressroute vk-remote --ignore-not-found
+  mutating: true
+  check: '! kubectl -n traefik-system get ingressroute vk-remote'
+- id: sweep-grafana-restart
+  summary: Restart Grafana once the rules ConfigMap has synced
+  phase: post-merge
+  apply: kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana && kubectl -n monitoring rollout status deploy/victoria-metrics-grafana --timeout=300s
+  mutating: true
+  check: '! kubectl -n monitoring get cm grafana-alerting-rules -o yaml | grep -E "uid: vk-(bridge|executor)"'
 - id: step-2
-  summary: '`kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart…'
+  summary: The pod UID and kali restart count equal the pre-merge baseline
   phase: post-merge
-  apply: kubectl -n secure-agent-pod get pod
-  mutating: true
-  check: TODO
+  apply: kubectl -n secure-agent-pod get pod -l app=secure-agent-pod
+  mutating: false
+  check: test "$(kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].metadata.uid} {.items[0].status.containerStatuses[?(@.name=="kali")].restartCount}')" = "$(cat "$HOME/frank-retire-vk-archive/pod-baseline.txt")"
 - id: step-4
-  summary: '`kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressrout…'
+  summary: The agents namespace and the vk-remote IngressRoute are gone
   phase: post-merge
-  apply: kubectl get ns agents && kubectl -n traefik-system get ingressroute vk-remote
-  mutating: true
-  check: TODO
+  apply: kubectl get ns agents; kubectl -n traefik-system get ingressroute vk-remote
+  mutating: false
+  check: '! kubectl get ns agents && ! kubectl -n traefik-system get ingressroute vk-remote'
 - id: step-5
-  summary: '`kubectl get clustergenerator github-app-derio` shows a `tekton-extras` trackin…'
+  summary: tekton-extras owns the generator and frank-gitops-push still syncs
   phase: post-merge
-  apply: kubectl get clustergenerator github-app-derio
+  apply: kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push force-sync="$(date +%s)" --overwrite
   mutating: true
-  check: TODO
+  check: kubectl get clustergenerator github-app-derio -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}' | grep -q '^tekton-extras:' && test "$(kubectl -n tekton-pipelines get externalsecret frank-gitops-push -o jsonpath='{.status.conditions[0].reason}')" = SecretSynced
