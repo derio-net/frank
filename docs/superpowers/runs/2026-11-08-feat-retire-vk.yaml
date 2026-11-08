@@ -3,7 +3,7 @@ run: 2026-11-08-feat-retire-vk
 workflow: fr-goal@1
 branch: feat/retire-vk
 started: '2026-11-08T19:27:47+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -92,7 +92,10 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10,p1-r11
   journal-check:
-    state: pending
+    state: done
+    at: '2026-11-08T22:41:02+00:00'
+    exit: 0
+    stdout: ''
   deliver:
     state: pending
 driver: standalone
