@@ -18,6 +18,7 @@ steps:
       step/spec-review:
         attempts:
         - dispatched: '2026-11-08T21:39:24+00:00'
+          agent: a4c83bd8f014efe56
           agent_type: super-fr:fr-spec-reviewer
           harness: claude-code
           tier: hard
