@@ -1294,8 +1294,10 @@ rows:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R11
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: Phase 2, tracked in derio-net/frank#950
   verify: live
+  issues:
+  - derio-net/frank#950
 - id: stor-pc1-hdd-health-gated
   capability: storage
   acceptance: Only pc-1 HDDs that pass a strict SMART check (overall health, long
