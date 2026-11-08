@@ -1,0 +1,20 @@
+schema_version: 2
+ops:
+- id: step-2
+  summary: '`kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart…'
+  phase: post-merge
+  apply: kubectl -n secure-agent-pod get pod
+  mutating: true
+  check: TODO
+- id: step-4
+  summary: '`kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressrout…'
+  phase: post-merge
+  apply: kubectl get ns agents && kubectl -n traefik-system get ingressroute vk-remote
+  mutating: true
+  check: TODO
+- id: step-5
+  summary: '`kubectl get clustergenerator github-app-derio` shows a `tekton-extras` trackin…'
+  phase: post-merge
+  apply: kubectl get clustergenerator github-app-derio
+  mutating: true
+  check: TODO

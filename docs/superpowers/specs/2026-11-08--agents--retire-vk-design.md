@@ -262,25 +262,27 @@ gate: devops
 
 ## Test Plan
 
-Post-merge, Phase 1:
+Phase 1 only. Phase 2's checks are listed separately, because this run ships Phase 1.
 
 0. Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
-1. `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
+1. (op: step-2) `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
 2. After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
-3. `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
-4. `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
+3. (op: step-4) `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
+4. (op: step-5) `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
 5. The next agent-images bump run completes with its coverage check green.
 6. `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
-
-Post-merge, Phase 2:
-
-7. The archive lists and verifies on the Mac before the PR leaves draft, and contains chorebot's `config.yaml`.
-8. `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
-9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound.
-10. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
 
 ## Implementation Plans
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
 | 2026-11-08--agents--retire-vk | `derio-net/frank` | `2026-11-08--agents--retire-vk` | — |
+
+## Phase 2 checks (later PR)
+
+These become the Test Plan of the Phase 2 PR.
+
+7. The archive lists and verifies on the Mac before the PR leaves draft, and contains chorebot's `config.yaml`.
+8. `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
+9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound.
+10. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
