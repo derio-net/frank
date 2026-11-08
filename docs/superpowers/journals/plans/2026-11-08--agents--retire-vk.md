@@ -60,3 +60,118 @@ Doc edits only; nothing duplicated.
 ### no-refactor-p1-t8 · discovery · no-refactor-because P1.T8 (phase 1)
 
 Refactor task: grep-accounted every remaining VK hit (removed, marked historical, or deliberate Phase 2 leftover) and found no duplication introduced by the edits.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r1 · finding [open] (reviewer: in scope) · agent-images-bump.yml Update manifests step ended in a bare && list and exited 1 on every normal bump (phase 1)
+
+Removing the vk-remote block made `[ -n "$SKIPPED" ] && echo` the step's last command. Reproduced rc=1 under bash -e. Text guards could not see it.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r2 · finding [open] (reviewer: in scope) · sweep-grafana-restart check matched the new tombstones and could never pass (phase 1)
+
+The runbook's grep -c gate also returned 1 before and after the sync.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r3 · finding [open] (reviewer: in scope) · ops.yaml omitted the pre-merge pod diff and the stale-revision check before the sweeps (phase 1)
+
+Test Plan row 0 had no runnable check, and a stale Application would undo the sweeps.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r4 · finding [open] (reviewer: in scope) · pod-baseline.txt format differed between the runbook and ops.yaml (phase 1)
+
+A false R7 failure at step-2, and the all-container form broke R7's vk-local tolerance.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r5 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r5 · finding [open] (reviewer: in scope) · step-5 read ExternalSecret status immediately and never proved a refresh (phase 1)
+
+It could read the pre-refresh status.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r6 · finding [open] (reviewer: in scope) · Negated kubectl checks passed on any API or kubeconfig error (phase 1)
+
+A dead kubeconfig read as success.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r7 · finding [open] (reviewer: in scope) · Stale comments on health_bridge_only users, the generator key namespace and kali examples (phase 1)
+
+Comments named the wrong rules and the wrong namespace.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r8 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r8 · finding [open] (reviewer: in scope) · README still listed VK Relay (phase 1)
+
+The relay was removed with vk-remote.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r9 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r9 · finding [open] (reviewer: in scope) · test_vk_retired.py exemptions were wider than needed and the R7 pin and OLD_AI_SHA source were unguarded (phase 1)
+
+An accidental bump of the pod's pin would have passed.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r10 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r10 · finding [open] (reviewer: in scope) · Bump branch is unique per SHA rather than per run as specified (phase 1)
+
+The deviation was not recorded.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r11 created=2026-11-08T22:40:56+00:00 phase=1 state=open review_scope=in -->
+### p1-r11 · finding [open] (reviewer: in scope) · HISTORICAL wording said vk-local was retired while the container still runs (phase 1)
+
+It lingers idle until Phase 2.
+
+<!-- fr:journal kind=review scope=plan id=review-phase-1 created=2026-11-08T22:40:56+00:00 phase=1 -->
+### review-phase-1 · review · independent code review: 11 findings, all in scope (phase 1)
+
+Dispatched reviewer parsed the alert rules, compared the CEL filters, ran the bump step under bash -e, and checked generator ownership and ops selectors. It found one critical (p1-r1), three important and seven minor. R6 and R7 mechanics were sound. Its 22 test failures in an archive copy came from tests needing .git; the full suite in the real checkout is the evidence for the fixed tree.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r1 -->
+### p1-r1-resolved · finding [fixed] · resolves p1-r1: agent-images-bump.yml Update manifests step ended in a bare && list and exited 1 on every normal bump (phase 1)
+
+Replaced with an if. test_bump_step_exits_zero_when_nothing_is_skipped runs the step under bash -e and was red before the fix.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r2 -->
+### p1-r2-resolved · finding [fixed] · resolves p1-r2: sweep-grafana-restart check matched the new tombstones and could never pass (phase 1)
+
+The check asserts tombstone present and definition absent; the runbook gate uses the tombstone.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r3 -->
+### p1-r3-resolved · finding [fixed] · resolves p1-r3: ops.yaml omitted the pre-merge pod diff and the stale-revision check before the sweeps (phase 1)
+
+Added premerge-pod-diff and sweep-revisions, with sweeps depending on it. Pushgateway, silence cleanup and fork archive stay prose-only manual operations in _prose.md, on purpose: they touch external services or are conditional, and Test Plan rows 5 and 6 are operator-verified.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r4 -->
+### p1-r4-resolved · finding [fixed] · resolves p1-r4: pod-baseline.txt format differed between the runbook and ops.yaml (phase 1)
+
+Both procedures use the kali-filtered jsonpath and the app label.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r5-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r5 -->
+### p1-r5-resolved · finding [fixed] · resolves p1-r5: step-5 read ExternalSecret status immediately and never proved a refresh (phase 1)
+
+Apply waits, and the check compares refreshTime with the force-sync annotation.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r6 -->
+### p1-r6-resolved · finding [fixed] · resolves p1-r6: Negated kubectl checks passed on any API or kubeconfig error (phase 1)
+
+Checks capture output with --ignore-not-found and require kubectl to succeed before asserting empty.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r7 -->
+### p1-r7-resolved · finding [fixed] · resolves p1-r7: Stale comments on health_bridge_only users, the generator key namespace and kali examples (phase 1)
+
+Comments corrected in the notification policy, canary test, both generators and the bump workflow.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r8-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r8 -->
+### p1-r8-resolved · finding [fixed] · resolves p1-r8: README still listed VK Relay (phase 1)
+
+Row removed.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r9-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r9 -->
+### p1-r9-resolved · finding [fixed] · resolves p1-r9: test_vk_retired.py exemptions were wider than needed and the R7 pin and OLD_AI_SHA source were unguarded (phase 1)
+
+The exemption is the Deployment file only, the state-absent exemption is gone, the pin is the exact SHA, and a test asserts the OLD_AI_SHA source.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r10-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r10 -->
+### p1-r10-resolved · finding [fixed] · resolves p1-r10: Bump branch is unique per SHA rather than per run as specified (phase 1)
+
+Spec amended to unique per SHA, which is what the workflow's own comment intends: an open PR for that SHA is skipped.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r11-resolved created=2026-11-08T22:40:56+00:00 phase=1 state=fixed resolves=p1-r11 -->
+### p1-r11-resolved · finding [fixed] · resolves p1-r11: HISTORICAL wording said vk-local was retired while the container still runs (phase 1)
+
+The historical note says vk-local lingers idle until Phase 2.
