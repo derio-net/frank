@@ -198,3 +198,8 @@ row_kinds:
 run_gate: devops
 run_kind: live
 ```
+
+<!-- fr:journal kind=decision scope=spec id=d-phase1-only created=2026-11-08T22:43:17+00:00 gate=owner narrows=derio-net/frank#950 -->
+### d-phase1-only · decision · This run ships Phase 1 only; Phase 2 is tracked in #950
+
+Operator's words, in chat rather than an answered question: 'approved. Run it with fr-goal (only Phase 1)'. R9-R15 ship in a later PR, once the triage run on the pod has ended.
