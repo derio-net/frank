@@ -8,7 +8,7 @@ When creating a plan for a **standard layer** (new deployment, not a fix/extensi
 
 ### Task N: Post-Deploy Checklist
 
-- [ ] **Step 1: Expose externally (if user-facing)** — For any new service reachable by humans from outside the cluster (e.g. `vk.cluster.derio.net`):
+- [ ] **Step 1: Expose externally (if user-facing)** — For any new service reachable by humans from outside the cluster (e.g. `hermes.cluster.derio.net`):
   - Add a Traefik IngressRoute in `apps/traefik/manifests/ingressroutes.yaml` (with `authentik-forwardauth` middleware if SSO is required — see `frank-argocd.md` for the full forward-auth wiring, including the manual outpost-provider assignment)
   - Add a tile to the homepage dashboard at `master.cluster.derio.net` via `apps/homepage/manifests/files/services.yaml` (icon, category, description, URL)
   - Document the exposure (domain, auth mode, any manual steps) in the plan's deployment section and in the building blog post

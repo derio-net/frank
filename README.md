@@ -68,7 +68,6 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
 | Hermes Agent Shell | Hermes Agent (Nous Research) | Standalone SSH/Mosh shell pod on gpu-1 (`hermes-agent-shell` image), BYOK → in-cluster LiteLLM virtual key; sshd env-scrub bridged via profile.d shim; provider pinned in `~/.hermes/config.yaml` (PVC state, manual-op) |
 | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
-| VK Remote (self-hosted) | PostgreSQL 16 + ElectricSQL + Rust/Axum | Self-hosted VibeKanban kanban API server, local JWT auth, Authentik SSO via Traefik |
 | VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
 | CI/CD Platform | Gitea + Gitea Actions + Tekton + Zot | Self-hosted git forge (GitHub mirror), Actions-compatible CI on the mirrors (act_runner + DinD), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
@@ -122,7 +121,6 @@ frank/
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
 │   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
 │   ├── hermes-agent-shell/manifests/           # Standalone hermes agent shell pod (gpu-1, SSH+Mosh, BYOK → LiteLLM)
-│   ├── vk-remote/manifests/                   # VK remote web UI + relay sidecar (agents namespace)
 │   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
 │   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
 │   ├── gitea/values.yaml + manifests/          # Gitea git forge (192.168.55.209), GitHub mirrors, Authentik OIDC
@@ -215,7 +213,6 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
 | VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
 | Hermes Agent Shell (SSH+Mosh) | ssh agent@192.168.55.226 — mosh UDP 60032-60047 | 192.168.55.226 |
-| VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 | AWX | https://awx.cluster.derio.net | (via Traefik) |
 
@@ -272,7 +269,6 @@ argocd app list
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
-| vk-remote | agents | Self-hosted VK kanban API (PG 16 + ElectricSQL + Rust/Axum) + relay sidecar (vk.cluster.derio.net), Authentik SSO |
 | hermes-agent-shell | hermes-agent-shell | Standalone hermes agent shell on gpu-1 (SSH :22 + mosh UDP 60032-60047 on 192.168.55.226), BYOK → LiteLLM, home PVC |
 | argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM) |
 | argo-rollouts-extras | argo-rollouts | Currently empty — held the broken Cilium plugin config + CiliumEnvoyConfig RBAC, both removed 2026-05-04 |

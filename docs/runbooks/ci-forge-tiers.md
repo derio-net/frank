@@ -57,7 +57,7 @@ template.
    only touches repos missing on Gitea.
    **Backfilled tags start workflows.** Gitea fires `on: push: tags` workflows as the
    tags arrive, and an old tag carries the *old* workflow file, which has no forge gate.
-   `derio-net/vibe-kanban` (2026-10-19) queued eight tag runs / 54 jobs on the single
+   `derio-net/vibe-kanban` (2026-10-19, since retired from Frank) queued eight tag runs / 54 jobs on the single
    runner for 9 hours. Before running this op on a repo, check what its tags would
    trigger (`git show <tag>:.github/workflows/`); if any `on: push: tags` workflow is
    ungated, push the branches first and skip or cancel the tag runs. Gitea 1.25 has no

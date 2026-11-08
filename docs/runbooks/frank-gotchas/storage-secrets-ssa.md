@@ -586,3 +586,28 @@ order to **decommission or wipe** it while it holds the only copy of
 something. Before retiring a node, run the query above and move or back up
 whatever it lists. For a reboot or a disk swap the data is on disk and comes
 back with the node, so the old guard protected nothing there.
+
+## A ClusterGenerator's owning Application can differ from its consumers (2026-11-08)
+
+`github-app-derio` is a cluster-scoped ESO `ClusterGenerator` that mints GitHub App
+installation tokens (derio-fr-automation, App 3994132). Its manifest sat in
+`apps/secure-agent-pod/manifests/`, so ArgoCD tracked it under the `secure-agent-pod`
+Application. Its consumers were elsewhere: `tekton-pipelines/frank-gitops-push`
+(and, through that Secret, `cnc-promotion` and the staging gate), plus the pod's own
+`agent-github-token`.
+
+Removing an Application deletes everything it tracks, and root plus the child
+finalizer cascade it. Retiring the pod would therefore have deleted the generator.
+The failure is quiet by construction: the consuming ExternalSecret carries
+`deletionPolicy: Retain`, so the last minted Secret stays in place. Its token lives about
+an hour, then the push to frank fails while ArgoCD, the ES and every pod still read
+green. Same invisible-because-absent shape as the `frank-gitops-push` PEM incident above.
+
+**Rule.** Before removing an Application, list the cluster-scoped objects it owns
+(`ClusterGenerator`, `ClusterSecretStore`, `ClusterExternalSecret`, CRDs, namespaces) and
+grep the whole repo for their consumers. Ownership follows the manifest path, not the
+consumer. The retire-vk change moved the generator to `apps/tekton/manifests/`
+(`tekton-extras`, `recurse: true`) with the object name and spec unchanged, so the
+existing `agent-github-token` keeps working. The old Application has no `prune`, so
+its live copy is not deleted when the file leaves its path; ArgoCD re-tracks the object
+under the new owner. Guard: `scripts/tests/test_vk_retired.py`.

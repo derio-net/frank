@@ -33,26 +33,23 @@ jobs:
             exit 1
           fi
 
-          # vk-remote: resolve latest tag from GHCR (7-char short SHA from metadata-action)
-          VKR_SHA=$(gh api /orgs/derio-net/packages/container/vk-remote/versions \
-            --jq '.[0].metadata.container.tags[] | select(. != "latest")' 2>/dev/null || true)
-
           # Capture the CURRENT (pre-bump) agent-images pin BEFORE the next step's
           # sed overwrites it — render_bump_body.py diffs old...new for the body.
-          OLD_AI_SHA=$(grep -oE 'secure-agent-kali:[a-f0-9]+' \
-            apps/secure-agent-pod/manifests/deployment.yaml | head -1 | cut -d: -f2)
+          # Read from the multi-agent-shell pin: it moves with every bump. The
+          # secure-agent-pod pins are frozen (excluded below) until that pod is
+          # retired, so reading one of them would relist already-shipped PRs.
+          OLD_AI_SHA=$(grep -oE 'multi-agent-shell:[a-f0-9]+' \
+            apps/alert-agent/manifests/deployment.yaml | head -1 | cut -d: -f2)
 
           echo "ai_sha=$AI_SHA"         >> "$GITHUB_OUTPUT"
-          echo "vkr_sha=$VKR_SHA"       >> "$GITHUB_OUTPUT"
           echo "old_ai_sha=$OLD_AI_SHA" >> "$GITHUB_OUTPUT"
-          echo "Resolved: OLD_AI_SHA=$OLD_AI_SHA AI_SHA=$AI_SHA VKR_SHA=$VKR_SHA"
+          echo "Resolved: OLD_AI_SHA=$OLD_AI_SHA AI_SHA=$AI_SHA"
 
       - name: Update manifests
         id: bump
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
-          VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
         run: |
           # Every image built from the agent-images repo rides the SAME commit
           # SHA (CI builds them all from one commit). Bump EVERY pin of each
@@ -79,11 +76,14 @@ jobs:
           #   2 = could not verify (GHCR API error) → FAIL-OPEN, pin anyway (the
           #       pre-existing behaviour) rather than stall the whole bump on a
           #       transient API glitch.
+          # The two secure-agent-pod images are NOT listed: that pod is being retired
+          # (spec 2026-11-08--agents--retire-vk) and rolling it ends a live session.
+          # Their pins stay frozen; the Verify-coverage step excludes them by name.
           # hermes-agent-shell-ssh + hermes-agent-shell-hindsight are the two
           # sidecar images the official-Hermes migration adds (willikins#285);
           # both must be here so the bump covers them and Verify-coverage passes
           # once #616's manifests pin them.
-          AGENT_IMAGES="secure-agent-kali vk-local multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell"
+          AGENT_IMAGES="multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell"
 
           tag_exists() {
             local img="$1" sha="$2" out
@@ -109,14 +109,6 @@ jobs:
           echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
           [ -n "$SKIPPED" ] && echo "Left un-bumped (not published at ${AI_SHA}): $SKIPPED"
 
-          # vk-remote rides a DIFFERENT build (separate repo) → its own SHA.
-          if [ -n "$VKR_SHA" ]; then
-            { grep -rlZ "ghcr.io/derio-net/vk-remote:" apps/ 2>/dev/null || true; } \
-              | xargs -0 -r sed -i "s|ghcr.io/derio-net/vk-remote:[a-zA-Z0-9._-]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g"
-          else
-            echo "::warning::Could not resolve vk-remote SHA — skipping vk-remote bump"
-          fi
-
       - name: Verify coverage
         env:
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
@@ -126,8 +118,7 @@ jobs:
           # above does not cover (the silent-skip bug that stranded alert-agent /
           # n8n-01 / hermes-agent-shell). After the bump, every 40-hex
           # ghcr.io/derio-net/* pin in apps/ must equal AI_SHA — any other value
-          # is an uncovered agent-image. vk-remote uses a short tag (not 40-hex)
-          # so it is out of scope; `blog` is built by frank, not agent-images.
+          # is an uncovered agent-image. `blog` is built by frank, not agent-images.
           #
           # Images intentionally left un-bumped this run by the per-image
           # existence gate above (no ghcr tag at AI_SHA — e.g. a flaky kali that
@@ -138,6 +129,9 @@ jobs:
           stale=$(grep -rEo "ghcr.io/derio-net/[a-z0-9-]+:[a-f0-9]{40}" apps/ \
                     | grep -vE ":${AI_SHA}\$" \
                     | grep -vE "derio-net/blog:" || true)
+          # Frozen on purpose until the secure-agent-pod Application is removed
+          # (Phase 2 of retire-vk deletes this exclusion together with the pod).
+          stale=$(printf '%s\n' "$stale" | grep -vE "derio-net/(secure-agent-kali|vk-local):" || true)
           for img in $SKIPPED; do
             stale=$(printf '%s\n' "$stale" | grep -vE "derio-net/${img}:" || true)
           done
@@ -156,26 +150,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
-          VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
           OLD_AI_SHA: ${{ steps.shas.outputs.old_ai_sha }}
         run: |
           git config user.name  "clawdia-bumper[bot]"
           git config user.email "clawdia-bumper[bot]@users.noreply.github.com"
 
-          # Include both SHAs so a new VKR_SHA with unchanged AI_SHA (or vice
-          # versa) produces a distinct branch — avoids collisions with the
-          # merged-but-not-deleted branches from earlier dispatches.
+          # One branch per agent-images SHA — a re-dispatch of the same SHA
+          # reuses it (the open-PR check below), a new SHA gets its own, so it
+          # cannot collide with merged-but-not-deleted branches from earlier runs.
           BRANCH="bump/agent-images-${AI_SHA:0:7}"
-          if [ -n "$VKR_SHA" ]; then
-            BRANCH="${BRANCH}-vkr-${VKR_SHA:0:7}"
-          fi
 
           if git diff --quiet; then
             echo "No changes to bump."
             exit 0
           fi
 
-          # If a PR is already open for this exact SHA pair, nothing to do.
+          # If a PR is already open for this exact SHA, nothing to do.
           OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$OPEN_PR" ]; then
             echo "Open PR #$OPEN_PR already covers $BRANCH — skipping."
@@ -185,19 +175,15 @@ jobs:
           git checkout -b "$BRANCH"
 
           git add apps/
-          if [ -n "$VKR_SHA" ]; then
-            git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}, vk-remote to ${VKR_SHA:0:7}"
-          else
-            git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}"
-          fi
+          git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}"
 
           # Enriched body: names the upstream agent-images PR(s) + a summary.
           # Best-effort — render_bump_body.py falls back to the two-line body if
           # the agent-images gh-api lookup fails, so the PR always opens.
           BODY=$(python3 scripts/render_bump_body.py \
-            --old "$OLD_AI_SHA" --new "$AI_SHA" --vkr "$VKR_SHA")
+            --old "$OLD_AI_SHA" --new "$AI_SHA")
 
           git push origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" \
-            --title "chore(agents): bump agent-images + vk-remote" \
+            --title "chore(agents): bump agent-images" \
             --body "$BODY"

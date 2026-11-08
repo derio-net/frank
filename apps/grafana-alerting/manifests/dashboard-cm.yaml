@@ -51,7 +51,7 @@ data:
           "targets": [
             {
               "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-              "expr": "(time() - willikins_heartbeat_last_success_timestamp{job=~\"session_manager|vk_issue_bridge\"}) / 60",
+              "expr": "(time() - willikins_heartbeat_last_success_timestamp{job=\"session_manager\"}) / 60",
               "instant": true,
               "format": "table",
               "refId": "A"

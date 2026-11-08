@@ -91,7 +91,8 @@ tasks:
         - gh secret set DISPATCH_PAT --repo derio-net/vibe-kanban --body "$(cat /path/to/pat)"
       verify:
         - gh secret list --repo derio-net/vibe-kanban | grep DISPATCH_PAT
-      status: pending
+      status: decommissioned
+      decommissioned: "2026-11 — VibeKanban retired (spec 2026-11-08--agents--retire-vk); the derio-net/vibe-kanban repo is archived."
       ```
   - id: P1.T1.S4
     text: |-
