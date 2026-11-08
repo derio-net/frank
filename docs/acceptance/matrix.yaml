@@ -1756,9 +1756,12 @@ rows:
   acceptance: VK-only tooling, tests and docs are removed or marked historical.
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R8
-  levels: {}
-  status: not-implemented
-  notes: ''
+  levels:
+    unit:
+    - frank:scripts/tests/test_vk_retired.py
+  status: ci
+  notes: Delivered in this PR, and guarded by test_vk_retired.py in the tripwires
+    job
   verify: none
 - id: vk-posts-superseded
   capability: blog
