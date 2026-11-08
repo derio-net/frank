@@ -64,13 +64,13 @@ Those sampled were mostly old `vk/*` branches, but not all of them were checked.
 
 Phase 1: remove the dependencies, alarms and images, without touching the pod.
 
-R1. The VK alert rules `vk-bridge-stale`, `vk-bridge-failures` and `vk-executor-pool-wedged` no longer exist in Grafana and cannot fire.
+R1. The VK alert rules `vk-bridge-stale`, `vk-bridge-failures` and `vk-executor-pool-wedged` no longer exist in Grafana, `layer-18-persistent-agent-degraded` no longer watches `vk_issue_bridge`, and none of them can fire because of VK.
 R2. The `vk-remote` stack (workloads, Application, `agents` namespace, 1Gi PVC) is gone from the cluster, and a dump of its database was verified before removal.
 R3. Nothing still advertises VK: `vk.cluster.derio.net` has no route, Authentik no provider or application, and the homepage no tile.
 R4. Frank no longer mirrors or budgets `derio-net/vibe-kanban`, and that repo is archived on GitHub.
 R5. `agent-images` no longer builds `vk-local`, Frank's bump workflow no longer touches `vk-remote`, `vk-local` or `secure-agent-kali`, and the bump keeps succeeding for every remaining image.
 R6. `github-app-derio` belongs to a Tekton-owned Application, and `frank-gitops-push` keeps minting tokens throughout.
-R7. Phase 1 does not restart the secure-agent-pod.
+R7. Phase 1 does not replace the secure-agent-pod or restart its `kali` container, so a session running there survives. A restart of the `vk-local` container alone does not break this requirement, because it does not touch the session.
 R8. VK-only tooling, tests and docs that do not reference the live pod are removed or marked historical.
 
 Phase 2: take the pod down, once the triage run has ended.
@@ -88,15 +88,29 @@ R15. chorebot and the other pod crons stop with the pod and are not migrated. Th
 ### Shipping shape
 
 Two Frank PRs, plus one `agent-images` PR per phase. Phase 1 merges when ready.
-Phase 2 stays a draft until R9 is met, and its branch is cut from `main` after
+Frank's Phase 1 PR merges BEFORE the `agent-images` PR, and any open
+`bump/agent-images-*` PR is closed first. Otherwise a dispatch runs the old workflow
+from Frank `main`, which still rewrites the `secure-agent-kali` pin, and merging that
+bump rolls the `Recreate` pod. Merging `agent-images` afterwards also supplies the
+bump run Test Plan row 5 waits for. Phase 2 stays a draft until R9 is met, and its branch is cut from `main` after
 Phase 1 merges. Requirements R9-R15 are all implemented in that second PR.
 
 ### Phase 1
 
 **Alarms first (R1).** Delete the three rules and add `deleteRules` tombstones.
-Remove `scripts/tests/test_vk_wedge_alert.py`, which guards a rule that no longer
-exists. This clears the alert that is firing today. Grafana reads provisioning at
-boot, so verification is against the running Grafana after a restart, not ArgoCD.
+Remove the `vk_issue_bridge` clause from `layer-18-persistent-agent-degraded`, which
+aggregates the same heartbeat and would otherwise keep firing. Delete the retained
+`vk_issue_bridge` pushgateway series if it persists. Remove the dashboard selector
+for that job, and `scripts/tests/test_vk_wedge_alert.py`, which guards a rule that no
+longer exists. Grafana reads provisioning at boot, so a manual operation runs
+`kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana` once the
+ConfigMap sync is confirmed, and verification is against the running Grafana, not
+ArgoCD.
+
+Two Grafana silences, created 2026-11-08 with the operator's approval, cover the gap
+until merge and expire 2026-11-22: one for the three VK rules, one for the
+`job=vk_issue_bridge` instance of the Layer 18 rule only. If the PR has not merged by
+then, the alerts return.
 
 **vk-remote (R2, R3).** As a pre-merge manual operation, `pg_dump` `postgres-vk`
 to the operator's Mac and confirm the dump restores or lists cleanly. Then remove
@@ -115,12 +129,23 @@ GitHub webhook and archive `derio-net/vibe-kanban`. The Gitea mirror repo stays
 as read-only history. Archiving comes last, so nothing depending on the repo ever
 sees it read-only while Frank is still configured for it.
 
-**Images (R5).** Remove the `vk-remote` steps and the two pod images from
-`AGENT_IMAGES`, and add an explicit exclusion for `secure-agent-kali` and
-`vk-local` to the coverage check (trap 4), with a comment saying Phase 2 removes
-it. Drop the `vk-remote` handling from `scripts/render_bump_body.py`. In
-`agent-images`, remove the `vk-local` matrix leg and directory. The `kali` image
-remains until Phase 2.
+**Images (R5).** In `agent-images-bump.yml`, `VKR_SHA` is not a separate step: it runs
+through Resolve SHAs, Update manifests and Open PR, the branch name, the commit
+message and the hard-coded PR title. Remove it from all of them, and keep the branch
+name unique per run once its `-vkr-` suffix is gone. Remove the two pod images from
+`AGENT_IMAGES`, and add an explicit exclusion for `secure-agent-kali` and `vk-local`
+to the coverage check (trap 4), with a comment saying Phase 2 removes it. The local
+twin, `scripts/tests/test_agent_images_bump_coverage.py`, gets the same explicit
+exclusion; no workflow comment may contain the literal image reference, which would
+satisfy its regex by accident.
+
+`OLD_AI_SHA` is read from the `secure-agent-kali` pin, which R5 freezes. Read it from
+a pin that keeps moving, `multi-agent-shell` in
+`apps/alert-agent/manifests/deployment.yaml`, or later bump PR bodies relist shipped
+PRs and Phase 2 silently loses the baseline. Drop the `vk-remote` handling from
+`scripts/render_bump_body.py` and `scripts/tests/test_render_bump_body.py`, and
+refresh the stale coverage comment. In `agent-images`, remove the `vk-local` matrix
+leg and directory. The `kali` image remains until Phase 2.
 
 **Generator move (R6).** Move `clustergenerator-github-app.yaml` to
 `apps/tekton/manifests/`, so `tekton-extras` owns it. ArgoCD then tracks it under
@@ -129,22 +154,38 @@ is not deleted when the file leaves its path. The object name is unchanged, so
 `agent-github-token` in the pod's namespace keeps working until Phase 2.
 
 **Pod untouched (R7).** Phase 1 does not edit
-`apps/secure-agent-pod/manifests/deployment.yaml`. `vk-local` keeps running,
-idle, with its relay tunnel retrying against nothing until Phase 2.
+`apps/secure-agent-pod/manifests/deployment.yaml`. `vk-local` keeps running, idle,
+until Phase 2. Its behaviour once the relay is gone is unmeasured; its liveness probe
+is local `/api/health`, and a `vk-local`-only restart is tolerated by R7.
+
+Leaving the file untouched does not prove no roll. The generator move is the one
+Phase 1 change inside this Application's path, so it can trigger an auto-sync, and a
+stale Application would then apply any existing drift. A pre-merge manual operation
+therefore records the pod UID and container restart counts, and confirms
+`argocd app diff secure-agent-pod` shows no Deployment change.
 
 **Tooling and docs (R8).** Remove `scripts/phase5-soak-daily.sh`. Update
-`agents/skills/bump-image/SKILL.md`, `README.md`, and
-`agents/rules/frank-infrastructure.md`. VK gotchas stay where they are with a
+`agents/skills/bump-image/SKILL.md`, `README.md`,
+`agents/rules/plan-post-deploy-checklist.md` (its `vk.cluster.derio.net` example),
+`agents/rules/repo-workflows.md` (its VK dispatch path), `docs/runbooks/ci-forge-tiers.md`,
+and the now-stale comments and `agents` regex in
+`apps/grafana-alerting/manifests/notification-policy-cm.yaml` and
+`alert-rules-cm.yaml`. Mark retired VK manual operations, such as
+`vibe-kanban-dispatch-pat`, in their plan blocks as well as the runbook, because the
+runbook is generated from them. `agents/rules/frank-infrastructure.md` lists only the
+live pod, so it waits for Phase 2. VK gotchas stay where they are with a
 `HISTORICAL (retired 2026-11)` marker, following the Paperclip precedent.
 
 ### Phase 2
 
 **Archive and gate (R9).** A script, run by the operator, confirms no interactive
 session remains and writes a tarball to the Mac. It contains `interviews/`,
-`orgs/`, `.hermes`, the audit archive, the VK `db.v2.sqlite`, and one `git bundle`
-per clone covering all local-only branches. Credential files
+`orgs/`, `.hermes`, the audit archive, the VK `db.v2.sqlite`,
+`repos/willikins/scripts/chorebot/config.yaml`, and one `git bundle` per clone
+covering all local-only branches. Credential files
 (`credentials.json`, `server_ed25519_signing_key`, `.ssh`, `.gnupg`,
-`.config/gh`, `.claude.json`) are excluded. The script prints a file count and
+`.config/gh`, `.claude.json`) are excluded. chorebot's `config.yaml` is kept on
+purpose despite possibly holding tokens, because it is not in git. The script prints a file count and
 verifies the tarball and bundles. Regenerable caches are not archived.
 
 **Removal (R10).** Remove `apps/root/templates/secure-agent-pod.yaml`,
@@ -155,14 +196,17 @@ the ClusterRoleBinding is gone. The namespace's `github-app-derio-key` copy goes
 with it; `tekton-pipelines` has its own.
 
 **Observability (R11).** In the same PR, so nothing pages on the way down, tombstone
-`exercise-reminder-stale`, `session-manager` stale, `audit-digest` stale and
-`agent-pod-not-running`, and remove `secure-agent-pod-dashboard-cm.yaml`, its two
+`exercise-reminder-stale`, `session-manager-stale`, `audit-digest-stale`,
+`agent-pod-not-running` and `layer-18-persistent-agent-degraded`, delete the retained
+heartbeat series as a recorded manual step, and remove `secure-agent-pod-dashboard-cm.yaml`, its two
 mounts in `apps/victoria-metrics/values.yaml`, the heartbeat and namespace panels
 in `dashboard-cm.yaml`, and `vmpodscrape.yaml` (with the app).
 
 **Images and leftovers (R12, R13).** Remove the `kali` matrix leg and directory
 from `agent-images`, and the temporary exclusion from the bump workflow. In Frank,
-delete `secrets/secure-agent-pod/` and update `test_claude_autoupdater_disabled.py`,
+delete `secrets/secure-agent-pod/` and `secrets/github-app/github-app-derio-key.yaml`
+(after confirming the Tekton copy holds the same key, and retiring its runbook line),
+and update `test_claude_autoupdater_disabled.py`,
 `test_fr_isolation_target_env.py` and `test_config_reaches_the_process.py`, plus
 stale pointers in `references/access.md`, the browser-harness rules,
 `agents/rules/frank-gotchas.md` and `agents/rules/frank-infrastructure.md`.
@@ -207,6 +251,8 @@ gate: devops
 - vk-surface-removed: live — requires the deployed route, Authentik and homepage state.
 - vk-mirror-retired: live — mirror delivery and repository archive state exist only on the forges.
 - vk-images-retired: live — only a real bump workflow run proves coverage still passes.
+- kali-image-retired: live — only a real bump workflow run after Phase 2 proves it.
+- vk-tooling-retired: none — reviewed in the PR diff, with CI running the updated guards.
 - gitops-push-token-continuity: live — token minting only happens through live ESO.
 - pod-undisturbed-phase-1: live — only the running pod's UID and restart count prove it.
 - pod-removed-after-archive: live — removal and archive contents are live operational facts.
@@ -218,16 +264,17 @@ gate: devops
 
 Post-merge, Phase 1:
 
-1. `kubectl -n secure-agent-pod get pod` shows the same pod UID and restart count as before merge.
-2. Grafana API lists none of the three VK rule UIDs, and `VK Issue Bridge Stale` is no longer active.
-3. `kubectl get ns agents` is NotFound, and `vk.cluster.derio.net` no longer routes to a backend.
+0. Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
+1. `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
+2. After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
+3. `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
 4. `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
 5. The next agent-images bump run completes with its coverage check green.
 6. `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
 
 Post-merge, Phase 2:
 
-7. The archive lists and verifies on the Mac before the PR leaves draft.
+7. The archive lists and verifies on the Mac before the PR leaves draft, and contains chorebot's `config.yaml`.
 8. `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
 9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound.
 10. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.

@@ -1706,11 +1706,10 @@ rows:
   verify: live
 - id: vk-images-retired
   capability: ci
-  acceptance: vk-local and secure-agent-kali are no longer built or bumped, and bumps
-    succeed for every remaining image.
+  acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali are
+    no longer bumped, and bumps succeed for every remaining image.
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R5
-  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R12
   levels: {}
   status: not-implemented
   notes: ''
@@ -1729,7 +1728,6 @@ rows:
   capability: repo
   acceptance: No Frank workload, secret or client config still expects VK or the pod.
   origin:
-  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R8
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R13
   levels: {}
   status: not-implemented
