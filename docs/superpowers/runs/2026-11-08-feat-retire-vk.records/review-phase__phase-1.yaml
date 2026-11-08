@@ -1,0 +1,34 @@
+schema_version: 10
+run: 2026-11-08-feat-retire-vk
+step: review-phase
+item: phase/1
+outcome: done
+journal:
+  - {kind: finding, id: p1-r1, phase: 1, review_scope: in, title: "agent-images-bump.yml Update manifests step ended in a bare && list and exited 1 on every normal bump", body: "Removing the vk-remote block made `[ -n \"$SKIPPED\" ] && echo` the step's last command. Reproduced rc=1 under bash -e. Text guards could not see it."}
+  - {kind: finding, id: p1-r2, phase: 1, review_scope: in, title: "sweep-grafana-restart check matched the new tombstones and could never pass", body: "The runbook's grep -c gate also returned 1 before and after the sync."}
+  - {kind: finding, id: p1-r3, phase: 1, review_scope: in, title: "ops.yaml omitted the pre-merge pod diff and the stale-revision check before the sweeps", body: "Test Plan row 0 had no runnable check, and a stale Application would undo the sweeps."}
+  - {kind: finding, id: p1-r4, phase: 1, review_scope: in, title: "pod-baseline.txt format differed between the runbook and ops.yaml", body: "A false R7 failure at step-2, and the all-container form broke R7's vk-local tolerance."}
+  - {kind: finding, id: p1-r5, phase: 1, review_scope: in, title: "step-5 read ExternalSecret status immediately and never proved a refresh", body: "It could read the pre-refresh status."}
+  - {kind: finding, id: p1-r6, phase: 1, review_scope: in, title: "Negated kubectl checks passed on any API or kubeconfig error", body: "A dead kubeconfig read as success."}
+  - {kind: finding, id: p1-r7, phase: 1, review_scope: in, title: "Stale comments on health_bridge_only users, the generator key namespace and kali examples", body: "Comments named the wrong rules and the wrong namespace."}
+  - {kind: finding, id: p1-r8, phase: 1, review_scope: in, title: "README still listed VK Relay", body: "The relay was removed with vk-remote."}
+  - {kind: finding, id: p1-r9, phase: 1, review_scope: in, title: "test_vk_retired.py exemptions were wider than needed and the R7 pin and OLD_AI_SHA source were unguarded", body: "An accidental bump of the pod's pin would have passed."}
+  - {kind: finding, id: p1-r10, phase: 1, review_scope: in, title: "Bump branch is unique per SHA rather than per run as specified", body: "The deviation was not recorded."}
+  - {kind: finding, id: p1-r11, phase: 1, review_scope: in, title: "HISTORICAL wording said vk-local was retired while the container still runs", body: "It lingers idle until Phase 2."}
+  - {kind: review, id: review-phase-1, phase: 1, title: "independent code review: 11 findings, all in scope", body: "Dispatched reviewer parsed the alert rules, compared the CEL filters, ran the bump step under bash -e, and checked generator ownership and ops selectors. It found one critical (p1-r1), three important and seven minor. R6 and R7 mechanics were sound. Its 22 test failures in an archive copy came from tests needing .git; the full suite in the real checkout is the evidence for the fixed tree."}
+resolves:
+  - {id: p1-r1, state: fixed, body: "Replaced with an if. test_bump_step_exits_zero_when_nothing_is_skipped runs the step under bash -e and was red before the fix."}
+  - {id: p1-r2, state: fixed, body: "The check asserts tombstone present and definition absent; the runbook gate uses the tombstone."}
+  - {id: p1-r3, state: fixed, body: "Added premerge-pod-diff and sweep-revisions, with sweeps depending on it. Pushgateway, silence cleanup and fork archive stay prose-only manual operations in _prose.md, on purpose: they touch external services or are conditional, and Test Plan rows 5 and 6 are operator-verified."}
+  - {id: p1-r4, state: fixed, body: "Both procedures use the kali-filtered jsonpath and the app label."}
+  - {id: p1-r5, state: fixed, body: "Apply waits, and the check compares refreshTime with the force-sync annotation."}
+  - {id: p1-r6, state: fixed, body: "Checks capture output with --ignore-not-found and require kubectl to succeed before asserting empty."}
+  - {id: p1-r7, state: fixed, body: "Comments corrected in the notification policy, canary test, both generators and the bump workflow."}
+  - {id: p1-r8, state: fixed, body: "Row removed."}
+  - {id: p1-r9, state: fixed, body: "The exemption is the Deployment file only, the state-absent exemption is gone, the pin is the exact SHA, and a test asserts the OLD_AI_SHA source."}
+  - {id: p1-r10, state: fixed, body: "Spec amended to unique per SHA, which is what the workflow's own comment intends: an open PR for that SHA is skipped."}
+  - {id: p1-r11, state: fixed, body: "The historical note says vk-local lingers idle until Phase 2."}
+evidence:
+  review: review-phase-1
+  reviewer: aeb86bf1f59c56798
+  model: claude-opus-5-5
