@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] Phase 1 live sequence: baseline, merge, sweep, archive the fork'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - vk-alerts-retired
+  - vk-remote-removed
+  - vk-surface-removed
+  - vk-mirror-retired
+  - vk-images-retired
+  - gitops-push-token-continuity
+  - pod-undisturbed-phase-1
+tasks:
+- number: 1
+  title: Run the live sequence
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Before merging, run manual-op `agents-retire-vk-premerge`: verified database dump, pod baseline, app diff, and no open agent-images bump PR.
+  - id: P2.T1.S2
+    text: |-
+      Merge the Frank PR, then run manual-op `agents-retire-vk-postmerge-sweep`: sync check, IngressRoute delete, Grafana restart, retained series, generator resync.
+  - id: P2.T1.S3
+    text: |-
+      Merge the agent-images PR, confirm the resulting bump run is green, and only then run manual-op `agents-retire-vk-fork-archive`.
+  - id: P2.T1.S4
+    text: |-
+      Run the spec's Phase 1 Test Plan rows, then delete both Grafana silences if the rules are gone (manual-op `agents-retire-vk-silences`).
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

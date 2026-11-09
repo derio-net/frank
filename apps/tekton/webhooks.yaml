@@ -244,16 +244,6 @@ webhooks:
 
   - forge: github
     scope: repo
-    target: derio-net/vibe-kanban
-    listener: github-listener
-    events: [push, pull_request]
-    serves: [derio-net-main-sync, derio-net-pr-sync]
-    note: >-
-      Mirror webhook for the github-preferred tier. Created post-merge by
-      manual-op cicd-github-preferred-gitea-mirrors.
-
-  - forge: github
-    scope: repo
     target: derio-net/runs-fr
     listener: github-listener
     events: [push, pull_request]

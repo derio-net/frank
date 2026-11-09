@@ -81,8 +81,8 @@ ArgoCD `Synced`/`Healthy` proves the artifact deployed, not that it works
 (`frank-gotchas.md` → Process/practice). So:
 
 - **Smoke test** the app's real entrypoint. Watch for the stderr-banner trap:
-  health checks capturing `$(... --dry-run)` must use `2>&1` (the `fr_vk.bridge`
-  banner goes to stderr — `agent-shells` gotcha).
+  health checks capturing `$(... --dry-run)` must use `2>&1` (some daemons
+  print their banner to stderr, so an unredirected capture is empty).
 - **DB apps:** confirm the migration's *tables* exist (do **not** trust the
   `__drizzle_migrations` row count — it doesn't map to file index).
 - Check pod logs for boot errors / crashloops.

@@ -75,8 +75,8 @@ def test_pinned_share_counts_non_preferred_repos_and_macos():
     ex = {"frank-public-thing"}
     # preferred = all three: only herdr's macOS (200 of 410) is pinned
     # (the owner/name row 'derio-net/willikins' counts as willikins)
-    assert w.pinned_share(items, {"willikins", "vibe-kanban", "herdr-vertical-tabs"}, ex) == 200 / 410
-    # only willikins preferred: vibe 100 + herdr 200 pinned of 400
+    assert w.pinned_share(items, {"willikins", "runs-fr", "herdr-vertical-tabs"}, ex) == 200 / 410
+    # only willikins preferred: runs-fr 100 + herdr 200 pinned of 400
     assert w.pinned_share(items, {"willikins"}, ex) == 300 / 410
     assert w.pinned_share([], {"willikins"}) == 0.0
 

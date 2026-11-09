@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Render the PR body for the automated agent-images bump.
 
-The `agent-images-bump.yml` workflow opens a PR each time agent-images (and/or
-vk-remote) advances. This script turns the old/new agent-images SHAs (+ the
-vk-remote short SHA) into a body that names the upstream agent-images PR(s) the
+The `agent-images-bump.yml` workflow opens a PR each time agent-images
+advances. This script turns the old/new agent-images SHAs into a body that names the upstream agent-images PR(s) the
 bump pulls in — number, title, author, a one-line summary, and a compare link —
 so a reviewer understands what changed and why without leaving the PR.
 
 Layers:
   - render(bump)            pure formatter; all inclusion logic, no network.
-  - collect(old,new,vkr)    gh-api lookup that builds the `bump` dict (added in
+  - collect(old,new)        gh-api lookup that builds the `bump` dict (added in
                             phase 2).
   - main()                  argv -> collect -> render, with a best-effort
                             fallback to the legacy two-line body so a gh failure
@@ -74,7 +73,6 @@ def render(bump: dict) -> str:
     repo = bump.get("repo") or DEFAULT_REPO
     old = bump.get("old") or ""
     new = bump.get("new") or ""
-    vkr = bump.get("vkr") or ""
 
     lines = ["## agent-images bump", ""]
 
@@ -100,10 +98,6 @@ def render(bump: dict) -> str:
                 )
         else:
             lines.append("_No image-affecting changes (docs-only upstream)._")
-
-    if vkr:
-        lines.append("")
-        lines.append(f"**vk-remote:** `{vkr}`")
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -139,7 +133,7 @@ def _summary_from_message(message: str | None, limit: int = 200) -> str:
     return (text[: limit - 1] + "…") if len(text) > limit else text
 
 
-def collect(old: str, new: str, vkr: str, repo: str = DEFAULT_REPO) -> dict:
+def collect(old: str, new: str, repo: str = DEFAULT_REPO) -> dict:
     """Build a `bump` dict from the agent-images `old...new` range via gh api.
 
     Squash-merge means one commit per PR. Title/author/summary all come from
@@ -174,38 +168,34 @@ def collect(old: str, new: str, vkr: str, repo: str = DEFAULT_REPO) -> dict:
                 "sha": sha,
             }
         )
-    return {"old": old, "new": new, "vkr": vkr, "repo": repo, "prs": prs, "truncated": truncated}
+    return {"old": old, "new": new, "repo": repo, "prs": prs, "truncated": truncated}
 
 
 # --- CLI -------------------------------------------------------------------
 
 
-def legacy_body(new: str, vkr: str) -> str:
-    """The original two-line body — the best-effort fallback."""
-    body = f"agent-images: `{new}`"
-    if vkr:
-        body += f"\nvk-remote: `{vkr}`"
-    return body + "\n"
+def legacy_body(new: str) -> str:
+    """The original body — the best-effort fallback."""
+    return f"agent-images: `{new}`\n"
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Render the agent-images bump PR body.")
     ap.add_argument("--old", default="", help="previous agent-images SHA (pre-bump pin)")
     ap.add_argument("--new", default="", help="new agent-images SHA")
-    ap.add_argument("--vkr", default="", help="vk-remote short SHA (optional)")
     args = ap.parse_args(argv)
-    old, new, vkr = args.old, args.new, args.vkr
+    old, new = args.old, args.new
 
     try:
         if not old or not new:
             raise ValueError("missing old/new sha")
         if old == new:
-            bump = {"old": old, "new": new, "vkr": vkr, "repo": DEFAULT_REPO, "prs": []}
+            bump = {"old": old, "new": new, "repo": DEFAULT_REPO, "prs": []}
         else:
-            bump = collect(old, new, vkr)
+            bump = collect(old, new)
         body = render(bump)
     except Exception:
-        body = legacy_body(new, vkr)
+        body = legacy_body(new)
 
     print(body, end="")
     return 0

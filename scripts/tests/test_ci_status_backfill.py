@@ -16,7 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 10, 19, 20, tzinfo=timezone.utc)
-REPO = 'derio-net/vibe-kanban'
+REPO = 'derio-net/runs-fr'
 
 
 @pytest.fixture
@@ -111,5 +111,5 @@ def test_fresh_statuses_are_left_to_the_live_bridge(backfill):
 
 
 def test_default_repos_are_the_checkers(backfill):
-    assert 'derio-net/vibe-kanban' in backfill.default_repos()
+    assert 'derio-net/runs-fr' in backfill.default_repos()
     assert 'derio-homelab/kid-laptops' in backfill.default_repos()

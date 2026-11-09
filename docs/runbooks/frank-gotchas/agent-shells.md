@@ -78,7 +78,7 @@ Any pod where a sidecar container uses agent-shell-base (or any image where `s6-
 
 If the goal is cross-container debugging via `ps -ef`, use the shared workspace volume instead (every shell sidecar already mounts `/workspace`); reach for `kubectl exec -c <other>` for live process inspection. Affects ruflo, paperclip, and any future hybrid pod that pairs an app container with an agent-shell-base sidecar.
 
-## vk-local 4 Gi limit is load-bearing when the bridge over-feeds the executor cap
+## HISTORICAL (retired 2026-11, VibeKanban removed) — vk-local 4 Gi limit is load-bearing when the bridge over-feeds the executor cap
 
 `VK_MAX_CONCURRENT_EXECUTIONS=4` bounds *active* executor spawns inside vibe-kanban; it does NOT bound the bridge's own slot count (separate config in `agent-images`). When the bridge dispatches more cards than the executor cap, the surplus queues inside vk-local and the queued sessions retain non-zero memory (claude/npm/node child trees survive across the semaphore wait). The design memo for PR #264 assumed queued sessions held ~0 MiB; the 2026-05-18 incident invalidated that assumption.
 
@@ -90,7 +90,7 @@ If the goal is cross-container debugging via `ps -ef`, use the shared workspace 
 
 **Diagnostics**: kubectl describe pod's `lastState.terminated.reason: OOMKilled` is the canonical signal — Kubernetes events age out within ~1h on Frank, so the pod-level field is more durable. The metrics-server may also be down in this cluster (kubectl top fails with "Metrics API not available"), so prefer cadvisor → VictoriaMetrics for memory time-series.
 
-## vk-issue-bridge 30 s MCP timeout cascades to zombie execution_processes
+## HISTORICAL (retired 2026-11, VibeKanban removed) — vk-issue-bridge 30 s MCP timeout cascades to zombie execution_processes
 
 The bridge's MCP client (`/opt/scripts/vk_mcp_client.py:76`) defaults `_recv(timeout=30.0)`. Heavy operations — notably `start_workspace`, which provisions a git worktree + imports CLAUDE.md/AGENTS.md + runs setupscript — routinely exceed 30 s under bridge load (≥4 active sibling workspaces hammering the longhorn-backed `/home/claude` PV). On timeout:
 
@@ -222,7 +222,7 @@ done
 
 First hit: `agent-images` build for the VK_BRIDGE_PIN v2.2.13 bump (2026-05-25). Fixed in `kali/Dockerfile` in `derio-net/agent-images`.
 
-## The `fr_vk.bridge` daemon logs its banner to stderr — smoke tests must capture `2>&1`
+## HISTORICAL (retired 2026-11, VibeKanban removed) — The `fr_vk.bridge` daemon logs its banner to stderr — smoke tests must capture `2>&1`
 
 The PVC-resident bridge (`fr_vk.bridge` module — formerly v2 `vk.bridge` — installed by `cont-init.d/55-install-fr-bridge` from a `super-fr` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
 
