@@ -271,3 +271,11 @@ Evidence: Spec row 3. Supersedes an entry misfiled by one position. Namespace ag
 Step: `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
 
 Evidence: Spec row 4. ClusterGenerator github-app-derio carries a tekton-extras tracking id. After a forced resync at epoch 1794486621, frank-gitops-push is SecretSynced with refreshTime 2026-11-12T12:30:21Z. agent-github-token and agent-secrets-tier2 in the pod namespace are still SecretSynced
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-6 created=2026-11-12T12:43:56+00:00 -->
+### test-plan-step-6 · owed · Test Plan step 6 owed
+
+what: The next agent-images bump run completes with its coverage check green.
+why: Spec row 5. Needs agent-images PR176 merged. Its branch build is green at b6de16b but the agent session was refused the merge and it is handed to the operator
+how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-6 --state fixed --note "<evidence>"
+owed_key: spec:2026-11-08--agents--retire-vk#step6
