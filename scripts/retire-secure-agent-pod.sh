@@ -18,6 +18,10 @@
 #                    the pod): restore-worktree --dest ARCHIVE --worktree ORIGINAL_PATH --target DIR
 #   key-fingerprint  compare the GitHub App key across the live Secret and SOPS files
 #
+# ~/.claude goes into the home tarball whole, minus credentials (CRED_NAMES, CLAUDE_CREDS) and
+# caches (CLAUDE_CACHES, node_modules); both lists are anchored to .claude/. todos/, debug/,
+# logs and ide/ state are kept; only ide/*.lock goes. Transcripts are complete only after
+# the session ended.
 # Known limits: reflog-only commits (reachable only through a reflog) are not captured;
 # ignored files are listed in ignored/, not saved; clones under .cache or node_modules
 # are pruned and recorded in SKIPPED.txt. LOCAL-ONLY.txt is information: refs whose commits
@@ -39,7 +43,8 @@ usage() {
   cat >&2 <<USAGE
 usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--skip-space-check] [--live] [--old-file-gone-ok]
   archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
-                   home tarball; one self-contained bundle per repository (all refs incl.
+                   home tarball (interviews, orgs, .hermes, ~/.claude, the audit archive, the
+                   vibe-kanban sqlite, chorebot's config; see below); one self-contained bundle per repository (all refs incl.
                    remote-tracking, no prerequisites); uncommitted clone state (index and
                    working-tree patches, untracked and skip-worktree files, conflicts with
                    their stages, merge/rebase-in-progress state, every stash entry); read-only
@@ -49,6 +54,13 @@ usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--des
                    verify unless archive ran with --accept-unreadable (ACCEPTED.txt). A
                    preflight compares the pod's data with the free space at DEST (x1.2) and
                    aborts unless --skip-space-check is given.
+                   ~/.claude is archived whole (projects/ transcripts, CLAUDE.md, settings*.json,
+                   memory, agents, commands, skills, hooks, history.jsonl, plans, todos, ide
+                   state) EXCEPT credentials (every credential name below, plus .claude/*.token,
+                   .claude/*oauth*.json, .claude/*mcp-auth*) and caches (.claude/statsig,
+                   shell-snapshots, cache, .cache, plugins/cache, plugins/marketplaces,
+                   node_modules, *.lock); EXCLUDED.txt lists what was left out. Git clones under
+                   .claude are still bundled. Transcripts are complete only once the session has ended.
   verify           verify the archive in DEST, offline; --live also re-scans the pod
                    (read-only) and fails if its clones or dirty state changed since the archive
   restore-worktree rebuild a saved worktree locally: --dest ARCHIVE --worktree ORIGINAL_PATH
@@ -96,7 +108,16 @@ CRED_NAMES=".credentials.json credentials.json server_ed25519_signing_key .claud
 
 # Paths archived from the pod home. Missing ones are reported in SKIPPED.txt.
 ESSENTIAL_PATHS="interviews orgs repos/willikins/scripts/chorebot/config.yaml"
-ARCHIVE_PATHS="interviews orgs .hermes .willikins-agent/audit-archive .local/share/vibe-kanban/db.v2.sqlite repos/willikins/scripts/chorebot/config.yaml"
+ARCHIVE_PATHS="interviews orgs .hermes .claude .willikins-agent/audit-archive .local/share/vibe-kanban/db.v2.sqlite repos/willikins/scripts/chorebot/config.yaml"
+# ~/.claude is archived whole (session transcripts in projects/, CLAUDE.md, settings, memory,
+# agents, commands, skills, hooks, history, plans, todos, ...) except credentials and pure
+# caches. Both lists are anchored to .claude/ so same-named dirs elsewhere (orgs/x/cache,
+# interviews/logs) are untouched. Credential names also include every CRED_NAMES entry.
+# todos/, debug/, logs and ide/ state are KEPT (not clearly regenerable); only ide/*.lock goes.
+# Git clones under .claude (e.g. plugin checkouts outside plugins/cache) are still found by
+# discovery and bundled like any other clone.
+CLAUDE_CREDS=".claude/*.token .claude/*oauth*.json .claude/*mcp-auth*"
+CLAUDE_CACHES=".claude/statsig .claude/shell-snapshots .claude/cache .claude/.cache .claude/plugins/cache .claude/plugins/marketplaces .claude/*.lock"
 OPTIONAL_PATHS=".local/share/vibe-kanban/db.v2.sqlite-wal .local/share/vibe-kanban/db.v2.sqlite-shm"
 
 EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
@@ -210,6 +231,10 @@ cred_hit() {
   local path=$1 n
   set -f
   for n in $CRED_NAMES; do
+    # shellcheck disable=SC2254  # $n is a glob on purpose
+    case $path in $n|*/$n|$n/*|*/$n/*) set +f; return 0 ;; esac
+  done
+  for n in $CLAUDE_CREDS; do
     # shellcheck disable=SC2254  # $n is a glob on purpose
     case $path in $n|*/$n|$n/*|*/$n/*) set +f; return 0 ;; esac
   done
@@ -801,6 +826,36 @@ space_preflight() {
   fi
 }
 
+# claude_exclusions: record in EXCLUDED.txt what the tarball leaves out of ~/.claude, read
+# on the pod with find (read-only): credentials one line each, cache directories one line
+# per directory.
+claude_exclusions() {
+  local base=$POD_HOME/.claude c n p prune=() creds=() rel
+  for c in $CLAUDE_CACHES; do
+    case $c in *\**) ;; *) prune+=(-o -path "$POD_HOME/$c") ;; esac
+  done
+  # cache directories (and node_modules) first: pruned, listed once
+  cap "$SCRATCH/cl.caches" find -H "$base" -type d \( -name node_modules ${prune[@]+"${prune[@]}"} \) -prune -print0
+  case $STREAM_RC in 0|1) ;; *) die "find (.claude caches) failed on the pod (exit $STREAM_RC)" ;; esac
+  while IFS= read -r -d '' p; do note_excluded ".claude excluded (cache dir): ${p#"$POD_HOME"/}"; done < "$SCRATCH/cl.caches"
+  cap "$SCRATCH/cl.locks" find -H "$base" -type f -path "$base/*.lock" -print0
+  case $STREAM_RC in 0|1) ;; *) die "find (.claude lock files) failed on the pod (exit $STREAM_RC)" ;; esac
+  while IFS= read -r -d '' p; do note_excluded ".claude excluded (lock file): ${p#"$POD_HOME"/}"; done < "$SCRATCH/cl.locks"
+  # credentials, not looking inside the caches
+  set -f
+  for n in $CRED_NAMES; do
+    case $n in */*) creds+=(-o -path "*/$n") ;; *) creds+=(-o -name "$n") ;; esac
+  done
+  for n in $CLAUDE_CREDS; do creds+=(-o -path "$POD_HOME/$n"); done
+  set +f
+  cap "$SCRATCH/cl.creds" find -H "$base" \( -type d \( -name node_modules ${prune[@]+"${prune[@]}"} \) -prune \) -o \( -false "${creds[@]}" \) -print0 -prune
+  case $STREAM_RC in 0|1) ;; *) die "find (.claude credentials) failed on the pod (exit $STREAM_RC)" ;; esac
+  while IFS= read -r -d '' p; do
+    rel=${p#"$POD_HOME"/}
+    note_excluded ".claude excluded (credential): $rel"
+  done < "$SCRATCH/cl.creds"
+}
+
 cmd_archive() {
   check_dest
 
@@ -832,6 +887,11 @@ cmd_archive() {
   for n in $CRED_NAMES; do EXCLUDES+=("--exclude=$n"); done
   set +f
   EXCLUDES+=("--exclude=node_modules")
+  # The home tarball also drops the ~/.claude credentials and caches (not applied to clones).
+  HOME_EXCLUDES=("${EXCLUDES[@]}")
+  set -f
+  for n in $CLAUDE_CREDS $CLAUDE_CACHES; do HOME_EXCLUDES+=("--exclude=$n"); done
+  set +f
 
   # Which home paths exist on the pod (read-only probe).
   local p have present=""
@@ -847,6 +907,18 @@ cmd_archive() {
     esac
   done
 
+  # Transcripts under ~/.claude/projects are only complete once no session writes them.
+  case " $present " in
+    *" .claude "*)
+      # shellcheck disable=SC2016  # the script runs on the pod
+      cap "$SCRATCH/have" sh -c 'if [ -e "$1" ]; then echo yes; else echo no; fi' _ "$POD_HOME/.claude/projects"
+      [ "$STREAM_RC" = 0 ] || die "could not probe .claude/projects on the pod"
+      if [ "$(cat "$SCRATCH/have")" = no ]; then
+        echo ".claude/projects" >> "$DEST/SKIPPED.txt"; echo "WARNING: .claude/projects not found on the pod" >&2
+      fi
+      claude_exclusions ;;
+  esac
+
   local tarflags=() tv
   cap "$SCRATCH/tarv" tar --version || true
   tv=$(cat "$SCRATCH/tarv")
@@ -856,7 +928,7 @@ cmd_archive() {
   space_preflight "$present"
   echo "archiving home tree from $POD_HOME ..."
   # shellcheck disable=SC2086  # $present is a space-separated list of simple paths
-  stream_to "$DEST/secure-agent-pod-home.tar.gz" tar -C "$POD_HOME" -czf - ${tarflags[@]+"${tarflags[@]}"} "${EXCLUDES[@]}" $present
+  stream_to "$DEST/secure-agent-pod-home.tar.gz" tar -C "$POD_HOME" -czf - ${tarflags[@]+"${tarflags[@]}"} "${HOME_EXCLUDES[@]}" $present
   case $STREAM_RC in
     0) ;;
     1) echo "WARNING: tar reported files changing while it read them (exit 1); archive kept" >&2 ;;
@@ -928,6 +1000,11 @@ cmd_verify() {
       pass "tarball lists chorebot config.yaml"; else fail "tarball lists chorebot config.yaml"; fi
     if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}interviews/'; then pass "tarball has interviews/"; else fail "tarball has interviews/"; fi
     if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}orgs/'; then pass "tarball has orgs/"; else fail "tarball has orgs/"; fi
+    if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}\.claude/projects/'; then
+      echo "INFO .claude/projects is in the tarball (session transcripts; complete only if no session ran during the archive)"
+    else
+      echo "WARN .claude/projects is not in the tarball (no session transcripts archived)"
+    fi
     local m hit=""
     while IFS= read -r m; do
       [ -n "$m" ] || continue

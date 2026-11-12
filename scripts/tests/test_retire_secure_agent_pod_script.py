@@ -1754,3 +1754,93 @@ def test_space_preflight_can_be_skipped_and_passes_with_room(tmp_path):
     r2, dest2, _, _ = _archive_ok(sub, {"DF": _df_stub(sub, 10_000_000)}, home=h2)
     assert r2.returncode == 0, r2.stderr
     assert "space check:" in r2.stdout
+
+
+# --- ~/.claude in the home tarball ---------------------------------------------
+
+CLAUDE_KEPT = (
+    ".claude/projects/slug/0000-uuid.jsonl", ".claude/projects/slug/memory/MEMORY.md",
+    ".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json",
+    ".claude/history.jsonl", ".claude/agents/a.md", ".claude/commands/c.md",
+    ".claude/skills/s/SKILL.md", ".claude/hooks/h.sh", ".claude/plans/p.md",
+    ".claude/memory/m.md", ".claude/todos/t.json", ".claude/ide/state.json",
+)
+CLAUDE_DROPPED_FILES = (
+    ".claude/.credentials.json", ".claude/credentials.json", ".claude/x.token",
+    ".claude/oauth-state.json", ".claude/.mcp-auth/f", ".claude/mcp-auth-cache.json",
+    ".claude/ide/1234.lock", ".claude/top.lock",
+)
+CLAUDE_DROPPED_DIRS = (
+    ".claude/statsig", ".claude/shell-snapshots", ".claude/cache", ".claude/.cache",
+    ".claude/plugins/cache", ".claude/plugins/marketplaces", ".claude/node_modules",
+)
+
+
+def _claude_home(tmp_path):
+    home = _fixture_home(tmp_path)
+    for rel in CLAUDE_KEPT + CLAUDE_DROPPED_FILES + tuple(d + "/x" for d in CLAUDE_DROPPED_DIRS):
+        p = home / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("data")
+    for rel in ("orgs/x/cache/file", "interviews/logs/file", "orgs/x/statsig/file",
+                "orgs/x/plugins/cache/file"):
+        p = home / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("keep")
+    return home
+
+
+def test_claude_home_is_archived_without_credentials_and_caches(tmp_path):
+    home = _claude_home(tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    names = tarfile.open(dest / "secure-agent-pod-home.tar.gz").getnames()
+    for kept in CLAUDE_KEPT:
+        assert kept in names, (kept, names)
+    for gone in CLAUDE_DROPPED_FILES:
+        assert gone not in names, gone
+    for d in CLAUDE_DROPPED_DIRS:
+        assert not any(n == d or n.startswith(d + "/") for n in names), d
+    # the cache excludes are anchored to .claude: other trees keep same-named dirs
+    for kept in ("orgs/x/cache/file", "interviews/logs/file", "orgs/x/statsig/file",
+                 "orgs/x/plugins/cache/file"):
+        assert kept in names, kept
+    ex = (dest / "EXCLUDED.txt").read_text().splitlines()
+    assert any(l.endswith(".claude/.credentials.json") for l in ex), ex
+    for d in CLAUDE_DROPPED_DIRS:
+        lines = [l for l in ex if l.endswith(d)]
+        assert len(lines) == 1, (d, ex)
+    assert not any(l.endswith("statsig/x") for l in ex)       # one line per cache directory
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "INFO .claude/projects is in the tarball" in v.stdout
+
+
+def test_a_missing_claude_projects_is_a_warning_not_a_failure(tmp_path):
+    r, dest, env, _ = _archive_ok(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert ".claude" in (dest / "SKIPPED.txt").read_text().splitlines()
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "WARN .claude/projects is not in the tarball" in v.stdout
+
+
+def test_verify_fails_when_a_claude_credential_is_in_the_tarball(tmp_path):
+    home = _claude_home(tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    t = dest / "secure-agent-pod-home.tar.gz"
+    with tarfile.open(t, "w:gz") as tf:
+        for n in ("interviews", "orgs"):
+            tf.add(home / n, arcname=n)
+        tf.add(home / "repos/willikins/scripts/chorebot/config.yaml",
+               arcname="repos/willikins/scripts/chorebot/config.yaml")
+        tf.add(home / ".claude/x.token", arcname=".claude/x.token")
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL no credential files in tarball" in v.stdout
+
+
+def test_the_usage_text_lists_the_claude_exclusions():
+    usage = subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True).stderr
+    for needle in (".claude", "statsig", "shell-snapshots", "plugins/cache", "transcripts"):
+        assert needle in usage, needle
