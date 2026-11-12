@@ -1778,8 +1778,12 @@ rows:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R6
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: Phase 1 half walked 2026-11-12. github-app-derio is tracked by tekton-extras
+    and frank-gitops-push is SecretSynced with a refresh after a forced resync. The
+    row stays open until Phase 2 proves the same after the pod is gone.
   verify: live
+  issues:
+  - derio-net/frank#950
 - id: kali-image-retired
   capability: ci
   acceptance: secure-agent-kali is no longer built, and bumps succeed for every remaining
