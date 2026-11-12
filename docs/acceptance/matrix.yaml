@@ -1283,9 +1283,22 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R1
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walked
+  notes: 2026-11-12 after PR949 and a Grafana restart. The running Grafana provisioning
+    API lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat
+    Stale has no vk_issue_bridge instance. The retained pushgateway group was deleted.
+    Both retirement silences were deleted and no VK alert fires without them.
   verify: live
+  walks:
+  - strategy: live
+    harness: claude-code
+    model: claude-fable-5-2
+    outcome: pass
+    at: '2026-11-12T12:43:42Z'
+    evidence: 2026-11-12 after PR949 and a Grafana restart. The running Grafana provisioning
+      API lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat
+      Stale has no vk_issue_bridge instance. The retained pushgateway group was deleted.
+      Both retirement silences were deleted and no VK alert fires without them.
 - id: pod-removal-silent
   capability: alerting
   acceptance: Removing the pod raises no alert, and no dashboard or scrape depends
