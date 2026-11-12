@@ -189,3 +189,8 @@ Still owed: merging derio-net/agent-images#176 (branch build 43217543292 green a
 ### p2-fork-archive-2026-11-12 · discovery · Fork archived; Infisical VK_REMOTE keys still owed by the operator (phase 2)
 
 agent-images#176 merged as fe2fb9b, main build 43260930622 and Frank bump run 43264032464 are green, the fork webhook is deleted and derio-net/vibe-kanban is archived. Manual op agents-retire-vk-fork-archive is marked done for those parts. One command of that op is NOT done: removing VK_REMOTE_JWT_SECRET, VK_REMOTE_LOCAL_AUTH_PASSWORD, VK_REMOTE_ELECTRIC_PASSWORD and VK_REMOTE_PG_PASSWORD from Infisical. It needs the Infisical UI and is owed by the operator. VK_ORG_ID and VK_DERIO_OPS_PROJECT_ID stay until Phase 2.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-infisical-keys-2026-11-12 created=2026-11-12T21:51:03+00:00 phase=2 -->
+### p2-infisical-keys-2026-11-12 · discovery · Operator removed the four VK_REMOTE keys from Infisical (phase 2)
+
+The operator reports deleting VK_REMOTE_JWT_SECRET, VK_REMOTE_LOCAL_AUTH_PASSWORD, VK_REMOTE_ELECTRIC_PASSWORD and VK_REMOTE_PG_PASSWORD on 2026-11-12. This closes the step that p2-fork-archive-2026-11-12 recorded as owed, so manual op agents-retire-vk-fork-archive is done in full. Checked afterwards: agent-github-token and agent-secrets-tier2 in secure-agent-pod are SecretSynced with refreshes at 21:25 and 21:48 UTC, so the keys the pod still reads were not touched. The deletion itself was not observed by the agent; Infisical has no CLI on this host.
