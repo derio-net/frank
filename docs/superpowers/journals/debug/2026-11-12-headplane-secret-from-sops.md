@@ -15,3 +15,8 @@ coalesceEnv maps every HEADPLANE_* var to a config path: HEADPLANE_HEADSCALE_API
 ### 05f088156f52 · ruled-out · HEADPLANE_HEADSCALE_API_KEY does not break the loader once env overrides are on
 
 Ran ghcr.io/tale/headplane:0.5.5 locally with the proposed config (32-char placeholder, cookie_secure: true), HEADPLANE_LOAD_ENV_OVERRIDES=true and HEADPLANE_SERVER__COOKIE_SECRET, with and without HEADPLANE_HEADSCALE_API_KEY. Both booted ('Running on 0.0.0.0:3000'). The var stays: the API-key rotation runbook's verify step reads it inside the pod.
+
+<!-- fr:journal kind=root-cause scope=debug id=e36f9c7575f1 created=2026-11-12T22:46:18+00:00 -->
+### e36f9c7575f1 · root-cause · With overrides on, Headplane 0.5.5 signs sessions with the env key and rejects the file value
+
+Oracle: GET /admin/login with an hp_sess cookie (react-router format, base64 JSON + HMAC-SHA256, '=' stripped) returns 302 to /admin/machines only when the cookie is signed with the active key, else 200. Overrides on: env key gives 302; file placeholder and a random key give 200. Overrides off (current shape): only the file key gives 302. The env override is therefore sufficient: the file keeps a non-secret placeholder and the Secret value is authoritative. The same oracle verifies a rotation on the live pod (old key must give 200).
