@@ -1,0 +1,25 @@
+schema_version: 10
+run: 2026-11-12-feat-retire-vk-phase2
+workflow: fr-goal@1
+branch: feat/retire-vk-phase2
+started: '2026-11-12T12:22:53+00:00'
+cursor: brainstorm
+steps:
+  brainstorm:
+    state: pending
+  spec-review:
+    state: pending
+  plan:
+    state: pending
+  plan-review:
+    state: pending
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  journal-check:
+    state: pending
+  deliver:
+    state: pending
+fr_version: 6.3.0
