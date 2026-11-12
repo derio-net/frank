@@ -1673,9 +1673,24 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R2
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walked
+  notes: 2026-11-12. Application vk-remote and namespace agents are NotFound. The
+    Mac dump was created 2026-11-09 21:04:47 UTC, about 70 seconds after the merge
+    and before the cascade removed the database, and pg_restore lists 331 TOC entries
+    with 35 table data entries. The listing was first proved on 2026-11-12, so verified-first
+    holds for the dump existing, not for the listing.
   verify: live
+  walks:
+  - strategy: live
+    harness: claude-code
+    model: claude-fable-5-2
+    outcome: pass
+    at: '2026-11-12T12:43:44Z'
+    evidence: 2026-11-12. Application vk-remote and namespace agents are NotFound.
+      The Mac dump was created 2026-11-09 21:04:47 UTC, about 70 seconds after the
+      merge and before the cascade removed the database, and pg_restore lists 331
+      TOC entries with 35 table data entries. The listing was first proved on 2026-11-12,
+      so verified-first holds for the dump existing, not for the listing.
 - id: pod-undisturbed-phase-1
   capability: agents
   acceptance: Retiring VK's dependencies does not restart the secure-agent-pod or
