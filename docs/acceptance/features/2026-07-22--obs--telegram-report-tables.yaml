@@ -1,0 +1,63 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-07-22--obs--telegram-report-tables
+repo: derio-net/frank
+rows:
+  - id: report-tables-list-of-dicts
+    capability: alert-agent report formatting
+    acceptance: A list-of-uniform-dicts payload renders as an aligned monospace column
+      table in Telegram, not escaped one-line JSON.
+    origin:
+    - spec:2026-07-22--obs--telegram-report-tables
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: unwired
+    notes: Unit-proven by render_report tests (aligned table, ragged-key union columns,
+      first-seen order) over the captured live /edge_traffic fixture. Local guard —
+      frank does not CI-run apps/*/tests; live-observed post-merge (report-tables-live-observed).
+  - id: report-tables-no-silent-truncation
+    capability: alert-agent report formatting
+    acceptance: Over-cap lists show a +N more footer; no value is ever cut mid-character
+      or mid-JSON.
+    origin:
+    - spec:2026-07-22--obs--telegram-report-tables
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: unwired
+    notes: Unit-proven — 11-row fixture renders 10 rows + "+1 more", each shown value
+      whole; scalar-list entries appear whole (the 200-char json-truncation defect is
+      gone). Local guard (no CI run); live-observed post-merge.
+  - id: report-tables-html-escape-safe
+    capability: alert-agent report formatting
+    acceptance: Values containing angle brackets or ampersands deliver (never a silent
+      HTML-400), proven by unit test and the 400-to-plain fallback path.
+    origin:
+    - spec:2026-07-22--obs--telegram-report-tables
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: unwired
+    notes: Unit-proven — every value html.escaped (only <pre> tags are literal angle
+      brackets); send_reply retries once as plain text on a canned 400, data preserved.
+      Local guard (no CI run); the escape path is exercised end-to-end live post-merge.
+  - id: report-tables-live-observed
+    capability: alert-agent report formatting
+    acceptance: A live command turn in the deployed pod renders a real monospace table
+      (operator-observed, post-merge).
+    origin:
+    - spec:2026-07-22--obs--telegram-report-tables
+    levels: {}
+    status: unwired
+    notes: Live proof 2026-07-22 (PR 668 merged, ArgoCD synced fb6e41c, pod rolled onto
+      bridge-cm with render_report/send_reply/_split_for_telegram present). Drove a
+      realistic /edge_traffic payload through the DEPLOYED render_payload then send_reply,
+      producing aligned monospace column tables, a ragged COUNTRY column with blank
+      cells, a value with angle-brackets and ampersand HTML-escaped, sendMessage parse_mode=HTML.
+      Fed the exact deployed code path (the agent turn itself hit the pre-existing DM
+      latency ceiling, out of scope here). Local guard — no CI run.
