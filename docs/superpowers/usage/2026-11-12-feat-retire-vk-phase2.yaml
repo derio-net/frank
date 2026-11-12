@@ -1,0 +1,58 @@
+schema_version: 2
+run: 2026-11-12-feat-retire-vk-phase2
+captures:
+- host: h-848eda4d
+  harness: claude-code
+  mode: host-worktree
+  captured_at: '2026-11-12T12:28:41+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: f0811d81-131b-45c0-a253-363d27226931
+    role: main
+    models:
+      claude-fable-5-2:
+        input: 22
+        cache_write: 157073
+        cache_read: 1532125
+        output: 6056
+        usd: null
+        usd_source: none
+    activity:
+      other:
+        usd: null
+        turns: 4
+      paperwork:
+        usd: null
+        turns: 7
+    steps:
+      (outside run):
+        usd: null
+        turns: 5
+        input: 12
+        cache_write: 139817
+        cache_read: 660720
+        output: 1392
+      brainstorm:
+        usd: null
+        turns: 5
+        input: 10
+        cache_write: 17256
+        cache_read: 871405
+        output: 4664
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 5
+          input: 12
+          cache_write: 139817
+          cache_read: 660720
+          output: 1392
+        brainstorm:
+          usd: null
+          turns: 5
+          input: 10
+          cache_write: 17256
+          cache_read: 871405
+          output: 4664

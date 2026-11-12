@@ -3,11 +3,14 @@ run: 2026-11-12-feat-retire-vk-phase2
 workflow: fr-goal@1
 branch: feat/retire-vk-phase2
 started: '2026-11-12T12:22:53+00:00'
-cursor: brainstorm
+cursor: spec-review
 steps:
   brainstorm:
-    state: blocked
-    at: '2026-11-12T12:23:03+00:00'
+    state: done
+    at: '2026-11-12T12:28:40+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md
   spec-review:
     state: pending
   plan:

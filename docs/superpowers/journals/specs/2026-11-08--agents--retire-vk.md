@@ -208,3 +208,38 @@ Operator's words, in chat rather than an answered question: 'approved. Run it wi
 ### d-phase1-only-filed · decision [filed → https://github.com/derio-net/frank/issues/951] · files d-phase1-only: This run ships Phase 1 only; Phase 2 is tracked in #950
 
 Filed the rest of `d-phase1-only` at deliver as https://github.com/derio-net/frank/issues/951.
+
+<!-- fr:journal kind=discovery scope=spec id=phase2-operator-brief created=2026-11-12T12:28:40+00:00 input=true -->
+### phase2-operator-brief · discovery · Operator brief for Phase 2 (take secure-agent-pod down)
+
+Run Phase 2 (R9-R15, checks 7-10) of the existing retire-vk spec as its own plan and PR.
+Cluster-destructive steps are a MANUAL phase, never agentic. Security driver: frank#912
+must land before frank#913's upgrade sessions hold credentials, so the
+`secure-agent-pod-cluster-admin` ClusterRoleBinding is deleted explicitly and asserted
+NotFound (CRBs survive a namespace delete), plus
+`kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa` = no.
+Do not touch PR #913 or its worktree; do not merge Frank PRs. Whichever of #913 / this PR
+merges second drops the vk-local and secure-agent-kali entries from
+scripts/tests/fixtures/life/pin-exceptions.yaml. Phase 1 leftovers belong to a sibling session.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-r9-gate-prep-only created=2026-11-12T12:28:40+00:00 decided_by=operator -->
+### phase2-r9-gate-prep-only · decision · Triage run still running - this run is planning and prep only
+
+decider: operator. Asked 2026-11-12: the triage run on the pod has NOT ended. This run
+therefore delivers the plan, a draft removal PR, the agent-images PR and the archive
+script, and makes no live change to the pod. Archive and teardown are a back-loaded
+manual phase the operator runs after confirming the triage run ended (R9).
+
+<!-- fr:journal kind=decision scope=spec id=phase2-archive-destination created=2026-11-12T12:28:40+00:00 decided_by=operator -->
+### phase2-archive-destination · decision · Archive goes to ~/Archives/secure-agent-pod-2026-11 on the operator's Mac
+
+decider: operator. A new local directory, created 0700, outside every git repo and
+outside synced storage, because chorebot's config.yaml may hold tokens.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-own-plan-folder created=2026-11-12T12:28:40+00:00 decided_by=operator -->
+### phase2-own-plan-folder · decision · Phase 2 gets its own plan folder against the same spec
+
+decider: agent. The spec ships Phase 2 as a second Frank PR cut from main after Phase 1,
+and the Phase 1 plan folder's manual phase is still open in another session, so Phase 2
+is a new plan (2026-11-12--agents--retire-secure-agent-pod) rather than extra phases on
+the Phase 1 plan. The spec's verification (strategy live, gate devops) is unchanged.
