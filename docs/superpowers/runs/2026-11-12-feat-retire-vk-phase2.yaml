@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-11-12T12:28:42+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-12T12:28:42+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: f0811d81-131b-45c0-a253-363d27226931
   plan:
     state: pending
   plan-review:
