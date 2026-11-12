@@ -243,3 +243,10 @@ Evidence: ClusterGenerator github-app-derio carries a tekton-extras tracking id.
 Step: Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
 
 Evidence: Spec row 0. Supersedes an entry misfiled by one position. Dump on the Mac is 4.2 MB, created 2026-11-09 21:04:47 UTC, and pg_restore lists 331 TOC entries with 35 table data entries. Pod baseline file holds UID 26422d60 and kali restart count 0. Caveat. The dump and baseline are timestamped about 70 seconds after the merge at 21:03:35 UTC, and the app diff and no open bump PR checks left no record, so those two cannot be re-proved now. The pod creation time of 2026-10-21 proves it was not replaced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2-2 created=2026-11-12T12:33:24+00:00 -->
+### test-plan-step-2-2 · discovery · Test Plan step 2: ran
+
+Step: `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
+
+Evidence: Spec row 1. Supersedes an entry misfiled by one position. 2026-11-12 12:30 UTC. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704 and kali restart count 0 equal the baseline file. Pod created 2026-10-21 and kali started 2026-10-21, both before the merge
