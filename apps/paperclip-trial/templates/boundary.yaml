@@ -1,0 +1,37 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: trial-ceiling
+  namespace: {{ .Values.namespace }}
+spec:
+  hard:
+    limits.cpu: "3"
+    limits.memory: 6Gi
+    requests.storage: 15Gi
+    persistentvolumeclaims: "2"
+    pods: "2"
+    services: "2"
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+{{- end }}

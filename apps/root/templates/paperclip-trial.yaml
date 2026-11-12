@@ -1,0 +1,27 @@
+{{- if .Values.paperclipTrial.enabled }}
+{{- if not (regexMatch "^[a-f0-9]{40}$" .Values.paperclipTrial.targetRevision) }}
+{{- fail "paperclipTrial.targetRevision must pin a reviewed 40-character commit" }}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paperclip-trial
+  namespace: argocd
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ required "paperclipTrial.targetRevision must pin a reviewed commit" .Values.paperclipTrial.targetRevision | quote }}
+    path: apps/paperclip-trial
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: paperclip-trial
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data
+{{- end }}

@@ -1,0 +1,105 @@
+{{- if .Values.enabled }}
+{{- $components := dict "app" (dict "storage" "10Gi" "cpu" "2" "memory" "4Gi" "port" 3100) "database" (dict "storage" "5Gi" "cpu" "1" "memory" "2Gi" "port" 5432) }}
+{{- range $name, $limits := $components }}
+{{- $component := index $.Values $name }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: paperclip-trial-{{ $name }}
+  namespace: {{ $.Values.namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperclip-trial-{{ $name }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ $.Values.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ $limits.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paperclip-trial-{{ $name }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: paperclip-trial-{{ $name }}
+  ports:
+    - name: tcp
+      port: {{ $limits.port }}
+      targetPort: tcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperclip-trial-{{ $name }}
+  namespace: {{ $.Values.namespace }}
+  annotations:
+    trial.paperclip/source-revision: {{ $component.sourceRevision | quote }}
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperclip-trial-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperclip-trial-{{ $name }}
+    spec:
+      serviceAccountName: paperclip-trial-{{ $name }}
+      automountServiceAccountToken: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $component.runAsUser }}
+        runAsGroup: {{ $component.runAsUser }}
+        fsGroup: {{ $component.runAsUser }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ $name }}
+          image: {{ $component.image | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          envFrom:
+            - secretRef:
+                name: {{ $component.configSecret }}
+          ports:
+            - name: tcp
+              containerPort: {{ $limits.port }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: {{ $limits.cpu | quote }}
+              memory: {{ $limits.memory }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $component.mountPath | quote }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperclip-trial-{{ $name }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}
+{{- end }}

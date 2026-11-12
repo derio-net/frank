@@ -1,0 +1,17 @@
+enabled: false
+namespace: paperclip-trial
+network:
+  profile: deny-all
+app:
+  image: ""
+  sourceRevision: ""
+  configSecret: ""
+  runAsUser: 0
+  mountPath: ""
+database:
+  image: ""
+  sourceRevision: ""
+  configSecret: ""
+  runAsUser: 0
+  mountPath: ""
+storageClassName: ""

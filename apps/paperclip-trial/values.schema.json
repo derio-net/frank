@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "enabled",
+    "namespace",
+    "network",
+    "app",
+    "database",
+    "storageClassName"
+  ],
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "namespace": {
+      "const": "paperclip-trial"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "const": "deny-all"
+        }
+      }
+    },
+    "app": {
+      "$ref": "#/definitions/component"
+    },
+    "database": {
+      "$ref": "#/definitions/component"
+    },
+    "storageClassName": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "app": {
+            "$ref": "#/definitions/qualifiedComponent"
+          },
+          "database": {
+            "$ref": "#/definitions/qualifiedComponent"
+          },
+          "storageClassName": {
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "sourceRevision",
+        "configSecret",
+        "runAsUser",
+        "mountPath"
+      ],
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "sourceRevision": {
+          "type": "string"
+        },
+        "configSecret": {
+          "type": "string"
+        },
+        "runAsUser": {
+          "type": "integer"
+        },
+        "mountPath": {
+          "type": "string"
+        }
+      }
+    },
+    "qualifiedComponent": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/component"
+        },
+        {
+          "properties": {
+            "image": {
+              "pattern": "^[a-zA-Z0-9./:_-]+@sha256:[a-f0-9]{64}$"
+            },
+            "sourceRevision": {
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "configSecret": {
+              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+              "maxLength": 63
+            },
+            "runAsUser": {
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "mountPath": {
+              "pattern": "^/[^.]+$",
+              "not": {
+                "enum": [
+                  "/",
+                  "/tmp",
+                  "/var/run/secrets/kubernetes.io/serviceaccount"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

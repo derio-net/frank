@@ -1,0 +1,4 @@
+apiVersion: v2
+name: paperclip-trial
+version: 0.1.0
+description: Disabled preparation chart for an isolated Paperclip trial
