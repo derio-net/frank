@@ -1,0 +1,46 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-10-22--obs--telegram-alert-brevity
+repo: derio-net/frank
+rows:
+  - id: obs-telegram-firing-compact
+    capability: obs
+    acceptance: A firing Grafana alert reaches the Frank C&C Telegram chat as a compact
+      block (severity and alertname header, summary, identity-only Where line, runbook
+      Fix line, rule link, rule-scoped silence link), without the value line, the label
+      dump or the all-labels silence URL.
+    origin:
+    - spec:2026-10-22--obs--telegram-alert-brevity#R1
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#931
+    verify: live
+    issues:
+    - derio-net/frank#931
+  - id: obs-telegram-resolved-oneline
+    capability: obs
+    acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
+      line naming the alert and its summary.
+    origin:
+    - spec:2026-10-22--obs--telegram-alert-brevity#R4
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#932
+    verify: live
+    issues:
+    - derio-net/frank#932
+  - id: obs-telegram-group-cap
+    capability: obs
+    acceptance: A Telegram notification grouping more than five firing alerts shows
+      at most five alert blocks followed by a "+N more firing" line linking the Grafana
+      alert list, with resolved alerts listed after it and capped the same way.
+    origin:
+    - spec:2026-10-22--obs--telegram-alert-brevity#R6
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: none
