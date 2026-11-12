@@ -3,7 +3,7 @@ run: 2026-11-12-feat-retire-vk-phase2
 workflow: fr-goal@1
 branch: feat/retire-vk-phase2
 started: '2026-11-12T12:22:53+00:00'
-cursor: spec-review
+cursor: plan
 steps:
   brainstorm:
     state: done
@@ -12,17 +12,25 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md
   spec-review:
-    state: running
-    at: '2026-11-12T12:28:42+00:00'
+    state: done
+    at: '2026-11-12T12:34:59+00:00'
     units:
       step/spec-review:
         attempts:
         - dispatched: '2026-11-12T12:28:42+00:00'
+          agent: abdf7090e52ce5fe5
           agent_type: super-fr:fr-spec-reviewer
           harness: claude-code
+          model: claude-fable-5-2
           tier: hard
           bound: opus
           session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T12:34:59+00:00'
+          outcome: done
+        evidence:
+          review: spec-review-phase2
+          reviewer: abdf7090e52ce5fe5
+          findings: s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,sr2-f1,sr2-f2,sr2-f3,sr2-f4,sr2-f5,sr2-f6,sr2-f7,sr2-f8,sr2-f9,sr2-f10,sr2-f11
   plan:
     state: pending
   plan-review:
