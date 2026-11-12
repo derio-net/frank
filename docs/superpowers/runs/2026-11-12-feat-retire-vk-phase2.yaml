@@ -3,7 +3,7 @@ run: 2026-11-12-feat-retire-vk-phase2
 workflow: fr-goal@1
 branch: feat/retire-vk-phase2
 started: '2026-11-12T12:22:53+00:00'
-cursor: implement
+cursor: journal-check
 steps:
   brainstorm:
     state: done
@@ -52,8 +52,8 @@ steps:
     stdout: |
       self-review passed
   implement:
-    state: running
-    at: '2026-11-12T13:04:37+00:00'
+    state: done
+    at: '2026-11-12T13:44:45+00:00'
     members:
     - implement-phase
     - review-phase
@@ -77,7 +77,7 @@ steps:
           tests: phase1-suite.log@65dcb9714c7c;tree=7aea5d8888fd4c53506a842a4e8d631fe4ec36199de491256583cb3a7b7dad81
           visual: none
       phase/1/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-12T13:04:00+00:00'
           harness: claude-code
@@ -89,6 +89,13 @@ steps:
           harness: claude-code
           model: claude-fable-5-2
           session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T13:44:45+00:00'
+          outcome: done
+        evidence:
+          review: p1-review
+          reviewer: a6f8b8e4c010e3e03
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10,p1-r11,p1-r12,p1-r13,p1-r14,p1-r15,p1-r16
   journal-check:
     state: pending
   deliver:
