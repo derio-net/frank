@@ -428,3 +428,8 @@ The values.yaml comment and argocd.md disagree independently of this change, and
 ### phase2-agent-images-direct-pr · decision · agent-images kali removal ships as a direct PR, not its own fr plan
 
 decider: agent. R12's build half is one matrix leg and one directory in derio-net/agent-images, mirroring Phase 1's agent-images#176. It is delivered as a plain PR stacked after #176 and merged by the operator after the Frank PR, with Test Plan row 11 as its proof. A second plan, run and review loop in that repo would cost more than the change.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-archive-uncommitted-state created=2026-11-12T13:47:28+00:00 -->
+### phase2-archive-uncommitted-state · decision · The archive also preserves uncommitted clone state
+
+decider: orchestrator session (VK retirement workspace), relayed 2026-11-12 — not the operator. Bundles carry committed refs only; dirty worktrees, untracked files and stash entries would be lost with the PVC. Additive and read-only, so adopted without an operator round.
