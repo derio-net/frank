@@ -257,3 +257,10 @@ Evidence: Spec row 1. Supersedes an entry misfiled by one position. 2026-11-12 1
 Step: After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
 
 Evidence: Spec row 2. Supersedes an entry misfiled by one position. Grafana restarted 2026-11-12 12:25 UTC after the tombstone was confirmed in the rules ConfigMap. The provisioning API on the running pod lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat Stale is inactive with instances only for audit_digest and session_manager. The retained vk_issue_bridge pushgateway group was deleted with HTTP 202 and 0 series remain
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4-2 created=2026-11-12T12:33:31+00:00 -->
+### test-plan-step-4-2 · discovery · Test Plan step 4: ran
+
+Step: `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
+
+Evidence: Spec row 3. Supersedes an entry misfiled by one position. Namespace agents is NotFound. IngressRoute vk-remote was still live on 2026-11-12, was deleted by hand, and is now NotFound, and vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no application with vk in its slug and no VK proxy provider. The three live homepage ConfigMaps hold no VK tile. All seven changed Applications last operated at merge commit 8af826ee, traefik-extras only after an explicit sync
