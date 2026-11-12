@@ -43,9 +43,12 @@ plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
 when: Before the Phase 2 PR leaves draft, once the triage run on the pod has ended
 why_manual: The files exist only on the pod's PVC, the archive may hold tokens so it must land on the operator's Mac, and only the operator can say the session has ended.
 commands:
+  - Before archiving, stop what would hold or rewrite the pod's files. Comment out the session-manager line in ~/.crontab on the pod, then signal supercronic to reload (kill -USR2 <supercronic pid>). An in-place edit with sed -i replaces the file and supercronic does not notice it, so without the signal the cron relaunches the willikins session at its next tick (it did, at 22:40 on 2026-11-12).
+  - Stop the interactive claude session, the willikins remote-control session and herdr. An SSH login as user claude is not a session and does not block the archive.
   - bash scripts/retire-secure-agent-pod.sh archive
   - bash scripts/retire-secure-agent-pod.sh verify
 verify:
+  - The session-manager cron line is disabled AND supercronic was signalled; no claude, herdr or tmux process is running in the kali container.
   - verify prints PASS for every check and exits 0.
   - verify lists the clones that had uncommitted work (DIRTY.txt); their patches, untracked files and stash patches are under worktrees/.
   - ~/Archives/secure-agent-pod-2026-11 is mode 0700 and its tarball lists repos/willikins/scripts/chorebot/config.yaml.
