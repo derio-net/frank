@@ -49,6 +49,10 @@ state:
       ticked_at: '2026-11-12T17:11:47+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-11-12T21:55:13+00:00'
+    note: Live sequence finished 2026-11-12. All four steps ticked and all seven Test
+      Plan steps ran. The post-merge sweep, silences, agent-images PR176 merge, fork
+      webhook delete and archive are done, and the operator removed the four VK_REMOTE
+      keys from Infisical. Plan not archived because the Phase 2 run still references
+      it.
     observed_prs: []
