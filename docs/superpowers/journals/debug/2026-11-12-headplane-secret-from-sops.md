@@ -10,3 +10,8 @@ Change requested under ice#5: source Headplane's server.cookie_secret from a Kub
 ### 820119a09140 · hypothesis · Enabling env overrides with the existing HEADPLANE_HEADSCALE_API_KEY env var makes the pod exit
 
 coalesceEnv maps every HEADPLANE_* var to a config path: HEADPLANE_HEADSCALE_API_KEY becomes headscale.api_key, which the 0.5.5 schema rejects (onDeepUndeclaredKey reject). coalesceConfig returns undefined, coalesceEnv returns undefined, and the loader exits with 'Fatal error encountered with configuration'. The var is unused by 0.5.5 source today (no reference outside the generic loader), so it is inert while overrides are off. To test: run ghcr.io/tale/headplane:0.5.5 locally with and without it.
+
+<!-- fr:journal kind=ruled-out scope=debug id=05f088156f52 created=2026-11-12T22:46:12+00:00 -->
+### 05f088156f52 · ruled-out · HEADPLANE_HEADSCALE_API_KEY does not break the loader once env overrides are on
+
+Ran ghcr.io/tale/headplane:0.5.5 locally with the proposed config (32-char placeholder, cookie_secure: true), HEADPLANE_LOAD_ENV_OVERRIDES=true and HEADPLANE_SERVER__COOKIE_SECRET, with and without HEADPLANE_HEADSCALE_API_KEY. Both booted ('Running on 0.0.0.0:3000'). The var stays: the API-key rotation runbook's verify step reads it inside the pod.
