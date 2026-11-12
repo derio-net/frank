@@ -1758,8 +1758,12 @@ rows:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R4
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: 2026-11-12. ci-delivery-check no longer lists derio-net/vibe-kanban and holds
+    no series for it. The fork is not yet archived and its webhook is still live,
+    because archiving waits on agent-images PR176 merging.
   verify: live
+  issues:
+  - derio-net/frank#950
 - id: vk-images-retired
   capability: ci
   acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali are
