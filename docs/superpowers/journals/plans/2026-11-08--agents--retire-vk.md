@@ -184,3 +184,8 @@ PR949 merged 2026-11-09 21:03 UTC and the post-merge sweep did not run until 202
 `fr ops gate` refuses a non-interactive caller, so the ops were run one command at a time by an agent session under the operator's authorization and recorded with `fr closeout outcome`. The spec's Test Plan numbers its rows from 0 and fr numbers steps by position, so fr step N is spec row N-1; steps 1-4 carry a superseding entry for that reason.
 
 Still owed: merging derio-net/agent-images#176 (branch build 43217543292 green at b6de16b; the agent session was refused the merge), the bump run that follows, the fork webhook delete and archive, and removing the four VK_REMOTE_ keys from Infisical.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-fork-archive-2026-11-12 created=2026-11-12T17:12:09+00:00 phase=2 -->
+### p2-fork-archive-2026-11-12 · discovery · Fork archived; Infisical VK_REMOTE keys still owed by the operator (phase 2)
+
+agent-images#176 merged as fe2fb9b, main build 43260930622 and Frank bump run 43264032464 are green, the fork webhook is deleted and derio-net/vibe-kanban is archived. Manual op agents-retire-vk-fork-archive is marked done for those parts. One command of that op is NOT done: removing VK_REMOTE_JWT_SECRET, VK_REMOTE_LOCAL_AUTH_PASSWORD, VK_REMOTE_ELECTRIC_PASSWORD and VK_REMOTE_PG_PASSWORD from Infisical. It needs the Infisical UI and is owed by the operator. VK_ORG_ID and VK_DERIO_OPS_PROJECT_ID stay until Phase 2.
