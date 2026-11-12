@@ -49,6 +49,7 @@ verify:
   - verify prints PASS for every check and exits 0.
   - verify lists the clones that had uncommitted work (DIRTY.txt); their patches, untracked files and stash patches are under worktrees/.
   - ~/Archives/secure-agent-pod-2026-11 is mode 0700 and its tarball lists repos/willikins/scripts/chorebot/config.yaml.
+  - The tarball lists .claude/projects/ (session transcripts) and no credential file; EXCLUDED.txt names what was left out of ~/.claude.
   - The operator has opened the archive and is satisfied nothing else on the pod is worth keeping.
 status: pending
 ```
