@@ -1,0 +1,39 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-06-15--cicd--staging-vcluster-gate
+repo: derio-net/frank
+rows:
+  - id: staging-gate-green-records-last-green
+    capability: staging-vCluster release gate
+    acceptance: A runs-fr merge to main whose in-cluster smoke-test passes in the staging
+      vCluster is recorded as last-green on frank main, with no human step.
+    origin:
+    - spec:2026-06-15--cicd--staging-vcluster-gate
+    levels: {}
+    status: not-implemented
+    notes: 'Proven by Test Plan green path after merge + manual-op registration. Appended
+      by hand: fr acceptance add rolls back on this column-0 matrix (super-fr#470).'
+  - id: staging-gate-red-blocks-and-notifies
+    capability: staging-vCluster release gate
+    acceptance: A runs-fr merge whose smoke-test fails leaves last-green untouched and
+      sends a Telegram notification.
+    origin:
+    - spec:2026-06-15--cicd--staging-vcluster-gate
+    levels: {}
+    status: not-implemented
+    notes: Proven by Test Plan red path (deliberately broken smoke image). Appended
+      by hand (super-fr#470).
+  - id: staging-gate-registration-keeps-argocd-up
+    capability: staging-vCluster release gate
+    acceptance: Registering the staging vCluster as an ArgoCD cluster does not crash
+      the application-controller, including across a controller restart.
+    origin:
+    - spec:2026-06-15--cicd--staging-vcluster-gate
+    levels: {}
+    status: not-implemented
+    notes: Structure guarded by scripts/tests/test_argocd_vcluster_pod_exclusion.py;
+      runtime proven at manual-op registration. Appended by hand (super-fr#470).

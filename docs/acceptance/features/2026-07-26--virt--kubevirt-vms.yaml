@@ -1,0 +1,18 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-07-26--virt--kubevirt-vms
+repo: derio-net/frank
+rows:
+  - id: frank-runs-virtual-machines
+    capability: Virtualization
+    acceptance: An operator can run a virtual machine on Frank and reach its console.
+    origin:
+    - spec:2026-07-26--virt--kubevirt-vms
+    levels: {}
+    status: not-implemented
+    notes: Design-only in this run; no KubeVirt on the cluster yet. Deliberately broad
+      — it is the claim the whole virt layer exists to make.

@@ -1,0 +1,83 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-08-03--orch--hermes-retrieval-store-sidecar
+repo: derio-net/frank
+rows:
+  - id: orch-hermes-retrieval-store-available
+    capability: Agent shell retrieval store
+    acceptance: From inside the hermes-agent-shell pod, an operator can reach a dedicated
+      PostgreSQL 18 database with the pgvector extension enabled, on its own loopback
+      port, without touching Hindsight.
+    origin:
+    - spec:2026-08-03--orch--hermes-retrieval-store-sidecar
+    levels:
+      unit:
+      - frank:scripts/tests/test_hermes_gbrain_sidecar.py
+    status: unwired
+    notes: 'Live proof 2026-08-15 (post-merge, ArgoCD at 0fbbe549, pod hermes-agent-shell-859d56d94b-phjz6
+      4/4 Running): Test Plan row 2 — `select extversion from pg_extension where extname=''vector''`
+      inside the gbrain container returns 0.8.6. Row 3 — `df -h /opt/gbrain` shows its
+      own Longhorn volume (pvc-a10dd99b, 9.8G) distinct from Hindsight''s (pvc-cf287075,
+      4.9G). Reachability is genuinely loopback-only: the RUNNING server reports listen_addresses=127.0.0.1,
+      port=5434 from pg_settings, not merely from the manifest. Hindsight untouched
+      (row 1). Also confirmed the collation fix made during the 2026-08-15 review, which
+      had a single first-initdb window: datlocprovider ''b'', datlocale ''C.UTF-8''.
+      NOT closed by the design-time container gate — that proved the image behaves under
+      this posture on a laptop, which is evidence for the design, not for the deployment.'
+  - id: orch-hermes-retrieval-store-isolated
+    capability: Agent shell retrieval store
+    acceptance: The retrieval store's data lives on its own backed-up Longhorn volume,
+      so a Hindsight restore, migration or resize cannot take the retrieval store with
+      it, and vice versa.
+    origin:
+    - spec:2026-08-03--orch--hermes-retrieval-store-sidecar
+    levels:
+      unit:
+      - frank:scripts/tests/test_hermes_gbrain_sidecar.py
+    status: unwired
+    notes: 'Live proof 2026-08-15 (post-merge). Row 1 — Hindsight''s PVC still reports
+      5Gi and its container is ready with 0 restarts; gbrain is a separate 10Gi PVC.
+      Row 3 — distinct Longhorn volumes (pvc-a10dd99b vs pvc-cf287075), distinct mounts.
+      Row 5 — seeded a vector row + hnsw index, forced a CHECKPOINT, DELETED the pod;
+      the replacement (…-qfssc, name changed, so genuinely recreated) came back 4/4
+      with the row still present and retrievable through an index scan, collation still
+      builtin. The kubelet fsGroup re-walk left PGDATA at drwx------ 1000:1000 on the
+      populated volume — the claim the local docker gate could only approximate, since
+      it needs a real kubelet. Asserted on the artifacts, not on ArgoCD sync status:
+      ArgoCD reported Synced/Healthy at the PRE-merge revision for ~2min after the merge,
+      with a 3/3 pod, so sync status would have been a false positive here.'
+  - id: orch-hermes-shell-js-runtime
+    capability: Agent shell retrieval store
+    acceptance: An operator logging in over SSH has a JavaScript runtime available and
+      can install a CLI from a git ref that survives pod restarts.
+    origin:
+    - spec:2026-08-03--orch--hermes-retrieval-store-sidecar
+    levels: {}
+    status: unwired
+    notes: 'Live manual proof 2026-09-04 — all three clauses of the acceptance now hold,
+      so this closes. Row 6: `ssh hermes ''bash -lc "bun --version"''` -> 1.3.14 over
+      a LOGIN shell, which genuinely exercises the /etc/profile.d PATH shim (`ssh host
+      -- cmd` skips it and would prove nothing). Row 7: installed from a PINNED git
+      ref -> `gbrain 0.47.9.0` at /opt/data/home/.bun/bin/gbrain, i.e. on the home PVC.
+      Explicitly NOT from npm: that name is squatted by an unrelated package last published
+      in 2018, and the real project''s own README carries the same warning. Row 8, the
+      load-bearing one: the pod was deliberately deleted and genuinely recreated (...-r26tz
+      -> ...-wpmsz, 4/4 Running, 0 restarts) and the CLI still answered 0.47.9.0, with
+      the node_modules tree still dated Sep 1 15:56 — persisted PVC state, not a silent
+      re-install. DECISION 2 (install by hand onto the PVC rather than baking into the
+      image) is therefore CORRECT. Three things worth carrying forward. (a) What has
+      to survive is bigger than it looks: ~/.bun/bin/gbrain is a SYMLINK to src/cli.ts
+      — there is no compiled binary, Bun executes the TypeScript entrypoint, so the
+      whole 152-package global node_modules tree must persist. (b) Bun itself comes
+      from the IMAGE (1.3.14 against an engines floor of >=1.3.10), so an upstream floor
+      bump would break this install with a message about Bun, not about the CLI — check
+      engines.bun before any re-pin. (c) Bun BLOCKED the package''s postinstall; benign
+      here because it only runs `apply-migrations`, a no-op with no brain configured
+      — but against a brain that DOES exist it would leave the schema silently un-migrated,
+      which looks like a working install. `gbrain doctor` reports `no_url` / "No brain
+      configured": correct and deliberate — `gbrain init` is NOT run here, that is Test
+      Plan row 9 and belongs to the requesting repo.'

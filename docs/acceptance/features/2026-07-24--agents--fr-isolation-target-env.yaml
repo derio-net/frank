@@ -1,0 +1,34 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-07-24--agents--fr-isolation-target-env
+repo: derio-net/frank
+rows:
+  - id: fr-isolation-env-in-pods
+    capability: In-pod fr isolation (host-worktree mode)
+    acceptance: Agent processes in all four agent-bearing containers (secure-agent-pod
+      kali+vk-local, hermes-agent-shell hermes+ssh) observe FR_ISOLATION_TARGET=worktree,
+      enabling super-fr host-worktree isolation in-pod.
+    origin:
+    - spec:2026-07-24--agents--fr-isolation-target-env
+    levels: {}
+    status: unwired
+    notes: Live manual proof 2026-07-24 post-PR#687 roll — kubectl exec in all four
+      containers (kali, vk-local, hermes, ssh) printed FR_ISOLATION_TARGET=worktree.
+      Guard test scripts/tests/test_fr_isolation_target_env.py pins the manifests in
+      CI-less local runs.
+  - id: fr-isolation-env-ssh-login
+    capability: In-pod fr isolation (host-worktree mode)
+    acceptance: Agents logging in over SSH/Mosh on either pod also see FR_ISOLATION_TARGET=worktree
+      despite sshd env scrubbing (profile.d re-export shims).
+    origin:
+    - spec:2026-07-24--agents--fr-isolation-target-env
+    levels: {}
+    status: unwired
+    notes: Live manual proof 2026-07-24 — env -i bash -lc printed worktree on kali (environ-loop
+      shim, s6 PID 1, post-#687 roll) and on hermes ssh (static-export shim, PR#689
+      + rollout restart; /proc/1/environ is proctitle junk there since sshd is PID 1).
+      Guard test pins both shims.

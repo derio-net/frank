@@ -1,0 +1,27 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-06-03--orch--hermes-agent-shell-deploy
+repo: derio-net/frank
+rows:
+  - id: hermes-dashboard-api-routable
+    capability: Hermes dashboard exposure
+    acceptance: The Hermes web dashboard (hermes.cluster.derio.net) and gateway API
+      (hermes-api.cluster.derio.net) are reachable through a Traefik IngressRoute gated
+      by ip-allowlist + security-headers, with user authentication provided by the dashboard's
+      own basic-auth (frank#626) rather than authentik forward-auth.
+    origin:
+    - frank:apps/traefik/manifests/ingressroutes.yaml
+    - spec:2026-06-03--orch--hermes-agent-shell-deploy
+    levels: {}
+    status: not-implemented
+    notes: '2026-07-12 (willikins#285): authentik forward-auth removed from both hermes
+      routes — no authentik application/proxy-provider was ever configured for these
+      hosts, so the outpost 404''d every request. Mechanism is now the dashboard''s
+      own basic-auth (HERMES_DASHBOARD_BASIC_AUTH_*, frank#626; self-auth proven internally
+      :9119/login -> 200). In-repo surface exists; becomes live-provable once this PR
+      merges and ArgoCD reconciles the traefik-system IngressRoutes. SSO via authentik
+      is a possible later follow-up.'
