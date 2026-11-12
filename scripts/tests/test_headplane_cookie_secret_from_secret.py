@@ -58,9 +58,18 @@ def test_env_overrides_are_enabled_and_feed_the_key_from_the_secret():
     assert ref.get("optional", False) is False
 
 
-def test_no_other_headplane_env_var_could_override_the_key():
-    overriding = [n for n in _env() if n.startswith("HEADPLANE_SERVER__")]
-    assert overriding == ["HEADPLANE_SERVER__COOKIE_SECRET"]
+def test_every_headplane_env_var_is_a_known_override():
+    # With overrides on, EVERY HEADPLANE_* var is merged into the config, and an
+    # unexpected one can fail validation and stop the pod booting. Adding one
+    # must be a deliberate, boot-tested change to this set.
+    names = {n for n in _env() if n.startswith("HEADPLANE_")}
+    assert names == {
+        "HEADPLANE_LOAD_ENV_OVERRIDES",
+        "HEADPLANE_SERVER__COOKIE_SECRET",
+        # Boot-tested with overrides on (2026-11-12); read by the API-key
+        # runbook's in-pod probe.
+        "HEADPLANE_HEADSCALE_API_KEY",
+    }
 
 
 def test_sops_file_matches_the_reference_and_is_encrypted():
@@ -74,17 +83,20 @@ def test_sops_file_matches_the_reference_and_is_encrypted():
 
 
 def test_no_tracked_file_carries_a_literal_cookie_secret_value():
-    tracked = subprocess.run(
-        ["git", "grep", "-n", "-I", "-E", r"cookie_secret:[[:space:]]*[^[:space:]]", "--", ":!scripts/tests/"],
+    result = subprocess.run(
+        ["git", "grep", "-n", "-I", "-E", r"^[[:space:]]*cookie_secret:[[:space:]]*[^[:space:]]"],
         cwd=REPO,
         capture_output=True,
         text=True,
-    ).stdout.splitlines()
+    )
+    # 0 = matches, 1 = none; anything else means the scan did not run.
+    assert result.returncode in (0, 1), result.stderr
+    assert result.returncode == 0, "expected at least the placeholder line to match"
     offenders = []
-    for line in tracked:
-        value = line.split("cookie_secret:", 1)[1].strip().strip("\"'")
-        # Prose mentions (`server.cookie_secret` exactly 32 chars) are not assignments.
-        if not value or value.startswith(("<", "`")) or " " in value or value == PLACEHOLDER:
+    for line in result.stdout.splitlines():
+        path, lineno, text = line.split(":", 2)
+        value = text.split("cookie_secret:", 1)[1].split("#", 1)[0].strip().strip("\"'")
+        if value.startswith("<") or value == PLACEHOLDER:
             continue
-        offenders.append(line.split(":", 2)[0] + ":" + line.split(":", 2)[1])
+        offenders.append(f"{path}:{lineno}")
     assert offenders == [], f"literal cookie_secret values in the tree: {offenders}"

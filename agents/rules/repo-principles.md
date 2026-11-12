@@ -9,6 +9,7 @@
 - The **only** accepted exception: bootstrap secrets that must exist before the secret store is running. Apply them manually and document as a `# manual-operation` block in the plan.
   - Frank: SOPS-encrypted secrets applied via `sops --decrypt <file> | kubectl apply -f -`
   - Hop: Plain Kubernetes Secrets applied via `kubectl create secret` (Caddy Cloudflare token, Tailscale auth key)
+  - Hop, generated values: SOPS-encrypted under `secrets/hop/`, applied out-of-band (first: Headplane's session key, `scripts/headplane-session-key/rotate.sh`)
 
 `helm repo add` and `helm show values` are fine as **local research tools** to discover chart schemas — they don't touch the cluster.
 

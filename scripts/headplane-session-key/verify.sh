@@ -9,20 +9,16 @@
 # cannot reach Headscale. Keys never leave this shell: each is piped into
 # forge_cookie.py, and only the resulting HMAC cookie is sent to the pod.
 #
-# Expect: the live Secret's key -> 302 with a Secure cookie; the file
-# placeholder and every value ever committed -> 200.
+# Expect: the live Secret's key -> 302 with a Secure cookie (positive control:
+# proves the probe format is right, so a 200 elsewhere is a real rejection);
+# every 32-character value ever committed, the placeholder included -> 200.
 #
 # Usage: bash scripts/headplane-session-key/verify.sh
 set -euo pipefail
 set +x
-
-HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=$(git -C "$HERE" rev-parse --show-toplevel)
-MAIN=$(cd "$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)
-NS=headscale-system
-# shellcheck disable=SC1091
-KUBECONFIG=$(cd "$MAIN" && source ./.env_hop >/dev/null 2>&1 && realpath "$KUBECONFIG")
-export KUBECONFIG
+# shellcheck source=lib.sh
+source "$(cd "$(dirname "$0")" && pwd)/lib.sh"
+hop_context
 
 kubectl -n "$NS" rollout status deploy/headplane --timeout=120s >/dev/null
 if ! kubectl -n "$NS" get deploy headplane -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' | grep -qw HEADPLANE_SERVER__COOKIE_SECRET; then
@@ -38,14 +34,12 @@ probe() {  # $1 = cookie; prints "<status> <secure-flag>"
 }
 
 fail=0
-new_cookie=$(kubectl -n "$NS" get secret headplane-cookie-secret -o jsonpath='{.data.cookie-secret}' | base64 -d | python3 "$HERE/forge_cookie.py")
+new_cookie=$(kubectl -n "$NS" get secret "$NAME" -o jsonpath="{.data.$KEY}" | base64 -d | python3 "$HERE/forge_cookie.py")
 read -r st sec <<<"$(probe "$new_cookie")"
+unset new_cookie
 if [[ "$st" == 302 && "$sec" == secure ]]; then echo "OK   live Secret key accepted (302, Secure cookie)"
 else echo "FAIL live Secret key: status=$st cookie=$sec (want 302 secure)"; fail=1; fi
 
-old_values=$(git -C "$REPO" log --all -p -- clusters/hop/apps/headplane blog/content/docs/building/17-public-edge \
-  | grep -E '^[-+][[:space:]]+cookie_secret:' \
-  | sed -E 's/.*cookie_secret:[[:space:]]*//' | tr -d "\"' " | grep -v '^<' | sort -u)
 n=0
 while read -r v; do
   [[ -z "$v" ]] && continue
@@ -53,8 +47,8 @@ while read -r v; do
   read -r st _ <<<"$(probe "$(printf %s "$v" | python3 "$HERE/forge_cookie.py")")"
   if [[ "$st" == 200 ]]; then echo "OK   committed value #$n rejected (200)"
   else echo "FAIL committed value #$n: status=$st (want 200)"; fail=1; fi
-done <<<"$old_values"
-unset old_values new_cookie
+done < <(committed_values)
+# At minimum the placeholder and the key that used to live in the file.
 [[ $n -ge 2 ]] || { echo "FAIL: expected at least 2 committed values to test, found $n" >&2; fail=1; }
 
 exit $fail

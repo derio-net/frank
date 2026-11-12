@@ -2267,7 +2267,7 @@ tasks:
 
       **Original:** `server.cookie_secret` lived in `files/config.yaml` (git-tracked ConfigMap), with `cookie_secure: false`.
       **Actual:** Headplane 0.5.5 has no `cookie_secret_path`, but it does honour env overrides when `HEADPLANE_LOAD_ENV_OVERRIDES=true` (`HEADPLANE_<SECTION>__<KEY>`). Overrides apply AFTER the file is validated, so the file still needs a 32-character value: it now carries the fixed, non-secret placeholder `env-override-placeholder-0000000`, and the real key is `HEADPLANE_SERVER__COOKIE_SECRET` from Secret `headplane-cookie-secret`. `cookie_secure` is now `true` (browsers reach Headplane only through Caddy TLS). Verified against the real image: with the override on, a session signed with the env key is accepted (302) and one signed with the file value is rejected (200). `HEADPLANE_HEADSCALE_API_KEY` stays: it does not disturb the loader once overrides are on, and the API-key runbook's in-pod probe reads it. This is the first SOPS-encrypted Secret on Hop (`secrets/hop/`); Task 13 had skipped SOPS for Hop.
-      **Impact:** `clusters/hop/apps/headplane/manifests/{deployment.yaml,files/config.yaml}`; `secrets/hop/headplane-cookie-secret.yaml`; `scripts/headplane-session-key/{rotate.sh,verify.sh,forge_cookie.py}`; guard `scripts/tests/test_headplane_cookie_secret_from_secret.py`; building post 17 Deviation 5 updated. Rotating signs out every existing Headplane session.
+      **Impact:** `clusters/hop/apps/headplane/manifests/{deployment.yaml,files/config.yaml}`; `secrets/hop/headplane-cookie-secret.yaml`; `scripts/headplane-session-key/{rotate.sh,verify.sh,forge_cookie.py,lib.sh}`; guard `scripts/tests/test_headplane_cookie_secret_from_secret.py`; building post 17 Deviation 5 updated. Rotating signs out every existing Headplane session.
 
       ```yaml
       # manual-operation
@@ -2286,7 +2286,7 @@ tasks:
           git add secrets/hop/headplane-cookie-secret.yaml && git commit -m "chore(edge): add encrypted Headplane session key"
         - |
           # Disaster recovery (needs the age private key):
-          sops --decrypt secrets/hop/headplane-cookie-secret.yaml | kubectl apply -f -
+          sops --decrypt secrets/hop/headplane-cookie-secret.yaml | kubectl apply --server-side -f -   # rotate.sh does this itself when the Secret is missing
       verify:
         - "rotate.sh ends with: OK: live key differs from every value ever committed"
         - "After merge + sync: bash scripts/headplane-session-key/verify.sh → live key 302 + Secure cookie; every committed value 200"

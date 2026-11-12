@@ -812,7 +812,7 @@ operations:
     '
   - '# Disaster recovery (needs the age private key):
 
-    sops --decrypt secrets/hop/headplane-cookie-secret.yaml | kubectl apply -f -
+    sops --decrypt secrets/hop/headplane-cookie-secret.yaml | kubectl apply --server-side -f -   # rotate.sh does this itself when the Secret is missing
 
     '
   verify:
