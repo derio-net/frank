@@ -1,0 +1,75 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-07-09--gpu--gpu-1-usb-25g-nic
+repo: derio-net/frank
+rows:
+  - id: gpu1-usb-25g-replacement-documented
+    capability: gpu-1 network stability
+    acceptance: Operators have a documented, MAC-bound path to move gpu-1 from the damaged
+      onboard Realtek NIC to the replacement USB 2.5G Ethernet adapter without changing
+      node identity.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: not-implemented
+    notes: Repo-prep row; verified by plan phase 1 docs/template validation.
+  - id: gpu1-usb-25g-node-ip-stable
+    capability: gpu-1 network stability
+    acceptance: gpu-1 keeps serving the same Kubernetes node identity and 192.168.55.31
+      address through the replacement USB 2.5G Ethernet adapter.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: unwired
+    notes: Live manual proof 2026-07-11 — ConfigPatch 404-gpu1-usb-25g-nic applied;
+      gpu-1 Ready on 192.168.55.31 via enp0s20f0u7 MAC 6c:1f:f7:c6:e0:da.
+  - id: gpu1-usb-25g-detected
+    capability: gpu-1 network stability
+    acceptance: Talos detects the USB 2.5G Ethernet adapter with a usable driver, stable
+      link state, and discoverable MAC address before the concrete network patch is
+      applied.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: unwired
+    notes: Live manual proof 2026-07-11 — Talos detected r8152 USB adapter enp0s20f0u7
+      with MAC 6c:1f:f7:c6:e0:da; missing rtl8156b firmware patch logged but link works.
+  - id: gpu1-usb-25g-firmware-present
+    capability: gpu-1 network stability
+    acceptance: gpu-1's Talos schematic ships the RTL8156B firmware (rtl_nic/rtl8156b-2.fw)
+      for the USB 2.5G Ethernet adapter, so the r8152 driver loads it cleanly with no
+      "Direct firmware load ... failed" warning at boot.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: unwired
+    notes: 'Live manual proof 2026-07-16 — siderolabs/realtek-firmware (v20260309) applied
+      to 402-gpu1-nvidia-extensions.yaml via omnictl; Omni recomputed schematic 54e23848,
+      reinstalled + rebooted gpu-1 (~76s NotReady). Post-boot: extension present, ZERO
+      rtl_nic firmware-load failures in dmesg (both rtl8156b USB and rtl8125b onboard
+      cleared), gpu-1 Ready on 192.168.55.31 (USB NIC re-enumerated enp0s20f0u7->enp0s20f0u5,
+      MAC-bound patch kept the address), nvidia allocatable 1, 19/19 pods back, cilium
+      datapath OK.'
+  - id: gpu1-cilium-datapath-stable
+    capability: gpu-1 network stability
+    acceptance: Cilium on gpu-1 initializes and keeps a healthy direct-routing datapath
+      on the replacement NIC, with no layer-1 NIC flap alert breach during the soak.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: not-implemented
+    notes: Manual post-swap Cilium verification plus 24h carrier-change soak.
+  - id: gpu1-gpu-workloads-return
+    capability: gpu-1 workload continuity
+    acceptance: After the NIC maintenance event, gpu-1 returns with NVIDIA allocatable
+      GPU capacity and hard-pinned GPU/agent workloads recover to their intended state.
+    origin:
+    - spec:2026-07-09--gpu--gpu-1-usb-25g-nic
+    levels: {}
+    status: unwired
+    notes: Live manual proof 2026-07-11 — gpu-1 allocatable nvidia.com/gpu is 1; pinned
+      workloads are Running or Completed after the network move.

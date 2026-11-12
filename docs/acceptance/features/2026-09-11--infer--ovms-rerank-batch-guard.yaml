@@ -1,0 +1,67 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-09-11--infer--ovms-rerank-batch-guard
+repo: derio-net/frank
+rows:
+  - id: infer-rerank-supported-batch-succeeds
+    capability: Retrieval models
+    acceptance: An in-cluster client can rerank the 50-candidate batch it sends by default
+      and receive scored results, without the server restarting.
+    origin:
+    - spec:2026-09-11--infer--ovms-rerank-batch-guard
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-09-14 live, post-merge (Test Plan rows 5 and 8). 50 documents at
+      500 tokens each returned 200 in 2.32s against the deployed guard, and the container
+      restart count was 0 before and 0 after rows 5 to 7 — so the batch succeeded AND
+      nothing died serving it. Live-proof only by nature: CI guards manifest and Dockerfile
+      shape and cannot exercise serving.'
+  - id: infer-rerank-oversized-refused-cleanly
+    capability: Retrieval models
+    acceptance: An oversized rerank request is refused with a response naming the limit,
+      and the server keeps serving every other caller.
+    origin:
+    - spec:2026-09-11--infer--ovms-rerank-batch-guard
+    levels: {}
+    status: unwired
+    notes: MET 2026-09-14 live, post-merge (Test Plan rows 6 and 7), and the status
+      code is BETTER than this spec predicted. 65 documents (the cap plus one) returned
+      HTTP 400 in 7 milliseconds with the body "Number of documents exceeds max_allowed_chunks"
+      — a response naming the limit, not a closed socket — and a 3-document call immediately
+      afterwards returned 200 in 0.26s, so the server kept serving. The spec predicted
+      500, reasoning from std::runtime_error to absl::InternalError and asserting that
+      conventionally maps to 500; OVMS returns 400. The source path was traced, the
+      HTTP mapping was not. Because the row was written to RECORD the observed code
+      rather than assert 4xx, this surfaced as a better result instead of a failed assertion
+      — issue 793 asked for 4xx rather than taking the process down, and got it. The
+      7ms is the guard refusing before tokenising, as the upstream source says it does.
+  - id: infer-rerank-batch-curve-measured
+    capability: Retrieval models
+    acceptance: Operators have a measured working-set curve across rerank batch sizes,
+      so the configured cap is evidence rather than an estimate.
+    origin:
+    - spec:2026-09-11--infer--ovms-rerank-batch-guard
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-09-14 live, post-merge (Test Plan row 10) — and the measurement
+      CHANGED the shipped configuration, which is the point of the row. The curve was
+      run on a freshly restarted pod, the qualifier that matters: an ascending sweep
+      on a warm pod overstates every size after the first. Result: 20 then 40 then 64
+      documents at 600 tokens peaked at 8.49 GiB, 84.9 percent of the 10Gi limit, against
+      a threshold of about 70 percent. FAILED that threshold. The original sizing had
+      measured the cap as a SINGLE call on a fresh pool (5.67 GiB, 57 percent); the
+      expensive case is an ascending sequence, where an older pool is still held while
+      the new one is allocated, and it could not be measured before merge because the
+      10Gi limit did not exist yet. Two remedies were then measured on the same ascent:
+      max_position_embeddings 512 peaks at 6.96 GiB (69.6 percent of 10Gi), and a 16Gi
+      ceiling puts the shipped 640 bound at 53.1 percent. The operator chose 16Gi plus
+      a faster watchdog tick, and row 10 was RE-RUN against the deployed 16Gi limit
+      on 2026-09-16: the same ascent peaks at 9.59 GiB, 59.9 percent, so the row now
+      PASSES. Note it is 9.59 and not the predicted 8.49 — the same requests peaked
+      13 percent higher once the limit was larger, so the pinned pool sizes itself partly
+      against available memory and a further raise would again return less than proportional
+      headroom. The cap is now evidence rather than an estimate.'

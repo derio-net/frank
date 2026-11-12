@@ -1,0 +1,165 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-10-18--cicd--github-preferred-gitea-fallback
+repo: derio-net/frank
+rows:
+  - id: tier-config-declares-repo-tiers
+    capability: CI forge tiers
+    acceptance: Each private repo's forge tier (github-only, gitea-only, github-preferred)
+      and its Gitea-mirrored read-only secrets are declared in one config in git, and
+      only check jobs are eligible to fall back.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R1
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R2
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R3
+    levels:
+      unit:
+      - frank:scripts/tests/test_ci_budget_tiers.py
+    status: ci
+    notes: Implemented in phase 1 (apps/ci-budget/tiers.yaml); schema, read-only-secret
+      allowlist and MAIN_REPOS equality guarded in CI.
+    verify: none
+  - id: ci-fallback-mirrors-derio-orgs
+    capability: CI forge tiers
+    acceptance: Every push and pull request to a github-preferred repo in derio-net
+      or derio-homelab is mirrored to Frank's Gitea, including PR heads, and missed
+      syncs are repaired.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R4
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R5
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#927
+    verify: live
+    issues:
+    - derio-net/frank#927
+  - id: ci-fallback-status-reaches-github
+    capability: CI forge tiers
+    acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
+      the matching GitHub commit as gitea-actions statuses.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R6
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#928
+    verify: live
+    issues:
+    - derio-net/frank#928
+  - id: ci-tier-monthly-report
+    capability: CI forge tiers
+    acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
+      tier changes, updated in place if regenerated.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R15
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#929
+    verify: live
+    issues:
+    - derio-net/frank#929
+  - id: gate-coverage-checker-flags-gaps
+    capability: CI forge tiers
+    acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
+      forge gate, or would queue forever on Gitea, are reported.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R16
+    levels:
+      unit:
+      - frank:scripts/tests/test_ci_gate_coverage.py
+    status: ci
+    notes: Implemented in phase 1 (scripts/ci_gate_coverage.py); 36 fixtures with exact
+      verdict sets run in CI; 11 cross-repo PRs validated against it.
+    verify: none
+  - id: workflows-carry-forge-gates
+    capability: CI forge tiers
+    acceptance: The nine github-preferred repos and the cnc-frd/cnc-fru release workflows
+      pass the gate-coverage check.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R17
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#934
+    verify: live
+    issues:
+    - derio-net/frank#934
+  - id: ci-budget-flips-at-threshold
+    capability: CI budget fallback
+    acceptance: When an org reaches 85% of its included GitHub minutes, its github-preferred
+      repos move to Gitea for the rest of the month and return to GitHub at the monthly
+      reset, never leaving a window where neither forge runs.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R7
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R8
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R9
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R10
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R11
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#925
+    verify: live
+    issues:
+    - derio-net/frank#925
+  - id: ci-budget-backstop-spending-limit
+    capability: CI budget fallback
+    acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
+      ten minutes and its pull request is re-run on Gitea.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R12
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#924
+    verify: live
+    issues:
+    - derio-net/frank#924
+  - id: ci-budget-notifies-and-heartbeat
+    capability: CI budget fallback
+    acceptance: The operator is told on Telegram about every authority change, would-change
+      and refusal, and is paged if the budget watcher stops running.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R13
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#926
+    verify: live
+    issues:
+    - derio-net/frank#926
+  - id: ci-authority-readable-on-github
+    capability: CI budget fallback
+    acceptance: The current CI authority of every github-preferred repo can be read
+      from GitHub alone.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R14
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#923
+    verify: live
+    issues:
+    - derio-net/frank#923
+  - id: runner-memory-and-placement
+    capability: CI runner
+    acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
+      memory limit.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R18
+    levels:
+      unit:
+      - frank:scripts/tests/test_gitea_runner_capacity.py
+    status: ci
+    notes: 'Phase 5: runner limit 2Gi, pc-1 nodeSelector and capacity 2 guarded in CI.'
+    verify: none
+  - id: runner-health-alerts
+    capability: CI runner
+    acceptance: An alert fires when the Gitea runner is offline, when jobs wait too
+      long for it, or when pc-1 /var runs low.
+    origin:
+    - spec:2026-10-18--cicd--github-preferred-gitea-fallback#R19
+    levels: {}
+    status: walk-owed
+    notes: tracked by derio-net/frank#933
+    verify: live
+    issues:
+    - derio-net/frank#933

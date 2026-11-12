@@ -1,4 +1,4 @@
-schema_version: 10
+schema_version: 11
 run: 2026-11-12-feat-retire-vk-phase2
 workflow: fr-goal@1
 branch: feat/retire-vk-phase2
