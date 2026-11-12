@@ -3,7 +3,7 @@ run: 2026-11-12-feat-retire-vk-phase2
 workflow: fr-goal@1
 branch: feat/retire-vk-phase2
 started: '2026-11-12T12:22:53+00:00'
-cursor: journal-check
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -97,7 +97,10 @@ steps:
           visual: none
           findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10,p1-r11,p1-r12,p1-r13,p1-r14,p1-r15,p1-r16
   journal-check:
-    state: pending
+    state: done
+    at: '2026-11-12T13:44:49+00:00'
+    exit: 0
+    stdout: ''
   deliver:
     state: pending
 fr_version: 6.3.0
