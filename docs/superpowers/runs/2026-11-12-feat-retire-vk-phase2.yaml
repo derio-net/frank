@@ -102,8 +102,10 @@ steps:
     exit: 0
     stdout: ''
   deliver:
-    state: running
-    at: '2026-11-12T13:44:51+00:00'
+    state: done
+    at: '2026-11-12T14:15:26+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/955
     units:
       step/deliver:
         attempts:
@@ -111,4 +113,11 @@ steps:
           harness: claude-code
           model: claude-fable-5-2
           session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T14:15:14+00:00'
+          outcome: done
+        evidence:
+          tests: deliver-suite-final.log@238d08b89b6e
+          proportionality: 8af826eecf30f61c0c004d9f9b9552eba307cea3:d729713e31f14f1a711e1c2d134dc44895f87ae6aa327b4826c6af29cea12f43
+          docs: none
+          visual: none
 fr_version: 6.3.0
