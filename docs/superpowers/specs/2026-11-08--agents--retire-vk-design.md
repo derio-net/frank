@@ -196,6 +196,12 @@ covering all local-only branches. Credential files
 purpose despite possibly holding tokens, because it is not in git. The script prints a file count and
 verifies the tarball and bundles. Regenerable caches are not archived.
 
+Bundles hold committed work only, so the script also captures uncommitted state from
+every clone and linked worktree: the `git status`, a binary patch of tracked changes
+against `HEAD`, a tarball of untracked (not ignored) files under the same credential
+excludes, and one patch per stash entry. Dirty clones are listed in `DIRTY.txt`, and
+`verify` names them. The script writes nothing to the pod's home.
+
 **Removal (R10).** Remove `apps/root/templates/secure-agent-pod.yaml`,
 `ns-secure-agent-pod.yaml` and `apps/secure-agent-pod/`. The PVC, Services, RBAC
 and SOPS-applied Secrets go through the cascade or the namespace. Evidence is on
