@@ -39,7 +39,7 @@ layer, before the write lands.
   ```
 
   Use the host variant for doc, rule, and config edits — it is a plain git worktree with no
-  container build. Both agent pods already declare `FR_ISOLATION_TARGET=worktree` globally (see
+  container build. The hermes-agent-shell pod already declares `FR_ISOLATION_TARGET=worktree` on its agent containers (the secure-agent-pod did too, until it was retired 2026-11) (see
   `frank-gotchas.md`), so in-pod sessions get the docker-less path by default.
 - **Workspaces land in `~/.cache/fr/worktrees/frank/<branch>`**, with `/` rewritten as `__` —
   branch `docs/my-change` becomes `~/.cache/fr/worktrees/frank/docs__my-change`.

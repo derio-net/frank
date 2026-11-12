@@ -16,13 +16,10 @@ panes on the new version's interactive "Set up auto mode" onboarding dialog.
 Debug journal: docs/superpowers/journals/debug/2026-08-27-alert-agent-oom-overload.md.
 
 Updates must arrive via the agent-images pipeline (memory-safe curl install),
-never via the in-pod updater. Two things must hold, mirroring
-test_fr_isolation_target_env.py:
-
-  1. every claude-running container declares DISABLE_AUTOUPDATER=1 in `env:`;
-  2. the kali profile.d re-export shim carries it into SSH login shells,
-     since sshd scrubs the container env (the "sshd scrubs container env on
-     login" gotcha) and kali's claude is normally launched from an SSH shell.
+never via the in-pod updater. Every claude-running container must declare
+DISABLE_AUTOUPDATER=1 in `env:`. (The secure-agent-pod's kali container and its
+profile.d re-export shim were retired 2026-11, so only the manifests of the
+remaining claude-running pods are checked.)
 """
 
 from pathlib import Path

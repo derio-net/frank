@@ -145,7 +145,8 @@ def test_bump_step_exits_zero_when_nothing_is_skipped(tmp_path):
 
 
 def test_bump_baseline_reads_a_pin_that_keeps_moving():
-    # The kali pin is frozen by R5, so a baseline read from it grows without bound.
+    # Read the baseline from a pin that keeps moving: a pin that stops moving makes the
+    # old...new diff grow without bound and relists already-shipped PRs.
     text = BUMP.read_text()
     match = re.search(r"OLD_AI_SHA=\$\(grep -oE '([^']+)'\s*\\?\s*(\S+)", text)
     assert match, "OLD_AI_SHA assignment not found"

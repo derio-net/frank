@@ -176,7 +176,7 @@ Workarounds, in order of cleanliness:
 
 super-fr v3.15.0 (derio-net/super-fr#397) shipped docker-less isolation host modes. **Host-worktree mode** activates when the process env carries `FR_ISOLATION_TARGET=worktree`: `fr isolation up/exec/down` runs as a plain git worktree in the host env — zero docker/devcontainer calls — so `fr-goal` / `fr-brainstorming` / `fr-debugging` become runnable inside Frank's unprivileged agent pods (which cannot spawn a devcontainer). Unknown values fail closed; a host without the variable is unchanged (still devcontainer mode). frank#686.
 
-Frank declares the variable on **every agent-bearing container**, across both pods (spec: `docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md`):
+Frank declares the variable on **every agent-bearing container**, across both pods (the secure-agent-pod half was retired 2026-11; spec: `docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md`):
 
 | Deployment | Container | Why |
 |---|---|---|
@@ -1103,7 +1103,7 @@ image's s6 `postgres` longrun should back off exponentially and give up loudly i
 retrying forever on a fatal, non-transient bind error (see `s6 crashloop bail` above — that
 5-deaths-in-60s bail evidently does not apply to this service).
 
-## HISTORICAL (retired 2026-11): Under `Recreate` + an RWO PVC, image PULL TIME is DOWNTIME — so layer SHAPE is an availability property (2026-08-15)
+## Retired incident (secure-agent-pod, 2026-11), live lesson for any `Recreate` + RWO workload: Under `Recreate` + an RWO PVC, image PULL TIME is DOWNTIME — so layer SHAPE is an availability property (2026-08-15)
 
 The retired `secure-agent-pod` mounted an RWO PVC, so its Deployment had to be `strategy: Recreate`
 (the RollingUpdate deadlock in `storage-secrets-ssa.md`). `Recreate` kills the old pod

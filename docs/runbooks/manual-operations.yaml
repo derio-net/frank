@@ -1884,17 +1884,16 @@ operations:
   status: done
 - id: agents-github-app-provision
   layer: agents
-  app: secure-agent-pod
+  app: tekton
   plan: docs/runbooks/frank-gotchas/agent-shells.md
   when: One-time least-privilege migration off the clawdia org-owner PAT (2026-06-08); repeat per new App/org
   why_manual: GitHub App creation, permissions, repo install-scope, and private-key generation are UI-only (org Developer settings); the private key downloads once and cannot be expressed declaratively
   commands:
   - 'UI (org Settings -> Developer settings -> GitHub Apps -> New): repo perms Contents/Issues/Pull requests/Workflows = Read&write, Metadata = Read (+ Commit statuses = Read&write for CI that posts commit status); org perms none; webhook off; install on SELECTED repos (every repo the consumer touches, per-org); generate the private key.'
-  - 'Apps: derio-fr-automation (App 3994132, derio-net) -> secure-agent-pod; stoa-fr-automation (App 3994156) -> tekton CI of a separate org.'
+  - 'Apps: derio-fr-automation (App 3994132, derio-net) -> tekton / argocd-extras / ci-budget (its former consumer, the secure-agent-pod, was retired 2026-11); stoa-fr-automation (App 3994156) -> tekton CI of a separate org.'
   verify:
-  - "env -u GITHUB_TOKEN gh api orgs/<org>/installations --jq '.installations[]|select(.app_slug==\"<app>\")|{repository_selection,permissions}'   # selected + exactly the intended perms"
-  status: retired
-  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
+  - 'env -u GITHUB_TOKEN gh api orgs/<org>/installations --jq ''.installations[]|select(.app_slug=="<app>")|{repository_selection,permissions}''   # selected + exactly the intended perms'
+  status: done
 - id: agents-github-app-key-apply
   layer: agents
   app: secure-agent-pod
@@ -1912,7 +1911,7 @@ operations:
   retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: agents-clawdia-retire
   layer: agents
-  app: secure-agent-pod
+  app: bootstrap
   plan: docs/runbooks/frank-gotchas/agent-shells.md
   when: ONLY after every PAT consumer is migrated to App tokens AND verified against a PRIVATE repo (git) + a real run (gh/CI)
   why_manual: org membership role changes, PAT revocation, and Infisical key deletion are UI/console-only
@@ -1921,9 +1920,8 @@ operations:
   - 'UI: clawdia account -> Settings -> Developer settings -> Personal access tokens -> revoke the classic PAT.'
   - 'Infisical (192.168.55.204): delete /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN once the stoa CI ExternalSecret sources from the App generator (now unused).'
   verify:
-  - "env -u GITHUB_TOKEN gh api 'orgs/<org>/members?role=admin' --jq '.[].login'   # clawdia-ai-assistant absent"
-  status: retired
-  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
+  - 'env -u GITHUB_TOKEN gh api ''orgs/<org>/members?role=admin'' --jq ''.[].login''   # clawdia-ai-assistant absent'
+  status: done
 - id: cicd-stoa-live-mirror-infisical-keys
   layer: cicd
   app: tekton
@@ -2814,7 +2812,7 @@ operations:
   when: After the Phase 2 PR merges
   why_manual: The cascade must be observed on live artifacts, a ClusterRoleBinding survives a namespace delete, Grafana reads provisioning only at boot, and prune false leaves the dashboard ConfigMap behind.
   commands:
-  - Compare status.operationState.operation.sync.revision with the merge SHA on root, grafana-alerting and victoria-metrics. Sync any that lag, passing ServerSideApply=true and RespectIgnoreDifferences=true.
+  - Start a sync operation on root (with prune true), grafana-alerting and victoria-metrics, passing ServerSideApply=true and RespectIgnoreDifferences=true. Then confirm on root and grafana-alerting that status.operationState.phase is Succeeded and status.operationState.syncResult.revision contains the merge SHA.
   - kubectl -n argocd get application secure-agent-pod --ignore-not-found
   - kubectl get ns secure-agent-pod --ignore-not-found
   - kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found
@@ -2830,7 +2828,7 @@ operations:
   - GET /api/v1/provisioning/alert-rules on Grafana lists none of the five uids.
   - The pushgateway serves no exercise_reminder, session_manager or audit_digest group.
   - kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard is NotFound.
-  - An hour later no alert has fired because of the removal and frank-gitops-push is still SecretSynced.
+  - At least an hour after the silence was deleted, no alert has fired because of the removal and frank-gitops-push is still SecretSynced with a token refreshed within that hour.
   status: pending
 - id: agents-retire-pod-leftovers
   layer: agents
@@ -2846,5 +2844,5 @@ operations:
   - If frank#913 merged first, confirm scripts/tests/fixtures/life/pin-exceptions.yaml on main names neither vk-local nor secure-agent-kali.
   verify:
   - Every remaining ExternalSecret in the cluster is SecretSynced after the Infisical cleanup.
-  - The next agent-images bump run completes with its coverage check green.
+  - The first agent-images bump run created after both the Frank merge and the agent-images kali removal completes with its coverage check green.
   status: pending
