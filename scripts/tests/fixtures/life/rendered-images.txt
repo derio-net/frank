@@ -46,7 +46,7 @@ ghcr.io/aquasecurity/node-collector:0.3.1
 ghcr.io/berriai/litellm-database:main-v1.83.14-stable.patch.1
 ghcr.io/derio-net/blog:bb12c2922c03bfbdb7ae69e41a157e3354355c44
 ghcr.io/derio-net/caddy-cloudflare:2.11.3
-ghcr.io/derio-net/cluster-update-fr:v0.1.0
+ghcr.io/derio-net/cluster-update-fr:v0.1.0@sha256:d06fc27950338d680fcffbef91949f6367e97d26a43852168cdc2ef09331e8e0
 ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
 ghcr.io/derio-net/gpu-switcher:v0.1.1
 ghcr.io/derio-net/health-bridge:v0.4.0
@@ -56,7 +56,7 @@ ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
 ghcr.io/derio-net/openrgb:1.0rc2
 ghcr.io/derio-net/ovms-retrieval-models:2
 ghcr.io/derio-net/secure-agent-kali:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
-ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
+ghcr.io/derio-net/upgrade-session:1f89319519ae19e930ec5ba2a33dda0b6c2c0140@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
 ghcr.io/derio-net/vk-local:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
 ghcr.io/external-secrets/external-secrets:v2.1.0
 ghcr.io/falcosecurity/plugins/plugin/container:0.6.3

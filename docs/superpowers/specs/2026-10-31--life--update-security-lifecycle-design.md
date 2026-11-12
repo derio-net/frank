@@ -65,6 +65,14 @@ path.
 
 ## Constraints
 
+- **No session credential while an AI agent holds cluster-admin** (operator decision
+  2026-11-12). Cluster-wide admins can read Secrets in `upgrade-sessions`, and admission
+  cannot block reads. So the real session credentials (Omni upgrade SA key, Hop
+  talosconfig/kubeconfig, session GitHub App PEM, tailscale auth keys) are applied only after
+  derio-net/frank#912 closes. That is: `secure-agent-pod/agent-sa` gone with frank#950, once
+  nothing still runs on secure-agent-pod, and the `root-agents` group moved to a
+  least-privilege role. Merging this design's code before then is safe: every new app tolerates
+  the missing Secrets. Enforced as the first step of the plan's manual phase (P7.T1.S1).
 - **Declarative-only** (`agents/rules/repo-principles.md`): every version the
   clusters run is declared in git. Bootstrap secrets are the only manual
   exception, applied via SOPS and recorded as `# manual-operation` blocks.

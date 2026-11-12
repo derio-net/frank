@@ -536,10 +536,10 @@ def test_session_app_comment_does_not_claim_a_control_that_is_not_in_git():
 def test_phase_7_creates_the_main_ruleset_with_the_console_only_check():
     plan = yaml.safe_load((PLAN / "07.yaml").read_text())
     steps = {s["id"]: s["text"] for t in plan["tasks"] for s in t["steps"]}
-    text = steps["P7.T1.S5"]
+    text = steps["P7.T1.S6"]
     for needle in ("main", "cluster-update/approved", "console App", "force", "deletion", "session App"):
         assert needle in text, needle
-    assert "P7.T1.S5" in plan["state"]["steps"]
+    assert "P7.T1.S6" in plan["state"]["steps"]
     prose = (PLAN / "_prose.md").read_text()
     assert "id: life-main-ruleset" in prose
 
@@ -698,7 +698,7 @@ def test_phase_7_carries_every_manual_step_this_phase_creates():
     text = " ".join(s["text"] for t in plan["tasks"] for s in t["steps"])
     for needle in ("checks:read", "actions:write", "life-console-pins", "life-console-secrets", "life-console-mirror"):
         assert needle in text, needle
-    s2 = next(s["text"] for t in plan["tasks"] for s in t["steps"] if s["id"] == "P7.T1.S2")
+    s2 = next(s["text"] for t in plan["tasks"] for s in t["steps"] if s["id"] == "P7.T1.S3")
     assert "(renovate, cluster-update-fr, upgrade-sessions)" not in s2, "the session App PEM lives in cluster-update-fr (ESO consumer namespace)"
     mirror = blocks["life-console-mirror"]
     assert "LAST" in mirror["when"] or "last" in " ".join(mirror["commands"]).lower()
@@ -711,6 +711,16 @@ def test_console_app_can_read_checks_and_rerun_jobs():
              for g in of_kind("ClusterGenerator")}["github-app-cluster-update-console"]
     assert perms["checks"] == "read" and perms["actions"] == "write"
     plan = yaml.safe_load((PLAN / "07.yaml").read_text())
-    s2 = next(s["text"] for t_ in plan["tasks"] for s in t_["steps"] if s["id"] == "P7.T1.S2")
+    s2 = next(s["text"] for t_ in plan["tasks"] for s in t_["steps"] if s["id"] == "P7.T1.S3")
     for needle in ("checks:read", "actions:read", "actions:write"):
         assert needle in s2, needle
+
+
+def test_phase_7_gates_session_credentials_on_removing_ai_agent_cluster_admin():
+    """Operator decision 2026-11-12: no session credential before frank#912 closes."""
+    plan = yaml.safe_load((PLAN / "07.yaml").read_text())
+    first = plan["tasks"][0]["steps"][0]
+    assert first["id"] == "P7.T1.S1"
+    for needle in ("derio-net/frank#912", "secure-agent-pod-cluster-admin", "authentik-root-agents",
+                   "auth can-i get secrets -n upgrade-sessions", "derio-net/frank#950"):
+        assert needle in first["text"], needle

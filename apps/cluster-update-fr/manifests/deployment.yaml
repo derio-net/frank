@@ -75,7 +75,8 @@ spec:
             - {name: ts-state, mountPath: /ts-state}
       containers:
         - name: console
-          image: ghcr.io/derio-net/cluster-update-fr:v0.1.0
+          # Release v0.1.0 (cluster-update-fr@0cfdd4bd), digest from the release notes.
+          image: ghcr.io/derio-net/cluster-update-fr:v0.1.0@sha256:d06fc27950338d680fcffbef91949f6367e97d26a43852168cdc2ef09331e8e0
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
@@ -125,10 +126,10 @@ spec:
         # (agent-images#171); the Reader-role service-account omniconfig is an optional Secret,
         # so before the manual phase this loop just logs and the console shows the version as
         # unknown. Writes omnictl's own JSON (the console accepts {"version"} or
-        # spec.backendversion) by atomic rename. PHASE 7: replace PENDING-PHASE-7 with the
-        # tag/digest that SESSION_IMAGE gets (same image, one pin).
+        # spec.backendversion) by atomic rename. Pinned to the same image and digest as
+        # SESSION_IMAGE in console.env (agent-images@1f893195): one pin, bumped together.
         - name: omni-status
-          image: ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
+          image: ghcr.io/derio-net/upgrade-session:1f89319519ae19e930ec5ba2a33dda0b6c2c0140@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
