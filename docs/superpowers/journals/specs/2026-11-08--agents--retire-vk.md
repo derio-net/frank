@@ -438,3 +438,8 @@ decider: orchestrator session (VK retirement workspace), relayed 2026-11-12 — 
 ### sr2-f11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/956] · resolves sr2-f11: The root Application's prune setting is not in git, and two docs disagree about it
 
 Filed at deliver as https://github.com/derio-net/frank/issues/956.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-archive-claude-home created=2026-11-12T22:15:32+00:00 -->
+### phase2-archive-claude-home · decision · The archive includes ~/.claude: transcripts, CLAUDE.md, settings, memory
+
+decider: operator, relayed by the orchestrator session on 2026-11-12 (this session did not hear it directly). /home/claude/.claude goes into the home tarball, excluding credentials (.credentials.json and other token or auth files by name) and pure caches (statsig, shell-snapshots, cache dirs, node_modules). Exclusions are listed in the usage text and EXCLUDED.txt, and verify's credential scan covers it.
