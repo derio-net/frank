@@ -215,8 +215,8 @@ def test_no_unintended_cluster_generator_is_added():
     assert not missing, f"pre-existing ClusterGenerators removed: {sorted(missing)}"
     base = _generators()[DERIO_GENERATOR]["spec"]["generator"]["githubAccessTokenSpec"]
     assert "repositories" not in base and "permissions" not in base, (
-        f"{DERIO_GENERATOR} is shared by secure-agent-pod and tekton; scoping it "
-        "would break them"
+        f"{DERIO_GENERATOR} is shared by tekton (and was by the retired secure-agent-pod); "
+        "scoping it would break them"
     )
 
 

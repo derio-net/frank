@@ -1207,7 +1207,7 @@ def _etcd_dashboard_json() -> dict[str, Any]:
 def test_etcd_dashboard_is_provisioned_and_mounted():
     """The curated etcd board exists, is mounted twice, and measures etcd.
 
-    Modelled on `secure-agent-pod-dashboard-cm.yaml` (the smallest existing
+    Modelled on the since-retired `secure-agent-pod-dashboard-cm.yaml` (the smallest existing
     board): a ConfigMap carrying a provider yaml (`type: file`, a folder, a
     path under /var/lib/grafana/dashboards/<folder>) and a dashboard json with
     a `uid`. The five panels are the ones the spec names as the acceptance

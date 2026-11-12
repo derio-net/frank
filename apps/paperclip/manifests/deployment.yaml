@@ -27,7 +27,7 @@ spec:
       # No GPU is requested — gpu-1 is also our biggest CPU/RAM box and is
       # currently only ~20% requested. The nvidia.com/gpu:NoSchedule
       # toleration mirrors the cluster's defensive idiom (ollama, n8n,
-      # openrgb, secure-agent-pod) so paperclip survives any future re-assert
+      # openrgb, and the since-retired secure-agent-pod) so paperclip survives any future re-assert
       # of the gpu-only taint.
       nodeSelector:
         kubernetes.io/hostname: gpu-1

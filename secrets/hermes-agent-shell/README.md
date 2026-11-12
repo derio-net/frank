@@ -7,14 +7,14 @@ This directory holds:
 - `hermes-agent-shell-ssh-keys.yaml` *(created during the Phase 1 bootstrap —
   see below)* — Secret in `hermes-agent-shell` mounted read-only into the
   `hermes` container at `/etc/ssh-keys`. Same shape as
-  `secrets/secure-agent-pod/`'s `agent-ssh-keys`,
+  the retired `secrets/secure-agent-pod/`'s `agent-ssh-keys`,
   `secrets/paperclip/`'s `paperclip-shell-ssh-keys` (retired 2026-10-04), and
   `secrets/ruflo/`'s `ruflo-shell-ssh-keys`.
 
 ## Why SOPS not ESO
 
 Frank's pattern for SSH user keys is SOPS-bootstrap applied out-of-band —
-`secure-agent-pod`'s `agent-ssh-keys`, plus the `paperclip` / `ruflo` shells all
+the retired `secure-agent-pod`'s `agent-ssh-keys`, plus the `paperclip` / `ruflo` shells all
 follow it. SOPS-encrypted secrets must NOT be ArgoCD-managed; the Deployment
 references a stable Secret name and marks the volume `optional: true` so the pod
 still boots if the Secret is missing — sshd just won't accept any keys until the

@@ -3,8 +3,8 @@
 # OWNED BY TEKTON (tekton-extras) since the VibeKanban / secure-agent-pod retirement
 # (2026-11, spec 2026-11-08--agents--retire-vk): tekton-pipelines/frank-gitops-push
 # depends on this generator (cnc-promotion and staging-gate depend on that Secret).
-# It used to live under apps/secure-agent-pod, and removing that Application would
-# have cascaded to it; the ExternalSecret's deletionPolicy: Retain would then have kept
+# It used to live under apps/secure-agent-pod (retired 2026-11), and removing that
+# Application would have cascaded to it; the ExternalSecret's deletionPolicy: Retain would then have kept
 # the old Secret in place while its token expired ~1h later, everything still green.
 # Do not move it back under an Application that can be removed.
 #
@@ -16,15 +16,15 @@
 #
 # NOTE: ESO (v2.1.0) resolves this generator's privateKey.secretRef in the CONSUMING
 # ExternalSecret's namespace and IGNORES secretRef.namespace — so the key Secret must
-# exist in EVERY consumer's namespace: tekton-pipelines (frank-gitops-push) and, until
-# Phase 2 of retire-vk removes it, secure-agent-pod. The real protection is that the
-# key is never mounted into a container.
+# exist in EVERY consumer's namespace: tekton-pipelines (frank-gitops-push). The
+# retired secure-agent-pod was a second consumer until 2026-11. The real protection
+# is that the key is never mounted into a container.
 #
 # To tighten further, scope the minted token with `repositories:` / `permissions:`
 # (omitted here = the App's full install: repository_selection ALL derio-net repos,
 # contents/issues/PRs/workflows write — verified 2026-09-14). Consumers that need
 # less get their own scoped generator on the same App instead of scoping this one,
-# which secure-agent-pod and tekton share (see
+# which tekton (and, until it was retired, secure-agent-pod) shared (see
 # apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml).
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: ClusterGenerator
