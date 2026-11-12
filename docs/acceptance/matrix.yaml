@@ -1766,14 +1766,18 @@ rows:
   - derio-net/frank#950
 - id: vk-images-retired
   capability: ci
-  acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali are
-    no longer bumped, and bumps succeed for every remaining image.
+  acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali
+    are no longer bumped, and bumps succeed for every remaining image.
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R5
   levels: {}
   status: not-implemented
-  notes: ''
+  notes: 2026-11-12. agent-images PR176 was merged with main, its branch build 43217543292
+    is green at b6de16b, and it is mergeable. The merge itself and the bump run it
+    triggers are owed.
   verify: live
+  issues:
+  - derio-net/frank#950
 - id: gitops-push-token-continuity
   capability: ci
   acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting
