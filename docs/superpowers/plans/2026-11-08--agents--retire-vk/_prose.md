@@ -93,5 +93,5 @@ commands:
 verify:
   - gh api repos/derio-net/vibe-kanban --jq .archived prints true.
   - agent-github-token and agent-secrets-tier2 in secure-agent-pod are still SecretSynced.
-status: pending
+status: done
 ```
