@@ -20,3 +20,8 @@ Ran ghcr.io/tale/headplane:0.5.5 locally with the proposed config (32-char place
 ### e36f9c7575f1 · root-cause · With overrides on, Headplane 0.5.5 signs sessions with the env key and rejects the file value
 
 Oracle: GET /admin/login with an hp_sess cookie (react-router format, base64 JSON + HMAC-SHA256, '=' stripped) returns 302 to /admin/machines only when the cookie is signed with the active key, else 200. Overrides on: env key gives 302; file placeholder and a random key give 200. Overrides off (current shape): only the file key gives 302. The env override is therefore sufficient: the file keeps a non-secret placeholder and the Secret value is authoritative. The same oracle verifies a rotation on the live pod (old key must give 200).
+
+<!-- fr:journal kind=finding scope=debug id=001621838a5f created=2026-11-12T22:52:17+00:00 state=fixed -->
+### 001621838a5f · finding [fixed] · Session key now comes from Secret headplane-cookie-secret via env override; cookie_secure true
+
+Change: deployment.yaml adds HEADPLANE_LOAD_ENV_OVERRIDES=true and HEADPLANE_SERVER__COOKIE_SECRET (secretKeyRef headplane-cookie-secret/cookie-secret, not optional); files/config.yaml holds the placeholder env-override-placeholder-0000000 and cookie_secure: true. Test first: scripts/tests/test_headplane_cookie_secret_from_secret.py (5 of 6 failed before the change; all pass except the SOPS-file check, which passes once the operator runs rotate.sh pre-merge). Evidence: the branch's own config.yaml booted in ghcr.io/tale/headplane:0.5.5; probe gave env key 302 + Secure, placeholder 200.
