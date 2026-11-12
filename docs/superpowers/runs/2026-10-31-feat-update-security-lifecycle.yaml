@@ -260,8 +260,10 @@ steps:
     stdout: "9 out-of-scope finding(s): p1-r7, p2-r12, p3-r7, p4-r10, \np5-session-network-scope-per-type,\
       \ p5-r4, p5-r11, p6-r10, p6-r11\n"
   deliver:
-    state: running
-    at: '2026-11-01T17:36:31+00:00'
+    state: done
+    at: '2026-11-12T16:47:13+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/913
     units:
       step/deliver:
         attempts:
@@ -269,5 +271,12 @@ steps:
           harness: claude-code
           model: claude-opus-5-5
           session: 6e5115b5-7008-498c-9028-3ac060fab4bd
+          returned: '2026-11-12T16:46:06+00:00'
+          outcome: done
+        evidence:
+          tests: ci:2f92155a9abbc3d879379bca1e33414804e41a2e+8af826eecf30f61c0c004d9f9b9552eba307cea3;tree=04dc4feb30f1714a633903891715dd000d21f4962f3e8af3467d68dfc676e0a7
+          proportionality: 8af826eecf30f61c0c004d9f9b9552eba307cea3:83ffbda7ceb819c705ac9935426de103bad4e1fab6e9d13d13e02e59f6f75a5a
+          docs: none
+          visual: none
 driver: standalone
 fr_version: 6.0.0rc15
