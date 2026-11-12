@@ -5,42 +5,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: upgrade-session-stateful-snapshot
-  namespace: agents
-rules:
-- apiGroups:
-  - ''
-  resources:
-  - persistentvolumeclaims
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - snapshot.storage.k8s.io
-  resources:
-  - volumesnapshots
-  verbs:
-  - create
-  - get
-  - list
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: upgrade-session-stateful-snapshot
-  namespace: agents
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: upgrade-session-stateful-snapshot
-subjects:
-- kind: ServiceAccount
-  name: upgrade-session-stateful
-  namespace: upgrade-sessions
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: upgrade-session-stateful-snapshot
   namespace: alert-agent
 rules:
 - apiGroups:
