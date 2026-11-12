@@ -287,3 +287,10 @@ what: `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` 
 why: Spec row 6. The fork archive must follow the agent-images merge and a green bump run. ci-delivery-check already holds no series for the fork
 how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-7 --state fixed --note "<evidence>"
 owed_key: spec:2026-11-08--agents--retire-vk#step7
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6-2 created=2026-11-12T17:11:32+00:00 -->
+### test-plan-step-6-2 · discovery · Test Plan step 6: ran
+
+Step: The next agent-images bump run completes with its coverage check green.
+
+Evidence: Spec row 5. agent-images PR176 merged 2026-11-12 as fe2fb9b after a green branch build at b6de16b. Main build 43260930622 is green. Frank bump run 43264032464 succeeded with its Verify coverage step green and opened bump PR 957, which touches alert-agent, cnc-base, hermes-agent-shell and n8n-01 and no secure-agent-pod file
