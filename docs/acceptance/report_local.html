@@ -289,7 +289,7 @@
 </table></div>
 <h2><span class="n">39</span>ingress</h2>
 <div class="tblwrap"><table><tr><th>Acceptance</th><th>Origin</th><th>Levels</th><th>Automation</th><th>Evidence / notes</th></tr>
-<tr><td class="acc">vk.cluster.derio.net has no route, Authentik has no VK provider, and the homepage has no VK tile.</td><td class="note"><a href="../superpowers/specs/2026-11-08--agents--retire-vk-design.md">frank:2026-11-08--agents--retire-vk-design.md</a></td><td><span class="lv"><span class="off">UNIT</span><span class="off">API</span><span class="off">INT</span><span class="off">UI</span></span></td><td><span class="st none">not implemented</span></td><td class="note"></td></tr>
+<tr><td class="acc">vk.cluster.derio.net has no route, Authentik has no VK provider, and the homepage has no VK tile.</td><td class="note"><a href="../superpowers/specs/2026-11-08--agents--retire-vk-design.md">frank:2026-11-08--agents--retire-vk-design.md</a></td><td><span class="lv"><span class="off">UNIT</span><span class="off">API</span><span class="off">INT</span><span class="off">UI</span></span></td><td><span class="st sched">walked live</span></td><td class="note">2026-11-12. IngressRoute vk-remote survived the merge under prune false, was deleted by hand, and is NotFound. vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no VK application or proxy provider. The live homepage ConfigMaps hold no VK tile.</td></tr>
 </table></div>
 <h2><span class="n">40</span>ci</h2>
 <div class="tblwrap"><table><tr><th>Acceptance</th><th>Origin</th><th>Levels</th><th>Automation</th><th>Evidence / notes</th></tr>

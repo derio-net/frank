@@ -1723,9 +1723,22 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R3
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walked
+  notes: 2026-11-12. IngressRoute vk-remote survived the merge under prune false,
+    was deleted by hand, and is NotFound. vk.cluster.derio.net answers Traefik 404.
+    The Authentik ORM returns no VK application or proxy provider. The live homepage
+    ConfigMaps hold no VK tile.
   verify: live
+  walks:
+  - strategy: live
+    harness: claude-code
+    model: claude-fable-5-2
+    outcome: pass
+    at: '2026-11-12T12:43:47Z'
+    evidence: 2026-11-12. IngressRoute vk-remote survived the merge under prune false,
+      was deleted by hand, and is NotFound. vk.cluster.derio.net answers Traefik 404.
+      The Authentik ORM returns no VK application or proxy provider. The live homepage
+      ConfigMaps hold no VK tile.
 - id: vk-mirror-retired
   capability: ci
   acceptance: Frank no longer mirrors or budgets derio-net/vibe-kanban, and that repo
