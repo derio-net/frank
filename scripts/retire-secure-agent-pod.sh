@@ -5,8 +5,11 @@
 # patches, restarts or applies anything. Spec:
 # docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md (R9).
 #
-#   archive          stream the files worth keeping off the pod into $DEST
-#   verify           check what archive wrote (checksums, tarball, bundles, mode)
+#   archive          stream the files worth keeping off the pod into $DEST: a home-tree
+#                    tarball, git bundles of local-only commits, and the UNCOMMITTED
+#                    state of every clone and linked worktree (tracked diff, untracked
+#                    files, stashes) under worktrees/
+#   verify           check what archive wrote (checksums, tarball, bundles, dirty state, mode)
 #   key-fingerprint  compare the GitHub App key across the live Secret and SOPS files
 #
 # Env: KUBECTL (default kubectl), SOPS (default sops), GIT (default git), POD_HOME (default
@@ -23,7 +26,9 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 usage() {
   cat >&2 <<USAGE
 usage: $(basename "$0") <archive|verify|key-fingerprint> [--dest DIR] [--session-ended-confirmed] [--old-file-gone-ok]
-  archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT)
+  archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
+                   home tarball, bundles of local-only commits, and uncommitted clone state
+                   (tracked patch, untracked files, stashes); read-only on the pod
   verify           verify the archive in DEST
   key-fingerprint  compare the GitHub App key fingerprints (never prints key material)
 USAGE
@@ -34,7 +39,7 @@ die() { echo "error: $*" >&2; exit 1; }
 
 # kubectl exec into the pod's kali container, argv passed through as-is.
 rexec() {
-  "$KUBECTL" -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- "$@"
+  "$KUBECTL" -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- "$@" </dev/null
 }
 
 mode_of() {
@@ -117,7 +122,75 @@ session_running() {
     END { exit found ? 0 : 1 }' <<<"$1"
 }
 
-rgit() { rexec git -c core.hooksPath=/dev/null "$@"; }
+# GIT_OPTIONAL_LOCKS=0: status/diff must not refresh (write) the index on the pod.
+rgit() { rexec env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null "$@"; }
+
+# dirty_dir WORKTREE: $DEST/worktrees/<path with / as __>
+dirty_dir() { echo "$DEST/worktrees/$(printf '%s' "${1#/}" | sed 's#/#__#g')"; }
+
+# drop_last_remote: forget the newest REMOTE.sha256 line (used when a stream is redone)
+drop_last_remote() {
+  local t; t=$(mktemp)
+  sed '$d' "$DEST/REMOTE.sha256" > "$t" && cat "$t" > "$DEST/REMOTE.sha256"; rm -f "$t"
+}
+
+# capture_dirty WORKTREE MAINFLAG: save uncommitted state, read-only on the pod.
+# Writes nothing for a clean worktree. Any git failure aborts the run.
+capture_dirty() {
+  local w=$1 is_main=$2 probe stashes m u n dir head_ok i
+  probe=$(rgit -C "$w" status --porcelain=v1) || die "git status failed in $w"
+  m=$(awk '!/^\?\?/ && NF {c++} END {print c+0}' <<<"$probe")
+  u=$(awk '/^\?\?/ {c++} END {print c+0}' <<<"$probe")
+  n=0
+  if [ "$is_main" = 1 ]; then
+    stashes=$(rgit -C "$w" stash list) || die "git stash list failed in $w"
+    n=$(awk 'NF {c++} END {print c+0}' <<<"$stashes")
+  fi
+  [ "$m" -gt 0 ] || [ "$u" -gt 0 ] || [ "$n" -gt 0 ] || return 0
+
+  dir=$(dirty_dir "$w")
+  mkdir -p "$dir"
+  echo "$w modified=$m untracked=$u stash=$n" >> "$DEST/DIRTY.txt"
+  stream_to "$dir/status.txt" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" status --porcelain=v1 -z
+  [ "$STREAM_RC" = 0 ] || die "git status -z failed in $w (exit $STREAM_RC)"
+
+  if [ "$m" -gt 0 ]; then
+    # shellcheck disable=SC2016  # the script runs on the pod
+    head_ok=$(rexec sh -c 'if GIT_OPTIONAL_LOCKS=0 git -C "$1" rev-parse --verify -q HEAD >/dev/null; then echo yes; else echo no; fi' _ "$w") \
+      || die "could not probe HEAD in $w"
+    case $head_ok in
+      yes) stream_to "$dir/tracked.patch" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" diff --binary HEAD ;;
+      no)
+        echo "HEAD is unborn in $w; tracked.patch is the index against the empty tree" > "$dir/NOTE.txt"
+        stream_to "$dir/tracked.patch" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" diff --binary --cached 4b825dc642cb6eb9a060e54bf8d69288fbee4904 ;;
+      *) die "unexpected HEAD probe answer in $w" ;;
+    esac
+    [ "$STREAM_RC" = 0 ] || die "git diff failed in $w (exit $STREAM_RC)"
+  fi
+
+  if [ "$u" -gt 0 ]; then
+    # shellcheck disable=SC2016  # the script runs on the pod
+    stream_to "$dir/untracked.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
+      GIT_OPTIONAL_LOCKS=0 git ls-files --others --exclude-standard -z | tar -czf - "$@" --null -T -' _ "$w" "${excludes[@]}"
+    case $STREAM_RC in 0|1) ;; *) die "tar of untracked files failed in $w (exit $STREAM_RC)" ;; esac
+    gzip -t "$dir/untracked.tar.gz" || die "untracked tarball of $w fails gzip -t"
+  fi
+
+  if [ "$n" -gt 0 ]; then
+    stream_to "$dir/stash-list.txt" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" stash list
+    [ "$STREAM_RC" = 0 ] || die "git stash list failed in $w (exit $STREAM_RC)"
+    i=0
+    while [ "$i" -lt "$n" ]; do
+      stream_to "$dir/stash-$i.patch" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" stash show -p --include-untracked "stash@{$i}"
+      if [ "$STREAM_RC" != 0 ]; then
+        drop_last_remote
+        stream_to "$dir/stash-$i.patch" env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -C "$w" stash show -p "stash@{$i}"
+        [ "$STREAM_RC" = 0 ] || die "git stash show failed for stash@{$i} in $w"
+      fi
+      i=$((i + 1))
+    done
+  fi
+}
 
 cmd_archive() {
   check_dest
@@ -134,8 +207,9 @@ cmd_archive() {
   mkdir -p "$DEST/bundles"
   # A re-run starts clean: nothing stale may enter the manifest.
   rm -f "$DEST"/bundles/* "$DEST/REMOTE.sha256" "$DEST/SKIPPED.txt" "$DEST/DETACHED.txt" \
-        "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
-  : > "$DEST/REMOTE.sha256"; : > "$DEST/SKIPPED.txt"; : > "$DEST/DETACHED.txt"
+        "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz" "$DEST/DIRTY.txt"
+  rm -rf "$DEST/worktrees"
+  : > "$DEST/REMOTE.sha256"; : > "$DEST/SKIPPED.txt"; : > "$DEST/DETACHED.txt"; : > "$DEST/DIRTY.txt"
 
   # Which paths exist on the pod (read-only probe).
   local p have present=""
@@ -172,7 +246,7 @@ cmd_archive() {
 
   # One bundle per clone: local-only branches, tags and stash. No remote has these.
   : > "$DEST/bundles/NONE.txt"
-  local clones gitdir repo ref refs count name wt wsha wdet
+  local clones gitdir repo ref refs count name wt wsha wdet wbare wprun wtlist
   clones=$(rexec find "$POD_HOME" -maxdepth 6 -type d -name .git -not -path '*/.cache/*' -not -path '*/node_modules/*') \
     || die "could not search the pod for git clones"
   while IFS= read -r gitdir; do
@@ -195,13 +269,16 @@ cmd_archive() {
     # Detached worktrees cannot be named read-only: record their unreachable tips.
     local wl
     wl=$(rgit -C "$repo" worktree list --porcelain) || die "git worktree list failed in $repo"
-    wt=""; wsha=""; wdet=0
+    wt=""; wsha=""; wdet=0; wbare=0; wprun=0; wtlist=""
     while IFS= read -r line; do
       case $line in
-        "worktree "*) wt=${line#worktree }; wsha=""; wdet=0 ;;
+        "worktree "*) wt=${line#worktree }; wsha=""; wdet=0; wbare=0; wprun=0 ;;
         "HEAD "*) wsha=${line#HEAD } ;;
         detached) wdet=1 ;;
+        bare) wbare=1 ;;
+        prunable*) wprun=1 ;;
         "")
+          if [ -n "$wt" ] && [ "$wbare" = 0 ] && [ "$wprun" = 0 ]; then wtlist="$wtlist$wt"$'\n'; fi
           if [ "$wdet" = 1 ] && [ -n "$wsha" ] && [ "$wt" != "$repo" ]; then
             # shellcheck disable=SC2086
             count=$(rgit -C "$repo" rev-list --count "$wsha" --not --remotes $refs) || die "git rev-list failed for worktree $wt"
@@ -210,9 +287,14 @@ cmd_archive() {
               echo "WARNING: detached worktree $wt at $wsha holds commits no remote or ref has; a read-only bundle cannot name it (listed in DETACHED.txt)" >&2
             fi
           fi
-          wt=""; wsha=""; wdet=0 ;;
+          wt=""; wsha=""; wdet=0; wbare=0; wprun=0 ;;
       esac
     done <<<"$wl"$'\n'
+    # Uncommitted state of the clone and each linked worktree (stashes: once per repo).
+    while IFS= read -r wt; do
+      [ -n "$wt" ] || continue
+      if [ "$wt" = "$repo" ]; then capture_dirty "$wt" 1; else capture_dirty "$wt" 0; fi
+    done <<<"$wtlist"
     if [ -z "$refs" ]; then
       echo "$repo" >> "$DEST/bundles/NONE.txt"
       continue
@@ -312,6 +394,42 @@ cmd_verify() {
   fi
   if [ -s "$DEST/DETACHED.txt" ]; then
     echo "WARN detached worktree commits are not in the bundles; see DETACHED.txt:"; sed 's/^/     /' "$DEST/DETACHED.txt"
+  fi
+
+  # Uncommitted clone state.
+  if [ -s "$DEST/DIRTY.txt" ]; then
+    echo "INFO dirty clones (uncommitted state archived under worktrees/):"; sed 's/^/     /' "$DEST/DIRTY.txt"
+    local dline dpath ddir missing=""
+    while IFS= read -r dline; do
+      [ -n "$dline" ] || continue
+      dpath=${dline%% modified=*}
+      ddir=$(dirty_dir "$dpath")
+      if [ ! -d "$ddir" ] || [ -z "$(ls -A "$ddir" 2>/dev/null)" ]; then missing="$missing $dpath"; fi
+    done < "$DEST/DIRTY.txt"
+    if [ -z "$missing" ]; then pass "dirty clone state present"; else fail "dirty clone state present (missing:$missing)"; fi
+  else
+    echo "INFO no dirty clones"
+  fi
+  if [ -d "$DEST/worktrees" ]; then
+    local wf unlisted="" credbad="" um
+    while IFS= read -r wf; do
+      [ -n "$wf" ] || continue
+      grep -Fq "  ${wf#"$DEST"/}" "$DEST/REMOTE.sha256" || unlisted="$unlisted ${wf#"$DEST"/}"
+      case $wf in
+        */NOTE.txt) ;;
+        */untracked.tar.gz)
+          if gzip -t "$wf" 2>/dev/null && um=$(tar -tzf "$wf" 2>/dev/null); then
+            while IFS= read -r m; do
+              [ -n "$m" ] || continue
+              if cred_hit "${m%/}"; then credbad="$credbad $m"; fi
+            done <<<"$um"
+          else
+            fail "untracked tarball readable: ${wf#"$DEST"/}"
+          fi ;;
+      esac
+    done < <(find "$DEST/worktrees" -type f | sort)
+    case $unlisted in "") pass "every worktrees/ file has a pod-side digest" ;; *) fail "every worktrees/ file has a pod-side digest (unlisted:$unlisted)" ;; esac
+    case $credbad in "") pass "no credential files in untracked tarballs" ;; *) fail "no credential files in untracked tarballs:$credbad" ;; esac
   fi
 
   local scratch b

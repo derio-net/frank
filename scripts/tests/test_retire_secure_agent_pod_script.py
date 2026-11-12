@@ -460,3 +460,137 @@ def test_key_fingerprint_rejects_empty_values(tmp_path):
     env = _key_env(tmp_path, "", "")
     r = _run("key-fingerprint", "--old-file-gone-ok", env=env)
     assert r.returncode != 0
+
+
+# --- uncommitted clone state --------------------------------------------------
+
+def _status(clone):
+    return subprocess.run(["git", "status", "--porcelain=v1", "--ignored"], cwd=clone,
+                          capture_output=True, check=True).stdout
+
+
+def _dirty_clone(home, tmp_path):
+    clone = _clone_with_remote(home, tmp_path)
+    _git("checkout", "-q", "main", cwd=clone)
+    _git("branch", "-D", "local-only", cwd=clone)
+    (clone / ".gitignore").write_text("*.cache\n")
+    _git("add", ".gitignore", cwd=clone)
+    _git("commit", "-qm", "ignore", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    (clone / "f").write_text("stash one\n")
+    _git("stash", "push", "-q", cwd=clone)
+    (clone / "f").write_text("stash two\n")
+    (clone / "new.txt").write_text("n")
+    _git("add", "new.txt", cwd=clone)
+    _git("stash", "push", "-q", cwd=clone)
+    (clone / "f").write_text("modified, unstaged\n")
+    (clone / "staged.txt").write_text("staged\n")
+    _git("add", "staged.txt", cwd=clone)
+    (clone / "untracked file.txt").write_text("u")
+    (clone / "creds").mkdir()
+    (clone / "creds/credentials.json").write_text("secret")
+    (clone / "junk.cache").write_text("ignored")
+    return clone
+
+
+def _worktrees_dirs(dest):
+    d = dest / "worktrees"
+    return sorted(p for p in d.iterdir()) if d.exists() else []
+
+
+def test_dirty_clone_state_is_archived_read_only(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _dirty_clone(home, tmp_path)
+    before = _status(clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert _status(clone) == before  # nothing in the clone changed
+    (wd,) = [p for p in _worktrees_dirs(dest) if p.name.endswith("willikins")]
+    dirty = (dest / "DIRTY.txt").read_text()
+    assert "willikins" in dirty and "stash=2" in dirty
+    # the patch applies to a fresh checkout of HEAD and carries both tracked changes
+    patch = wd / "tracked.patch"
+    assert patch.stat().st_size > 0
+    fresh = tmp_path / "fresh"
+    subprocess.run(["git", "clone", "-q", str(tmp_path / "remote.git"), str(fresh)], check=True)
+    ap = subprocess.run(["git", "apply", "--check", str(patch)], cwd=fresh, capture_output=True, text=True)
+    assert ap.returncode == 0, ap.stderr
+    ptxt = patch.read_text()
+    assert "modified, unstaged" in ptxt and "staged.txt" in ptxt
+    # untracked: the plain file only (no credential file, no ignored file)
+    names = tarfile.open(wd / "untracked.tar.gz").getnames()
+    assert any(n.endswith("untracked file.txt") for n in names), names
+    assert not any("credentials.json" in n or "junk.cache" in n for n in names), names
+    # stashes
+    assert (wd / "stash-list.txt").read_text().count("stash@{") == 2
+    for i in (0, 1):
+        assert (wd / f"stash-{i}.patch").stat().st_size > 0
+    assert (wd / "status.txt").stat().st_size > 0
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "willikins" in v.stdout and "dirty" in v.stdout.lower()
+
+
+def test_clean_clone_writes_nothing_under_worktrees(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _clone_with_remote(home, tmp_path)
+    _git("checkout", "-q", "main", cwd=clone)
+    _git("branch", "-D", "local-only", cwd=clone)
+    (clone / ".gitignore").write_text("scripts/\n")  # the fixture's untracked dirs
+    _git("add", ".gitignore", cwd=clone)
+    _git("commit", "-qm", "ignore", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    assert _status(clone).replace(b"!! scripts/\n", b"") == b""
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert _worktrees_dirs(dest) == []
+    assert (dest / "DIRTY.txt").read_text() == ""
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "no dirty clones" in v.stdout
+
+
+def test_verify_fails_when_a_dirty_clone_patch_is_deleted_or_truncated(tmp_path):
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    (wd,) = [p for p in _worktrees_dirs(dest) if p.name.endswith("willikins")]
+    patch = wd / "tracked.patch"
+    keep = patch.read_bytes()
+    patch.write_bytes(keep[:-10])
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+    patch.unlink()
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+
+
+def test_verify_fails_when_a_dirty_clone_directory_is_missing(tmp_path):
+    import shutil
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    (wd,) = [p for p in _worktrees_dirs(dest) if p.name.endswith("willikins")]
+    shutil.rmtree(wd)
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0
+    assert "FAIL dirty clone state present" in v.stdout
+
+
+def test_verify_fails_when_untracked_tarball_carries_a_credential(tmp_path):
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    (wd,) = [p for p in _worktrees_dirs(dest) if p.name.endswith("willikins")]
+    with tarfile.open(wd / "untracked.tar.gz", "w:gz") as t:
+        t.add(home / ".hermes/auth.json" if (home / ".hermes/auth.json").exists() else home / "orgs/o.txt",
+              arcname="x/auth.json")
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0
+    assert "FAIL no credential files in untracked tarballs" in v.stdout
+
+
+def test_a_failing_git_status_aborts_instead_of_recording_clean(tmp_path):
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, _, _ = _archive_ok(tmp_path, {"STUB_FAIL": "status"}, home=home)
+    assert r.returncode != 0
