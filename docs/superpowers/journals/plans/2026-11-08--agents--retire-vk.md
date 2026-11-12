@@ -175,3 +175,12 @@ Spec amended to unique per SHA, which is what the workflow's own comment intends
 ### p1-r11-resolved · finding [fixed] · resolves p1-r11: HISTORICAL wording said vk-local was retired while the container still runs (phase 1)
 
 The historical note says vk-local lingers idle until Phase 2.
+
+<!-- fr:journal kind=discovery scope=plan id=p2-live-sweep-2026-11-12 created=2026-11-12T12:44:38+00:00 phase=2 -->
+### p2-live-sweep-2026-11-12 · discovery · Phase 1 live sweep ran three days after the merge, by hand (phase 2)
+
+PR949 merged 2026-11-09 21:03 UTC and the post-merge sweep did not run until 2026-11-12. In that gap the vk-remote IngressRoute kept existing, Grafana (pod started 2026-11-03) still held all three VK rules and the old Layer 18 clause behind two silences, and the vk_issue_bridge pushgateway group persisted. traefik-extras reported a current sync revision while its last sync operation dated from 2026-08-02 at 920c9da, because a git deletion under prune false gives auto-sync nothing to apply.
+
+`fr ops gate` refuses a non-interactive caller, so the ops were run one command at a time by an agent session under the operator's authorization and recorded with `fr closeout outcome`. The spec's Test Plan numbers its rows from 0 and fr numbers steps by position, so fr step N is spec row N-1; steps 1-4 carry a superseding entry for that reason.
+
+Still owed: merging derio-net/agent-images#176 (branch build 43217543292 green at b6de16b; the agent session was refused the merge), the bump run that follows, the fork webhook delete and archive, and removing the four VK_REMOTE_ keys from Infisical.
