@@ -1,12 +1,8 @@
-"""Guard: VibeKanban is retired from Frank's git state (Phase 1 of retire-vk).
+"""Guard: VibeKanban and the secure-agent-pod are retired from Frank's git state.
 
-Spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md (R1-R8).
-
-Phase 1 removes everything VK-shaped EXCEPT the live secure-agent-pod, whose
-Deployment is `Recreate`: editing it ends the operator's running session. So
-the pod's own directory is exempt from the "no references" scans below, and one
-assertion pins the Deployment as untouched. Phase 2 deletes the pod, the exempt
-paths and that pin together.
+Spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md (R1-R8 in
+Phase 1, R9-R15 in Phase 2). Phase 2 deleted the pod's directory, root templates
+and secrets, so the scans below no longer exempt anything.
 """
 
 import os
@@ -21,9 +17,6 @@ APPS = REPO / "apps"
 RULES_CM = APPS / "grafana-alerting/manifests/alert-rules-cm.yaml"
 PROVIDERS = APPS / "authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml"
 BUMP = REPO / ".github/workflows/agent-images-bump.yml"
-POD_DEPLOYMENT = APPS / "secure-agent-pod/manifests/deployment.yaml"
-
-POD_PIN = "dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91"
 VK_RULE_UIDS = ("vk-bridge-stale", "vk-bridge-failures", "vk-executor-pool-wedged")
 
 
@@ -32,11 +25,9 @@ def _rules_doc():
     return yaml.safe_load(cm["data"]["alert-rules.yaml"])
 
 
-def _apps_files(skip_pod=True):
+def _apps_files():
     for f in sorted(APPS.rglob("*")):
         if not f.is_file() or f.suffix not in {".yaml", ".yml", ".md", ".json", ".sh"}:
-            continue
-        if skip_pod and "secure-agent-pod" in f.relative_to(APPS).parts[:1]:
             continue
         yield f
 
@@ -49,11 +40,8 @@ def test_vk_remote_stack_is_gone():
 
 
 def test_nothing_in_apps_advertises_vk_or_ships_its_image():
-    # Only the pod's Deployment is exempt until Phase 2 (live Recreate workload).
     offenders = []
-    for f in _apps_files(skip_pod=False):
-        if f == POD_DEPLOYMENT:
-            continue
+    for f in _apps_files():
         text = f.read_text(errors="replace")
         if "vk.cluster.derio.net" in text:
             offenders.append(f"{f.relative_to(REPO)}: vk.cluster.derio.net")
@@ -185,13 +173,112 @@ def test_github_app_derio_generator_is_owned_by_tekton():
     assert _generator_files("secure-agent-pod") == []
 
 
-# --- R7: the live pod is untouched until Phase 2 ----------------------------
+# --- R10-R15: the secure-agent-pod is gone ---------------------------------
 
-def test_pod_deployment_still_pins_both_containers():
-    # PHASE 1 INVARIANT. Phase 2 removes the pod and deletes this assertion.
-    text = POD_DEPLOYMENT.read_text()
-    # Pinned to the exact SHA: an accidental bump here rolls the pod.
-    for image in ("secure-agent-kali", "vk-local"):
-        assert f"ghcr.io/derio-net/{image}:{POD_PIN}" in text
+POD_UIDS = (
+    "exercise-reminder-stale",
+    "session-manager-stale",
+    "audit-digest-stale",
+    "agent-pod-not-running",
+    "layer-18-persistent-agent-degraded",
+)
 
 
+def test_pod_paths_are_gone():
+    for rel in (
+        "apps/secure-agent-pod",
+        "apps/root/templates/secure-agent-pod.yaml",
+        "apps/root/templates/ns-secure-agent-pod.yaml",
+        "secrets/secure-agent-pod",
+        "secrets/github-app/github-app-derio-key.yaml",
+    ):
+        assert not (REPO / rel).exists(), rel
+    # Tekton's own copy of the App key is what stays.
+    assert (REPO / "secrets/github-app/github-app-derio-key-tekton.yaml").exists()
+
+
+def test_pod_alert_rules_are_deleted_and_tombstoned():
+    doc = _rules_doc()
+    defined = {r["uid"] for g in doc["groups"] for r in g["rules"]}
+    tombstoned = {d["uid"] for d in doc["deleteRules"]}
+    for uid in POD_UIDS:
+        assert uid not in defined, f"{uid} is still defined"
+        assert uid in tombstoned, f"{uid} needs a deleteRules tombstone"
+    text = RULES_CM.read_text()
+    for uid in POD_UIDS:
+        assert f"{{orgId: 1, uid: {uid}}}" in text
+
+
+def test_pod_dashboard_is_gone():
+    assert not (APPS / "grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml").exists()
+    assert "grafana-secure-agent-pod-dashboard" not in (APPS / "victoria-metrics/values.yaml").read_text()
+
+
+def test_bump_workflow_has_no_frozen_pod_images():
+    text = BUMP.read_text()
+    assert "secure-agent-kali" not in text
+    assert "vk-local" not in text
+
+
+_POD_TOKENS = (
+    "secure-agent-kali",
+    "vk-local",
+    "192.168.55.215",
+    "192.168.55.218",
+    "192.168.55.219",
+    "secure-agent-pod",
+)
+
+
+def test_nothing_names_the_pod_unless_it_says_retired():
+    offenders = []
+    for top in ("apps", "secrets", ".github"):
+        for f in sorted((REPO / top).rglob("*")):
+            if not f.is_file():
+                continue
+            try:
+                lines = f.read_text().splitlines()
+            except UnicodeDecodeError:
+                continue
+            for n, line in enumerate(lines, 1):
+                if not any(t in line for t in _POD_TOKENS):
+                    continue
+                low = line.lower()
+                if "retired" in low or "historical" in low:
+                    continue
+                if re.search(r"\{orgId: 1, uid: [\w-]+\}", line):
+                    continue  # a deleteRules tombstone
+                offenders.append(f"{f.relative_to(REPO)}:{n}: {line.strip()[:100]}")
+    assert not offenders, offenders
+
+
+def test_pin_exceptions_fixture_names_neither_pod_image():
+    fixture = REPO / "scripts/tests/fixtures/life/pin-exceptions.yaml"
+    if not fixture.exists():
+        return  # arrives with frank#913; vacuous until then
+    text = fixture.read_text()
+    assert "vk-local" not in text
+    assert "secure-agent-kali" not in text
+
+
+SUPERSEDED = (
+    "blog/content/docs/building/21-secure-agent-pod",
+    "blog/content/docs/building/25-vk-relay",
+    "blog/content/docs/building/26-vk-remote-self-host",
+    "blog/content/docs/building/18-persistent-agent",
+    "blog/content/docs/building/28-agent-images-sidecar",
+    "blog/content/docs/operating/14-secure-agent-pod",
+    "blog/content/docs/operating/20-vk-relay",
+    "blog/content/docs/operating/21-vk-remote",
+    "blog/content/docs/operating/19-git-credentials-without-a-shell",
+    "blog/content/docs/papers/17-agentic-orchestration",
+)
+
+
+def test_blog_bundles_carry_the_retirement_notice():
+    missing = []
+    for rel in SUPERSEDED:
+        lines = (REPO / rel / "index.md").read_text().splitlines()
+        if not any(l.startswith("> **Update 2026-11.**") for l in lines):
+            missing.append(rel)
+    assert not missing, missing
