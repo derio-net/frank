@@ -294,3 +294,10 @@ owed_key: spec:2026-11-08--agents--retire-vk#step7
 Step: The next agent-images bump run completes with its coverage check green.
 
 Evidence: Spec row 5. agent-images PR176 merged 2026-11-12 as fe2fb9b after a green branch build at b6de16b. Main build 43260930622 is green. Frank bump run 43264032464 succeeded with its Verify coverage step green and opened bump PR 957, which touches alert-agent, cnc-base, hermes-agent-shell and n8n-01 and no secure-agent-pod file
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7-2 created=2026-11-12T17:11:37+00:00 -->
+### test-plan-step-7-2 · discovery · Test Plan step 7: ran
+
+Step: `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
+
+Evidence: Spec row 6. derio-net/vibe-kanban reports archived true and has 0 webhooks. ci-delivery-check holds no series for the fork and no overdue gauge is above zero. agent-github-token and agent-secrets-tier2 are still SecretSynced. Removing the four VK_REMOTE keys from Infisical is still owed by the operator
