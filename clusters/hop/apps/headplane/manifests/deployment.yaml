@@ -33,6 +33,16 @@ spec:
                 secretKeyRef:
                   name: headplane-api-key
                   key: api-key
+            # Env overrides let the session-signing key come from a Secret
+            # (0.5.5 has no cookie_secret_path). With overrides on, every
+            # HEADPLANE_<SECTION>__<KEY> var overrides files/config.yaml.
+            - name: HEADPLANE_LOAD_ENV_OVERRIDES
+              value: "true"
+            - name: HEADPLANE_SERVER__COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: headplane-cookie-secret
+                  key: cookie-secret
           volumeMounts:
             - name: config
               mountPath: /etc/headplane

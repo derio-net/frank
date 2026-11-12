@@ -790,6 +790,37 @@ operations:
   - "# Prove the RUNNING pod authenticates. Run the probe from the HEADPLANE pod:\n# the headscale image is distroless and has no `sh`, so exec-ing a shell\n# one-liner into it fails with \"executable file not found in $PATH\".\nkubectl -n headscale-system exec deploy/headplane -- sh -c \\\n  'wget -q -O- --header=\"Authorization: Bearer $HEADPLANE_HEADSCALE_API_KEY\" \\\n     http://headscale.headscale-system.svc:8080/api/v1/apikey'\n"
   - 'Browser: https://headplane.hop.derio.net/admin/ logs in (mesh-only — Caddy 403s any source outside 100.64.0.0/10)'
   status: done
+- id: edge-hop-headplane-cookie-secret-rotation
+  layer: edge
+  app: headplane
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: PRE-MERGE for the PR that switches Headplane to the env override (the Deployment's secretKeyRef blocks the new pod
+    until the Secret exists); afterwards whenever the key must be rotated. After merge + ArgoCD sync, run verify.
+  why_manual: SOPS-encrypted Secrets are applied out-of-band, never ArgoCD-managed, and the key must be generated without
+    ever being printed. The script holds it only in shell variables, writes the SOPS file, and applies the same Secret.
+  commands:
+  - '# From the PR''s fr worktree (writes secrets/hop/headplane-cookie-secret.yaml there;
+
+    # reads .env_hop and the Hop kubeconfig from the main checkout).
+
+    bash scripts/headplane-session-key/rotate.sh            # first time / idempotent
+
+    bash scripts/headplane-session-key/rotate.sh --force    # later rotations (restarts the pod)
+
+    git add secrets/hop/headplane-cookie-secret.yaml && git commit -m "chore(edge): add encrypted Headplane session key"
+
+    '
+  - '# Disaster recovery (needs the age private key):
+
+    sops --decrypt secrets/hop/headplane-cookie-secret.yaml | kubectl apply -f -
+
+    '
+  verify:
+  - 'rotate.sh ends with: OK: live key differs from every value ever committed'
+  - 'After merge + sync: bash scripts/headplane-session-key/verify.sh → live key 302 + Secure cookie; every committed value
+    200'
+  - 'Browser: https://headplane.hop.derio.net/admin/ logs in again with the API key (old sessions are signed out)'
+  status: pending
 - id: edge-hop-headscale-first-client
   layer: edge
   app: headscale
