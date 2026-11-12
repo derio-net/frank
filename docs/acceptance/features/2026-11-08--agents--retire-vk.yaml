@@ -13,9 +13,22 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R1
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12 after PR949 and a Grafana restart. The running Grafana provisioning
+      API lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat
+      Stale has no vk_issue_bridge instance. The retained pushgateway group was deleted.
+      Both retirement silences were deleted and no VK alert fires without them.
     verify: live
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T12:43:42Z'
+      evidence: 2026-11-12 after PR949 and a Grafana restart. The running Grafana provisioning
+        API lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat
+        Stale has no vk_issue_bridge instance. The retained pushgateway group was deleted.
+        Both retirement silences were deleted and no VK alert fires without them.
   - id: pod-removal-silent
     capability: alerting
     acceptance: Removing the pod raises no alert, and no dashboard or scrape depends
@@ -35,9 +48,24 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R2
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12. Application vk-remote and namespace agents are NotFound. The
+      Mac dump was created 2026-11-09 21:04:47 UTC, about 70 seconds after the merge
+      and before the cascade removed the database, and pg_restore lists 331 TOC entries
+      with 35 table data entries. The listing was first proved on 2026-11-12, so verified-first
+      holds for the dump existing, not for the listing.
     verify: live
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T12:43:44Z'
+      evidence: 2026-11-12. Application vk-remote and namespace agents are NotFound.
+        The Mac dump was created 2026-11-09 21:04:47 UTC, about 70 seconds after the
+        merge and before the cascade removed the database, and pg_restore lists 331
+        TOC entries with 35 table data entries. The listing was first proved on 2026-11-12,
+        so verified-first holds for the dump existing, not for the listing.
   - id: pod-undisturbed-phase-1
     capability: agents
     acceptance: Retiring VK's dependencies does not restart the secure-agent-pod or
@@ -45,9 +73,20 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R7
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12 12:30 UTC, after the whole Phase 1 sweep. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704
+      and kali restart count 0 equal the baseline. Pod created and kali started 2026-10-21,
+      before the merge.
     verify: live
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T12:43:49Z'
+      evidence: 2026-11-12 12:30 UTC, after the whole Phase 1 sweep. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704
+        and kali restart count 0 equal the baseline. Pod created and kali started 2026-10-21,
+        before the merge.
   - id: pod-removed-after-archive
     capability: agents
     acceptance: The secure-agent-pod and its storage, addresses and cluster-admin binding
@@ -70,9 +109,22 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R3
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12. IngressRoute vk-remote survived the merge under prune false,
+      was deleted by hand, and is NotFound. vk.cluster.derio.net answers Traefik 404.
+      The Authentik ORM returns no VK application or proxy provider. The live homepage
+      ConfigMaps hold no VK tile.
     verify: live
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T12:43:47Z'
+      evidence: 2026-11-12. IngressRoute vk-remote survived the merge under prune false,
+        was deleted by hand, and is NotFound. vk.cluster.derio.net answers Traefik 404.
+        The Authentik ORM returns no VK application or proxy provider. The live homepage
+        ConfigMaps hold no VK tile.
   - id: vk-mirror-retired
     capability: ci
     acceptance: Frank no longer mirrors or budgets derio-net/vibe-kanban, and that repo
@@ -80,9 +132,22 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R4
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12. derio-net/vibe-kanban reports archived true with 0 webhooks.
+      ci-delivery-check no longer lists the fork and holds no series for it. Removing
+      the four VK_REMOTE keys from Infisical is still owed by the operator.
     verify: live
+    issues:
+    - derio-net/frank#950
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T17:11:54Z'
+      evidence: 2026-11-12. derio-net/vibe-kanban reports archived true with 0 webhooks.
+        ci-delivery-check no longer lists the fork and holds no series for it. Removing
+        the four VK_REMOTE keys from Infisical is still owed by the operator.
   - id: vk-images-retired
     capability: ci
     acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali
@@ -90,9 +155,24 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R5
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: walked
+    notes: 2026-11-12. agent-images PR176 merged as fe2fb9b and no longer builds vk-local.
+      Main build 43260930622 is green. Frank bump run 43264032464 succeeded with Verify
+      coverage green, and its bump PR 957 touches no vk-remote, vk-local or secure-agent-kali
+      pin.
     verify: live
+    issues:
+    - derio-net/frank#950
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T17:12:02Z'
+      evidence: 2026-11-12. agent-images PR176 merged as fe2fb9b and no longer builds
+        vk-local. Main build 43260930622 is green. Frank bump run 43264032464 succeeded
+        with Verify coverage green, and its bump PR 957 touches no vk-remote, vk-local
+        or secure-agent-kali pin.
   - id: gitops-push-token-continuity
     capability: ci
     acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting
@@ -101,8 +181,12 @@ rows:
     - spec:2026-11-08--agents--retire-vk#R6
     levels: {}
     status: not-implemented
-    notes: ''
+    notes: Phase 1 half walked 2026-11-12. github-app-derio is tracked by tekton-extras
+      and frank-gitops-push is SecretSynced with a refresh after a forced resync. The
+      row stays open until Phase 2 proves the same after the pod is gone.
     verify: live
+    issues:
+    - derio-net/frank#950
   - id: kali-image-retired
     capability: ci
     acceptance: secure-agent-kali is no longer built, and bumps succeed for every remaining
