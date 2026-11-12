@@ -433,3 +433,8 @@ decider: agent. R12's build half is one matrix leg and one directory in derio-ne
 ### phase2-archive-uncommitted-state · decision · The archive also preserves uncommitted clone state
 
 decider: orchestrator session (VK retirement workspace), relayed 2026-11-12 — not the operator. Bundles carry committed refs only; dirty worktrees, untracked files and stash entries would be lost with the PVC. Additive and read-only, so adopted without an operator round.
+
+<!-- fr:journal kind=finding scope=spec id=sr2-f11-resolved-2 created=2026-11-12T14:14:11+00:00 state=open resolves=sr2-f11 tracked_by=https://github.com/derio-net/frank/issues/956 -->
+### sr2-f11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/956] · resolves sr2-f11: The root Application's prune setting is not in git, and two docs disagree about it
+
+Filed at deliver as https://github.com/derio-net/frank/issues/956.
