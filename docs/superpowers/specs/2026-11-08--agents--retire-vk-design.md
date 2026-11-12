@@ -189,8 +189,8 @@ Mac (operator decision, 2026-11-12). The script creates that directory `0700` an
 refuses a destination inside a git repository or with a looser mode. Phase 1's dump
 and baseline stay where Phase 1 wrote them, `$HOME/frank-retire-vk-archive/`. The tarball contains `interviews/`,
 `orgs/`, `.hermes`, the audit archive, the VK `db.v2.sqlite`,
-`repos/willikins/scripts/chorebot/config.yaml`, and one `git bundle` per clone
-covering all local-only branches. Credential files
+`repos/willikins/scripts/chorebot/config.yaml`, and one self-contained `git bundle` per clone
+covering every ref (no prerequisites, so a deleted or force-pushed upstream cannot break a restore). Credential files
 (`credentials.json`, `server_ed25519_signing_key`, `.ssh`, `.gnupg`,
 `.config/gh`, `.claude.json`) are excluded. chorebot's `config.yaml` is kept on
 purpose despite possibly holding tokens, because it is not in git. The script prints a file count and
