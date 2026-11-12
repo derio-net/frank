@@ -134,4 +134,4 @@ VMAgent auto-discovers these and feeds execution counts, durations, error rates 
 - [Bitnami PostgreSQL chart](https://github.com/bitnami/charts/tree/main/bitnami/postgresql)
 - [Authentik proxy providers](https://goauthentik.io/docs/providers/proxy/)
 
-**Next: [Secure Agent Pod — Hardening an AI Workstation](/docs/building/21-secure-agent-pod)**
+**Next: [Secure Agent Pod — Hardening an AI Workstation](/docs/building/21-secure-agent-pod)** *(retired 2026-11; kept as a record)*

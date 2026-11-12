@@ -9,9 +9,11 @@ summary: "Deploying a relay server sidecar to tunnel the VK remote web UI throug
 weight: 26
 reader_goal: "Deploy a VibeKanban relay sidecar that tunnels the remote web UI to the local agent's workspace data via WebSocket + yamux multiplexing"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 description: "Deploying a relay server sidecar to tunnel the VK remote web UI through to the local agent's workspace data — because a dashboard that cannot show your work is not a dashboard."
 ---
+
+> **Update 2026-11.** VibeKanban and the secure-agent-pod were retired in November 2026. This post is kept as a record of how they were built: the manifests, addresses and commands below no longer exist on the cluster. The agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 In the secure-agent-pod post, we deployed a hardened Kali workstation with VibeKanban running in local mode — SQLite database, file-based sessions, same filesystem as the coding agent. The self-hosted {{< abbr "VK" >}} remote web UI at `vk.cluster.derio.net` shows issues and workspace metadata, but it cannot display the actual workspace content: repos, sessions, diffs, terminal output. That data lives on the local VK server at `localhost:8081` inside secure-agent-pod, and the browser has no way to reach it.
 

@@ -145,8 +145,8 @@ layers:
     sub_items:
       - Sympozium (K8s-native agents)
       - n8n (per-user workflow automation)
-      - VK Remote (self-hosted kanban API)
-      - ElectricSQL real-time sync
+      - VK Remote (self-hosted kanban API) - retired 2026-11
+      - ElectricSQL real-time sync - retired 2026-11
     tags:
       - agent=Pod
       - n8n
@@ -217,7 +217,7 @@ layers:
     key: agents
     title: Persistent Agent
     sub_items:
-      - Kali Linux workstation
+      - Kali Linux workstation (retired 2026-11 with the secure-agent-pod)
       - Always-on Claude Code agent
       - SSH remote access
       - 50Gi persistent /root
@@ -243,8 +243,9 @@ layers:
     sub_items:
       - Hardened non-root Kali container
       - Cilium egress allowlist
-      - VibeKanban agent orchestration
-      - VK Relay (WebSocket tunnel to browser)
+      - VibeKanban agent orchestration - retired 2026-11
+      - VK Relay (WebSocket tunnel to browser) - retired 2026-11
+      - The pod itself was retired 2026-11
     tags:
       - security
       - vibekanban
@@ -281,7 +282,7 @@ layers:
     sub_items:
       - agent-images repo (shared base + children)
       - Matrix CI with cross-repo <code>repository_dispatch</code>
-      - VK-local sidecar (shared /home/claude PVC)
+      - VK-local sidecar (shared /home/claude PVC) - retired 2026-11
       - Lockstep bumper PR in frank
     tags:
       - docker

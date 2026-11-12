@@ -128,6 +128,8 @@ File-provisioned rules are **read-only in the UI**. To modify:
 
 ### Pushing a Manual Heartbeat
 
+> **Update 2026-11.** The secure-agent-pod and its heartbeat crons were retired in November 2026, so this command no longer has a target. It is kept as the record of how the heartbeat pattern worked.
+
 ```bash
 kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- /opt/scripts/push-heartbeat.sh <job_name> [label=value ...]
 # Example: kubectl exec ... /opt/scripts/push-heartbeat.sh exercise_reminder context=desk
