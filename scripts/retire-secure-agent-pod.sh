@@ -6,21 +6,22 @@
 # docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md (R9).
 #
 #   archive          stream the files worth keeping off the pod into $DEST: a home-tree
-#                    tarball; git bundles of local-only commits (refs/ minus remote-tracking
-#                    refs, plus the detached HEAD of every worktree); annotated tag objects
-#                    whose commit a remote already has; and the UNCOMMITTED state of every
-#                    clone and linked worktree (index and working-tree patches, untracked
-#                    files, skip-worktree files, every stash entry) under worktrees/
+#                    tarball; ONE self-contained git bundle per repository (every ref,
+#                    including remote-tracking refs, plus in-progress and detached heads as
+#                    extra revs; no prerequisites); and the UNCOMMITTED state of every clone
+#                    and linked worktree (index and working-tree patches, untracked and
+#                    skip-worktree files, conflicts with their stages, in-progress merge or
+#                    rebase state, every stash entry) under worktrees/
 #   verify           check what archive wrote (checksums, tarball, bundles, dirty state, mode);
 #                    offline. `verify --live` also re-scans the pod, read-only, and diffs it
+#   restore-worktree rebuild one saved worktree in a fresh checkout, locally (never contacts
+#                    the pod): restore-worktree --dest ARCHIVE --worktree ORIGINAL_PATH --target DIR
 #   key-fingerprint  compare the GitHub App key across the live Secret and SOPS files
 #
-# Scope notes. Out of scope on purpose: ignored files (only listed, in ignored/), clones under
-# .cache or node_modules (skipped, recorded in SKIPPED.txt), and reflog-only commits (commits
-# reachable only through a reflog; deferred). A remote whose URL is a local path on the pod is
-# not a remote: its tracking refs do not make a commit "already safe" (and are bundled).
-# Known limits, deferred: reflog-only commits, and stale remote-tracking refs of branches
-# deleted upstream still count as a remote copy (finding that out needs network access).
+# Known limits: reflog-only commits (reachable only through a reflog) are not captured;
+# ignored files are listed in ignored/, not saved; clones under .cache or node_modules
+# are pruned and recorded in SKIPPED.txt. LOCAL-ONLY.txt is information: refs whose commits
+# no network remote tracking ref has (a remote whose URL is a local path does not count).
 #
 # Env: KUBECTL (default kubectl), SOPS (default sops), GIT (default git), POD_HOME (default
 # /home/claude; tests point it at a fixture directory).
@@ -35,20 +36,20 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 usage() {
   cat >&2 <<USAGE
-usage: $(basename "$0") <archive|verify|key-fingerprint> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--live] [--old-file-gone-ok]
+usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--live] [--old-file-gone-ok]
   archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
-                   home tarball, bundles of local-only commits (all non-remote refs, detached
-                   worktree HEADs), and uncommitted clone state (index and working-tree
-                   patches, untracked and skip-worktree files, every stash entry); read-only
-                   on the pod. Not archived: ignored files (listed in ignored/), clones under
-                   .cache or node_modules (recorded in SKIPPED.txt), reflog-only commits, stale
-                   remote-tracking refs of branches deleted upstream (no network calls from
-                   the pod). Unreadable paths and unusable repositories fail verify unless
-                   archive ran with --accept-unreadable (then recorded in ACCEPTED.txt).
-                   Also saved: conflicted files with their three stages and the git-dir state
-                   of a merge/rebase/cherry-pick in progress, and each stash entry's index.
+                   home tarball; one self-contained bundle per repository (all refs incl.
+                   remote-tracking, no prerequisites); uncommitted clone state (index and
+                   working-tree patches, untracked and skip-worktree files, conflicts with
+                   their stages, merge/rebase-in-progress state, every stash entry); read-only
+                   on the pod. Known limits: reflog-only commits; ignored files are listed in
+                   ignored/, not saved; clones under .cache or node_modules are pruned
+                   (recorded in SKIPPED.txt). Unreadable paths and unusable repositories fail
+                   verify unless archive ran with --accept-unreadable (ACCEPTED.txt).
   verify           verify the archive in DEST, offline; --live also re-scans the pod
                    (read-only) and fails if its clones or dirty state changed since the archive
+  restore-worktree rebuild a saved worktree locally: --dest ARCHIVE --worktree ORIGINAL_PATH
+                   --target DIR (an empty dir or fresh clone); never contacts the pod
   key-fingerprint  compare the GitHub App key fingerprints (never prints key material)
 USAGE
   exit 2
@@ -105,6 +106,7 @@ EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 read -r -d '' PODSTREAM <<'POD' || true
 d=$(mktemp -d) || exit 97
 trap 'rm -rf "$d"' EXIT
+export STREAM_TMP="$d"
 mkfifo "$d/f"
 sha256sum < "$d/f" > "$d/sum" &
 sp=$!
@@ -155,6 +157,12 @@ adopt() {
 GITP=(env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false
       -c safe.directory=* -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false
       -c color.diff=never -c color.ui=never)
+# The same dialect for inline pod-side scripts (bash -c "$PODGITFN"'...'): plain `git`
+# inside them resolves to this function, so none can run without safe.directory (a repo
+# owned by another uid) or with hooks/fsmonitor enabled. A test forbids `bash -c '...git`.
+# shellcheck disable=SC2016  # evaluated on the pod
+PODGITFN='git() { GIT_OPTIONAL_LOCKS=0 command git -c safe.directory="*" -c core.hooksPath=/dev/null -c core.fsmonitor=false "$@"; }
+tarlist() { local l="$STREAM_TMP/list"; cat > "$l"; if [ -s "$l" ]; then tar -czf - "$@" --null -T "$l"; else head -c 10240 /dev/zero | gzip -c; fi; }'
 DIFFARGS=(--binary --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/)
 
 # sel REPO: how to point git at REPO. A normal repository is entered with -C; an
@@ -275,7 +283,7 @@ discover() {
     # the run: the failing rev-parse is handled explicitly (a bare `cd "$(...)"` would
     # succeed with an empty argument).
     # shellcheck disable=SC2016  # the script runs on the pod
-    cap "$SCRATCH/common" sh -c 'cd "$1" || exit 3; c=$(git -c safe.directory="*" rev-parse --git-common-dir) || exit 3; cd "$c" && pwd -P' _ "$repo"
+    cap "$SCRATCH/common" bash -c "$PODGITFN"'; cd "$1" || exit 3; c=$(git rev-parse --git-common-dir) || exit 3; cd "$c" && pwd -P' _ "$repo"
     if [ "$STREAM_RC" != 0 ]; then note_skip "not a usable git repository: $repo"; continue; fi
     common=$(cat "$SCRATCH/common")
     case $seen in *"|$common|"*) continue ;; esac
@@ -304,18 +312,18 @@ discover() {
 }
 
 # --- per repository ----------------------------------------------------------
-WT_PATH=(); WT_BARE=(); WT_PRUN=(); WT_DET=()
+WT_PATH=(); WT_BARE=(); WT_PRUN=(); WT_DET=(); WT_HEAD=()
 NOT=()          # rev-list exclusion: --not --remotes=<network remote> ...
 
 load_worktrees() {   # REPO
-  local repo=$1 t=$SCRATCH/wl i=0 a b c d _head
+  local repo=$1 t=$SCRATCH/wl i=0 a b c d e
   cap "$t" "${GITP[@]}" -C "$repo" worktree list --porcelain -z
   [ "$STREAM_RC" = 0 ] || gfile "$t" "$repo" worktree list --porcelain
   pl_worktrees "$t" > "$t.tuples"
-  WT_PATH=(); WT_BARE=(); WT_PRUN=(); WT_DET=()
-  while IFS= read -r -d '' a && IFS= read -r -d '' b && IFS= read -r -d '' c && IFS= read -r -d '' d && IFS= read -r -d '' _head; do
+  WT_PATH=(); WT_BARE=(); WT_PRUN=(); WT_DET=(); WT_HEAD=()
+  while IFS= read -r -d '' a && IFS= read -r -d '' b && IFS= read -r -d '' c && IFS= read -r -d '' d && IFS= read -r -d '' e; do
     case $a in *$'\n'*) die "worktree path contains a newline: unsupported" ;; esac
-    WT_PATH[i]=$a; WT_BARE[i]=$b; WT_PRUN[i]=$c; WT_DET[i]=$d; i=$((i + 1))
+    WT_PATH[i]=$a; WT_BARE[i]=$b; WT_PRUN[i]=$c; WT_DET[i]=$d; WT_HEAD[i]=$e; i=$((i + 1))
   done < "$t.tuples"
   [ "$i" -gt 0 ] || die "git worktree list returned nothing for $repo"
   # A submodule's first record is its gitdir (under the parent's .git/modules), not a
@@ -354,16 +362,17 @@ load_remotes() {
 }
 
 CANDS=()
-# collect_refs REPO NAME: list the refs worth keeping into $SCRATCH/refs.own and CANDS[]:
-# every ref outside refs/remotes, plus the tracking refs of remotes whose URL is a local
-# path on the pod (their commits have no real second copy). Live mode keeps the listing
-# for the comparison with the archive.
+EXTRA_FILE=""      # $SCRATCH/extra.revs: "sha<TAB>label" lines for in-progress and detached heads
+# collect_refs REPO NAME: every ref goes into $SCRATCH/refs.own (the bundle holds them
+# all); CANDS[] gets the ones a network remote might not have, for LOCAL-ONLY.txt.
+# Tracking refs of local-path remotes count as local. Live mode keeps the listing for
+# the comparison with the archive.
 collect_refs() {
-  local repo=$1 name=$2 t=$SCRATCH/refs.txt ref ty sha pty psha keep l
+  local repo=$1 name=$2 t=$SCRATCH/refs.txt ref ty sha pty keep l
   CANDS=()
   gfile "$t" "$repo" for-each-ref --format='%(refname)	%(objecttype)	%(objectname)	%(*objecttype)	%(*objectname)' refs/
-  : > "$SCRATCH/refs.own"
-  while IFS=$'\t' read -r ref ty sha pty psha; do
+  cp "$t" "$SCRATCH/refs.own"
+  while IFS=$'\t' read -r ref ty sha pty _; do
     [ -n "$ref" ] || continue
     keep=1
     case $ref in
@@ -374,7 +383,6 @@ collect_refs() {
         done ;;
     esac
     [ "$keep" = 1 ] || continue
-    printf '%s\t%s\t%s\t%s\t%s\n' "$ref" "$ty" "$sha" "$pty" "$psha" >> "$SCRATCH/refs.own"
     if [ "$ty" = commit ]; then
       CANDS+=("$ref")
     elif [ "$ty" = tag ]; then
@@ -390,85 +398,60 @@ collect_refs() {
   fi
 }
 
-# save_tag_chain REPO NAME SHA: keep an annotated tag object and, for a tag of a tag,
-# every inner tag object (they are not in any bundle when their commit is already safe).
-save_tag_chain() {
-  local repo=$1 name=$2 cur=$3 n=0 ty
-  while [ "$n" -lt 20 ]; do
-    if [ ! -e "$DEST/tags/$name/$cur.tag" ]; then
-      stream_to "$DEST/tags/$name/$cur.tag" "${GITP[@]}" "${SEL[@]}" cat-file tag "$cur"
-      [ "$STREAM_RC" = 0 ] || die "git cat-file tag $cur failed in $repo"
-    fi
-    ty=$(sed -n 's/^type //p' "$DEST/tags/$name/$cur.tag" | head -1)
-    [ "$ty" = tag ] || break
-    cur=$(sed -n 's/^object //p' "$DEST/tags/$name/$cur.tag" | head -1)
-    n=$((n + 1))
-  done
-}
+TOTAL_POD_KB=0
+TOTAL_BUNDLE_B=0
 
-# bundle_refs REPO NAME: bundle every kept ref with commits no network remote has;
-# keep annotated tag objects whose commit is already safe; list the refs in refs/NAME.txt.
+# bundle_refs REPO NAME COMMON: ONE self-contained bundle per repository: every ref
+# (heads, tags, notes, stash, custom namespaces and remote-tracking refs) with no
+# exclusion, so it has no prerequisites and restores with nothing but the archive.
+# In-progress heads and detached HEADs ride along as extra revs (their objects are in
+# the pack; their shas are listed in EXTRA-REVS.txt). The comparison with the network
+# remotes is information only: LOCAL-ONLY.txt.
 bundle_refs() {
-  local repo=$1 name=$2 ref ty sha pty psha count
-  local want=()
+  local repo=$1 name=$2 common=$3 ref kb size sha label extras=() seen=" "
   collect_refs "$repo" "$name"
   if [ -s "$SCRATCH/refs.own" ]; then adopt "$SCRATCH/refs.own" "$DEST/refs/$name.txt"; fi
   sel "$repo"
   if [ ${#CANDS[@]} -gt 0 ]; then
     gfile "$SCRATCH/count" "$repo" rev-list --count "${CANDS[@]}" ${NOT[@]+"${NOT[@]}"}
-    count=$(cat "$SCRATCH/count")
-    if [ "$count" -gt 0 ]; then
+    if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then
       for ref in "${CANDS[@]}"; do
         gfile "$SCRATCH/count" "$repo" rev-list --count "$ref" ${NOT[@]+"${NOT[@]}"}
-        if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then want+=("$ref"); fi
+        if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then printf '%s\t%s\n' "$repo" "$ref" >> "$DEST/LOCAL-ONLY.txt"; fi
       done
     fi
   fi
-  # An annotated tag whose commit a remote already has is not bundled (nothing new in
-  # the pack); save the tag object chain so the tag can be recreated (git hash-object).
-  while IFS=$'\t' read -r ref ty sha pty psha; do
-    [ "$ty" = tag ] || continue
-    case " ${want[*]+${want[*]}} " in *" $ref "*) continue ;; esac
-    save_tag_chain "$repo" "$name" "$sha"
-  done < "$SCRATCH/refs.own"
-  if [ ${#want[@]} -gt 0 ]; then
-    stream_to "$DEST/bundles/$name.bundle" "${GITP[@]}" "${SEL[@]}" bundle create - "${want[@]}" ${NOT[@]+"${NOT[@]}"}
-    [ "$STREAM_RC" = 0 ] || die "git bundle create failed in $repo (exit $STREAM_RC)"
-    echo "bundle $name: ${#want[@]} ref(s): ${want[*]}"
-  else
-    echo "$repo" >> "$DEST/bundles/NONE.txt"
+  # Extra revs: heads named by files or detached worktrees, no ref points at them.
+  if [ -s "$EXTRA_FILE" ]; then
+    while IFS=$'\t' read -r sha label; do
+      [ -n "$sha" ] || continue
+      case $seen in *" $sha "*) continue ;; esac
+      seen="$seen$sha "
+      gprobe "$repo" cat-file -e "$sha^{commit}"
+      if [ "$STREAM_RC" = 0 ]; then
+        extras+=("$sha")
+        printf '%s\t%s\t%s\n' "$repo" "$sha" "$label" >> "$DEST/EXTRA-REVS.txt"
+      else
+        note_skip "missing object $sha ($label) in $repo; not bundled"
+      fi
+    done < "$EXTRA_FILE"
   fi
-}
-
-# bundle_detached WT NAME: a detached HEAD is named by no ref, so bundle it from
-# inside its own worktree.
-bundle_detached() {
-  local wt=$1 name=$2 count
-  gfile "$SCRATCH/count" "$wt" rev-list --count HEAD ${NOT[@]+"${NOT[@]}"}
-  count=$(cat "$SCRATCH/count")
-  [ "$count" -gt 0 ] || return 0
-  stream_to "$DEST/bundles/$name.HEAD.bundle" "${GITP[@]}" -C "$wt" bundle create - HEAD ${NOT[@]+"${NOT[@]}"}
-  [ "$STREAM_RC" = 0 ] || die "git bundle create HEAD failed in $wt (exit $STREAM_RC)"
-  echo "bundle $name.HEAD: detached HEAD of $wt"
-}
-
-# bundle_state WT NAME: the commits named by an operation in progress (MERGE_HEAD and
-# friends are resolvable names) may exist nowhere else; bundle them from the worktree.
-bundle_state() {
-  local wt=$1 name=$2 n refs=()
-  for n in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD ORIG_HEAD; do
-    gprobe "$wt" rev-parse --verify -q "$n"
-    case $STREAM_RC in
-      0) gfile "$SCRATCH/count" "$wt" rev-list --count "$n" ${NOT[@]+"${NOT[@]}"}
-         if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then refs+=("$n"); fi ;;
-      1) ;;
-      *) die "git rev-parse $n failed in $wt (exit $STREAM_RC)" ;;
-    esac
-  done
-  [ ${#refs[@]} -gt 0 ] || return 0
-  stream_to "$DEST/bundles/$name.STATE.bundle" "${GITP[@]}" -C "$wt" bundle create - "${refs[@]}" ${NOT[@]+"${NOT[@]}"}
-  [ "$STREAM_RC" = 0 ] || die "git bundle create (in-progress heads) failed in $wt (exit $STREAM_RC)"
-  echo "bundle $name.STATE: ${refs[*]} of $wt"
+  gprobe "$repo" rev-parse --verify -q HEAD
+  if [ ! -s "$SCRATCH/refs.own" ] && [ "$STREAM_RC" != 0 ]; then
+    printf '%s\t-\n' "$common" >> "$DEST/BUNDLES.txt"
+    echo "no refs in $repo; nothing to bundle"
+    return 0
+  fi
+  cap "$SCRATCH/du" du -sk "$common"
+  kb=$(cut -f1 "$SCRATCH/du" | head -1)
+  TOTAL_POD_KB=$((TOTAL_POD_KB + ${kb:-0}))
+  echo "bundling $repo (git dir on the pod: ${kb:-?} KiB)"
+  stream_to "$DEST/bundles/$name.bundle" "${GITP[@]}" "${SEL[@]}" bundle create - --all ${extras[@]+"${extras[@]}"}
+  [ "$STREAM_RC" = 0 ] || die "git bundle create failed in $repo (exit $STREAM_RC)"
+  size=$(wc -c < "$DEST/bundles/$name.bundle" | tr -d ' ')
+  TOTAL_BUNDLE_B=$((TOTAL_BUNDLE_B + size))
+  printf '%s\t%s.bundle\n' "$common" "$name" >> "$DEST/BUNDLES.txt"
+  echo "  bundle $name.bundle: $size bytes"
 }
 
 # note_excluded TEXT: something dropped from the archive on purpose (credential name).
@@ -498,6 +481,7 @@ capture_worktree() {
   local w=$1 is_main=$2 st=$SCRATCH/status.z m u n=0 h=0 um=0 sf=0 dir i sha base rc line p gd e nm
   local notes=$SCRATCH/note.txt
   : > "$notes"
+  add_note "$notes" "Restore: bash scripts/retire-secure-agent-pod.sh restore-worktree --dest <this archive> --worktree '$w' --target <empty or fresh clone dir>  (runs locally; never contacts the pod)"
   gfile "$st" "$w" status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none
   read -r m u < <(pl_status_counts "$st")
   gfile "$SCRATCH/lsv.z" "$w" ls-files -v -z
@@ -513,6 +497,17 @@ capture_worktree() {
   [ "$STREAM_RC" = 0 ] || die "could not look for in-progress state in $gd"
   while IFS= read -r -d '' nm; do
     case " $STATE_TRIGGERS " in *" $nm "*) sf=1 ;; esac
+  done < "$SCRATCH/state.names"
+  # Heads named by in-progress state files (every line: an octopus merge has several) are
+  # reachable from no ref; they go into the repository bundle as extra revs.
+  while IFS= read -r -d '' nm; do
+    case $nm in MERGE_HEAD|CHERRY_PICK_HEAD|REVERT_HEAD|REBASE_HEAD|ORIG_HEAD)
+      cap "$SCRATCH/head.file" cat "$gd/$nm"
+      [ "$STREAM_RC" = 0 ] || die "could not read $gd/$nm"
+      while IFS= read -r line; do
+        case $line in [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) printf '%s\t%s\n' "${line%% *}" "$w:$nm" >> "$EXTRA_FILE" ;; esac
+      done < "$SCRATCH/head.file" ;;
+    esac
   done < "$SCRATCH/state.names"
   if [ "$is_main" = 1 ]; then
     gprobe "$w" show-ref --verify -q refs/stash
@@ -534,6 +529,14 @@ capture_worktree() {
   mkdir -p "$dir"
   echo "$w $counts" >> "$DEST/DIRTY.txt"
   adopt "$st" "$dir/status.txt"
+  # meta.txt: what the restore helper needs (which bundle, the HEAD to check out).
+  gprobe "$w" rev-parse --verify -q HEAD
+  local headsha=unborn headref=detached
+  if [ "$STREAM_RC" = 0 ]; then headsha=$(cat "$SCRATCH/probe"); fi
+  gprobe "$w" symbolic-ref -q HEAD
+  if [ "$STREAM_RC" = 0 ]; then headref=$(cat "$SCRATCH/probe"); fi
+  printf 'bundle=%s.bundle\nhead=%s\nheadref=%s\nworktree=%s\n' "$(wtname "$REPO_FIRST")" "$headsha" "$headref" "$w" > "$SCRATCH/meta.txt"
+  adopt "$SCRATCH/meta.txt" "$dir/meta.txt"
 
   if [ "$m" -gt 0 ]; then
     gprobe "$w" rev-parse --verify -q HEAD
@@ -562,18 +565,19 @@ capture_worktree() {
     # markers intact), the index listing (mode, blob, stage), and every stage's content.
     adopt "$SCRATCH/unmerged.z" "$dir/unmerged.z"
     # shellcheck disable=SC2016  # the script runs on the pod
-    stream_to "$dir/conflicted.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
-      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -u -z |
+    stream_to "$dir/conflicted.tar.gz" bash -c "$PODGITFN"'; set -o pipefail; w=$1; shift; cd "$w" || exit 3
+      git ls-files -u -z |
       while IFS= read -r -d "" e; do
-        f=${e#*$'"'"'\t'"'"'}; if [ -e "$f" ]; then printf "%s\0" "$f"; fi
-      done | tar -czf - "$@" --null -T -' _ "$w" "${EXCLUDES[@]}"
+        mode=${e%% *}; f=${e#*$'"'"'\t'"'"'}
+        if [ "$mode" != 160000 ] && [ -e "$f" ]; then printf "%s\0" "$f"; fi
+      done | tarlist "$@"' _ "$w" "${EXCLUDES[@]}"
     case $STREAM_RC in 0|1) ;; *) die "tar of conflicted files failed in $w (exit $STREAM_RC)" ;; esac
     gzip -t "$dir/conflicted.tar.gz" || die "conflicted tarball of $w fails gzip -t"
     # shellcheck disable=SC2016  # the script runs on the pod
-    cap "$SCRATCH/stages.batch" bash -c 'set -o pipefail; w=$1; cd "$w" || exit 3
-      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -u -z |
-      while IFS= read -r -d "" e; do rest=${e%%$'"'"'\t'"'"'*}; sha=${rest#* }; sha=${sha%% *}; printf "%s\n" "$sha"; done |
-      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false cat-file --batch' _ "$w"
+    cap "$SCRATCH/stages.batch" bash -c "$PODGITFN"'; set -o pipefail; w=$1; cd "$w" || exit 3
+      git ls-files -u -z |
+      while IFS= read -r -d "" e; do rest=${e%%$'"'"'\t'"'"'*}; mode=${rest%% *}; sha=${rest#* }; sha=${sha%% *}; if [ "$mode" != 160000 ]; then printf "%s\n" "$sha"; fi; done |
+      git cat-file --batch' _ "$w"
     [ "$STREAM_RC" = 0 ] || die "could not read the conflict stage blobs in $w (exit $STREAM_RC)"
     perl -MArchive::Tar -e '
       local $/; open my $u,"<:raw",$ARGV[0] or die; my $ul=<$u>; open my $b,"<:raw",$ARGV[1] or die; my $bd=<$b>;
@@ -582,13 +586,16 @@ capture_worktree() {
         my ($sha,$type,$size)=split / /,$hd; die "missing blob $hd" if $type eq "missing" || !defined $size;
         $blob{$sha}=substr($bd,$nl+1,$size); $pos=$nl+1+$size+1; }
       my $t=Archive::Tar->new;
-      for my $e (split /\0/,$ul) { next unless $e =~ /^(\d+) ([0-9a-f]+) (\d)\t(.*)$/s; my ($mode,$sha,$stg,$p)=($1,$2,$3,$4);
+      for my $e (split /\0/,$ul) { next unless $e =~ /^(\d+) ([0-9a-f]+) (\d)\t(.*)$/s; my ($mode,$sha,$stg,$p)=($1,$2,$3,$4); next if $mode eq "160000";
         die "missing blob $sha" unless exists $blob{$sha}; $t->add_data("stage$stg/$p",$blob{$sha},{mode=>oct(substr($mode,-3))}); }
       $t->write($ARGV[2]) or die $t->error;' "$SCRATCH/unmerged.z" "$SCRATCH/stages.batch" "$SCRATCH/stages.tar" \
       || die "could not assemble the conflict stages of $w"
     gzip -c "$SCRATCH/stages.tar" > "$SCRATCH/stages.tar.gz"
     adopt "$SCRATCH/stages.tar.gz" "$dir/conflict-stages.tar.gz"
-    add_note "$notes" "CONFLICTED: $um unmerged path(s). conflicted.tar.gz holds the working-tree files (conflict markers intact); conflict-stages.tar.gz holds stage1/2/3 of every unmerged path; unmerged.z is the 'git ls-files -u -z' listing (restore the index with 'git hash-object -w' on each stage file and 'git update-index --index-info -z < unmerged.z')."
+    local gl
+    gl=$(perl -0777 -ne 'my %s; for (split /\0/){ next unless /^160000 [0-9a-f]+ \d\t(.*)$/s; $s{$1}=1 } print join(", ", sort keys %s)' < "$SCRATCH/unmerged.z")
+    add_note "$notes" "CONFLICTED: $um unmerged path(s). conflicted.tar.gz holds the working-tree files (conflict markers intact); conflict-stages.tar.gz holds stage1/2/3 of every unmerged path; unmerged.z is the 'git ls-files -u -z' listing. Patches that hold only conflicts have nothing to apply; the restore helper skips them."
+    if [ -n "$gl" ]; then add_note "$notes" "Conflicted submodule path(s) (gitlink, no blob to save; their index entries are rebuilt from unmerged.z): $gl"; fi
   fi
 
   if [ "$sf" -eq 1 ]; then
@@ -597,7 +604,7 @@ capture_worktree() {
     stream_to "$dir/inprogress.tar.gz" tar -C "$gd" -czf - "${names[@]}"
     case $STREAM_RC in 0|1) ;; *) die "tar of in-progress state failed in $w (exit $STREAM_RC)" ;; esac
     gzip -t "$dir/inprogress.tar.gz" || die "in-progress tarball of $w fails gzip -t"
-    add_note "$notes" "IN PROGRESS: inprogress.tar.gz holds the git-dir state files (${names[*]}); extract them into \$(git rev-parse --git-dir) of a checkout at the recorded HEAD. The commits MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, REBASE_HEAD and ORIG_HEAD name are in bundles/*.STATE.bundle when no remote has them."
+    add_note "$notes" "IN PROGRESS: inprogress.tar.gz holds the git-dir state files (${names[*]}). The commits MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, REBASE_HEAD and ORIG_HEAD name (every line) are in the repository bundle; their shas are in EXTRA-REVS.txt."
   fi
 
   if [ "$u" -gt 0 ]; then
@@ -606,8 +613,8 @@ capture_worktree() {
       if excluded_hit "$p"; then note_excluded "untracked: $w: $p"; fi
     done < "$SCRATCH/untracked.z"
     # shellcheck disable=SC2016  # the script runs on the pod
-    stream_to "$dir/untracked.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
-      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files --others --exclude-standard -z | tar -czf - "$@" --null -T -' _ "$w" "${EXCLUDES[@]}"
+    stream_to "$dir/untracked.tar.gz" bash -c "$PODGITFN"'; set -o pipefail; w=$1; shift; cd "$w" || exit 3
+      git ls-files --others --exclude-standard -z | tarlist "$@"' _ "$w" "${EXCLUDES[@]}"
     case $STREAM_RC in 0|1) ;; *) die "tar of untracked files failed in $w (exit $STREAM_RC)" ;; esac
     gzip -t "$dir/untracked.tar.gz" || die "untracked tarball of $w fails gzip -t"
   fi
@@ -618,11 +625,11 @@ capture_worktree() {
     # skip-worktree / assume-unchanged files: invisible to status and diff, so tar them.
     # The class is spelled out: [a-z] depends on the pod's locale.
     # shellcheck disable=SC2016  # the script runs on the pod
-    stream_to "$dir/hidden.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
-      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -v -z |
+    stream_to "$dir/hidden.tar.gz" bash -c "$PODGITFN"'; set -o pipefail; w=$1; shift; cd "$w" || exit 3
+      git ls-files -v -z |
       while IFS= read -r -d "" e; do
         case $e in [abcdefghijklmnopqrstuvwxyzS]\ *) f=${e#? }; if [ -e "$f" ]; then printf "%s\0" "$f"; fi ;; esac
-      done | tar -czf - "$@" --null -T -' _ "$w" "${EXCLUDES[@]}"
+      done | tarlist "$@"' _ "$w" "${EXCLUDES[@]}"
     case $STREAM_RC in 0|1) ;; *) die "tar of skip-worktree files failed in $w (exit $STREAM_RC)" ;; esac
     gzip -t "$dir/hidden.tar.gz" || die "hidden-files tarball of $w fails gzip -t"
   fi
@@ -656,34 +663,32 @@ capture_worktree() {
   if [ -s "$notes" ]; then adopt "$notes" "$dir/NOTE.txt"; fi
 }
 
-# process_repo REPO KIND: bundles and dirty state of one repository and its worktrees.
-# KIND "orphan" is a deinitialised submodule's git dir: refs and bundles only.
+REPO_FIRST=""
+# process_repo REPO KIND COMMON: the bundle and dirty state of one repository and its
+# worktrees. KIND "orphan" is a deinitialised submodule's git dir: refs and bundle only.
 process_repo() {
-  local repo=$1 kind=${2:-repo} name i wt
+  local repo=$1 kind=${2:-repo} common=${3:-} name i wt
   ORPHAN=0
+  EXTRA_FILE=$SCRATCH/extra.revs
+  : > "$EXTRA_FILE"
   if [ "$kind" = orphan ]; then
     ORPHAN=1
     name=$(wtname "$repo")
     load_remotes "$repo"
-    if [ "$LIVE_ONLY" = 1 ]; then collect_refs "$repo" "$name"; else bundle_refs "$repo" "$name"; fi
+    if [ "$LIVE_ONLY" = 1 ]; then collect_refs "$repo" "$name"; else bundle_refs "$repo" "$name" "$common"; fi
     ORPHAN=0
     return 0
   fi
   load_worktrees "$repo"
   load_remotes "$repo"
-  name=$(wtname "${WT_PATH[0]}")
-  if [ "$LIVE_ONLY" != 1 ]; then
-    bundle_refs "$repo" "$name"
-  else
-    collect_refs "$repo" "$name"
-  fi
+  REPO_FIRST=${WT_PATH[0]}
+  name=$(wtname "$REPO_FIRST")
   i=0
   while [ "$i" -lt "${#WT_PATH[@]}" ]; do
     wt=${WT_PATH[$i]}
     if [ "${WT_BARE[$i]}" = 0 ] && [ "${WT_PRUN[$i]}" = 0 ]; then
-      if [ "$LIVE_ONLY" != 1 ]; then
-        if [ "${WT_DET[$i]}" = 1 ]; then bundle_detached "$wt" "$(wtname "$wt")"; fi
-        bundle_state "$wt" "$(wtname "$wt")"
+      if [ "${WT_DET[$i]}" = 1 ] && [ -n "${WT_HEAD[$i]}" ]; then
+        printf '%s\t%s\n' "${WT_HEAD[$i]}" "$wt:HEAD" >> "$EXTRA_FILE"
       fi
       if [ "$i" -eq 0 ]; then capture_worktree "$wt" 1; else capture_worktree "$wt" 0; fi
       if [ "$LIVE_ONLY" != 1 ]; then
@@ -698,6 +703,8 @@ process_repo() {
     fi
     i=$((i + 1))
   done
+  # The bundle comes last: it needs the extra revs the worktrees contributed.
+  if [ "$LIVE_ONLY" = 1 ]; then collect_refs "$repo" "$name"; else bundle_refs "$repo" "$name" "$common"; fi
 }
 
 # scan_all: discovery plus per-repo processing (archive) or counting only (LIVE_ONLY).
@@ -707,7 +714,7 @@ scan_all() {
   while IFS=$'\t' read -r repo kind common; do
     [ -n "$repo" ] || continue
     echo "$common" >> "$SCRATCH/clone.list"
-    process_repo "$repo" "$kind"
+    process_repo "$repo" "$kind" "$common"
   done < "$SCRATCH/clones.tsv"
 }
 
@@ -727,11 +734,13 @@ cmd_archive() {
   [ "$(mode_of "$DEST")" = "700" ] || die "destination $DEST is not mode 700"
   # A re-run starts clean: nothing stale may enter the manifest.
   rm -rf "$DEST/bundles" "$DEST/worktrees" "$DEST/refs" "$DEST/tags" "$DEST/ignored"
+  rm -f "$DEST/LOCAL-ONLY.txt" "$DEST/EXTRA-REVS.txt" "$DEST/BUNDLES.txt"
   rm -f "$DEST/REMOTE.sha256" "$DEST/SKIPPED.txt" "$DEST/DETACHED.txt" "$DEST/DIRTY.txt" \
         "$DEST/EXCLUDED.txt" "$DEST/CLONES.txt" "$DEST/ACCEPTED.txt" "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
   mkdir -p "$DEST/bundles"
   : > "$DEST/REMOTE.sha256"; : > "$DEST/SKIPPED.txt"; : > "$DEST/DETACHED.txt"
-  : > "$DEST/DIRTY.txt"; : > "$DEST/EXCLUDED.txt"; : > "$DEST/CLONES.txt"; : > "$DEST/bundles/NONE.txt"
+  : > "$DEST/DIRTY.txt"; : > "$DEST/EXCLUDED.txt"; : > "$DEST/CLONES.txt"
+  : > "$DEST/LOCAL-ONLY.txt"; : > "$DEST/EXTRA-REVS.txt"; : > "$DEST/BUNDLES.txt"
   : > "$SCRATCH/clone.list"
 
   EXCLUDES=()
@@ -773,6 +782,7 @@ cmd_archive() {
 
   scan_all
   sort -u "$SCRATCH/clone.list" > "$DEST/CLONES.txt"
+  echo "bundles: $TOTAL_BUNDLE_B bytes in total (pod git dirs: $TOTAL_POD_KB KiB); $(grep -c . "$DEST/LOCAL-ONLY.txt" || true) ref(s) hold commits no network remote has (LOCAL-ONLY.txt)"
   if [ "$ACCEPT_UNREADABLE" = 1 ]; then
     grep -E '^(unreadable|not a usable)' "$DEST/SKIPPED.txt" > "$DEST/ACCEPTED.txt" || true
     echo "NOTE: --accept-unreadable: $(wc -l < "$DEST/ACCEPTED.txt" | tr -d ' ') unreadable or unusable path(s) accepted; see ACCEPTED.txt" >&2
@@ -942,21 +952,35 @@ cmd_verify() {
     done
   fi
 
-  local scratch b
+  if [ -s "$DEST/LOCAL-ONLY.txt" ]; then
+    echo "INFO $(grep -c . "$DEST/LOCAL-ONLY.txt") ref(s) hold commits no network remote has (LOCAL-ONLY.txt); the bundles carry all refs regardless"
+  fi
+  # One self-contained bundle per repository: no prerequisites, so `git bundle verify`
+  # must pass in an empty repository.
+  local scratch common bf
   scratch=$(mktemp -d)
   git init -q "$scratch"
-  for b in "$DEST"/bundles/*.bundle; do
-    [ -e "$b" ] || continue
-    if ! bundle_pack_ok "$b"; then
-      fail "bundle pack checksum: $(basename "$b")"
-    elif git -C "$scratch" bundle verify "$b" >/dev/null 2>&1; then
-      pass "bundle verifies: $(basename "$b")"
-    elif git -C "$scratch" bundle list-heads "$b" >/dev/null 2>&1; then
-      pass "bundle pack intact, prerequisites absent in scratch repo (checked with list-heads): $(basename "$b")"
-    else
-      fail "bundle readable: $(basename "$b")"
-    fi
-  done
+  if [ -f "$DEST/CLONES.txt" ] && [ -f "$DEST/BUNDLES.txt" ]; then
+    while IFS= read -r common; do
+      [ -n "$common" ] || continue
+      bf=$(C="$common" awk -F'\t' '$1 == ENVIRON["C"] { print $2; exit }' "$DEST/BUNDLES.txt")
+      if [ -z "$bf" ]; then
+        fail "bundle recorded for $common"
+      elif [ "$bf" = "-" ]; then
+        pass "no refs to bundle in $common"
+      elif [ ! -f "$DEST/bundles/$bf" ]; then
+        fail "bundle present: $bf"
+      elif ! bundle_pack_ok "$DEST/bundles/$bf"; then
+        fail "bundle pack checksum: $bf"
+      elif git -C "$scratch" bundle verify "$DEST/bundles/$bf" >/dev/null 2>&1; then
+        pass "bundle is self-contained and verifies: $bf"
+      else
+        fail "bundle verifies in an empty repository: $bf"
+      fi
+    done < "$DEST/CLONES.txt"
+  else
+    fail "CLONES.txt and BUNDLES.txt present"
+  fi
   rm -rf "$scratch"
 
   if [ "$LIVE" = 1 ]; then
@@ -993,6 +1017,69 @@ cmd_verify() {
   fi
 
   [ "$fail" = 0 ] || exit 1
+}
+
+# restore_worktree: rebuild one worktree's saved state in a fresh checkout. Runs
+# purely locally against the archive; it never contacts the pod.
+#   restore-worktree --dest ARCHIVE --worktree ORIGINAL_PATH --target DIR
+# DIR is an empty directory or a fresh clone of anything (it becomes a repository).
+cmd_restore_worktree() {
+  [ -n "$RW_PATH" ] && [ -n "$RW_TARGET" ] || usage
+  local dir meta bundle head headref t ref sha cur x f p
+  dir=$(dirty_dir "$RW_PATH")
+  meta=$dir/meta.txt
+  [ -f "$meta" ] || die "no saved state for $RW_PATH in $DEST (not listed in DIRTY.txt?). For a clean repository: git fetch <bundle> 'refs/*:refs/*'"
+  bundle=$(sed -n 's/^bundle=//p' "$meta"); head=$(sed -n 's/^head=//p' "$meta"); headref=$(sed -n 's/^headref=//p' "$meta")
+  [ -f "$DEST/bundles/$bundle" ] || die "bundle $bundle is missing from $DEST"
+  mkdir -p "$RW_TARGET"
+  t=$(cd "$RW_TARGET" && pwd -P)
+  [ -d "$t/.git" ] || git init -q "$t"
+  # 1. every ref and object of the repository, from the bundle alone
+  git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*' '+HEAD:refs/archive/HEAD' 2>/dev/null \
+    || git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*'
+  # park the checkout on a throwaway ref, then recreate every ref under its own name
+  if [ "$head" != unborn ]; then git -C "$t" checkout -q -f --detach "$head"; fi
+  while read -r sha ref; do
+    case $ref in refs/archive/HEAD|"") continue ;; esac
+    git -C "$t" update-ref "refs/${ref#refs/archive/}" "$sha"
+  done < <(git -C "$t" for-each-ref --format='%(objectname) %(refname)' refs/archive/)
+  while read -r ref; do git -C "$t" update-ref -d "$ref"; done < <(git -C "$t" for-each-ref --format='%(refname)' refs/archive/)
+  # 2. the checked-out state
+  case $headref in
+    refs/heads/*) git -C "$t" checkout -q -f "${headref#refs/heads/}" 2>/dev/null || git -C "$t" checkout -q -f -B "${headref#refs/heads/}" "$head" ;;
+    *) [ "$head" = unborn ] || git -C "$t" checkout -q -f --detach "$head" ;;
+  esac
+  # 3. index and working tree: staged changes, then unstaged ones (patches holding only
+  #    conflicts carry nothing to apply and are skipped)
+  if [ -f "$dir/staged.patch" ] && grep -aq '^diff --git ' "$dir/staged.patch"; then
+    git -C "$t" apply --index "$dir/staged.patch" || die "staged.patch does not apply"
+  fi
+  if [ -f "$dir/tracked.patch" ] && grep -aq '^diff --git ' "$dir/tracked.patch"; then
+    git -C "$t" apply "$dir/tracked.patch" || die "tracked.patch does not apply"
+  fi
+  for x in untracked hidden conflicted; do
+    if [ -f "$dir/$x.tar.gz" ]; then tar -xzf "$dir/$x.tar.gz" -C "$t"; fi
+  done
+  # 4. an operation in progress: its state files go back into the git dir
+  if [ -f "$dir/inprogress.tar.gz" ]; then
+    tar -xzf "$dir/inprogress.tar.gz" -C "$(git -C "$t" rev-parse --absolute-git-dir)"
+  fi
+  # 5. unmerged paths: drop the stage-0 entry the checkout made, store the stage blobs,
+  #    then re-add stages 1/2/3 (gitlink entries carry no blob).
+  if [ -f "$dir/unmerged.z" ]; then
+    cur=$(mktemp -d)
+    perl -0777 -ne 'my %s; for (split /\0/){ next unless /\t(.*)$/s; $s{$1}=1 } print "$_\0" for sort keys %s' "$dir/unmerged.z" \
+      | git -C "$t" update-index --force-remove -z --stdin
+    if [ -f "$dir/conflict-stages.tar.gz" ]; then
+      tar -xzf "$dir/conflict-stages.tar.gz" -C "$cur"
+      while IFS= read -r -d '' f; do git -C "$t" hash-object -w --no-filters "$f" >/dev/null; done < <(find "$cur" -type f -print0)
+    fi
+    git -C "$t" update-index -z --index-info < "$dir/unmerged.z"
+    rm -rf "$cur"
+  fi
+  p=$(git -C "$t" status --porcelain=v1 | wc -l | tr -d ' ')
+  echo "restored $RW_PATH into $t (HEAD $head; $p status line(s))"
+  [ ! -f "$dir/NOTE.txt" ] || sed 's/^/  note: /' "$dir/NOTE.txt"
 }
 
 # SHA-256 of a base64 value, from stdin; never prints the value. An empty value
@@ -1068,6 +1155,8 @@ SUB=$1; shift
 DEST=$DEST_DEFAULT
 CONFIRMED=0
 OLD_GONE_OK=0
+RW_PATH=""
+RW_TARGET=""
 LIVE=0
 ACCEPT_UNREADABLE=0
 while [ $# -gt 0 ]; do
@@ -1075,6 +1164,8 @@ while [ $# -gt 0 ]; do
     --dest) [ $# -ge 2 ] || usage; DEST=$2; shift 2 ;;
     --session-ended-confirmed) CONFIRMED=1; shift ;;
     --live) LIVE=1; shift ;;
+    --worktree) [ $# -ge 2 ] || usage; RW_PATH=$2; shift 2 ;;
+    --target) [ $# -ge 2 ] || usage; RW_TARGET=$2; shift 2 ;;
     --accept-unreadable) ACCEPT_UNREADABLE=1; shift ;;
     --old-file-gone-ok) OLD_GONE_OK=1; shift ;;
     *) usage ;;
@@ -1088,5 +1179,6 @@ case $SUB in
   archive) cmd_archive ;;
   verify) cmd_verify ;;
   key-fingerprint) cmd_key_fingerprint ;;
+  restore-worktree) cmd_restore_worktree ;;
   *) usage ;;
 esac

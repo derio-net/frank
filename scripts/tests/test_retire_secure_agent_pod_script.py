@@ -251,7 +251,7 @@ def _clone_with_remote(home, tmp_path):
     return clone
 
 
-def test_bundle_excludes_pushed_branch_and_keeps_local_only(tmp_path):
+def test_bundle_is_self_contained_and_local_only_is_reported(tmp_path):
     home = _fixture_home(tmp_path)
     _clone_with_remote(home, tmp_path)
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
@@ -259,8 +259,10 @@ def test_bundle_excludes_pushed_branch_and_keeps_local_only(tmp_path):
     (bundle,) = list((dest / "bundles").glob("*.bundle"))
     heads = subprocess.run(["git", "bundle", "list-heads", str(bundle)],
                            capture_output=True, text=True, check=True).stdout
-    assert "refs/heads/local-only" in heads
-    assert "refs/heads/main" not in heads
+    assert "refs/heads/local-only" in heads and "refs/heads/main" in heads
+    assert "refs/remotes/origin/main" in heads
+    lo = (dest / "LOCAL-ONLY.txt").read_text()
+    assert "refs/heads/local-only" in lo and "refs/heads/main" not in lo
     v = _run("verify", "--dest", str(dest), env=env)
     assert v.returncode == 0, v.stdout + v.stderr
 
@@ -410,14 +412,13 @@ def test_tags_stash_and_detached_work_are_covered(tmp_path):
                            capture_output=True, text=True, check=True).stdout
     assert "refs/tags/keepme" in heads
     # the commit made in the detached linked worktree is restorable from its bundle
-    (hb,) = list((dest / "bundles").glob("*.HEAD.bundle"))
     assert (dest / "DETACHED.txt").read_text() == ""
+    detached = _out("rev-parse", "HEAD", cwd=wt).strip()
+    assert detached in (dest / "EXTRA-REVS.txt").read_text()
     fresh = tmp_path / "fresh"
-    subprocess.run(["git", "clone", "-q", str(tmp_path / "remote.git"), str(fresh)], check=True)
-    subprocess.run(["git", "fetch", "-q", str(hb), "HEAD:refs/heads/restored"], cwd=fresh, check=True)
-    log = subprocess.run(["git", "log", "-1", "--format=%s", "restored"], cwd=fresh,
-                         capture_output=True, text=True, check=True).stdout.strip()
-    assert log == "detached work"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    _git("fetch", "-q", str(bundle), "+refs/*:refs/archive/*", cwd=fresh)
+    assert _out("log", "-1", "--format=%s", detached, cwd=fresh).strip() == "detached work"
     v = _run("verify", "--dest", str(dest), env=env)
     assert v.returncode == 0, v.stdout
 
@@ -837,12 +838,11 @@ def test_notes_and_annotated_tags_are_preserved_by_identity(tmp_path):
     _git("tag", "-a", "v1", "-m", "annotated on a pushed commit", cwd=clone)
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
     assert r.returncode == 0, r.stderr
-    (bundle,) = [b for b in (dest / "bundles").glob("*.bundle") if not b.name.endswith(".HEAD.bundle")]
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
     heads = _out("bundle", "list-heads", str(bundle), cwd=tmp_path)
-    assert "refs/notes/commits" in heads
+    assert "refs/notes/commits" in heads and "refs/tags/v1" in heads
     tagobj = _out("rev-parse", "refs/tags/v1", cwd=clone).strip()
-    saved = list((dest / "tags").rglob(f"{tagobj}.tag"))
-    assert saved and "annotated on a pushed commit" in saved[0].read_text()
+    assert tagobj in heads            # the annotated tag object itself is in the bundle
     assert "refs/tags/v1" in "".join(p.read_text() for p in (dest / "refs").iterdir())
 
 
@@ -855,7 +855,7 @@ def test_local_path_remote_is_not_a_safe_copy(tmp_path):
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
     assert r.returncode == 0, r.stderr
     assert "local path" in r.stderr
-    (bundle,) = [b for b in (dest / "bundles").glob("*.bundle") if not b.name.endswith(".HEAD.bundle")]
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
     assert "refs/heads/main" in _out("bundle", "list-heads", str(bundle), cwd=tmp_path)
 
 
@@ -1089,11 +1089,12 @@ def test_merge_conflict_mixed_with_normal_hunks_is_reconstructable(tmp_path):
     assert "B-main" in _tar_text(stages, "stage2/c.txt") and "B-side" in _tar_text(stages, "stage3/c.txt")
     assert _tar_text(wd / "inprogress.tar.gz", "MERGE_HEAD").strip() == side
     assert (wd / "NOTE.txt").exists()
-    (sb,) = list((dest / "bundles").glob("*.STATE.bundle"))
-    assert "MERGE_HEAD" in _out("bundle", "list-heads", str(sb), cwd=tmp_path)
-    fresh = _fresh_clone(tmp_path)
-    _git("fetch", "-q", str(sb), "MERGE_HEAD:refs/heads/mh", cwd=fresh)
-    assert _out("log", "-1", "--format=%s", "mh", cwd=fresh).strip() == "side change"
+    assert side in (dest / "EXTRA-REVS.txt").read_text()
+    (sb,) = list((dest / "bundles").glob("*.bundle"))
+    fresh = tmp_path / "fresh-mh"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    _git("fetch", "-q", str(sb), "+refs/*:refs/archive/*", cwd=fresh)
+    assert _out("log", "-1", "--format=%s", side, cwd=fresh).strip() == "side change"
     assert _run("verify", "--dest", str(dest), env=env).returncode == 0
     # verify refuses an archive whose conflicted tarball is gone
     (wd / "conflicted.tar.gz").unlink()
@@ -1130,7 +1131,7 @@ def test_rebase_in_progress_is_captured(tmp_path):
     wd = _wd(dest)
     names = tarfile.open(wd / "inprogress.tar.gz").getnames()
     assert any(n.startswith("rebase-merge") for n in names), names
-    assert list((dest / "bundles").glob("*.HEAD.bundle"))   # the detached, partly rebased HEAD
+    assert "HEAD" in (dest / "EXTRA-REVS.txt").read_text()   # the detached, partly rebased HEAD
     assert _run("verify", "--dest", str(dest), env=env).returncode == 0
 
 
@@ -1268,9 +1269,13 @@ def test_a_tag_of_a_tag_keeps_the_inner_tag_object(tmp_path):
     _git("tag", "-a", "outer", "-m", "tag of a tag", "inner", cwd=clone)
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
     assert r.returncode == 0, r.stderr
-    saved = [p.read_text() for p in (dest / "tags").rglob("*.tag")]
-    assert any("the inner tag" in t and "type commit" in t for t in saved), saved
-    assert any("tag of a tag" in t and "type tag" in t for t in saved), saved
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    fresh = tmp_path / "fresh-tags"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    _git("fetch", "-q", str(bundle), "+refs/tags/*:refs/tags/*", cwd=fresh)
+    assert "the inner tag" in _out("cat-file", "-p", "inner", cwd=fresh)
+    outer = _out("cat-file", "-p", "outer", cwd=fresh)
+    assert "tag of a tag" in outer and "type tag" in outer
 
 
 def test_pod_side_digest_match_is_an_exact_line_match(tmp_path):
@@ -1287,3 +1292,286 @@ def test_pod_side_digest_match_is_an_exact_line_match(tmp_path):
     (dest / "REMOTE.sha256").write_text("\n".join(kept) + "\n")
     v = _run("verify", "--dest", str(dest), env=env)
     assert v.returncode != 0 and "FAIL every worktrees/ file has a pod-side digest" in v.stdout
+
+
+# --- archive round 3 -----------------------------------------------------------
+
+GITENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+          "GIT_COMMITTER_EMAIL": "t@t", "GIT_EDITOR": "true"}
+
+
+def _git_rc(*a, cwd):
+    return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True,
+                          env={**os.environ, **GITENV})
+
+
+def _restore_cmd(dest, worktree, target, env):
+    return _run("restore-worktree", "--dest", str(dest), "--worktree", str(worktree),
+                "--target", str(target), env=env)
+
+
+def _same_state(orig, restored, extra=()):
+    assert _out("status", "--porcelain=v1", cwd=restored) == _out("status", "--porcelain=v1", cwd=orig)
+    assert _out("ls-files", "-s", cwd=restored) == _out("ls-files", "-s", cwd=orig)
+    assert _out("rev-parse", "HEAD", cwd=restored) == _out("rev-parse", "HEAD", cwd=orig)
+    for f in extra:
+        assert (restored / f).read_bytes() == (orig / f).read_bytes(), f
+
+
+def _make_merge_conflict(home, tmp_path):
+    clone = _plain_clone(home, tmp_path)
+    (clone / "c.txt").write_text("a\nb\nc\nd\ne\n")
+    _git("add", "c.txt", cwd=clone)
+    _git("commit", "-qm", "c base", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "side", cwd=clone)
+    (clone / "c.txt").write_text("a\nB-side\nc\nd\nE-side\n")
+    _git("commit", "-qam", "side change", cwd=clone)
+    side = _out("rev-parse", "HEAD", cwd=clone).strip()
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "c.txt").write_text("a\nB-main\nc\nD-main\ne\n")
+    _git("commit", "-qam", "main change", cwd=clone)
+    _git("branch", "-D", "side", cwd=clone)
+    assert _git_rc("merge", side, cwd=clone).returncode != 0
+    return clone, side
+
+
+def test_restore_worktree_rebuilds_a_conflicted_merge_end_to_end(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone, side = _make_merge_conflict(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    _same_state(clone, target, extra=("c.txt",))
+    assert (target / ".git/MERGE_HEAD").read_bytes() == (clone / ".git/MERGE_HEAD").read_bytes()
+    stages = _out("ls-files", "-s", "c.txt", cwd=target)
+    assert [l.split()[2] for l in stages.splitlines()] == ["1", "2", "3"]   # no stage 0 left
+    # resolving and committing must not silently take HEAD's side
+    (target / "c.txt").write_text("a\nresolved\nc\nD-main\nE-side\n")
+    _git("add", "c.txt", cwd=target)
+    assert _git_rc("commit", "--no-edit", cwd=target).returncode == 0
+    assert _out("show", "HEAD:c.txt", cwd=target) == "a\nresolved\nc\nD-main\nE-side\n"
+    assert len(_out("rev-list", "--parents", "-n1", "HEAD", cwd=target).split()) == 3   # merge commit
+
+
+def test_restore_worktree_rebuilds_a_rebase_in_progress_end_to_end(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "f").write_text("base\n")
+    _git("add", "f", cwd=clone)
+    _git("commit", "-qm", "f base", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "topic", cwd=clone)
+    (clone / "t1").write_text("t1")
+    _git("add", "t1", cwd=clone)
+    _git("commit", "-qm", "t1", cwd=clone)
+    (clone / "f").write_text("topic edit\n")
+    _git("commit", "-qam", "t2", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "f").write_text("main edit\n")
+    _git("commit", "-qam", "m1", cwd=clone)
+    _git("checkout", "-q", "topic", cwd=clone)
+    assert _git_rc("rebase", "main", cwd=clone).returncode != 0
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    _same_state(clone, target, extra=("f", "t1"))
+    for n in ("head-name", "onto", "orig-head"):
+        assert (target / ".git/rebase-merge" / n).read_bytes() == (clone / ".git/rebase-merge" / n).read_bytes(), n
+    (target / "f").write_text("resolved\n")
+    _git("add", "f", cwd=target)
+    done = _git_rc("rebase", "--continue", cwd=target)
+    assert done.returncode == 0, done.stderr
+    assert _out("show", "topic:f", cwd=target) == "resolved\n"
+    assert not (target / ".git/rebase-merge").exists()
+
+
+def test_a_conflicted_submodule_does_not_abort_and_restores(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    src = tmp_path / "subsrc"
+    src.mkdir()
+    _git("init", "-q", "-b", "main", cwd=src)
+    (src / "s").write_text("1")
+    _git("add", "s", cwd=src)
+    _git("commit", "-qm", "s1", cwd=src)
+    _git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(src), "vendor/sub", cwd=clone)
+    _git("commit", "-qm", "add sub", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    sub = clone / "vendor/sub"
+    s1 = _out("rev-parse", "HEAD", cwd=sub).strip()
+    _git("checkout", "-q", "-b", "a", cwd=clone)
+    (sub / "s").write_text("A")
+    _git("commit", "-qam", "sA", cwd=sub)
+    _git("add", "vendor/sub", cwd=clone)
+    _git("commit", "-qm", "A", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    _git("checkout", "-q", "--detach", s1, cwd=sub)
+    (sub / "s").write_text("B")
+    _git("commit", "-qam", "sB", cwd=sub)
+    _git("checkout", "-q", "-b", "b", cwd=clone)
+    _git("add", "vendor/sub", cwd=clone)
+    _git("commit", "-qm", "B", cwd=clone)
+    assert _git_rc("merge", "a", cwd=clone).returncode != 0
+    assert "160000" in _out("ls-files", "-u", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    wd = _wd(dest, "willikins")
+    assert "160000" in (wd / "unmerged.z").read_bytes().decode()
+    assert "vendor/sub" in (wd / "NOTE.txt").read_text()
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    assert _out("ls-files", "-s", "vendor/sub", cwd=target) == _out("ls-files", "-s", "vendor/sub", cwd=clone)
+
+
+def test_every_head_of_an_octopus_merge_is_bundled(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    shas = []
+    for n in ("a", "b"):
+        _git("checkout", "-q", "-b", n, "main", cwd=clone)
+        (clone / f"{n}.txt").write_text(n)
+        _git("add", f"{n}.txt", cwd=clone)
+        _git("commit", "-qm", f"branch {n}", cwd=clone)
+        shas.append(_out("rev-parse", "HEAD", cwd=clone).strip())
+    _git("checkout", "-q", "main", cwd=clone)
+    assert _git_rc("merge", "--no-commit", "a", "b", cwd=clone).returncode == 0
+    assert len((clone / ".git/MERGE_HEAD").read_text().split()) == 2
+    _git("branch", "-D", "a", "b", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    extra = (dest / "EXTRA-REVS.txt").read_text()
+    assert shas[0] in extra and shas[1] in extra
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    fresh = tmp_path / "fresh-oct"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    _git("fetch", "-q", str(bundle), "+refs/*:refs/archive/*", cwd=fresh)
+    for sha in shas:
+        assert _out("cat-file", "-t", sha, cwd=fresh).strip() == "commit"
+
+
+def test_uid_mismatched_repositories_do_not_abort_the_archive(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone, _ = _make_merge_conflict(home, tmp_path)
+    (clone / "creds").mkdir()
+    (clone / "plain untracked.txt").write_text("u")
+    r, dest, env, _ = _archive_ok(tmp_path, {"GIT_TEST_ASSUME_DIFFERENT_OWNER": "1"}, home=home)
+    assert r.returncode == 0, r.stderr
+    wd = _wd(dest)
+    assert (wd / "untracked.tar.gz").exists() and (wd / "conflicted.tar.gz").exists()
+    assert (wd / "conflict-stages.tar.gz").exists()
+
+
+def test_no_inline_pod_script_runs_plain_git():
+    import re
+    src = SCRIPT.read_text()
+    # pod-side bash -c bodies must start from the shared git wrapper ("$PODGITFN"'...'),
+    # never from a bare single-quoted script that calls git directly
+    for m in re.finditer(r"bash -c '([^']*)'", src):
+        assert "git " not in m.group(1), m.group(1)[:80]
+    assert src.count('bash -c "$PODGITFN"') >= 5
+
+
+def test_hidden_and_untracked_lists_that_end_up_empty_still_archive(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / ".gitignore").write_text("scripts/\n")
+    _git("add", ".gitignore", cwd=clone)
+    _git("commit", "-qm", "ignore", cwd=clone)
+    (clone / "id_rsa").write_text("only a credential is untracked")
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert tarfile.open(_wd(dest) / "untracked.tar.gz").getnames() == []
+
+
+def _empty_bare(tmp_path, name):
+    bare = tmp_path / name
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    return bare
+
+
+def _refs(repo):
+    return sorted(_out("for-each-ref", "--format=%(objectname) %(refname)", "refs/", cwd=repo).splitlines())
+
+
+def test_a_branch_living_only_in_a_stale_tracking_ref_is_restorable(tmp_path):
+    import shutil
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    _git("checkout", "-q", "-b", "feature", cwd=clone)
+    (clone / "ft").write_text("ft")
+    _git("add", "ft", cwd=clone)
+    _git("commit", "-qm", "only upstream had this", cwd=clone)
+    _git("push", "-q", "origin", "feature", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    _git("branch", "-D", "feature", cwd=clone)
+    subprocess.run(["git", "-C", str(tmp_path / "remote.git"), "branch", "-D", "feature"], check=True)
+    assert "refs/remotes/origin/feature" in _out("for-each-ref", "refs/remotes", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    shutil.rmtree(tmp_path / "remote.git")
+    bare = _empty_bare(tmp_path, "restored.git")
+    _git("fetch", "-q", str(bundle), "+refs/*:refs/*", cwd=bare)
+    assert _out("log", "-1", "--format=%s", "refs/remotes/origin/feature", cwd=bare).strip() == "only upstream had this"
+
+
+def test_bundles_have_no_prerequisites_so_a_vanished_upstream_does_not_matter(tmp_path):
+    import shutil
+    home = _fixture_home(tmp_path)
+    _clone_with_remote(home, tmp_path)       # local-only branch on top of a pushed main
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    shutil.rmtree(tmp_path / "remote.git")   # upstream gone (or force-pushed away)
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    empty = tmp_path / "empty"
+    subprocess.run(["git", "init", "-q", str(empty)], check=True)
+    ok = subprocess.run(["git", "bundle", "verify", str(bundle)], cwd=empty, capture_output=True, text=True)
+    assert ok.returncode == 0, ok.stderr
+    assert "requires" not in (ok.stdout + ok.stderr).lower() or "does not require" in (ok.stdout + ok.stderr).lower()
+    bare = _empty_bare(tmp_path, "restored.git")
+    _git("fetch", "-q", str(bundle), "+refs/heads/*:refs/heads/*", cwd=bare)
+    assert _out("log", "-1", "--format=%s", "local-only", cwd=bare).strip() == "two"
+
+
+def test_a_clean_fully_pushed_clone_still_gets_a_bundle_with_identical_refs(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / ".gitignore").write_text("scripts/\n")
+    _git("add", ".gitignore", cwd=clone)
+    _git("commit", "-qm", "ignore", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("tag", "-a", "v9", "-m", "tag", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert _worktrees_dirs(dest) == []
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    bare = _empty_bare(tmp_path, "restored.git")
+    _git("fetch", "-q", str(bundle), "+refs/*:refs/*", cwd=bare)
+    assert _refs(bare) == _refs(clone)
+    assert (dest / "LOCAL-ONLY.txt").read_text() == ""
+
+
+def test_verify_requires_one_valid_bundle_per_clone_and_sizes_are_reported(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert "git dir on the pod" in r.stdout and "bundles:" in r.stdout
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    keep = bundle.read_bytes()
+    bundle.unlink()
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL bundle present" in v.stdout
+    bundle.write_bytes(keep)
+    rec = (dest / "BUNDLES.txt").read_text()
+    (dest / "BUNDLES.txt").write_text("")
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL bundle recorded" in v.stdout
+    (dest / "BUNDLES.txt").write_text(rec)
