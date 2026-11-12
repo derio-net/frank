@@ -279,3 +279,11 @@ what: The next agent-images bump run completes with its coverage check green.
 why: Spec row 5. Needs agent-images PR176 merged. Its branch build is green at b6de16b but the agent session was refused the merge and it is handed to the operator
 how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-6 --state fixed --note "<evidence>"
 owed_key: spec:2026-11-08--agents--retire-vk#step6
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-7 created=2026-11-12T12:43:58+00:00 -->
+### test-plan-step-7 · owed · Test Plan step 7 owed
+
+what: `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
+why: Spec row 6. The fork archive must follow the agent-images merge and a green bump run. ci-delivery-check already holds no series for the fork
+how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-7 --state fixed --note "<evidence>"
+owed_key: spec:2026-11-08--agents--retire-vk#step7
