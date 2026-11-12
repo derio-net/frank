@@ -423,3 +423,8 @@ R14 table adds building 18-persistent-agent, 24-in-cluster-ingress and paper 10;
 ### sr2-f11-resolved · finding [out-of-scope] · resolves sr2-f11: The root Application's prune setting is not in git, and two docs disagree about it
 
 The values.yaml comment and argocd.md disagree independently of this change, and Phase 1 relied on the same cascade. This change only reads the live value as a pre-merge gate (added to the spec); correcting the comment is a separate change.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-agent-images-direct-pr created=2026-11-12T12:39:58+00:00 -->
+### phase2-agent-images-direct-pr · decision · agent-images kali removal ships as a direct PR, not its own fr plan
+
+decider: agent. R12's build half is one matrix leg and one directory in derio-net/agent-images, mirroring Phase 1's agent-images#176. It is delivered as a plain PR stacked after #176 and merged by the operator after the Frank PR, with Test Plan row 11 as its proof. A second plan, run and review loop in that repo would cost more than the change.
