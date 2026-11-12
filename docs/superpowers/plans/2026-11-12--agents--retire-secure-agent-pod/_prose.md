@@ -86,7 +86,7 @@ plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
 when: After the Phase 2 PR merges
 why_manual: The cascade must be observed on live artifacts, a ClusterRoleBinding survives a namespace delete, Grafana reads provisioning only at boot, and prune false leaves the dashboard ConfigMap behind.
 commands:
-  - Compare status.operationState.operation.sync.revision with the merge SHA on root, grafana-alerting and victoria-metrics. Sync any that lag, passing ServerSideApply=true and RespectIgnoreDifferences=true.
+  - Start a sync operation on root (with prune true), grafana-alerting and victoria-metrics, passing ServerSideApply=true and RespectIgnoreDifferences=true. Then confirm on root and grafana-alerting that status.operationState.phase is Succeeded and status.operationState.syncResult.revision contains the merge SHA.
   - kubectl -n argocd get application secure-agent-pod --ignore-not-found
   - kubectl get ns secure-agent-pod --ignore-not-found
   - kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found
@@ -103,7 +103,7 @@ verify:
   - GET /api/v1/provisioning/alert-rules on Grafana lists none of the five uids.
   - The pushgateway serves no exercise_reminder, session_manager or audit_digest group.
   - kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard is NotFound.
-  - An hour later no alert has fired because of the removal and frank-gitops-push is still SecretSynced.
+  - At least an hour after the silence was deleted, no alert has fired because of the removal and frank-gitops-push is still SecretSynced with a token refreshed within that hour.
 status: pending
 ```
 
@@ -123,6 +123,6 @@ commands:
   - If frank#913 merged first, confirm scripts/tests/fixtures/life/pin-exceptions.yaml on main names neither vk-local nor secure-agent-kali.
 verify:
   - Every remaining ExternalSecret in the cluster is SecretSynced after the Infisical cleanup.
-  - The next agent-images bump run completes with its coverage check green.
+  - The first agent-images bump run created after both the Frank merge and the agent-images kali removal completes with its coverage check green.
 status: pending
 ```
