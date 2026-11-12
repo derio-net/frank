@@ -1,0 +1,209 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Remove secure-agent-pod from Frank's git state and ship the archive script
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - pod-removed-after-archive
+  - pod-removal-silent
+  - kali-image-retired
+  - vk-posts-superseded
+  - no-vk-references-remain
+  tier: standard
+  files:
+  - apps/secure-agent-pod/**
+  - apps/root/templates/secure-agent-pod.yaml
+  - apps/root/templates/ns-secure-agent-pod.yaml
+  - apps/root/templates/hermes-agent-shell.yaml
+  - apps/root/templates/ns-hermes-agent-shell.yaml
+  - apps/grafana-alerting/manifests/**
+  - apps/victoria-metrics/values.yaml
+  - apps/argocd-extras/manifests/externalsecret-repo-runs-fr.yaml
+  - apps/tekton/manifests/clustergenerator-*.yaml
+  - apps/paperclip/manifests/deployment.yaml
+  - apps/hermes-agent-shell/manifests/**
+  - secrets/**
+  - patches/phase04-gpu/403-gpu1-pcie-aspm.yaml
+  - .github/workflows/agent-images-bump.yml
+  - scripts/retire-secure-agent-pod.sh
+  - scripts/hooks/session-start.sh
+  - scripts/tests/**
+  - agents/**
+  - references/access.md
+  - README.md
+  - blog/content/docs/**
+  - blog/data/roadmap.yaml
+  - docs/runbooks/**
+  - docs/superpowers/**
+  - docs/acceptance/**
+  estimate_lines: 2600
+tasks:
+- number: 1
+  title: Extend the tripwire for the retired pod (red)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      In scripts/tests/test_vk_retired.py: delete POD_DEPLOYMENT, POD_PIN, the skip_pod exemption and test_pod_deployment_still_pins_both_containers. Add tests asserting (a) apps/secure-agent-pod, apps/root/templates/secure-agent-pod.yaml, apps/root/templates/ns-secure-agent-pod.yaml, secrets/secure-agent-pod and secrets/github-app/github-app-derio-key.yaml do not exist while secrets/github-app/github-app-derio-key-tekton.yaml does; (b) the uids exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running and layer-18-persistent-agent-degraded are not defined as rules in apps/grafana-alerting/manifests/alert-rules-cm.yaml and each appears in deleteRules as `{orgId: 1, uid: <uid>}`; (c) apps/grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml is absent and apps/victoria-metrics/values.yaml does not name grafana-secure-agent-pod-dashboard; (d) .github/workflows/agent-images-bump.yml contains neither `secure-agent-kali` nor `vk-local`; (e) a scan of every text file under apps/, secrets/ and .github/ finds no line containing `secure-agent-kali`, `vk-local`, `192.168.55.215`, `192.168.55.218`, `192.168.55.219`, or `secure-agent-pod`, except lines that also contain `retired` or `HISTORICAL` (case-insensitive) and deleteRules tombstone lines; (f) if scripts/tests/fixtures/life/pin-exceptions.yaml exists it names neither image; (g) each blog bundle in the spec's R14 rows one and two (building 21-secure-agent-pod, 25-vk-relay, 26-vk-remote-self-host, 18-persistent-agent, 28-agent-images-sidecar; operating 14-secure-agent-pod, 20-vk-relay, 21-vk-remote, 19-git-credentials-without-a-shell; papers 17-agentic-orchestration) has a line starting `> **Update 2026-11.**` in its index.md.
+  - id: P1.T1.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_vk_retired.py -q` and confirm the new tests FAIL on the current tree while the Phase 1 tests still pass. (f) passes vacuously when the fixture is absent; say so in the step record.
+- number: 2
+  title: Archive and preflight script (R9), test first
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Write scripts/tests/test_retire_secure_agent_pod_script.py (red). It runs scripts/retire-secure-agent-pod.sh with the env var `KUBECTL` pointed at a stub executable, and asserts: `archive` exits non-zero and writes nothing when the destination is inside a git work tree; it exits non-zero when the destination exists with a mode looser than 0700; it exits non-zero with the message `interactive session still running` when the stub's process listing contains a `claude` process that is not `claude remote-control`, unless `--session-ended-confirmed` is passed; `verify` exits non-zero when the tarball is missing, when MANIFEST.sha256 does not match, or when the tarball does not list `repos/willikins/scripts/chorebot/config.yaml`; `bash -n` passes on the script; in the script source the credential paths (credentials.json, server_ed25519_signing_key, .ssh, .gnupg, .config/gh, .claude.json) appear only in the exclude list.
+  - id: P1.T2.S2
+    text: |-
+      Write scripts/retire-secure-agent-pod.sh (green): `set -euo pipefail`, bash 3.2 compatible (no associative arrays), idempotent, `KUBECTL=${KUBECTL:-kubectl}`, default DEST=$HOME/Archives/secure-agent-pod-2026-11 (override only via --dest; refuse a DEST inside a git work tree; create it with `mkdir -p -m 700`; refuse if its mode is not 700). Subcommands: `archive` — read-only against the pod (`$KUBECTL -n secure-agent-pod exec deploy/secure-agent-pod -c kali --`), home /home/claude: first list processes and refuse while an interactive claude (any `claude` process other than `claude remote-control`) or a `herdr` session exists unless --session-ended-confirmed; stream one tar.gz of interviews/, orgs/, .hermes, .willikins-agent/audit-archive, .local/share/vibe-kanban/db.v2.sqlite and repos/willikins/scripts/chorebot/config.yaml to $DEST/secure-agent-pod-home.tar.gz with `--exclude` for credentials.json, server_ed25519_signing_key, .ssh, .gnupg, .config/gh, .claude.json and node_modules; then for every git clone found by `find /home/claude -maxdepth 6 -name .git -not -path '*/.cache/*' -not -path '*/node_modules/*'`, compute the local-only branches (those with commits not reachable from any `refs/remotes`), and when there are any stream `git bundle create - <branches> --not --remotes` to $DEST/bundles/<path-with-slashes-as-__>.bundle, recording clones with no local-only commits in $DEST/bundles/NONE.txt; write $DEST/MANIFEST.sha256 over every file and print the file count of the tarball and the per-bundle ref count. `verify` — `shasum -a 256 -c MANIFEST.sha256`, `tar -tzf` lists and contains chorebot's config.yaml, an interviews/ and an orgs/ entry, `git bundle verify` passes for each bundle (inside a throwaway `git init` under mktemp when verify needs a repository; a bundle whose prerequisites are missing there is checked with `git bundle list-heads` instead and reported as such), DEST mode is 700; print one PASS/FAIL line per check and exit non-zero on any FAIL. `key-fingerprint` — compare, never printing key material, the SHA-256 of the private key in the live tekton-pipelines/github-app-derio-key Secret, in `sops --decrypt secrets/github-app/github-app-derio-key-tekton.yaml`, and (when the file still exists) in `sops --decrypt secrets/github-app/github-app-derio-key.yaml`; exit non-zero unless all present values are equal. Read the Secret's data key name from the tekton SOPS file's unencrypted structure rather than assuming it. The script never deletes, patches or restarts anything.
+  - id: P1.T2.S3
+    text: |-
+      Refactor: make the pytest for the script pass, run `shellcheck scripts/retire-secure-agent-pod.sh` if shellcheck is installed (record `not installed` otherwise), and confirm `bash scripts/retire-secure-agent-pod.sh` with no subcommand prints usage naming the three subcommands and exits 2.
+- number: 3
+  title: Remove the Application, namespace and secrets (R10, R13)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Delete apps/root/templates/secure-agent-pod.yaml, apps/root/templates/ns-secure-agent-pod.yaml and the whole apps/secure-agent-pod/ directory (manifests, client-setup, cilium-egress.yaml.disabled). Run `helm template apps/root >/dev/null` and confirm it renders with no secure-agent-pod Application or Namespace.
+  - id: P1.T3.S2
+    text: |-
+      Delete secrets/secure-agent-pod/ and secrets/github-app/github-app-derio-key.yaml, keeping secrets/github-app/github-app-derio-key-tekton.yaml. Check .sops.yaml and any secrets README or index that lists the deleted paths and update them. Do not decrypt anything.
+  - id: P1.T3.S3
+    text: |-
+      Fix every pointer the pod leaves behind, rewriting each to past tense with the word `retired` or removing it: scripts/hooks/session-start.sh, apps/argocd-extras/manifests/externalsecret-repo-runs-fr.yaml, apps/tekton/manifests/clustergenerator-github-app-derio.yaml, apps/tekton/manifests/clustergenerator-stoa-github-app.yaml, apps/paperclip/manifests/deployment.yaml, apps/hermes-agent-shell/manifests/{deployment.yaml,service.yaml,configmap-byok-env.yaml}, apps/root/templates/hermes-agent-shell.yaml, apps/root/templates/ns-hermes-agent-shell.yaml, secrets/hermes-agent-shell/README.md, secrets/ruflo/README.md, patches/phase04-gpu/403-gpu1-pcie-aspm.yaml, docs/runbooks/frank-gotchas/networking.md, and the comments in scripts/tests/test_staging_gate_manifests.py, test_etcd_scrape.py and test_hermes_ssh_byok_env_snapshot.py. Comment-only edits in manifests must not change any rendered field; confirm by loading each touched manifest before and after and comparing the parsed documents.
+- number: 4
+  title: Observability (R11)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      In apps/grafana-alerting/manifests/alert-rules-cm.yaml delete the rules exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running and layer-18-persistent-agent-degraded (and any group left empty), add `{orgId: 1, uid: <uid>}` for all five to deleteRules following the existing convention at the top of the file, and remove notification-policy or comment references that exist only for them. Keep the document loadable.
+  - id: P1.T4.S2
+    text: |-
+      Delete apps/grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml (and its kustomization entry if one exists), remove its two mounts from apps/victoria-metrics/values.yaml, and remove the heartbeat panels and the secure-agent-pod namespace panel from apps/grafana-alerting/manifests/dashboard-cm.yaml, keeping each embedded dashboard valid JSON (load the ConfigMap with PyYAML and `json.loads` every data value). Then run every scripts/tests file that reads alert-rules-cm.yaml or dashboard-cm.yaml and update the ones that named the removed rules.
+- number: 5
+  title: Images, tests and docs (R12, R13, R15)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      In .github/workflows/agent-images-bump.yml remove the temporary secure-agent-kali / vk-local exclusion and the comments that describe it; in scripts/tests/test_agent_images_bump_coverage.py remove FROZEN_UNTIL_POD_RETIRED and test_frozen_images_are_not_bumped_by_the_workflow and keep the coverage test green for the remaining images. Confirm OLD_AI_SHA is still read from the multi-agent-shell pin.
+  - id: P1.T5.S2
+    text: |-
+      Update scripts/tests/test_claude_autoupdater_disabled.py, test_fr_isolation_target_env.py and test_config_reaches_the_process.py so they no longer expect the pod's containers or its configmap-fr-env.yaml, keeping their assertions for hermes-agent-shell, alert-agent, n8n-01 and cnc-base intact. If scripts/tests/fixtures/life/pin-exceptions.yaml exists on the branch, remove its vk-local and secure-agent-kali entries.
+  - id: P1.T5.S3
+    text: |-
+      Update agents/rules/frank-infrastructure.md (remove the .215, .218 and .219 rows), agents/rules/frank-gotchas.md and docs/runbooks/frank-gotchas/*.md (prefix pod-specific entries with `HISTORICAL (retired 2026-11):`, following the Paperclip precedent; rewrite entries that present the pod as a live example), agents/rules/browser-harness.md and agents/browser-harness-mac.md (the secure-agent-pod transport line), references/access.md, and README.md (Technology Stack, Repository Structure, Service Access, Current Status), following agents/skills/update-readme/SKILL.md.
+  - id: P1.T5.S4
+    text: |-
+      Retire the pod's manual operations at their source: find every `# manual-operation` block under docs/superpowers/ whose app is secure-agent-pod or whose commands target namespace secure-agent-pod, set `status: retired` with a one-line note in the plan block, and repoint the operation that builds the Tekton key from secrets/github-app/github-app-derio-key.yaml at secrets/github-app/github-app-derio-key-tekton.yaml. Regenerate docs/runbooks/manual-operations.yaml following agents/skills/sync-runbook/SKILL.md, including this plan's own blocks from _prose.md.
+- number: 6
+  title: Blog and roadmap (R14)
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Add a superseded notice as the first body line of building 21-secure-agent-pod, 25-vk-relay, 26-vk-remote-self-host and operating 14-secure-agent-pod, 20-vk-relay, 21-vk-remote: a `> **Update 2026-11.**` blockquote saying VibeKanban and the secure-agent-pod were retired in November 2026, that the post is kept as a record, and linking building 33-hermes-shell (via relref) as the agent shell that remains. Bump `last_updated` to 2026-11-12 in each. Posts stay `draft: false`.
+  - id: P1.T6.S2
+    text: |-
+      Add a short `> **Update 2026-11.**` note where VK or the pod is central: building 18-persistent-agent, 28-agent-images-sidecar; operating 19-git-credentials-without-a-shell; paper 17-agentic-orchestration. Fix or annotate the passing mentions in building 00-overview, 20-workflow-automation, 22-health-monitoring, 24-in-cluster-ingress; operating 06-secrets, 15-health-monitoring; papers 10-self-hosted-inference, 15-ingress-and-service-catalog. Leave paper 17's data/vendors.yaml and dossier unchanged. Annotate (do not delete) the VK and pod entries in blog/data/roadmap.yaml as retired 2026-11.
+  - id: P1.T6.S3
+    text: |-
+      Run the non-hugo validators that cover the touched files (blog/scripts/validate_papers.py and the scripts/tests files that read roadmap.yaml or post frontmatter) and fix what they report. Do not run `hugo --minify` locally; CI builds the site.
+- number: 7
+  title: Green, refactor and quality gate
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_vk_retired.py scripts/tests/test_retire_secure_agent_pod_script.py -q` and confirm every test passes. Run `git grep -n -iE 'secure-agent-kali|vk-local' -- apps secrets .github` and confirm no output.
+  - id: P1.T7.S2
+    text: |-
+      Refactor: read the full diff once for leftovers (dangling list separators, empty groups, orphaned comments, a README table with a broken row), then, after the last code commit, run the local suite excluding the hugo-building test files, calling `.venv/bin/pytest` directly (never `uv run`), with output redirected to a log outside the repo, and record that log.
+  - id: P1.T7.S3
+    text: |-
+      Regenerate the acceptance reports from docs/acceptance/matrix.yaml with the repo's report generator, and run `fr docs check` and `fr plan self-review docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod`; fix what they report.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
