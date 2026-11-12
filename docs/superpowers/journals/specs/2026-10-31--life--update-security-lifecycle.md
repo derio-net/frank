@@ -276,3 +276,8 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=tier-2026-10-31--life--update-security-lifecycle-p5 created=2026-10-31T18:52:32+00:00 -->
 ### tier-2026-10-31--life--update-security-lifecycle-p5 · decision · Phase 5 defines the security boundary for pods that hold cluster-upgrade credentials (per-type egress, per-app RBAC, scrubbing): a mistake there grants cluster access, so it gets the strongest model
+
+<!-- fr:journal kind=decision scope=spec id=session-credentials-gated-on-912 created=2026-11-12T10:58:42+00:00 -->
+### session-credentials-gated-on-912 · decision · No session credential until frank#912 closes (no AI agent with cluster-admin)
+
+Operator decision 2026-11-12: frank#912 must land before upgrade sessions hold real credentials. agent-sa goes away with frank#950 once the operator confirms nothing still runs on secure-agent-pod (checked 2026-11-12: an interactive claude session, the willikins remote-control agent, an SSH session and supercronic are all live, so not yet); the root-agents group needs its own least-privilege change. Merging frank#913 stays safe because no credential is applied by the merge. Enforced as P7.T1.S1 and in the spec's Constraints.
