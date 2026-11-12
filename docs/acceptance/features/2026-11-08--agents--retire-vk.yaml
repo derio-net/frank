@@ -132,13 +132,22 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R4
     levels: {}
-    status: not-implemented
-    notes: 2026-11-12. ci-delivery-check no longer lists derio-net/vibe-kanban and holds
-      no series for it. The fork is not yet archived and its webhook is still live,
-      because archiving waits on agent-images PR176 merging.
+    status: walked
+    notes: 2026-11-12. derio-net/vibe-kanban reports archived true with 0 webhooks.
+      ci-delivery-check no longer lists the fork and holds no series for it. Removing
+      the four VK_REMOTE keys from Infisical is still owed by the operator.
     verify: live
     issues:
     - derio-net/frank#950
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T17:11:54Z'
+      evidence: 2026-11-12. derio-net/vibe-kanban reports archived true with 0 webhooks.
+        ci-delivery-check no longer lists the fork and holds no series for it. Removing
+        the four VK_REMOTE keys from Infisical is still owed by the operator.
   - id: vk-images-retired
     capability: ci
     acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali
