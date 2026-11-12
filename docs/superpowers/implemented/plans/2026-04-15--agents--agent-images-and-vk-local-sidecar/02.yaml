@@ -120,7 +120,8 @@ tasks:
         - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
       verify:
         - kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].status.containerStatuses[*].ready}'  # expect "true true"
-      status: pending
+      status: retired
+      retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk)."
       ```
 
       - [x] **Step 5: [after-bounce] Reconnect from another host.** *(resumed 2026-04-17; pod bounced cleanly after commit 79cf7d0 applied the port-collision workaround)*
@@ -212,7 +213,8 @@ tasks:
         - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
       verify:
         - kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- sh -c 'command -v vibe-kanban || echo MISSING'  # expect MISSING
-      status: pending
+      status: retired
+      retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk)."
       ```
 
       - [x] **Step 5: [after-bounce] Reconnect.** *(resumed 2026-04-17 from operator workstation after PR #104 merge)*

@@ -102,7 +102,8 @@ operations:
   verify:
   - kubectl get secret agent-secrets-tier2 -n secure-agent-pod
   - kubectl get secret agent-configs -n secure-agent-pod
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: secure-agent-pod-infisical-setup
   layer: agents
   app: secure-agent-pod
@@ -114,7 +115,8 @@ operations:
   - kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod
   verify:
   - 'kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod -o jsonpath=''{.status.conditions[0].status}''  # Should return True'
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: secure-agent-pod-kali-cleanup
   layer: agents
   app: secure-agent-pod
@@ -126,7 +128,8 @@ operations:
   - kubectl delete namespace kali-system
   verify:
   - 'kubectl get namespace kali-system  # Should return not found'
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: secure-agent-pod-kali-cutover
   layer: agents
   app: secure-agent-pod
@@ -138,7 +141,8 @@ operations:
   - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
   verify:
   - kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- sh -c 'command -v vibe-kanban || echo MISSING'
-  status: pending
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: secure-agent-pod-sidecar-merge
   layer: agents
   app: secure-agent-pod
@@ -150,7 +154,8 @@ operations:
   - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
   verify:
   - kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].status.containerStatuses[*].ready}'
-  status: pending
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: vibe-kanban-dispatch-pat
   layer: agents
   app: vibe-kanban
@@ -1888,7 +1893,8 @@ operations:
   - 'Apps: derio-fr-automation (App 3994132, derio-net) -> secure-agent-pod; stoa-fr-automation (App 3994156) -> tekton CI of a separate org.'
   verify:
   - "env -u GITHUB_TOKEN gh api orgs/<org>/installations --jq '.installations[]|select(.app_slug==\"<app>\")|{repository_selection,permissions}'   # selected + exactly the intended perms"
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: agents-github-app-key-apply
   layer: agents
   app: secure-agent-pod
@@ -1896,13 +1902,14 @@ operations:
   when: After App creation / key rotation; before the consuming ExternalSecret can mint
   why_manual: bootstrap secret applied out-of-band (SOPS, not ArgoCD-managed); ESO's GithubAccessToken generator reads the key from the CONSUMING namespace, so the Secret must live there
   commands:
-  - source .env ; sops -d secrets/github-app/github-app-derio-key.yaml | kubectl apply -f -   # -> ns secure-agent-pod
+  - source .env ; sops -d secrets/github-app/github-app-derio-key-tekton.yaml | kubectl apply -f -   # -> ns tekton-pipelines (the secure-agent-pod copy was retired 2026-11)
   - source .env ; sops -d secrets/github-app/github-app-stoa-key.yaml | kubectl apply -f -    # -> ns tekton-pipelines
   - 'If it stays SecretSyncedError (cached generatorState): source .env ; kubectl -n <ns> annotate externalsecret <name> force-sync="$(date +%s)" --overwrite'
   verify:
   - source .env ; kubectl -n secure-agent-pod get externalsecret agent-github-token   # READY=True
   - source .env ; kubectl -n tekton-pipelines get externalsecret stoa-github-mirror    # READY=True
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: agents-clawdia-retire
   layer: agents
   app: secure-agent-pod
@@ -1915,7 +1922,8 @@ operations:
   - 'Infisical (192.168.55.204): delete /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN once the stoa CI ExternalSecret sources from the App generator (now unused).'
   verify:
   - "env -u GITHUB_TOKEN gh api 'orgs/<org>/members?role=admin' --jq '.[].login'   # clawdia-ai-assistant absent"
-  status: done
+  status: retired
+  retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk, plan 2026-11-12--agents--retire-secure-agent-pod); the namespace, workload and secrets no longer exist."
 - id: cicd-stoa-live-mirror-infisical-keys
   layer: cicd
   app: tekton
@@ -2101,7 +2109,7 @@ operations:
   why_manual: SOPS-encrypted bootstrap secret; needs the age key, which is deliberately absent from agent pods.
   commands:
   - '# frank-gitops-push has been SecretSyncedError since 2026-07-18 (1477 failures as of 2026-07-25): "error getting GH pem from secret: github-app-derio-key not found". ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret namespace and IGNORES secretRef.namespace, so the derio App PEM must exist in tekton-pipelines. It currently exists only in secure-agent-pod. The sibling github-app-stoa-key IS in tekton-pipelines, which is why the mirror token syncs and this one does not.'
-  - 'source .env ; sops -d secrets/github-app/github-app-derio-key.yaml | sed ''s/namespace: secure-agent-pod/namespace: tekton-pipelines/'' | kubectl apply -f -'
+  - source .env ; sops -d secrets/github-app/github-app-derio-key-tekton.yaml | kubectl apply -f -
   - '# Durable copy so a rebuild does not regress: create secrets/github-app/github-app-derio-key-tekton.yaml (same PEM, namespace tekton-pipelines), SOPS-encrypt with the same age key, and commit it.'
   - 'kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push force-sync=$(date +%s) --overwrite   # clears the cached SecretSyncedError'
   verify:
@@ -2766,4 +2774,77 @@ operations:
   verify:
   - gh api repos/derio-net/vibe-kanban --jq .archived prints true.
   - agent-github-token and agent-secrets-tier2 in secure-agent-pod are still SecretSynced.
+  status: pending
+- id: agents-retire-pod-archive
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+  when: Before the Phase 2 PR leaves draft, once the triage run on the pod has ended
+  why_manual: The files exist only on the pod's PVC, the archive may hold tokens so it must land on the operator's Mac, and only the operator can say the session has ended.
+  commands:
+  - bash scripts/retire-secure-agent-pod.sh archive
+  - bash scripts/retire-secure-agent-pod.sh verify
+  verify:
+  - verify prints PASS for every check and exits 0.
+  - ~/Archives/secure-agent-pod-2026-11 is mode 0700 and its tarball lists repos/willikins/scripts/chorebot/config.yaml.
+  - The operator has opened the archive and is satisfied nothing else on the pod is worth keeping.
+  status: pending
+- id: agents-retire-pod-premerge
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+  when: Before merging the Phase 2 PR, after the archive is verified
+  why_manual: The gates read live cluster state and a SOPS-decrypted key, and the silence must exist before the pod stops pushing heartbeats.
+  commands:
+  - 'kubectl get clustergenerator github-app-derio -o jsonpath=''{.metadata.annotations.argocd\.argoproj\.io/tracking-id}''  # must start with tekton-extras:'
+  - 'kubectl -n argocd get application secure-agent-pod -o jsonpath=''{.status.resources[*].kind}''  # must not list ClusterGenerator'
+  - bash scripts/retire-secure-agent-pod.sh key-fingerprint
+  - 'kubectl -n argocd get application root -o jsonpath=''{.spec.syncPolicy.automated.prune}''  # must print true'
+  - Create one Grafana silence (Alerting, Silences) matching alertname or rule uid for exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running and layer-18-persistent-agent-degraded, expiring in 48 hours. Note its id.
+  verify:
+  - The generator's tracking id is tekton-extras and the Application does not track it.
+  - key-fingerprint reports the Tekton copy equal to both SOPS files.
+  - root reports prune true.
+  - The silence is active.
+  status: pending
+- id: agents-retire-pod-postmerge-sweep
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+  when: After the Phase 2 PR merges
+  why_manual: The cascade must be observed on live artifacts, a ClusterRoleBinding survives a namespace delete, Grafana reads provisioning only at boot, and prune false leaves the dashboard ConfigMap behind.
+  commands:
+  - Compare status.operationState.operation.sync.revision with the merge SHA on root, grafana-alerting and victoria-metrics. Sync any that lag, passing ServerSideApply=true and RespectIgnoreDifferences=true.
+  - kubectl -n argocd get application secure-agent-pod --ignore-not-found
+  - kubectl get ns secure-agent-pod --ignore-not-found
+  - kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found
+  - kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa
+  - 'kubectl -n monitoring get cm grafana-alerting-rules -o yaml | grep ''orgId: 1, uid: agent-pod-not-running''  # the tombstone proves the sync; restart only once this matches'
+  - kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana
+  - Delete the retained exercise_reminder, session_manager and audit_digest groups from the pushgateway (DELETE /metrics/job/<job> on the pushgateway Service in monitoring).
+  - kubectl -n monitoring delete configmap grafana-secure-agent-pod-dashboard --ignore-not-found
+  - Delete the silence created before the merge once the Grafana API lists none of the five rule uids.
+  verify:
+  - The Application and the namespace are NotFound, the agent-home PV is gone, and no Service holds 192.168.55.215, .218 or .219.
+  - kubectl get clusterrolebinding secure-agent-pod-cluster-admin is NotFound and the auth can-i check prints no.
+  - GET /api/v1/provisioning/alert-rules on Grafana lists none of the five uids.
+  - The pushgateway serves no exercise_reminder, session_manager or audit_digest group.
+  - kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard is NotFound.
+  - An hour later no alert has fired because of the removal and frank-gitops-push is still SecretSynced.
+  status: pending
+- id: agents-retire-pod-leftovers
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+  when: After the sweep passes and the agent-images PR has merged
+  why_manual: Infisical keys, the operator's Mac configuration and GitHub trackers are outside the GitOps loop.
+  commands:
+  - In Infisical, remove the agent-secrets-tier2 keys no other consumer reads, including VK_ORG_ID and VK_DERIO_OPS_PROJECT_ID. Check each key against the remaining ExternalSecrets before deleting it.
+  - Remove the user-level vibe_kanban MCP server entry from the Claude configuration on the Mac.
+  - Remove the secure-agent-pod SSH and mosh host entries and the wezterm launcher from the Mac's client configuration.
+  - Close the frank-ops#18 health tracker, since every rule labelled with it is tombstoned.
+  - If frank#913 merged first, confirm scripts/tests/fixtures/life/pin-exceptions.yaml on main names neither vk-local nor secure-agent-kali.
+  verify:
+  - Every remaining ExternalSecret in the cluster is SecretSynced after the Infisical cleanup.
+  - The next agent-images bump run completes with its coverage check green.
   status: pending
