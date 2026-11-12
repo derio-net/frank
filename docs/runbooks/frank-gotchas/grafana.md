@@ -1181,7 +1181,7 @@ Nothing alerted on PVC fill until frank#722 (the hermes tool-home expansion in #
 - **Expression.** `100 * max by (namespace, persistentvolumeclaim) (used) / (max by (namespace, persistentvolumeclaim) (capacity) > 0)`. The `max by` collapses the duplicate series that exists briefly while a volume moves between nodes. The `> 0` drops a zero denominator, which would give +Inf and fire forever.
 - **NoData.** A volume that is not mounted reports no series. The rule goes NoData and `noDataState: OK` keeps it quiet. Those volumes cannot fill, so this is expected, not a blind spot.
 - **Route.** `pvc_capacity="true"` matches a parent route with `repeat_interval: 4h` and `continue: false`; its children are Telegram (continue true) and the Health Bridge. Without it a full volume would re-page every 3m for days until someone expands or prunes it.
-- **Live baseline, 2026-10-10.** 36 byte series, top 78.2% (`secure-agent-pod/agent-home`); inode maximum 34.7%; no zero denominators.
+- **Live baseline, 2026-10-10.** 36 byte series, top 78.2% (`secure-agent-pod/agent-home`, a PVC since retired 2026-11); inode maximum 34.7%; no zero denominators.
 - **First move when it fires.** Check Longhorn provisioning headroom before expanding (see the Storage entry on silently refused expansion in `storage-secrets-ssa.md`), then look for untracked workloads and prunable data.
 
 ### Increasing idle windows did not establish CI health — real-work checks replace them

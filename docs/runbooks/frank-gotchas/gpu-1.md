@@ -4,7 +4,7 @@ Long-form companion to the **gpu-1 specifics** section in `agents/rules/frank-go
 
 ## NoSchedule taint pattern (defensive even when the live taint list is empty)
 
-gpu-1 has no NoSchedule taint at the moment (`spec.taints: []` on the Node), but the cluster idiom for pinning a workload there is `nodeSelector: kubernetes.io/hostname: gpu-1` plus a defensive `nvidia.com/gpu:NoSchedule` toleration (ollama, n8n, openrgb, secure-agent-pod, paperclip all carry it). The toleration is insurance against the GPU operator re-asserting the taint on driver re-validation; pods without it would be evicted in that window. Keep mirroring the pattern even when the live taint list is empty.
+gpu-1 has no NoSchedule taint at the moment (`spec.taints: []` on the Node), but the cluster idiom for pinning a workload there is `nodeSelector: kubernetes.io/hostname: gpu-1` plus a defensive `nvidia.com/gpu:NoSchedule` toleration (ollama, n8n, openrgb, paperclip all carry it; the secure-agent-pod did until it was retired 2026-11). The toleration is insurance against the GPU operator re-asserting the taint on driver re-validation; pods without it would be evicted in that window. Keep mirroring the pattern even when the live taint list is empty.
 
 ## `kubectl port-forward` flakes with CNI-netns errors
 

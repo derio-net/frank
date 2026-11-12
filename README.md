@@ -64,8 +64,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM, replica-count weighting, manual pause gating; metric-source replacement spec'd at `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
-| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; **s6-overlay-supervised** sshd + supercronic, **tmux-continuum-restored** layout across restarts; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP); GitHub auth via a **least-privilege GitHub App** installation token (ESO-minted, rotating, key never on the pod) for git + gh — replacing the org-owner PAT |
-| Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
+| Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → the per-workload shell images (`secure-agent-kali` and `vk-local` retired 2026-11 with the secure-agent-pod); matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
 | Hermes Agent Shell | Hermes Agent (Nous Research) | Standalone SSH/Mosh shell pod on gpu-1 (`hermes-agent-shell` image), BYOK → in-cluster LiteLLM virtual key; sshd env-scrub bridged via profile.d shim; provider pinned in `~/.hermes/config.yaml` (PVC state, manual-op) |
 | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
@@ -118,7 +117,6 @@ frank/
 │   ├── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
-│   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
 │   ├── hermes-agent-shell/manifests/           # Standalone hermes agent shell pod (gpu-1, SSH+Mosh, BYOK → LiteLLM)
 │   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
 │   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
@@ -202,11 +200,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
-| Secure Agent Pod (SSH) | ssh claude@192.168.55.215 | 192.168.55.215 |
 | n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
 | Tekton Dashboard | http://192.168.55.217:9097 | 192.168.55.217 |
-| Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
-| Secure Agent Pod (Mosh) | mosh + tmux persistent sessions — see [operating post](blog/content/docs/operating/14-secure-agent-pod/index.md#persistent-shells-with-mosh--tmux) | 192.168.55.219 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
 | GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
 | GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
@@ -260,14 +255,13 @@ argocd app list
 | litellm-extras | litellm | Model router config, ExternalSecret for API keys, canary Rollout + AnalysisTemplate |
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
 | argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
-| argocd-notifications | argocd | Telegram bump alerts via webhook service (subscribes secure-agent-pod on-sync-running/succeeded) |
+| argocd-notifications | argocd | Telegram bump alerts via webhook service (subscribes hermes-agent-shell on-sync-running/succeeded) |
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
 | paperclip | paperclip-system | Paperclip AI agent orchestrator, pure upstream single-container pod (192.168.55.212:3100, 12Gi memory limit, defensive nvidia.com/gpu toleration); the former paperclip-shell sidecar and 192.168.55.221 were retired 2026-10-04 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
-| secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
 | hermes-agent-shell | hermes-agent-shell | Standalone hermes agent shell on gpu-1 (SSH :22 + mosh UDP 60032-60047 on 192.168.55.226), BYOK → LiteLLM, home PVC |
 | argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM) |
 | argo-rollouts-extras | argo-rollouts | Currently empty — held the broken Cilium plugin config + CiliumEnvoyConfig RBAC, both removed 2026-05-04 |

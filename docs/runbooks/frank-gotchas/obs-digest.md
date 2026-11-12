@@ -615,8 +615,7 @@ reclaim-storm signature); `ps aux --sort=-rss` for the session processes;
 last agent-images bump = in-pod update).
 
 **Fix (frank #TBD):** `DISABLE_AUTOUPDATER=1` on every claude-running container
-— alert-agent `agent`, secure-agent-pod `kali`+`vk-local` (same churn observed
-on its shared home PVC), n8n-01 `multi-agent-shell`, cnc-base `node` — plus the
+— alert-agent `agent`, n8n-01 `multi-agent-shell`, cnc-base `node` — plus the
 kali fr-env profile.d shim re-export (sshd scrubs container env from the SSH
 login shells kali launches claude from). Binary updates ship exclusively via
 the agent-images pipeline (memory-safe curl install). Guard:

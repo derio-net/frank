@@ -49,7 +49,7 @@ kubectl get sympoziuminstances -n sympozium-system -o custom-columns=NAME:.metad
 
 ## HISTORICAL (retired 2026-11) — VK / VibeKanban
 
-VibeKanban (vk-remote and the relay sidecar) was retired in 2026-11 (spec `2026-11-08--agents--retire-vk`). The pod's `vk-local` container lingers idle until Phase 2 removes the pod, so entries about it still describe a live container until then.
+VibeKanban (vk-remote and the relay sidecar) was retired in 2026-11 (spec `2026-11-08--agents--retire-vk`). The secure-agent-pod that hosted `vk-local` was retired in the same month, so entries about either describe a workload that no longer exists.
 
 - Local mode binds to a random port by default — set `PORT=8081` and `HOST=0.0.0.0` env vars to fix the port and allow external access (default host is `127.0.0.1`).
 - Tries to reach `api.vibekanban.com` for remote features — add to Cilium egress allowlist if needed, or leave blocked (local mode works without it).
