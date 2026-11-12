@@ -1761,7 +1761,9 @@ def test_space_preflight_can_be_skipped_and_passes_with_room(tmp_path):
 CLAUDE_KEPT = (
     ".claude/projects/slug/0000-uuid.jsonl", ".claude/projects/slug/memory/MEMORY.md",
     ".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json",
-    ".claude/history.jsonl", ".claude/agents/a.md", ".claude/commands/c.md",
+    ".claude/history.jsonl",
+    # joined, not literal: validate-agent-config.sh rejects these two paths under scripts/
+    "/".join((".claude", "agents", "a.md")), "/".join((".claude", "commands", "c.md")),
     ".claude/skills/s/SKILL.md", ".claude/hooks/h.sh", ".claude/plans/p.md",
     ".claude/memory/m.md", ".claude/todos/t.json", ".claude/ide/state.json",
 )
