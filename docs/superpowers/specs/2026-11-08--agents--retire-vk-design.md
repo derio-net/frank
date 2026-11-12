@@ -359,8 +359,8 @@ These were the Test Plan of the Phase 1 PR and are kept as its record.
 
 Phase 2, post-merge and operator-driven, except row 7 which gates leaving draft.
 
-7. The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
-8. `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
-9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and `kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa` answers `no`.
-10. After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
-11. The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.
+7. (op: premerge-archive) The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+8. (op: step-8) `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
+9. (op: step-9) `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and `kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa` answers `no`.
+10. (op: step-10) After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+11. (op: step-11) The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.
