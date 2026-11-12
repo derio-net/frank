@@ -1,7 +1,7 @@
 """Tripwire: an acceptance row's `status` must not be contradicted by its own
 `notes`.
 
-`docs/acceptance/matrix.yaml` is the artefact a reader consults to find out
+The acceptance matrix (the fold over `docs/acceptance/features/*.yaml`) is the artefact a reader consults to find out
 how strongly a capability is guaranteed, and `status` is the machine-readable
 half of that answer. When the prose underneath disagrees, the row is worse
 than either half alone: the summary counts it one way, the sentence a human
@@ -26,7 +26,7 @@ import re
 import yaml
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-MATRIX = REPO / "docs" / "acceptance" / "matrix.yaml"
+FEATURES = REPO / "docs" / "acceptance" / "features"
 
 # Phrasings that assert the guard does NOT run in CI. Matched case-insensitively
 # against the notes of `status: ci` rows only.
@@ -38,8 +38,12 @@ _DENIES_CI = re.compile(
 
 
 def _rows() -> list[dict]:
-    doc = yaml.safe_load(MATRIX.read_text(encoding="utf-8"))
-    rows = doc.get("rows") or []
+    # fr >= 6.4 stores the matrix as per-feature fragments; the effective
+    # matrix is the union of their rows and is never written to disk.
+    rows = []
+    for frag in sorted(FEATURES.glob("*.yaml")):
+        doc = yaml.safe_load(frag.read_text(encoding="utf-8")) or {}
+        rows.extend(doc.get("rows") or [])
     assert rows, "acceptance matrix has no rows"
     return rows
 
