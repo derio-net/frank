@@ -1698,9 +1698,20 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R7
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walked
+  notes: 2026-11-12 12:30 UTC, after the whole Phase 1 sweep. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704
+    and kali restart count 0 equal the baseline. Pod created and kali started 2026-10-21,
+    before the merge.
   verify: live
+  walks:
+  - strategy: live
+    harness: claude-code
+    model: claude-fable-5-2
+    outcome: pass
+    at: '2026-11-12T12:43:49Z'
+    evidence: 2026-11-12 12:30 UTC, after the whole Phase 1 sweep. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704
+      and kali restart count 0 equal the baseline. Pod created and kali started 2026-10-21,
+      before the merge.
 - id: pod-removed-after-archive
   capability: agents
   acceptance: The secure-agent-pod and its storage, addresses and cluster-admin binding
