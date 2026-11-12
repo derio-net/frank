@@ -1,7 +1,7 @@
 # GitHub App installation-token generator for the derio-homelab org.
 #
 # kid-laptops (derio-homelab/kid-laptops, issue #43) is private and sits in a
-# THIRD org: not derio-net (github-app-derio, secure-agent-pod) and not
+# THIRD org: not derio-net (github-app-derio) and not
 # agentic-stoa (github-app-stoa, tekton). Neither existing generator's token can
 # read it, so the mirror needs its own.
 #

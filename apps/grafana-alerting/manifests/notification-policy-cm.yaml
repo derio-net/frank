@@ -79,7 +79,8 @@ data:
           # Generic "critical for health-bridge, but do not page" escape hatch
           # (same trick as canary_watchdog above: severity=critical drives the
           # dead→bug-issue lifecycle, this route keeps it off Telegram). MUST
-          # precede the severity routes. First user: vk-executor-pool-wedged.
+          # precede the severity routes. Users: workload-unexpectedly-scaled-to-zero and the layer-2-etcd rules (the original
+          # first user, vk-executor-pool-wedged, was retired 2026-11).
           - receiver: "Health Bridge Webhook"
             matchers:
               - health_bridge_only="true"
@@ -92,6 +93,21 @@ data:
           - receiver: "Telegram - Willikins"
             matchers:
               - pvc_capacity="true"
+            repeat_interval: 4h
+            continue: false
+            routes:
+              - receiver: "Telegram - Willikins"
+                continue: true
+              - receiver: "Health Bridge Webhook"
+          # CI outcome (layer-25 pipeline-failing / pipelinerun-timeout): the
+          # 24h failure window keeps an alert firing up to a day after the
+          # cause, and only a fix + a green run clears it. Through the
+          # severity route it re-paged every 3m (kid-laptops-ci, 2026-11-02).
+          # Same shape as pvc_capacity: 4h parent, children replicate the
+          # severity (Telegram) + feature-health (Health Bridge) delivery.
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - ci_outcome="true"
             repeat_interval: 4h
             continue: false
             routes:

@@ -19,6 +19,11 @@ APPS = REPO / "apps"
 # touch them) — exclude from the coverage requirement.
 NON_AGENT_IMAGES = {"blog"}
 
+# The two secure-agent-pod images are deliberately NOT bumped: that pod is being
+# retired (spec 2026-11-08--agents--retire-vk) and rolling its Recreate Deployment
+# would end a live session. Phase 2 removes the pod and this exclusion with it.
+FROZEN_UNTIL_POD_RETIRED = {"secure-agent-kali", "vk-local"}
+
 PIN_RE = re.compile(r"ghcr\.io/derio-net/([a-z0-9-]+):[a-f0-9]{40}")
 
 
@@ -26,7 +31,7 @@ def _pinned_agent_images():
     names = set()
     for f in APPS.rglob("*.yaml"):
         names.update(PIN_RE.findall(f.read_text()))
-    return names - NON_AGENT_IMAGES
+    return names - NON_AGENT_IMAGES - FROZEN_UNTIL_POD_RETIRED
 
 
 def _workflow_covered_images():
@@ -46,6 +51,13 @@ def test_every_pinned_agent_image_is_bumped():
         f"apps/ pins agent-image(s) the bump workflow does not cover: {sorted(missing)}. "
         f"Add them to AGENT_IMAGES in {WORKFLOW.relative_to(REPO)}."
     )
+
+
+def test_frozen_images_are_not_bumped_by_the_workflow():
+    # The exclusion must stay explicit: if the workflow starts bumping them again,
+    # the pod rolls. Phase 2 deletes this test together with the pod.
+    covered = _workflow_covered_images()
+    assert not (FROZEN_UNTIL_POD_RETIRED & covered)
 
 
 def test_multi_agent_shell_and_hermes_are_pinned_somewhere():

@@ -1,0 +1,15 @@
+<!-- fr:journal-schema=3 -->
+# Journal: 2026-06-21--obs--crowdsec-ban-canary
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-5 created=2026-11-02T22:01:30+00:00 phase=5 -->
+### manual-phase-5 · owed · 2026-06-21--obs--crowdsec-ban-canary: manual phase 5 is not ticked (phase 5)
+
+what: do manual phase 5 of 2026-06-21--obs--crowdsec-ban-canary and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 5 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-06-21--obs--crowdsec-ban-canary
+owed_key: plan:2026-06-21--obs--crowdsec-ban-canary#p5
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-5-resolved created=2026-11-02T22:01:52+00:00 phase=5 state=open resolves=manual-phase-5 filed_as=derio-net/frank#919 -->
+### manual-phase-5-resolved · finding [filed → derio-net/frank#919] · resolves manual-phase-5: 2026-06-21--obs--crowdsec-ban-canary: manual phase 5 is not ticked (phase 5)
+
+Filed at archive as derio-net/frank#919; still owed until discharged.

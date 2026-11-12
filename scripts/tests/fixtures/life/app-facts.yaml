@@ -1306,31 +1306,6 @@ apps:
       - 8080
       - 9443
     stateful: true
-  frank/vk-remote:
-    charts: []
-    images:
-    - electricsql/electric:1.4.13
-    - ghcr.io/derio-net/vk-remote:7cebcbb
-    - postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
-    paths:
-    - apps/root/templates/vk-remote.yaml
-    - apps/vk-remote/manifests/**
-    rollout: false
-    services:
-    - name: electric
-      namespace: agents
-      ports:
-      - 3000
-    - name: postgres-vk
-      namespace: agents
-      ports:
-      - 5432
-    - name: vk-remote
-      namespace: agents
-      ports:
-      - 8081
-      - 8082
-    stateful: true
   frank/zot:
     charts:
     - zot

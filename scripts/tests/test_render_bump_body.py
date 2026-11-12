@@ -1,6 +1,6 @@
 """Tests for scripts/render_bump_body.py.
 
-The renderer turns a `bump` dict (old/new/vk-remote SHAs + a list of
+The renderer turns a `bump` dict (old/new SHAs + a list of
 upstream agent-images PRs) into the markdown body for the automated
 agent-images bump PR. `render()` is pure (no network), so these tests
 feed crafted dicts and assert on the markdown.
@@ -36,11 +36,10 @@ def pr(
     }
 
 
-def bump(old=OLD, new=NEW, vkr="7cebcbb", prs=None, repo=REPO):
+def bump(old=OLD, new=NEW, prs=None, repo=REPO):
     return {
         "old": old,
         "new": new,
-        "vkr": vkr,
         "repo": repo,
         "prs": [pr()] if prs is None else list(prs),
     }
@@ -75,14 +74,10 @@ def test_title_strips_trailing_pr_number():
     assert "(#88)" not in out  # number is shown as the link ref, not in the title
 
 
-# --- vk-remote line (Q3: unchanged) ----------------------------------------
+# --- vk-remote is gone (retired 2026-11) -------------------------------------
 
-def test_vkr_line_present_when_set():
-    assert "**vk-remote:** `7cebcbb`" in render(bump())
-
-
-def test_vkr_line_absent_when_empty():
-    assert "vk-remote" not in render(bump(vkr=""))
+def test_no_vk_remote_line():
+    assert "vk-remote" not in render(bump())
 
 
 # --- ordering + plural -----------------------------------------------------
@@ -152,7 +147,7 @@ def test_author_null_omits_at_mention():
 def test_commit_without_pr_number_renders_short_sha_link():
     out = render(bump(prs=[pr(number=None, sha="abc1234deadbeef", summary="")]))
     assert f"[abc1234](https://github.com/{REPO}/commit/abc1234deadbeef)" in out
-    assert "#" not in out.split("### Upstream changes")[1].split("**vk-remote")[0]
+    assert "#" not in out.split("### Upstream changes")[1]
 
 
 # --- old == new edge -------------------------------------------------------
@@ -162,7 +157,6 @@ def test_old_equals_new_shows_unchanged_note_no_compare():
     assert "_agent-images unchanged._" in out
     assert "### Upstream changes" not in out
     assert "compare" not in out
-    assert "**vk-remote:** `7cebcbb`" in out  # vk-remote line still shown
 
 
 # --- _summary_from_message: derive the "what it did" from the commit body --
@@ -200,24 +194,22 @@ def _raise(*_a, **_k):
 
 def test_main_falls_back_to_legacy_on_collect_error(monkeypatch, capsys):
     monkeypatch.setattr(rbb, "collect", _raise)
-    rc = rbb.main(["--old", OLD, "--new", NEW, "--vkr", "7cebcbb"])
+    rc = rbb.main(["--old", OLD, "--new", NEW])
     assert rc == 0
-    assert capsys.readouterr().out == f"agent-images: `{NEW}`\nvk-remote: `7cebcbb`\n"
+    assert capsys.readouterr().out == f"agent-images: `{NEW}`\n"
 
 
 def test_main_fallback_when_old_missing_does_not_call_collect(monkeypatch, capsys):
     monkeypatch.setattr(rbb, "collect", _raise)  # would raise AssertionError-style if reached
-    rc = rbb.main(["--old", "", "--new", NEW, "--vkr", ""])
+    rc = rbb.main(["--old", "", "--new", NEW])
     assert rc == 0
-    # no vk-remote line when vkr empty
     assert capsys.readouterr().out == f"agent-images: `{NEW}`\n"
 
 
 def test_main_old_equals_new_renders_unchanged_note(monkeypatch, capsys):
     # old==new must short-circuit collect() and render the note, not fall back.
     monkeypatch.setattr(rbb, "collect", _raise)
-    rc = rbb.main(["--old", NEW, "--new", NEW, "--vkr", "7cebcbb"])
+    rc = rbb.main(["--old", NEW, "--new", NEW])
     assert rc == 0
     out = capsys.readouterr().out
     assert "_agent-images unchanged._" in out
-    assert "**vk-remote:** `7cebcbb`" in out

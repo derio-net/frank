@@ -47,7 +47,9 @@ kubectl get sympoziuminstances -n sympozium-system -o custom-columns=NAME:.metad
 - Community Edition OIDC/SSO is enterprise-only — use Authentik forward-auth proxy for SSO.
 - Requires `N8N_SECURE_COOKIE=false` when accessed over plain HTTP (without TLS termination); remove once TLS is in place.
 
-## VK / VibeKanban
+## HISTORICAL (retired 2026-11) — VK / VibeKanban
+
+VibeKanban (vk-remote and the relay sidecar) was retired in 2026-11 (spec `2026-11-08--agents--retire-vk`). The pod's `vk-local` container lingers idle until Phase 2 removes the pod, so entries about it still describe a live container until then.
 
 - Local mode binds to a random port by default — set `PORT=8081` and `HOST=0.0.0.0` env vars to fix the port and allow external access (default host is `127.0.0.1`).
 - Tries to reach `api.vibekanban.com` for remote features — add to Cilium egress allowlist if needed, or leave blocked (local mode works without it).

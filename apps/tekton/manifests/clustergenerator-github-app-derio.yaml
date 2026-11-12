@@ -1,5 +1,13 @@
 # GitHub App installation-token generator (derio-fr-automation, App 3994132).
 #
+# OWNED BY TEKTON (tekton-extras) since the VibeKanban / secure-agent-pod retirement
+# (2026-11, spec 2026-11-08--agents--retire-vk): tekton-pipelines/frank-gitops-push
+# depends on this generator (cnc-promotion and staging-gate depend on that Secret).
+# It used to live under apps/secure-agent-pod, and removing that Application would
+# have cascaded to it; the ExternalSecret's deletionPolicy: Retain would then have kept
+# the old Secret in place while its token expired ~1h later, everything still green.
+# Do not move it back under an Application that can be removed.
+#
 # Least-privilege identity that REPLACES the clawdia org-owner PAT for agent git/gh.
 # ESO mints a short-lived (~1h) installation token; an ExternalSecret writes it into
 # a Secret that the pod mounts as a live-updated file. The private key is NEVER
@@ -7,10 +15,10 @@
 # compromise yields at most a ~1h token, not the key.
 #
 # NOTE: ESO (v2.1.0) resolves this generator's privateKey.secretRef in the CONSUMING
-# ExternalSecret's namespace (secure-agent-pod) and IGNORES secretRef.namespace — so
-# the key Secret must live in secure-agent-pod. That namespace is moot for the threat
-# model (secure-agent-pod's SA is cluster-admin, so the key's ns doesn't change API
-# read access); the real protection is that the key is never mounted into a container.
+# ExternalSecret's namespace and IGNORES secretRef.namespace — so the key Secret must
+# exist in EVERY consumer's namespace: tekton-pipelines (frank-gitops-push) and, until
+# Phase 2 of retire-vk removes it, secure-agent-pod. The real protection is that the
+# key is never mounted into a container.
 #
 # To tighten further, scope the minted token with `repositories:` / `permissions:`
 # (omitted here = the App's full install: repository_selection ALL derio-net repos,

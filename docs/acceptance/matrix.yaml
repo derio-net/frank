@@ -1146,8 +1146,8 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R2
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: paperclip-instance-starts-empty
   capability: Paperclip fresh start
@@ -1159,8 +1159,8 @@ rows:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R5
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R6
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: paperclip-claude-agent-completes-task
   capability: Paperclip fresh start
@@ -1169,8 +1169,8 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R7
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: companies-mirror-paused
   capability: Paperclip fresh start
@@ -1180,9 +1180,11 @@ rows:
   origin:
   - frank:docs/superpowers/specs/2026-10-04--orch--paperclip-fresh-start-design.md#R8
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#930
   verify: live
+  issues:
+  - derio-net/frank#930
 - id: paperclip-docs-describe-fresh-start
   capability: Paperclip fresh start
   acceptance: Frank's operator docs (Layer 15 posts, README, infrastructure table,
@@ -1203,9 +1205,8 @@ rows:
   levels:
     unit:
     - frank:scripts/tests/test_paperclip_pure_upstream.py#test_lb_preserves_client_source_ip
-  status: not-implemented
-  notes: Config guarded in CI (TRUST_PROXY tokens, eTP Local); the behaviour needs
-    the live negative curl in manual-op orch-paperclip-bootstrap-admin verify.
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: retrieval-batch-job-survives-pool-watchdog
   capability: Retrieval models
@@ -1262,8 +1263,8 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R4
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
   verify: live
 - id: obs-pvc-capacity-pages
   capability: alerting
@@ -1273,9 +1274,30 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-10--obs--frank-alert-gaps-design.md#R7
   levels: {}
+  status: walk-owed
+  notes: post-merge walk owed (gate backfill)
+  verify: live
+- id: vk-alerts-retired
+  capability: alerting
+  acceptance: The VK bridge and executor alerts are gone from Grafana and cannot fire.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R1
+  levels: {}
   status: not-implemented
   notes: ''
   verify: live
+- id: pod-removal-silent
+  capability: alerting
+  acceptance: Removing the pod raises no alert, and no dashboard or scrape depends
+    on it.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R11
+  levels: {}
+  status: not-implemented
+  notes: Phase 2, tracked in derio-net/frank#950
+  verify: live
+  issues:
+  - derio-net/frank#950
 - id: stor-pc1-hdd-health-gated
   capability: storage
   acceptance: Only pc-1 HDDs that pass a strict SMART check (overall health, long
@@ -1444,9 +1466,9 @@ rows:
     and its Gitea-mirrored read-only secrets are declared in one config in git, and
     only check jobs are eligible to fall back.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R1
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R2
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R3
   levels:
     unit:
     - frank:scripts/tests/test_ci_budget_tiers.py
@@ -1460,38 +1482,44 @@ rows:
     or derio-homelab is mirrored to Frank's Gitea, including PR heads, and missed
     syncs are repaired.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R4
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R5
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#927
   verify: live
+  issues:
+  - derio-net/frank#927
 - id: ci-fallback-status-reaches-github
   capability: CI forge tiers
   acceptance: Gitea Actions results for mirrored repos in all three orgs appear on
     the matching GitHub commit as gitea-actions statuses.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R6
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#928
   verify: live
+  issues:
+  - derio-net/frank#928
 - id: ci-tier-monthly-report
   capability: CI forge tiers
   acceptance: Each month an issue reports per-repo billed GitHub minutes and proposes
     tier changes, updated in place if regenerated.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R15
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#929
   verify: live
+  issues:
+  - derio-net/frank#929
 - id: gate-coverage-checker-flags-gaps
   capability: CI forge tiers
   acceptance: Workflow jobs in github-preferred or gitea-only repos that lack the
     forge gate, or would queue forever on Gitea, are reported.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R16
   levels:
     unit:
     - frank:scripts/tests/test_ci_gate_coverage.py
@@ -1504,62 +1532,72 @@ rows:
   acceptance: The nine github-preferred repos and the cnc-frd/cnc-fru release workflows
     pass the gate-coverage check.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R17
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#934
   verify: live
+  issues:
+  - derio-net/frank#934
 - id: ci-budget-flips-at-threshold
   capability: CI budget fallback
   acceptance: When an org reaches 85% of its included GitHub minutes, its github-preferred
     repos move to Gitea for the rest of the month and return to GitHub at the monthly
     reset, never leaving a window where neither forge runs.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R7
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R8
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R9
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R10
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R11
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#925
   verify: live
+  issues:
+  - derio-net/frank#925
 - id: ci-budget-backstop-spending-limit
   capability: CI budget fallback
   acceptance: A GitHub job refused for the spending limit moves its org to Gitea within
     ten minutes and its pull request is re-run on Gitea.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R12
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#924
   verify: live
+  issues:
+  - derio-net/frank#924
 - id: ci-budget-notifies-and-heartbeat
   capability: CI budget fallback
   acceptance: The operator is told on Telegram about every authority change, would-change
     and refusal, and is paged if the budget watcher stops running.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R13
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#926
   verify: live
+  issues:
+  - derio-net/frank#926
 - id: ci-authority-readable-on-github
   capability: CI budget fallback
   acceptance: The current CI authority of every github-preferred repo can be read
     from GitHub alone.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R14
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#923
   verify: live
+  issues:
+  - derio-net/frank#923
 - id: runner-memory-and-placement
   capability: CI runner
   acceptance: The Gitea Actions runner stays on pc-1 with capacity 2 and a 2Gi runner
     memory limit.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R18
   levels:
     unit:
     - frank:scripts/tests/test_gitea_runner_capacity.py
@@ -1571,11 +1609,13 @@ rows:
   acceptance: An alert fires when the Gitea runner is offline, when jobs wait too
     long for it, or when pc-1 /var runs low.
   origin:
-  - frank:docs/superpowers/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
+  - frank:docs/superpowers/implemented/specs/2026-10-18--cicd--github-preferred-gitea-fallback-design.md#R19
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#933
   verify: live
+  issues:
+  - derio-net/frank#933
 - id: obs-telegram-firing-compact
   capability: obs
   acceptance: A firing Grafana alert reaches the Frank C&C Telegram chat as a compact
@@ -1585,9 +1625,11 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R1
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#931
   verify: live
+  issues:
+  - derio-net/frank#931
 - id: obs-telegram-resolved-oneline
   capability: obs
   acceptance: A resolved Grafana alert reaches the Frank C&C Telegram chat as a single
@@ -1595,9 +1637,11 @@ rows:
   origin:
   - frank:docs/superpowers/implemented/specs/2026-10-22--obs--telegram-alert-brevity-design.md#R4
   levels: {}
-  status: not-implemented
-  notes: ''
+  status: walk-owed
+  notes: tracked by derio-net/frank#932
   verify: live
+  issues:
+  - derio-net/frank#932
 - id: obs-telegram-group-cap
   capability: obs
   acceptance: A Telegram notification grouping more than five firing alerts shows
@@ -1609,6 +1653,128 @@ rows:
   status: not-implemented
   notes: ''
   verify: none
+- id: vk-remote-removed
+  capability: agents
+  acceptance: The vk-remote stack is gone from the cluster, and its database dump
+    was verified first.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R2
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: pod-undisturbed-phase-1
+  capability: agents
+  acceptance: Retiring VK's dependencies does not restart the secure-agent-pod or
+    end a session running on it.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R7
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: pod-removed-after-archive
+  capability: agents
+  acceptance: The secure-agent-pod and its storage, addresses and cluster-admin binding
+    are gone, only after its unique files were archived and verified. Its crons, including
+    chorebot, stop with it.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R9
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R10
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R15
+  levels: {}
+  status: not-implemented
+  notes: Phase 2, tracked in derio-net/frank#950
+  verify: live
+  issues:
+  - derio-net/frank#950
+- id: vk-surface-removed
+  capability: ingress
+  acceptance: vk.cluster.derio.net has no route, Authentik has no VK provider, and
+    the homepage has no VK tile.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R3
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: vk-mirror-retired
+  capability: ci
+  acceptance: Frank no longer mirrors or budgets derio-net/vibe-kanban, and that repo
+    is archived.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R4
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: vk-images-retired
+  capability: ci
+  acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali are
+    no longer bumped, and bumps succeed for every remaining image.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R5
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: gitops-push-token-continuity
+  capability: ci
+  acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting
+    tokens before and after the pod is gone.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R6
+  levels: {}
+  status: not-implemented
+  notes: ''
+  verify: live
+- id: kali-image-retired
+  capability: ci
+  acceptance: secure-agent-kali is no longer built, and bumps succeed for every remaining
+    image.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R12
+  levels: {}
+  status: not-implemented
+  notes: Phase 2, tracked in derio-net/frank#950
+  verify: live
+  issues:
+  - derio-net/frank#950
+- id: no-vk-references-remain
+  capability: repo
+  acceptance: No Frank workload, secret or client config still expects VK or the pod.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R13
+  levels: {}
+  status: not-implemented
+  notes: Phase 2, tracked in derio-net/frank#950
+  verify: none
+  issues:
+  - derio-net/frank#950
+- id: vk-tooling-retired
+  capability: repo
+  acceptance: VK-only tooling, tests and docs are removed or marked historical.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R8
+  levels:
+    unit:
+    - frank:scripts/tests/test_vk_retired.py
+  status: ci
+  notes: Delivered in this PR, and guarded by test_vk_retired.py in the tripwires
+    job
+  verify: none
+- id: vk-posts-superseded
+  capability: blog
+  acceptance: Readers of a VK or secure-agent-pod post see that it is superseded,
+    with the post still published.
+  origin:
+  - frank:docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md#R14
+  levels: {}
+  status: not-implemented
+  notes: Phase 2, tracked in derio-net/frank#950
+  verify: none
+  issues:
+  - derio-net/frank#950
 - id: life-inventory-complete
   capability: update-lifecycle
   acceptance: The console inventory lists every dependency of Frank, Hop and Omni

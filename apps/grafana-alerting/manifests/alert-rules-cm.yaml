@@ -10,6 +10,10 @@ data:
     deleteRules:
       - {orgId: 1, uid: layer-25-idle-stoa-status-bridge}
       - {orgId: 1, uid: layer-25-idle-github-pull-sync}
+      # VibeKanban retired 2026-11 (spec 2026-11-08--agents--retire-vk).
+      - {orgId: 1, uid: vk-bridge-stale}
+      - {orgId: 1, uid: vk-bridge-failures}
+      - {orgId: 1, uid: vk-executor-pool-wedged}
     groups:
       # =====================================================================
       # FEATURE-LEVEL ALERTS (bugs in specific willikins crons / endpoints)
@@ -186,119 +190,6 @@ data:
             annotations:
               summary: Audit digest cron heartbeat is stale (>26h since last success)
 
-      # --- Heartbeat-stale: VK Issue Bridge (eval every 2m) ---
-      - orgId: 1
-        name: heartbeat-stale-2m
-        folder: feature-health
-        interval: 2m
-        rules:
-          - uid: vk-bridge-stale
-            title: VK Issue Bridge Stale
-            condition: C
-            data:
-              - refId: A
-                relativeTimeRange:
-                  from: 600
-                  to: 0
-                datasourceUid: P4169E866C3094E38
-                model:
-                  refId: A
-                  expr: 'time() - willikins_heartbeat_last_success_timestamp{job="vk_issue_bridge"}'
-                  instant: true
-                  intervalMs: 1000
-                  maxDataPoints: 43200
-              - refId: B
-                relativeTimeRange:
-                  from: 600
-                  to: 0
-                datasourceUid: __expr__
-                model:
-                  refId: B
-                  type: reduce
-                  expression: A
-                  reducer: last
-                  settings:
-                    mode: dropNN
-              - refId: C
-                relativeTimeRange:
-                  from: 600
-                  to: 0
-                datasourceUid: __expr__
-                model:
-                  refId: C
-                  type: threshold
-                  expression: B
-                  conditions:
-                    - evaluator:
-                        type: gt
-                        params:
-                          - 600
-            noDataState: OK
-            execErrState: Error
-            for: 5m
-            labels:
-              severity: critical
-            annotations:
-              summary: VK Issue Bridge has not pushed a heartbeat in over 10 minutes — supercronic may be down or the bridge is failing
-
-      # --- VK Issue Bridge failures (eval every 5m) ---
-      - orgId: 1
-        name: vk-bridge-failures
-        folder: feature-health
-        interval: 5m
-        rules:
-          - uid: vk-bridge-failures
-            title: VK Issue Bridge Failures
-            condition: C
-            data:
-              - refId: A
-                relativeTimeRange:
-                  from: 900
-                  to: 0
-                datasourceUid: P4169E866C3094E38
-                model:
-                  refId: A
-                  # Preserve `reason` and `issue` labels through the aggregation
-                  # so the annotation template can name the specific failure.
-                  expr: 'sum by (reason, issue) (increase(willikins_vk_bridge_failure_total[15m]))'
-                  instant: true
-                  intervalMs: 1000
-                  maxDataPoints: 43200
-              - refId: B
-                relativeTimeRange:
-                  from: 900
-                  to: 0
-                datasourceUid: __expr__
-                model:
-                  refId: B
-                  type: reduce
-                  expression: A
-                  reducer: last
-                  settings:
-                    mode: dropNN
-              - refId: C
-                relativeTimeRange:
-                  from: 900
-                  to: 0
-                datasourceUid: __expr__
-                model:
-                  refId: C
-                  type: threshold
-                  expression: B
-                  conditions:
-                    - evaluator:
-                        type: gt
-                        params:
-                          - 0
-            noDataState: OK
-            execErrState: Error
-            for: 0m
-            labels:
-              severity: warning
-            annotations:
-              summary: "VK Issue Bridge: {{ $values.B.Value | printf \"%.0f\" }} failure(s) reason={{ $labels.reason }} issue=#{{ $labels.issue }} in last 15m"
-              description: "Check /home/claude/.willikins-agent/vk-bridge.log for the failing payload"
-
       # --- Endpoint-down (eval every 1m) ---
       - orgId: 1
         name: endpoint-down
@@ -409,64 +300,6 @@ data:
               github_issue: "frank-ops#18"
             annotations:
               summary: "Secure agent pod {{ $labels.pod }} not in Running phase"
-
-      # --- VK executor pool wedged (eval every 5m) ---
-      # Detects the leaked-permit wedge (2026-07-24 incident, frank#692): a
-      # 30s-timeout MCP client abandons a spawn, vk-local's Child::wait() is
-      # cancelled, the child dies unreaped, and its concurrency permit is never
-      # released. Leaks accumulate to VK_MAX_CONCURRENT_EXECUTIONS and every
-      # later dispatch queues forever — pod 2/2 Running, ArgoCD green, agents
-      # silently hang. Signature: active pinned at max with a non-draining
-      # queue. `for: 1h` clears the worst legitimate case (a mass dispatch of
-      # long coding runs saturating 8 slots drains its queue well inside an
-      # hour); a wedge holds the state indefinitely. The bool-product expr
-      # always returns 0/1 while the scrape is alive, so NoData really means
-      # "scrape dead" → noDataState: Alerting surfaces it as DatasourceNoData,
-      # which health-bridge caps at degraded (blindness ≠ death). Routed via
-      # health_bridge_only="true": severity=critical drives the dead→bug-issue
-      # lifecycle but never pages Telegram. Root-cause fix: super-fr#404.
-      # Recovery + full prose: docs/runbooks/frank-gotchas/agent-shells.md.
-      - orgId: 1
-        name: vk-executor-pool
-        folder: feature-health
-        interval: 5m
-        rules:
-          - uid: vk-executor-pool-wedged
-            title: VK Executor Pool Wedged
-            condition: C
-            data:
-              - refId: A
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: P4169E866C3094E38
-                model:
-                  refId: A
-                  expr: '(vibekanban_active_executions >= bool vibekanban_max_executions) * (vibekanban_queued_executions >= bool 1)'
-                  instant: true
-                  intervalMs: 1000
-                  maxDataPoints: 43200
-              - refId: B
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: __expr__
-                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
-              - refId: C
-                relativeTimeRange: { from: 600, to: 0 }
-                datasourceUid: __expr__
-                model:
-                  refId: C
-                  type: threshold
-                  expression: B
-                  conditions:
-                    - evaluator: { type: gt, params: [0.5] }
-            noDataState: Alerting
-            execErrState: Error
-            for: 1h
-            labels:
-              severity: critical
-              health_bridge_only: "true"
-              github_issue: "frank-ops#18"
-            annotations:
-              summary: "VK executor pool wedged: active executions pinned at the cap with a non-draining queue for 1h - leaked permits from dead executors likely hold every slot; newly dispatched agents hang silently"
-              runbook: "Recovery: kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- kill -TERM 1 (restart runs orphan-cleanup, frees permits). Check vibekanban_active/queued/max_executions in VMUI and defunct sh children in the container. Full prose: docs/runbooks/frank-gotchas/agent-shells.md"
 
       # =====================================================================
       # LAYER TRACKERS (Derio Ops board, derio-net/frank-ops — private)
@@ -837,7 +670,6 @@ data:
                     (time() - willikins_heartbeat_last_success_timestamp{job="exercise_reminder"} > bool 10800)
                     or (time() - willikins_heartbeat_last_success_timestamp{job="session_manager"} > bool 600)
                     or (time() - willikins_heartbeat_last_success_timestamp{job="audit_digest"} > bool 93600)
-                    or (time() - willikins_heartbeat_last_success_timestamp{job="vk_issue_bridge"} > bool 600)
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -2087,13 +1919,13 @@ data:
               runbook: "kubectl -n {{ $labels.namespace }} rollout status {{ $labels.kind }}/{{ $labels.workload }}; kubectl -n {{ $labels.namespace }} describe {{ $labels.kind }}/{{ $labels.workload }}"
 
       # --- Layer 15 — Agentic Workflows (frank-ops#15) ---
-      # Covers n8n, VK remote (in `agents` ns), Paperclip.
+      # Covers n8n and Paperclip (the VK remote stack and its `agents` ns were retired 2026-11).
       # Praison will be folded into the namespace regex when it deploys.
       # Query rewrite 2026-08-02 (see layer-6 for the full rationale): per-pod
       # kube_pod_status_ready fires forever on terminal-pod tombstones, which a
       # replica count cannot see. Threshold inverts lt 1 -> gt 0. The old
-      # pod!~".*-init-.*" exclusion (postgres-vk-init-electric-* Job pods,
-      # which sit Completed/NotReady) is GONE for the same reason the vCluster
+      # pod!~".*-init-.*" exclusion (Job pods such as the retired
+      # postgres-vk-init-electric-*, which sat Completed/NotReady) is GONE for the same reason the vCluster
       # pod-shape filter is: a Job pod is not owned by a Deployment or a
       # StatefulSet, so it is excluded by construction now. n8n and Paperclip
       # each carry a Postgres StatefulSet, which has no _unavailable counter —
@@ -2115,13 +1947,13 @@ data:
                   expr: |
                     label_replace(
                       label_replace(
-                        kube_deployment_status_replicas_unavailable{namespace=~"n8n-01|agents|paperclip-system"},
+                        kube_deployment_status_replicas_unavailable{namespace=~"n8n-01|paperclip-system"},
                         "workload", "$1", "deployment", "(.*)"),
                       "kind", "deployment", "", "")
                     or
                     label_replace(
                       label_replace(
-                        kube_statefulset_status_replicas{namespace=~"n8n-01|agents|paperclip-system"} - kube_statefulset_status_replicas_ready{namespace=~"n8n-01|agents|paperclip-system"},
+                        kube_statefulset_status_replicas{namespace=~"n8n-01|paperclip-system"} - kube_statefulset_status_replicas_ready{namespace=~"n8n-01|paperclip-system"},
                         "workload", "$1", "statefulset", "(.*)"),
                       "kind", "statefulset", "", "")
                   instant: true
@@ -2510,9 +2342,12 @@ data:
             labels:
               severity: warning
               github_issue: "frank-ops#25"
+              # 24h window: stays firing up to a day, so route via the 4h
+              # ci_outcome repeat instead of re-paging every 3m.
+              ci_outcome: "true"
             annotations:
               summary: "L25 pipeline failing: {{ $labels.pipeline }} has {{ $values.B.Value | printf \"%.0f\" }} failure(s) in 24h with zero successes"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; tkn pipeline logs {{ $labels.pipeline }} -n tekton-pipelines --last"
+              runbook: "kubectl get pipelinerun -A -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp; then tkn pipelinerun logs NAME -n NAMESPACE for the newest failed run (kid-laptops-ci runs in its own namespace)"
 
           # Compare real work: 30m mirror grace, 10m forwarded-status grace
           # in the checker; an additional 10m here absorbs one delayed sample.
@@ -2731,9 +2566,10 @@ data:
             labels:
               severity: warning
               github_issue: "frank-ops#25"
+              ci_outcome: "true"
             annotations:
               summary: "L25 pipeline timed out: {{ $labels.pipeline }} had {{ $values.B.Value | printf \"%.0f\" }} run(s) fail after > 30m in the last hour (timeout or never scheduled)"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail; for a PipelineRunTimeout, check .status.childReferences / skippedTasks and whether its TaskRun pods sat Pending on a workspace PVC (see layer-25-ci-workspace-pvc-pending)."
+              runbook: "kubectl get pipelinerun -A -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail; for a PipelineRunTimeout, check .status.childReferences / skippedTasks and whether its TaskRun pods sat Pending on a workspace PVC (see layer-25-ci-workspace-pvc-pending)."
 
           # (c) Mirror syncs failing FAST — the class neither rule above sees.
           # layer-25-pipelinerun-timeout counts only failures that ran > 30m,

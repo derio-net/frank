@@ -238,7 +238,9 @@ stop. Precisely wrong for a VM whose whole point is persistence.
 surface. Rejected because a Windows install without a console is not debuggable,
 and the forward-auth + homepage-tile path is well-worn on Frank by now.
 
-## Test plan (post-deploy, operator-driven)
+## Test Plan
+
+_(post-deploy, operator-driven)_
 
 1. `kubectl get kubevirt -n kubevirt kubevirt -o jsonpath='{.status.phase}'` → `Deployed`.
 2. Boot a stock Fedora containerDisk VMI; `virtctl console` reaches a login prompt.

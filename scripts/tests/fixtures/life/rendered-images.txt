@@ -37,7 +37,6 @@ docker.io/redis:7@sha256:b2b95679e3b46fb51864949ed25ea976fc3a6bcc00a40a1bc00d568
 docker.io/traefik:v3.6.12
 docker:28.3.2-dind
 ecr-public.aws.com/docker/library/redis:8.2.3-alpine
-electricsql/electric:1.4.13
 gcr.io/kaniko-project/executor:v1.23.2
 gcr.io/projectsigstore/cosign:v2.4.1
 ghcr.io/agentic-stoa/cnc-frd:0.18.0
@@ -59,7 +58,6 @@ ghcr.io/derio-net/ovms-retrieval-models:2
 ghcr.io/derio-net/secure-agent-kali:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
 ghcr.io/derio-net/upgrade-session:PENDING-PHASE-7
 ghcr.io/derio-net/vk-local:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
-ghcr.io/derio-net/vk-remote:7cebcbb
 ghcr.io/external-secrets/external-secrets:v2.1.0
 ghcr.io/falcosecurity/plugins/plugin/container:0.6.3
 ghcr.io/gethomepage/homepage:v1.12.1
@@ -108,7 +106,6 @@ nvcr.io/nvidia/kubevirt-gpu-device-plugin:v1.4.0
 ollama/ollama:0.30.5
 openvino/model_server:2026.2.1-gpu
 pgvector/pgvector:0.8.6-pg18@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62
-postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
 postgres:16.15@sha256:1beaa3084eee2676f20a9cd9928f0bf2c5bf674f8e49f81017912183d377c61c
 prom/blackbox-exporter:v0.25.0
 prom/pushgateway:v1.9.0

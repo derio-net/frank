@@ -292,7 +292,7 @@ def test_layer_tracker_rules_carry_a_well_formed_github_issue_label():
     Scoped to `layer-*` uids rather than the whole folder, deliberately. The
     folder also holds three willikins-owned rules (`willikins#11/12/13`) and
     several rules with no `github_issue` at all — the TLS cert canaries, the
-    `telegram_direct` dead-man's switches, the vk-bridge rules. Those are not
+    `telegram_direct` dead-man's switches, the (since retired) vk-bridge rules. Those are not
     bugs to be fixed into conformance; they are different signal classes with
     different routing. Asserting a folder-wide rule here would be asserting
     something false, and the honest scope is the tracker rules.

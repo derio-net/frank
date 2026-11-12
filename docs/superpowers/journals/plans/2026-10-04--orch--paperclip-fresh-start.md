@@ -150,3 +150,16 @@ KEEP_ID/DELETED_IDS emptied with a note; script exits early when empty, refuses 
 ### p1-r10-resolved · finding [out-of-scope] · resolves p1-r10: fr schema-migration collateral bundled in the PR (phase 1)
 
 fr's own schema migration, required before fr would start the run; not caused by the feature. Called out in the PR body.
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-2 created=2026-11-02T22:01:31+00:00 phase=2 -->
+### manual-phase-2 · owed · 2026-10-04--orch--paperclip-fresh-start: manual phase 2 is not ticked (phase 2)
+
+what: do manual phase 2 of 2026-10-04--orch--paperclip-fresh-start and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 2 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-10-04--orch--paperclip-fresh-start
+owed_key: plan:2026-10-04--orch--paperclip-fresh-start#p2
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-2-resolved created=2026-11-02T22:01:52+00:00 phase=2 state=open resolves=manual-phase-2 filed_as=derio-net/frank#922 -->
+### manual-phase-2-resolved · finding [filed → derio-net/frank#922] · resolves manual-phase-2: 2026-10-04--orch--paperclip-fresh-start: manual phase 2 is not ticked (phase 2)
+
+Filed at archive as derio-net/frank#922; still owed until discharged.
