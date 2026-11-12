@@ -405,7 +405,7 @@ def test_tags_stash_and_detached_work_are_covered(tmp_path):
     _git("commit", "-qm", "detached work", cwd=wt)
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
     assert r.returncode == 0, r.stderr
-    (bundle,) = [b for b in (dest / "bundles").glob("*.bundle") if not b.name.endswith(".HEAD.bundle")]
+    (bundle,) = [b for b in (dest / "bundles").glob("*.bundle") if b.name.count(".") == 2]
     heads = subprocess.run(["git", "bundle", "list-heads", str(bundle)],
                            capture_output=True, text=True, check=True).stdout
     assert "refs/tags/keepme" in heads
@@ -1006,3 +1006,284 @@ def test_a_corrupt_head_object_is_never_recorded_as_clean_or_unborn(tmp_path):
     (clone / ".git/refs/heads/main").write_text("0123456789012345678901234567890123456789\n")
     r, dest, env, _ = _archive_ok(tmp_path, home=home)
     assert r.returncode != 0
+
+
+# --- archive re-review fixes ---------------------------------------------------
+
+def _tar_text(path, member_suffix):
+    tf = tarfile.open(path)
+    for n in tf.getnames():
+        if n.endswith(member_suffix):
+            return tf.extractfile(n).read().decode()
+    raise AssertionError((member_suffix, tf.getnames()))
+
+
+def _plain_clone(home, tmp_path):
+    clone = _clone_with_remote(home, tmp_path)
+    _git("checkout", "-q", "main", cwd=clone)
+    _git("branch", "-D", "local-only", cwd=clone)
+    return clone
+
+
+def _git_state_files(clone):
+    d = clone / ".git"
+    return {p.name: p.read_bytes() for p in d.iterdir()
+            if p.name in ("MERGE_HEAD", "MERGE_MSG", "MERGE_MODE", "CHERRY_PICK_HEAD") and p.is_file()}
+
+
+def test_commits_only_in_a_local_path_remotes_tracking_refs_are_bundled(tmp_path):
+    import shutil
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    sib = tmp_path / "sib"
+    sib.mkdir()
+    _git("init", "-q", "-b", "feature", cwd=sib)
+    (sib / "s").write_text("s")
+    _git("add", "s", cwd=sib)
+    _git("commit", "-qm", "sibling only commit", cwd=sib)
+    _git("remote", "add", "sib", str(sib), cwd=clone)
+    _git("fetch", "-q", "sib", "feature", cwd=clone)
+    shutil.rmtree(sib)  # the sibling repo is gone after the teardown
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    (bundle,) = [b for b in (dest / "bundles").glob("*.bundle") if b.name.count(".") == 2]
+    assert "refs/remotes/sib/feature" in _out("bundle", "list-heads", str(bundle), cwd=tmp_path)
+    fresh = _fresh_clone(tmp_path)
+    _git("fetch", "-q", str(bundle), "refs/remotes/sib/feature:refs/heads/rest", cwd=fresh)
+    assert _out("log", "-1", "--format=%s", "rest", cwd=fresh).strip() == "sibling only commit"
+
+
+def _snapshot(clone):
+    return (_status(clone), _git_state_files(clone), (clone / ".git/rebase-merge").exists())
+
+
+def test_merge_conflict_mixed_with_normal_hunks_is_reconstructable(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "c.txt").write_text("a\nb\nc\nd\ne\n")
+    _git("add", "c.txt", cwd=clone)
+    _git("commit", "-qm", "c base", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "side", cwd=clone)
+    (clone / "c.txt").write_text("a\nB-side\nc\nd\nE-side\n")
+    _git("commit", "-qam", "side change", cwd=clone)
+    side = _out("rev-parse", "HEAD", cwd=clone).strip()
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "c.txt").write_text("a\nB-main\nc\nD-main\ne\n")
+    _git("commit", "-qam", "main change", cwd=clone)
+    _git("branch", "-D", "side", cwd=clone)  # MERGE_HEAD is now reachable only through MERGE_HEAD
+    merge = subprocess.run(["git", "merge", side], cwd=clone, capture_output=True, text=True,
+                           env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+    assert merge.returncode != 0
+    before = _snapshot(clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert _snapshot(clone) == before          # read-only, state files untouched
+    assert "unmerged=1" in (dest / "DIRTY.txt").read_text() and "state=1" in (dest / "DIRTY.txt").read_text()
+    wd = _wd(dest)
+    txt = _tar_text(wd / "conflicted.tar.gz", "c.txt")
+    assert "<<<<<<<" in txt and "D-main" in txt and "E-side" in txt
+    stages = wd / "conflict-stages.tar.gz"
+    assert _tar_text(stages, "stage1/c.txt") == "a\nb\nc\nd\ne\n"
+    assert "B-main" in _tar_text(stages, "stage2/c.txt") and "B-side" in _tar_text(stages, "stage3/c.txt")
+    assert _tar_text(wd / "inprogress.tar.gz", "MERGE_HEAD").strip() == side
+    assert (wd / "NOTE.txt").exists()
+    (sb,) = list((dest / "bundles").glob("*.STATE.bundle"))
+    assert "MERGE_HEAD" in _out("bundle", "list-heads", str(sb), cwd=tmp_path)
+    fresh = _fresh_clone(tmp_path)
+    _git("fetch", "-q", str(sb), "MERGE_HEAD:refs/heads/mh", cwd=fresh)
+    assert _out("log", "-1", "--format=%s", "mh", cwd=fresh).strip() == "side change"
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+    # verify refuses an archive whose conflicted tarball is gone
+    (wd / "conflicted.tar.gz").unlink()
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+
+
+def test_rebase_in_progress_is_captured(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "f").write_text("base\n")
+    _git("add", "f", cwd=clone)
+    _git("commit", "-qm", "f base", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "topic", cwd=clone)
+    (clone / "t1").write_text("t1")
+    _git("add", "t1", cwd=clone)
+    _git("commit", "-qm", "t1", cwd=clone)
+    (clone / "f").write_text("topic edit\n")
+    _git("commit", "-qam", "t2", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "f").write_text("main edit\n")
+    _git("commit", "-qam", "m1", cwd=clone)
+    _git("checkout", "-q", "topic", cwd=clone)
+    rb = subprocess.run(["git", "rebase", "main"], cwd=clone, capture_output=True, text=True,
+                        env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "GIT_EDITOR": "true"})
+    assert rb.returncode != 0 and (clone / ".git/rebase-merge").is_dir()
+    before = _snapshot(clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert _snapshot(clone) == before and (clone / ".git/rebase-merge").is_dir()
+    line = (dest / "DIRTY.txt").read_text()
+    assert "state=1" in line and "unmerged=1" in line
+    wd = _wd(dest)
+    names = tarfile.open(wd / "inprogress.tar.gz").getnames()
+    assert any(n.startswith("rebase-merge") for n in names), names
+    assert list((dest / "bundles").glob("*.HEAD.bundle"))   # the detached, partly rebased HEAD
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+
+
+def test_stash_entry_index_state_is_exported(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "md").write_text("committed\n")
+    _git("add", "md", cwd=clone)
+    _git("commit", "-qm", "md", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    (clone / "md").write_text("staged content\n")
+    _git("add", "md", cwd=clone)
+    (clone / "md").unlink()
+    _git("stash", "push", "-q", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    wd = _wd(dest)
+    idx = wd / "stash-0.index.patch"
+    assert "staged content" in idx.read_text()
+    subprocess.run(["git", "apply", "--check", str(idx)], cwd=_fresh_clone(tmp_path), check=True)
+    idx.unlink()
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+
+
+def _locked_dir(home):
+    d = home / "repos/locked"
+    d.mkdir(parents=True)
+    (d / "x").write_text("x")
+    d.chmod(0)
+    return d
+
+
+def test_unreadable_paths_fail_verify_unless_accepted(tmp_path):
+    home = _fixture_home(tmp_path)
+    d = _locked_dir(home)
+    try:
+        r, dest, env, _ = _archive_ok(tmp_path, home=home)
+        assert r.returncode == 0, r.stderr
+        assert "unreadable:" in (dest / "SKIPPED.txt").read_text()
+        v = _run("verify", "--dest", str(dest), env=env)
+        assert v.returncode != 0 and "FAIL no unreadable or unusable paths" in v.stdout
+        acc = tmp_path / "acc"
+        acc.mkdir()
+        r2, dest2, env2, _ = _archive_ok(acc, home=home, args=("--accept-unreadable",))
+        assert r2.returncode == 0, r2.stderr
+        assert "unreadable:" in (dest2 / "ACCEPTED.txt").read_text()
+        v2 = _run("verify", "--dest", str(dest2), env=env2)
+        assert v2.returncode == 0, v2.stdout
+        assert "WARN unreadable or unusable paths, accepted" in v2.stdout
+    finally:
+        d.chmod(0o755)
+
+
+def test_a_junk_repository_is_recorded_not_fatal(tmp_path):
+    home = _fixture_home(tmp_path)
+    junk = home / "repos/junk"
+    junk.mkdir(parents=True)
+    _git("init", "-q", "-b", "main", cwd=junk)
+    (junk / ".git/HEAD").write_text("garbage\n")
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert "not a usable git repository" in (dest / "SKIPPED.txt").read_text()
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL no unreadable or unusable paths" in v.stdout
+
+
+def test_every_git_call_passes_safe_directory_and_no_locale_dependent_class():
+    src = SCRIPT.read_text()
+    assert "-c safe.directory=*" in src
+    assert "[a-zS]" not in src
+
+
+def test_verify_live_compares_refs_and_skipped_paths(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    ok = _run("verify", "--live", "--dest", str(dest), env=env)
+    assert ok.returncode == 0, ok.stdout
+    assert "PASS live refs match" in ok.stdout and "PASS live skipped paths match" in ok.stdout
+    _git("branch", "new-branch-after-archive", cwd=clone)
+    v = _run("verify", "--live", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL live refs match" in v.stdout
+    _git("branch", "-D", "new-branch-after-archive", cwd=clone)
+    d = _locked_dir(home)
+    try:
+        v2 = _run("verify", "--live", "--dest", str(dest), env=env)
+        assert v2.returncode != 0 and "FAIL live skipped paths match" in v2.stdout
+    finally:
+        d.chmod(0o755)
+
+
+def test_verify_warns_about_ignored_files_with_counts(tmp_path):
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "WARN ignored files are listed under ignored/" in v.stdout
+    assert "ignored path(s):" in v.stdout
+
+
+def test_deinitialised_submodule_commits_are_bundled(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    sub_src = tmp_path / "subsrc"
+    sub_src.mkdir()
+    _git("init", "-q", "-b", "main", cwd=sub_src)
+    (sub_src / "s").write_text("1")
+    _git("add", "s", cwd=sub_src)
+    _git("commit", "-qm", "sub one", cwd=sub_src)
+    _git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub_src), "vendor/sub", cwd=clone)
+    _git("commit", "-qm", "add submodule", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    sub = clone / "vendor/sub"
+    (sub / "s").write_text("2")
+    _git("add", "s", cwd=sub)
+    _git("commit", "-qm", "sub local only", cwd=sub)
+    _git("submodule", "deinit", "-f", "vendor/sub", cwd=clone)
+    assert not (sub / ".git").exists()
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    bundles = [b for b in (dest / "bundles").glob("*.bundle") if "modules__vendor__sub" in b.name]
+    assert bundles, sorted(p.name for p in (dest / "bundles").iterdir())
+    fresh = tmp_path / "fresh-sub"
+    subprocess.run(["git", "init", "-q", str(fresh)], check=True)
+    _git("fetch", "-q", str(bundles[0]), "refs/heads/main:refs/heads/restored", cwd=fresh)
+    assert _out("log", "-1", "--format=%s", "restored", cwd=fresh).strip() == "sub local only"
+
+
+def test_a_tag_of_a_tag_keeps_the_inner_tag_object(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    _git("tag", "-a", "inner", "-m", "the inner tag", cwd=clone)
+    _git("tag", "-a", "outer", "-m", "tag of a tag", "inner", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    saved = [p.read_text() for p in (dest / "tags").rglob("*.tag")]
+    assert any("the inner tag" in t and "type commit" in t for t in saved), saved
+    assert any("tag of a tag" in t and "type tag" in t for t in saved), saved
+
+
+def test_pod_side_digest_match_is_an_exact_line_match(tmp_path):
+    home = _fixture_home(tmp_path)
+    _dirty_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    wd = _wd(dest)
+    rel = f"worktrees/{wd.name}/status.txt"
+    lines = (dest / "REMOTE.sha256").read_text().splitlines()
+    digest = [l for l in lines if l.endswith("  " + rel)][0].split()[0]
+    (wd / "status.txt.bak").write_bytes((wd / "status.txt").read_bytes())
+    kept = [l for l in lines if not l.endswith("  " + rel)]
+    kept.append(f"{digest}  {rel}.bak")          # a longer name that contains the path
+    (dest / "REMOTE.sha256").write_text("\n".join(kept) + "\n")
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL every worktrees/ file has a pod-side digest" in v.stdout

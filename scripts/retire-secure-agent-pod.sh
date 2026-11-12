@@ -18,7 +18,9 @@
 # Scope notes. Out of scope on purpose: ignored files (only listed, in ignored/), clones under
 # .cache or node_modules (skipped, recorded in SKIPPED.txt), and reflog-only commits (commits
 # reachable only through a reflog; deferred). A remote whose URL is a local path on the pod is
-# not a remote: its tracking refs do not make a commit "already safe".
+# not a remote: its tracking refs do not make a commit "already safe" (and are bundled).
+# Known limits, deferred: reflog-only commits, and stale remote-tracking refs of branches
+# deleted upstream still count as a remote copy (finding that out needs network access).
 #
 # Env: KUBECTL (default kubectl), SOPS (default sops), GIT (default git), POD_HOME (default
 # /home/claude; tests point it at a fixture directory).
@@ -33,13 +35,18 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 usage() {
   cat >&2 <<USAGE
-usage: $(basename "$0") <archive|verify|key-fingerprint> [--dest DIR] [--session-ended-confirmed] [--live] [--old-file-gone-ok]
+usage: $(basename "$0") <archive|verify|key-fingerprint> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--live] [--old-file-gone-ok]
   archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
                    home tarball, bundles of local-only commits (all non-remote refs, detached
                    worktree HEADs), and uncommitted clone state (index and working-tree
                    patches, untracked and skip-worktree files, every stash entry); read-only
                    on the pod. Not archived: ignored files (listed in ignored/), clones under
-                   .cache or node_modules (recorded in SKIPPED.txt), reflog-only commits.
+                   .cache or node_modules (recorded in SKIPPED.txt), reflog-only commits, stale
+                   remote-tracking refs of branches deleted upstream (no network calls from
+                   the pod). Unreadable paths and unusable repositories fail verify unless
+                   archive ran with --accept-unreadable (then recorded in ACCEPTED.txt).
+                   Also saved: conflicted files with their three stages and the git-dir state
+                   of a merge/rebase/cherry-pick in progress, and each stash entry's index.
   verify           verify the archive in DEST, offline; --live also re-scans the pod
                    (read-only) and fails if its clones or dirty state changed since the archive
   key-fingerprint  compare the GitHub App key fingerprints (never prints key material)
@@ -146,21 +153,32 @@ adopt() {
 # Every git call on the pod: no index refresh, no hooks, no fsmonitor daemon, and a
 # pinned diff dialect so a hostile ~/.gitconfig cannot change the patch format.
 GITP=(env GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false
-      -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false
+      -c safe.directory=* -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false
       -c color.diff=never -c color.ui=never)
 DIFFARGS=(--binary --no-ext-diff --no-textconv --no-color --src-prefix=a/ --dst-prefix=b/)
+
+# sel REPO: how to point git at REPO. A normal repository is entered with -C; an
+# "orphan" git dir (a deinitialised submodule: git dir without a working tree) is
+# selected with --git-dir and treated as bare.
+ORPHAN=0
+SEL=()
+sel() {
+  if [ "$ORPHAN" = 1 ]; then SEL=(--git-dir="$1" -c core.bare=true); else SEL=(-C "$1"); fi
+}
 
 # gfile OUT REPO ARGS...: a git call, output to OUT; aborts unless it exits 0.
 gfile() {
   local out=$1 repo=$2; shift 2
-  cap "$out" "${GITP[@]}" -C "$repo" "$@"
+  sel "$repo"
+  cap "$out" "${GITP[@]}" "${SEL[@]}" "$@"
   [ "$STREAM_RC" = 0 ] || die "git $1 failed in $repo (exit $STREAM_RC)"
 }
 
 # gprobe REPO ARGS...: like gfile but leaves the exit status in STREAM_RC.
 gprobe() {
   local repo=$1; shift
-  cap "$SCRATCH/probe" "${GITP[@]}" -C "$repo" "$@"
+  sel "$repo"
+  cap "$SCRATCH/probe" "${GITP[@]}" "${SEL[@]}" "$@"
 }
 
 # Succeeds when the session listing ($1) shows a live interactive session. awk
@@ -208,7 +226,7 @@ pl_status_counts() {   # status -z file -> "modified untracked"
     print "$m $u\n";' < "$1"
 }
 pl_hidden() {          # ls-files -v -z file -> NUL list of skip-worktree/assume-unchanged paths
-  perl -0777 -e 'my $d=<STDIN>; for my $e (split /\0/,$d){ next unless $e=~/^([a-zS]) (.*)$/s; print "$2\0"; }' < "$1"
+  perl -0777 -e 'my $d=<STDIN>; for my $e (split /\0/,$d){ next unless $e=~/^([abcdefghijklmnopqrstuvwxyzS]) (.*)$/s; print "$2\0"; }' < "$1"
 }
 pl_lines() {           # NUL list -> one escaped line per path
   perl -0777 -e 'my $d=<STDIN>; for (split /\0/,$d){ next unless length; s/\\/\\\\/g; s/\n/\\n/g; print "$_\n"; }' < "$1"
@@ -234,10 +252,11 @@ note_skip() {
   if [ "$LIVE_ONLY" = 1 ]; then echo "$1" >> "$SCRATCH/live.skipped"; else echo "$1" >> "$DEST/SKIPPED.txt"; fi
 }
 
-# discover: fills $SCRATCH/clones.tsv with "repo<TAB>common-dir", one line per distinct
-# repository (linked worktrees and submodules resolve to their own common dir).
+# discover: fills $SCRATCH/clones.tsv with "repo<TAB>common-dir<TAB>kind", one line per
+# distinct repository (linked worktrees and submodules resolve to their own common dir;
+# kind is "repo", or "orphan" for a deinitialised submodule's git dir).
 discover() {
-  local f=$SCRATCH/find.out p repo common seen="" line
+  local f=$SCRATCH/find.out p repo common seen="" line gd c
   : > "$SCRATCH/clones.tsv"
   # Regenerable caches are pruned for speed, but recorded.
   cap "$f" find -H "$POD_HOME" \( -name .git -o -type d -name '*.git' \) -prune -o \
@@ -252,14 +271,36 @@ discover() {
   while IFS= read -r -d '' p; do
     case $p in */.git) repo=${p%/.git} ;; *) repo=$p ;; esac
     case $repo in *$'\n'*) die "repository path contains a newline: unsupported" ;; esac
+    # A junk HEAD or a repository the pod user may not read must be recorded, not abort
+    # the run: the failing rev-parse is handled explicitly (a bare `cd "$(...)"` would
+    # succeed with an empty argument).
     # shellcheck disable=SC2016  # the script runs on the pod
-    cap "$SCRATCH/common" sh -c 'cd "$1" && cd "$(git rev-parse --git-common-dir)" && pwd -P' _ "$repo"
+    cap "$SCRATCH/common" sh -c 'cd "$1" || exit 3; c=$(git -c safe.directory="*" rev-parse --git-common-dir) || exit 3; cd "$c" && pwd -P' _ "$repo"
     if [ "$STREAM_RC" != 0 ]; then note_skip "not a usable git repository: $repo"; continue; fi
     common=$(cat "$SCRATCH/common")
     case $seen in *"|$common|"*) continue ;; esac
     seen="$seen|$common|"
-    printf '%s\t%s\n' "$repo" "$common" >> "$SCRATCH/clones.tsv"
+    printf '%s\trepo\t%s\n' "$repo" "$common" >> "$SCRATCH/clones.tsv"
   done < "$f"
+  # Deinitialised submodules keep their git dir under <common>/modules/<name> with no
+  # working tree, so nothing above points at them; their local commits still count.
+  local seen_now=$seen cm
+  while IFS= read -r cm; do
+    [ -n "$cm" ] || continue
+    # shellcheck disable=SC2016  # the script runs on the pod
+    cap "$f" sh -c 'if [ -d "$1/modules" ]; then find -H "$1/modules" -name HEAD -type f -not -path "*/objects/*" -not -path "*/logs/*" -not -path "*/refs/*" -not -path "*/worktrees/*" -print0; fi' _ "$cm"
+    [ "$STREAM_RC" = 0 ] || { note_skip "unreadable: modules of $cm"; continue; }
+    while IFS= read -r -d '' p; do
+      gd=${p%/HEAD}
+      # shellcheck disable=SC2016  # the script runs on the pod
+      cap "$SCRATCH/common" sh -c 'cd "$1" && [ -d objects ] && pwd -P' _ "$gd"
+      [ "$STREAM_RC" = 0 ] || continue
+      c=$(cat "$SCRATCH/common")
+      case $seen in *"|$c|"*) continue ;; esac
+      seen="$seen|$c|"
+      printf '%s\torphan\t%s\n' "$gd" "$c" >> "$SCRATCH/clones.tsv"
+    done < "$f"
+  done < <(printf '%s\n' "$seen_now" | tr '|' '\n' | grep -v '^$' || true)
 }
 
 # --- per repository ----------------------------------------------------------
@@ -291,10 +332,12 @@ load_worktrees() {   # REPO
 
 # load_remotes REPO: NOT[] from the network remotes only; a remote whose URL is a
 # local path on the pod is not a safe copy, so its tracking refs are ignored (warned).
+LOCAL_REMOTES=" "
 load_remotes() {
   local repo=$1 t=$SCRATCH/cfg k n u
-  NOT=()
-  cap "$t" "${GITP[@]}" -C "$repo" config -z --get-regexp '^remote\..*\.url$'
+  NOT=(); LOCAL_REMOTES=" "
+  sel "$repo"
+  cap "$t" "${GITP[@]}" "${SEL[@]}" config -z --get-regexp '^remote\..*\.url$'
   case $STREAM_RC in 0|1) ;; *) die "git config failed in $repo (exit $STREAM_RC)" ;; esac
   pl_remotes "$t" > "$t.tuples"
   while IFS= read -r -d '' k; do
@@ -304,44 +347,92 @@ load_remotes() {
       NOT+=("--remotes=$n")
     else
       IFS= read -r -d '' n; IFS= read -r -d '' u
-      echo "WARNING: remote '$n' of $repo is a local path ($u); its tracking refs do not count as a remote copy" >&2
+      LOCAL_REMOTES="$LOCAL_REMOTES$n "
+      echo "WARNING: remote '$n' of $repo is a local path ($u); its tracking refs do not count as a remote copy (they are bundled instead)" >&2
     fi
   done < "$t.tuples"
 }
 
-# bundle_refs REPO NAME: bundle every non-remote ref with commits no network remote has;
-# keep annotated tag objects whose commit is already safe; list all refs in refs/NAME.txt.
-bundle_refs() {
-  local repo=$1 name=$2 t=$SCRATCH/refs.txt ref ty sha pty psha count
-  local cands=() want=()
+CANDS=()
+# collect_refs REPO NAME: list the refs worth keeping into $SCRATCH/refs.own and CANDS[]:
+# every ref outside refs/remotes, plus the tracking refs of remotes whose URL is a local
+# path on the pod (their commits have no real second copy). Live mode keeps the listing
+# for the comparison with the archive.
+collect_refs() {
+  local repo=$1 name=$2 t=$SCRATCH/refs.txt ref ty sha pty psha keep l
+  CANDS=()
   gfile "$t" "$repo" for-each-ref --format='%(refname)	%(objecttype)	%(objectname)	%(*objecttype)	%(*objectname)' refs/
   : > "$SCRATCH/refs.own"
   while IFS=$'\t' read -r ref ty sha pty psha; do
     [ -n "$ref" ] || continue
-    case $ref in refs/remotes/*) continue ;; esac
+    keep=1
+    case $ref in
+      refs/remotes/*)
+        keep=0
+        for l in $LOCAL_REMOTES; do
+          case $ref in "refs/remotes/$l/HEAD") ;; "refs/remotes/$l/"*) keep=1 ;; esac
+        done ;;
+    esac
+    [ "$keep" = 1 ] || continue
     printf '%s\t%s\t%s\t%s\t%s\n' "$ref" "$ty" "$sha" "$pty" "$psha" >> "$SCRATCH/refs.own"
-    if [ "$ty" = commit ] || { [ "$ty" = tag ] && [ "$pty" = commit ]; }; then cands+=("$ref"); fi
+    if [ "$ty" = commit ]; then
+      CANDS+=("$ref")
+    elif [ "$ty" = tag ]; then
+      if [ "$pty" = commit ]; then CANDS+=("$ref")
+      elif [ "$pty" = tag ]; then   # a tag of a tag: follow the chain to its final target
+        gfile "$SCRATCH/final" "$repo" cat-file -t "$ref^{}"
+        if [ "$(cat "$SCRATCH/final")" = commit ]; then CANDS+=("$ref"); fi
+      fi
+    fi
   done < "$t"
+  if [ "$LIVE_ONLY" = 1 ] && [ -s "$SCRATCH/refs.own" ]; then
+    mkdir -p "$SCRATCH/live.refs"; cp "$SCRATCH/refs.own" "$SCRATCH/live.refs/$name.txt"
+  fi
+}
+
+# save_tag_chain REPO NAME SHA: keep an annotated tag object and, for a tag of a tag,
+# every inner tag object (they are not in any bundle when their commit is already safe).
+save_tag_chain() {
+  local repo=$1 name=$2 cur=$3 n=0 ty
+  while [ "$n" -lt 20 ]; do
+    if [ ! -e "$DEST/tags/$name/$cur.tag" ]; then
+      stream_to "$DEST/tags/$name/$cur.tag" "${GITP[@]}" "${SEL[@]}" cat-file tag "$cur"
+      [ "$STREAM_RC" = 0 ] || die "git cat-file tag $cur failed in $repo"
+    fi
+    ty=$(sed -n 's/^type //p' "$DEST/tags/$name/$cur.tag" | head -1)
+    [ "$ty" = tag ] || break
+    cur=$(sed -n 's/^object //p' "$DEST/tags/$name/$cur.tag" | head -1)
+    n=$((n + 1))
+  done
+}
+
+# bundle_refs REPO NAME: bundle every kept ref with commits no network remote has;
+# keep annotated tag objects whose commit is already safe; list the refs in refs/NAME.txt.
+bundle_refs() {
+  local repo=$1 name=$2 ref ty sha pty psha count
+  local want=()
+  collect_refs "$repo" "$name"
   if [ -s "$SCRATCH/refs.own" ]; then adopt "$SCRATCH/refs.own" "$DEST/refs/$name.txt"; fi
-  [ ${#cands[@]} -gt 0 ] || { echo "$repo" >> "$DEST/bundles/NONE.txt"; return 0; }
-  gfile "$SCRATCH/count" "$repo" rev-list --count "${cands[@]}" ${NOT[@]+"${NOT[@]}"}
-  count=$(cat "$SCRATCH/count")
-  if [ "$count" -gt 0 ]; then
-    for ref in "${cands[@]}"; do
-      gfile "$SCRATCH/count" "$repo" rev-list --count "$ref" ${NOT[@]+"${NOT[@]}"}
-      if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then want+=("$ref"); fi
-    done
+  sel "$repo"
+  if [ ${#CANDS[@]} -gt 0 ]; then
+    gfile "$SCRATCH/count" "$repo" rev-list --count "${CANDS[@]}" ${NOT[@]+"${NOT[@]}"}
+    count=$(cat "$SCRATCH/count")
+    if [ "$count" -gt 0 ]; then
+      for ref in "${CANDS[@]}"; do
+        gfile "$SCRATCH/count" "$repo" rev-list --count "$ref" ${NOT[@]+"${NOT[@]}"}
+        if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then want+=("$ref"); fi
+      done
+    fi
   fi
   # An annotated tag whose commit a remote already has is not bundled (nothing new in
-  # the pack); save the tag object itself so the tag can be recreated (git hash-object).
+  # the pack); save the tag object chain so the tag can be recreated (git hash-object).
   while IFS=$'\t' read -r ref ty sha pty psha; do
     [ "$ty" = tag ] || continue
     case " ${want[*]+${want[*]}} " in *" $ref "*) continue ;; esac
-    stream_to "$DEST/tags/$name/$sha.tag" "${GITP[@]}" -C "$repo" cat-file tag "$sha"
-    [ "$STREAM_RC" = 0 ] || die "git cat-file tag $sha failed in $repo"
+    save_tag_chain "$repo" "$name" "$sha"
   done < "$SCRATCH/refs.own"
   if [ ${#want[@]} -gt 0 ]; then
-    stream_to "$DEST/bundles/$name.bundle" "${GITP[@]}" -C "$repo" bundle create - "${want[@]}" ${NOT[@]+"${NOT[@]}"}
+    stream_to "$DEST/bundles/$name.bundle" "${GITP[@]}" "${SEL[@]}" bundle create - "${want[@]}" ${NOT[@]+"${NOT[@]}"}
     [ "$STREAM_RC" = 0 ] || die "git bundle create failed in $repo (exit $STREAM_RC)"
     echo "bundle $name: ${#want[@]} ref(s): ${want[*]}"
   else
@@ -361,6 +452,25 @@ bundle_detached() {
   echo "bundle $name.HEAD: detached HEAD of $wt"
 }
 
+# bundle_state WT NAME: the commits named by an operation in progress (MERGE_HEAD and
+# friends are resolvable names) may exist nowhere else; bundle them from the worktree.
+bundle_state() {
+  local wt=$1 name=$2 n refs=()
+  for n in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD ORIG_HEAD; do
+    gprobe "$wt" rev-parse --verify -q "$n"
+    case $STREAM_RC in
+      0) gfile "$SCRATCH/count" "$wt" rev-list --count "$n" ${NOT[@]+"${NOT[@]}"}
+         if [ "$(cat "$SCRATCH/count")" -gt 0 ]; then refs+=("$n"); fi ;;
+      1) ;;
+      *) die "git rev-parse $n failed in $wt (exit $STREAM_RC)" ;;
+    esac
+  done
+  [ ${#refs[@]} -gt 0 ] || return 0
+  stream_to "$DEST/bundles/$name.STATE.bundle" "${GITP[@]}" -C "$wt" bundle create - "${refs[@]}" ${NOT[@]+"${NOT[@]}"}
+  [ "$STREAM_RC" = 0 ] || die "git bundle create (in-progress heads) failed in $wt (exit $STREAM_RC)"
+  echo "bundle $name.STATE: ${refs[*]} of $wt"
+}
+
 # note_excluded TEXT: something dropped from the archive on purpose (credential name).
 note_excluded() { echo "$1" >> "$DEST/EXCLUDED.txt"; }
 
@@ -374,15 +484,36 @@ scan_patch_headers() {
   done < <(grep -a '^diff --git ' "$f" || true)
 }
 
+# Files in a worktree's git dir that describe an operation in progress. The first group
+# marks one as running; the rest travel with it.
+STATE_TRIGGERS="MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD rebase-merge rebase-apply sequencer BISECT_LOG BISECT_START"
+STATE_NAMES="$STATE_TRIGGERS MERGE_MSG MERGE_MODE AUTO_MERGE ORIG_HEAD SQUASH_MSG BISECT_TERMS BISECT_EXPECTED_REV BISECT_ANCESTORS_OK BISECT_NAMES"
+
+# add_note FILE TEXT: a line for the worktree's NOTE.txt (written at the end).
+add_note() { echo "$2" >> "$1"; }
+
 # capture_worktree WT IS_MAIN: counts, then (unless LIVE_ONLY) the uncommitted state of
 # one worktree, read-only on the pod. A clean worktree with no stash writes nothing.
 capture_worktree() {
-  local w=$1 is_main=$2 st=$SCRATCH/status.z m u n=0 h=0 dir i sha base rc line p
+  local w=$1 is_main=$2 st=$SCRATCH/status.z m u n=0 h=0 um=0 sf=0 dir i sha base rc line p gd e nm
+  local notes=$SCRATCH/note.txt
+  : > "$notes"
   gfile "$st" "$w" status --porcelain=v1 -z --untracked-files=all --ignore-submodules=none
   read -r m u < <(pl_status_counts "$st")
   gfile "$SCRATCH/lsv.z" "$w" ls-files -v -z
   pl_hidden "$SCRATCH/lsv.z" > "$SCRATCH/hidden.z"
   h=$(perl -0777 -ne 'my @a=split /\0/; print scalar(@a)' < "$SCRATCH/hidden.z")
+  gfile "$SCRATCH/unmerged.z" "$w" ls-files -u -z
+  um=$(perl -0777 -ne 'my %s; for (split /\0/){ next unless /\t(.*)$/s; $s{$1}=1 } print scalar(keys %s)' < "$SCRATCH/unmerged.z")
+  # Operation in progress (merge, rebase, cherry-pick, revert, bisect)?
+  gfile "$SCRATCH/gd" "$w" rev-parse --absolute-git-dir
+  gd=$(cat "$SCRATCH/gd")
+  # shellcheck disable=SC2016,SC2086  # the script runs on the pod; STATE_NAMES is a word list
+  cap "$SCRATCH/state.names" bash -c 'cd "$1" || exit 3; shift; for n in "$@"; do if [ -e "$n" ]; then printf "%s\0" "$n"; fi; done' _ "$gd" $STATE_NAMES
+  [ "$STREAM_RC" = 0 ] || die "could not look for in-progress state in $gd"
+  while IFS= read -r -d '' nm; do
+    case " $STATE_TRIGGERS " in *" $nm "*) sf=1 ;; esac
+  done < "$SCRATCH/state.names"
   if [ "$is_main" = 1 ]; then
     gprobe "$w" show-ref --verify -q refs/stash
     case $STREAM_RC in
@@ -392,15 +523,16 @@ capture_worktree() {
       *) die "git show-ref failed in $w (exit $STREAM_RC)" ;;
     esac
   fi
-  if [ "$m" -eq 0 ] && [ "$u" -eq 0 ] && [ "$n" -eq 0 ] && [ "$h" -eq 0 ]; then return 0; fi
+  if [ "$m" -eq 0 ] && [ "$u" -eq 0 ] && [ "$n" -eq 0 ] && [ "$h" -eq 0 ] && [ "$um" -eq 0 ] && [ "$sf" -eq 0 ]; then return 0; fi
+  local counts="modified=$m untracked=$u stash=$n hidden=$h unmerged=$um state=$sf"
   if [ "$LIVE_ONLY" = 1 ]; then
-    echo "$w modified=$m untracked=$u stash=$n hidden=$h" >> "$SCRATCH/live.dirty"
+    echo "$w $counts" >> "$SCRATCH/live.dirty"
     return 0
   fi
 
   dir=$(dirty_dir "$w")
   mkdir -p "$dir"
-  echo "$w modified=$m untracked=$u stash=$n hidden=$h" >> "$DEST/DIRTY.txt"
+  echo "$w $counts" >> "$DEST/DIRTY.txt"
   adopt "$st" "$dir/status.txt"
 
   if [ "$m" -gt 0 ]; then
@@ -413,8 +545,7 @@ capture_worktree() {
          gfile "$SCRATCH/ref.out" "$w" for-each-ref --count=1 "$(cat "$SCRATCH/probe")"
          [ ! -s "$SCRATCH/ref.out" ] || die "HEAD of $w points at an unreadable commit (corrupt repository?); refusing to treat it as unborn"
          base=$EMPTY_TREE
-         echo "HEAD is unborn in $w; staged.patch is the index against the empty tree" > "$dir/NOTE.txt"
-         echo "$(shasum -a 256 "$dir/NOTE.txt" | cut -d' ' -f1)  ${dir#"$DEST"/}/NOTE.txt" >> "$DEST/REMOTE.sha256" ;;
+         add_note "$notes" "HEAD is unborn in $w; staged.patch is the index against the empty tree" ;;
       *) die "HEAD of $w is unreadable (corrupt repository?); refusing to treat it as unborn" ;;
     esac
     # Two patches, always: index against HEAD, and working tree against the index.
@@ -424,6 +555,49 @@ capture_worktree() {
     [ "$STREAM_RC" = 0 ] || die "git diff failed in $w (exit $STREAM_RC)"
     scan_patch_headers "$w" "$dir/staged.patch"
     scan_patch_headers "$w" "$dir/tracked.patch"
+  fi
+
+  if [ "$um" -gt 0 ]; then
+    # Conflicted paths: the patches cannot carry them. Keep the working-tree files (conflict
+    # markers intact), the index listing (mode, blob, stage), and every stage's content.
+    adopt "$SCRATCH/unmerged.z" "$dir/unmerged.z"
+    # shellcheck disable=SC2016  # the script runs on the pod
+    stream_to "$dir/conflicted.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
+      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -u -z |
+      while IFS= read -r -d "" e; do
+        f=${e#*$'"'"'\t'"'"'}; if [ -e "$f" ]; then printf "%s\0" "$f"; fi
+      done | tar -czf - "$@" --null -T -' _ "$w" "${EXCLUDES[@]}"
+    case $STREAM_RC in 0|1) ;; *) die "tar of conflicted files failed in $w (exit $STREAM_RC)" ;; esac
+    gzip -t "$dir/conflicted.tar.gz" || die "conflicted tarball of $w fails gzip -t"
+    # shellcheck disable=SC2016  # the script runs on the pod
+    cap "$SCRATCH/stages.batch" bash -c 'set -o pipefail; w=$1; cd "$w" || exit 3
+      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -u -z |
+      while IFS= read -r -d "" e; do rest=${e%%$'"'"'\t'"'"'*}; sha=${rest#* }; sha=${sha%% *}; printf "%s\n" "$sha"; done |
+      GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false cat-file --batch' _ "$w"
+    [ "$STREAM_RC" = 0 ] || die "could not read the conflict stage blobs in $w (exit $STREAM_RC)"
+    perl -MArchive::Tar -e '
+      local $/; open my $u,"<:raw",$ARGV[0] or die; my $ul=<$u>; open my $b,"<:raw",$ARGV[1] or die; my $bd=<$b>;
+      my (%blob,$pos); $pos=0;
+      while ($pos < length $bd) { my $nl=index($bd,"\n",$pos); last if $nl<0; my $hd=substr($bd,$pos,$nl-$pos);
+        my ($sha,$type,$size)=split / /,$hd; die "missing blob $hd" if $type eq "missing" || !defined $size;
+        $blob{$sha}=substr($bd,$nl+1,$size); $pos=$nl+1+$size+1; }
+      my $t=Archive::Tar->new;
+      for my $e (split /\0/,$ul) { next unless $e =~ /^(\d+) ([0-9a-f]+) (\d)\t(.*)$/s; my ($mode,$sha,$stg,$p)=($1,$2,$3,$4);
+        die "missing blob $sha" unless exists $blob{$sha}; $t->add_data("stage$stg/$p",$blob{$sha},{mode=>oct(substr($mode,-3))}); }
+      $t->write($ARGV[2]) or die $t->error;' "$SCRATCH/unmerged.z" "$SCRATCH/stages.batch" "$SCRATCH/stages.tar" \
+      || die "could not assemble the conflict stages of $w"
+    gzip -c "$SCRATCH/stages.tar" > "$SCRATCH/stages.tar.gz"
+    adopt "$SCRATCH/stages.tar.gz" "$dir/conflict-stages.tar.gz"
+    add_note "$notes" "CONFLICTED: $um unmerged path(s). conflicted.tar.gz holds the working-tree files (conflict markers intact); conflict-stages.tar.gz holds stage1/2/3 of every unmerged path; unmerged.z is the 'git ls-files -u -z' listing (restore the index with 'git hash-object -w' on each stage file and 'git update-index --index-info -z < unmerged.z')."
+  fi
+
+  if [ "$sf" -eq 1 ]; then
+    local names=()
+    while IFS= read -r -d '' nm; do names+=("$nm"); done < "$SCRATCH/state.names"
+    stream_to "$dir/inprogress.tar.gz" tar -C "$gd" -czf - "${names[@]}"
+    case $STREAM_RC in 0|1) ;; *) die "tar of in-progress state failed in $w (exit $STREAM_RC)" ;; esac
+    gzip -t "$dir/inprogress.tar.gz" || die "in-progress tarball of $w fails gzip -t"
+    add_note "$notes" "IN PROGRESS: inprogress.tar.gz holds the git-dir state files (${names[*]}); extract them into \$(git rev-parse --git-dir) of a checkout at the recorded HEAD. The commits MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, REBASE_HEAD and ORIG_HEAD name are in bundles/*.STATE.bundle when no remote has them."
   fi
 
   if [ "$u" -gt 0 ]; then
@@ -442,11 +616,12 @@ capture_worktree() {
     pl_lines "$SCRATCH/hidden.z" > "$SCRATCH/hidden.txt"
     adopt "$SCRATCH/hidden.txt" "$dir/hidden.txt"
     # skip-worktree / assume-unchanged files: invisible to status and diff, so tar them.
+    # The class is spelled out: [a-z] depends on the pod's locale.
     # shellcheck disable=SC2016  # the script runs on the pod
     stream_to "$dir/hidden.tar.gz" bash -c 'set -o pipefail; w=$1; shift; cd "$w" || exit 3
       GIT_OPTIONAL_LOCKS=0 git -c core.hooksPath=/dev/null -c core.fsmonitor=false ls-files -v -z |
       while IFS= read -r -d "" e; do
-        case $e in [a-zS]\ *) f=${e#? }; if [ -e "$f" ]; then printf "%s\0" "$f"; fi ;; esac
+        case $e in [abcdefghijklmnopqrstuvwxyzS]\ *) f=${e#? }; if [ -e "$f" ]; then printf "%s\0" "$f"; fi ;; esac
       done | tar -czf - "$@" --null -T -' _ "$w" "${EXCLUDES[@]}"
     case $STREAM_RC in 0|1) ;; *) die "tar of skip-worktree files failed in $w (exit $STREAM_RC)" ;; esac
     gzip -t "$dir/hidden.tar.gz" || die "hidden-files tarball of $w fails gzip -t"
@@ -457,13 +632,16 @@ capture_worktree() {
     adopt "$SCRATCH/stash.list" "$dir/stash-list.txt"
     adopt "$SCRATCH/stash.shas" "$dir/stash-shas.txt"
     # Every entry is exported from its commits, so no git-version feature is needed:
-    # stash-N.patch is the tracked change (base -> stash commit); stash-N.untracked.patch
-    # is the untracked part (third parent) as a new-files patch.
+    # stash-N.patch is the tracked change (base -> stash commit), stash-N.index.patch the
+    # staged part (base -> index commit, second parent), stash-N.untracked.patch the
+    # untracked part (third parent) as a new-files patch.
     i=0
     while [ "$i" -lt "$n" ]; do
       sha=$(sed -n "$((i + 1))p" "$SCRATCH/stash.shas")
       stream_to "$dir/stash-$i.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha"
       [ "$STREAM_RC" = 0 ] || die "git diff failed for stash entry $i in $w"
+      stream_to "$dir/stash-$i.index.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha^2"
+      [ "$STREAM_RC" = 0 ] || die "git diff failed for the index part of stash entry $i in $w"
       gprobe "$w" rev-parse --verify -q "$sha^3"
       case $STREAM_RC in
         0) stream_to "$dir/stash-$i.untracked.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$EMPTY_TREE" "$sha^3"
@@ -474,22 +652,39 @@ capture_worktree() {
       i=$((i + 1))
     done
   fi
+
+  if [ -s "$notes" ]; then adopt "$notes" "$dir/NOTE.txt"; fi
 }
 
-# process_repo REPO COMMON: bundles and dirty state of one repository and its worktrees.
+# process_repo REPO KIND: bundles and dirty state of one repository and its worktrees.
+# KIND "orphan" is a deinitialised submodule's git dir: refs and bundles only.
 process_repo() {
-  local repo=$1 name i wt
+  local repo=$1 kind=${2:-repo} name i wt
+  ORPHAN=0
+  if [ "$kind" = orphan ]; then
+    ORPHAN=1
+    name=$(wtname "$repo")
+    load_remotes "$repo"
+    if [ "$LIVE_ONLY" = 1 ]; then collect_refs "$repo" "$name"; else bundle_refs "$repo" "$name"; fi
+    ORPHAN=0
+    return 0
+  fi
   load_worktrees "$repo"
   load_remotes "$repo"
   name=$(wtname "${WT_PATH[0]}")
   if [ "$LIVE_ONLY" != 1 ]; then
     bundle_refs "$repo" "$name"
+  else
+    collect_refs "$repo" "$name"
   fi
   i=0
   while [ "$i" -lt "${#WT_PATH[@]}" ]; do
     wt=${WT_PATH[$i]}
     if [ "${WT_BARE[$i]}" = 0 ] && [ "${WT_PRUN[$i]}" = 0 ]; then
-      if [ "$LIVE_ONLY" != 1 ] && [ "${WT_DET[$i]}" = 1 ]; then bundle_detached "$wt" "$(wtname "$wt")"; fi
+      if [ "$LIVE_ONLY" != 1 ]; then
+        if [ "${WT_DET[$i]}" = 1 ]; then bundle_detached "$wt" "$(wtname "$wt")"; fi
+        bundle_state "$wt" "$(wtname "$wt")"
+      fi
       if [ "$i" -eq 0 ]; then capture_worktree "$wt" 1; else capture_worktree "$wt" 0; fi
       if [ "$LIVE_ONLY" != 1 ]; then
         gfile "$SCRATCH/ign.z" "$wt" ls-files --others --ignored --exclude-standard --directory -z
@@ -507,12 +702,12 @@ process_repo() {
 
 # scan_all: discovery plus per-repo processing (archive) or counting only (LIVE_ONLY).
 scan_all() {
-  local repo common
+  local repo kind common
   discover
-  while IFS=$'\t' read -r repo common; do
+  while IFS=$'\t' read -r repo kind common; do
     [ -n "$repo" ] || continue
     echo "$common" >> "$SCRATCH/clone.list"
-    process_repo "$repo"
+    process_repo "$repo" "$kind"
   done < "$SCRATCH/clones.tsv"
 }
 
@@ -533,7 +728,7 @@ cmd_archive() {
   # A re-run starts clean: nothing stale may enter the manifest.
   rm -rf "$DEST/bundles" "$DEST/worktrees" "$DEST/refs" "$DEST/tags" "$DEST/ignored"
   rm -f "$DEST/REMOTE.sha256" "$DEST/SKIPPED.txt" "$DEST/DETACHED.txt" "$DEST/DIRTY.txt" \
-        "$DEST/EXCLUDED.txt" "$DEST/CLONES.txt" "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
+        "$DEST/EXCLUDED.txt" "$DEST/CLONES.txt" "$DEST/ACCEPTED.txt" "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
   mkdir -p "$DEST/bundles"
   : > "$DEST/REMOTE.sha256"; : > "$DEST/SKIPPED.txt"; : > "$DEST/DETACHED.txt"
   : > "$DEST/DIRTY.txt"; : > "$DEST/EXCLUDED.txt"; : > "$DEST/CLONES.txt"; : > "$DEST/bundles/NONE.txt"
@@ -578,6 +773,10 @@ cmd_archive() {
 
   scan_all
   sort -u "$SCRATCH/clone.list" > "$DEST/CLONES.txt"
+  if [ "$ACCEPT_UNREADABLE" = 1 ]; then
+    grep -E '^(unreadable|not a usable)' "$DEST/SKIPPED.txt" > "$DEST/ACCEPTED.txt" || true
+    echo "NOTE: --accept-unreadable: $(wc -l < "$DEST/ACCEPTED.txt" | tr -d ' ') unreadable or unusable path(s) accepted; see ACCEPTED.txt" >&2
+  fi
 
   # shellcheck disable=SC2094  # find skips MANIFEST.sha256 itself
   (cd "$DEST" && find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 shasum -a 256 \
@@ -654,8 +853,19 @@ cmd_verify() {
   else
     fail "essential paths archived (SKIPPED.txt missing)"
   fi
-  if [ -f "$DEST/SKIPPED.txt" ] && grep -Eq '^(pruned|unreadable|not a usable|prunable)' "$DEST/SKIPPED.txt"; then
-    echo "WARN some paths were pruned, unreadable or not repositories; see SKIPPED.txt"
+  if [ -f "$DEST/SKIPPED.txt" ]; then
+    if grep -Eq '^(pruned|prunable)' "$DEST/SKIPPED.txt"; then
+      echo "WARN regenerable caches were pruned (not archived); see SKIPPED.txt"
+    fi
+    if grep -Eq '^(unreadable|not a usable)' "$DEST/SKIPPED.txt"; then
+      if [ -s "$DEST/ACCEPTED.txt" ]; then
+        echo "WARN unreadable or unusable paths, accepted by the operator (--accept-unreadable):"; sed 's/^/     /' "$DEST/ACCEPTED.txt"
+      else
+        fail "no unreadable or unusable paths (SKIPPED.txt):"; grep -E '^(unreadable|not a usable)' "$DEST/SKIPPED.txt" | sed 's/^/     /'
+      fi
+    else
+      pass "no unreadable or unusable paths"
+    fi
   fi
   if [ -s "$DEST/DETACHED.txt" ]; then
     fail "no uncaptured detached worktree commits (DETACHED.txt):"; sed 's/^/     /' "$DEST/DETACHED.txt"
@@ -669,14 +879,16 @@ cmd_verify() {
   # Uncommitted clone state: DIRTY.txt against what is on disk.
   if [ -s "$DEST/DIRTY.txt" ]; then
     echo "INFO dirty clones (uncommitted state archived under worktrees/):"; sed 's/^/     /' "$DEST/DIRTY.txt"
-    local dline dpath ddir dm du dn dh bad="" k
+    local dline dpath ddir dm du dn dh dum dsf bad="" k
     while IFS= read -r dline; do
       [ -n "$dline" ] || continue
       dpath=${dline%% modified=*}
       dm=$(sed -n 's/.* modified=\([0-9]*\) .*/\1/p' <<<"$dline")
       du=$(sed -n 's/.* untracked=\([0-9]*\) .*/\1/p' <<<"$dline")
       dn=$(sed -n 's/.* stash=\([0-9]*\) .*/\1/p' <<<"$dline")
-      dh=$(sed -n 's/.* hidden=\([0-9]*\)$/\1/p' <<<"$dline")
+      dh=$(sed -n 's/.* hidden=\([0-9]*\).*/\1/p' <<<"$dline")
+      dum=$(sed -n 's/.* unmerged=\([0-9]*\).*/\1/p' <<<"$dline")
+      dsf=$(sed -n 's/.* state=\([0-9]*\)$/\1/p' <<<"$dline")
       ddir=$(dirty_dir "$dpath")
       if [ ! -d "$ddir" ] || [ -z "$(ls -A "$ddir" 2>/dev/null)" ]; then bad="$bad $dpath(missing)"; continue; fi
       [ -f "$ddir/status.txt" ] || bad="$bad $dpath(status.txt)"
@@ -685,9 +897,13 @@ cmd_verify() {
       fi
       if [ "${du:-0}" -gt 0 ]; then [ -f "$ddir/untracked.tar.gz" ] || bad="$bad $dpath(untracked.tar.gz)"; fi
       if [ "${dh:-0}" -gt 0 ]; then [ -f "$ddir/hidden.tar.gz" ] && [ -f "$ddir/hidden.txt" ] || bad="$bad $dpath(hidden)"; fi
+      if [ "${dum:-0}" -gt 0 ]; then
+        [ -f "$ddir/conflicted.tar.gz" ] && [ -f "$ddir/conflict-stages.tar.gz" ] && [ -f "$ddir/unmerged.z" ] || bad="$bad $dpath(conflicted)"
+      fi
+      if [ "${dsf:-0}" -gt 0 ]; then [ -f "$ddir/inprogress.tar.gz" ] || bad="$bad $dpath(inprogress.tar.gz)"; fi
       k=0
       while [ "$k" -lt "${dn:-0}" ]; do
-        [ -f "$ddir/stash-$k.patch" ] || bad="$bad $dpath(stash-$k)"
+        [ -f "$ddir/stash-$k.patch" ] && [ -f "$ddir/stash-$k.index.patch" ] || bad="$bad $dpath(stash-$k)"
         k=$((k + 1))
       done
       if [ -f "$ddir/stash-$k.patch" ]; then bad="$bad $dpath(stash-$k unexpected)"; fi
@@ -699,9 +915,10 @@ cmd_verify() {
   if [ -d "$DEST/worktrees" ]; then
     local wf unlisted="" credbad="" um
     while IFS= read -r -d '' wf; do
-      grep -Fq "  ${wf#"$DEST"/}" "$DEST/REMOTE.sha256" || unlisted="$unlisted ${wf#"$DEST"/}"
+      PP="${wf#"$DEST"/}" awk '{ l=$0; sub(/^[0-9a-f]+  /, "", l); if (l == ENVIRON["PP"]) f=1 } END { exit f ? 0 : 1 }' "$DEST/REMOTE.sha256" \
+        || unlisted="$unlisted ${wf#"$DEST"/}"
       case $wf in
-        */untracked.tar.gz|*/hidden.tar.gz)
+        */untracked.tar.gz|*/hidden.tar.gz|*/conflicted.tar.gz|*/conflict-stages.tar.gz|*/inprogress.tar.gz)
           if gzip -t "$wf" 2>/dev/null && um=$(tar -tzf "$wf" 2>/dev/null); then
             while IFS= read -r m; do
               [ -n "$m" ] || continue
@@ -714,6 +931,15 @@ cmd_verify() {
     done < <(find "$DEST/worktrees" -type f -print0 | sort -z)
     case $unlisted in "") pass "every worktrees/ file has a pod-side digest" ;; *) fail "every worktrees/ file has a pod-side digest (unlisted:$unlisted)" ;; esac
     case $credbad in "") pass "no credential files in untracked tarballs" ;; *) fail "no credential files in untracked tarballs:$credbad" ;; esac
+  fi
+
+  if [ -d "$DEST/ignored" ]; then
+    local ig
+    echo "WARN ignored files are listed under ignored/, not saved (outside interviews/ and orgs/ they exist only on the pod):"
+    for ig in "$DEST"/ignored/*.txt; do
+      [ -e "$ig" ] || continue
+      echo "     $(wc -l < "$ig" | tr -d ' ') ignored path(s): $(basename "$ig")"
+    done
   fi
 
   local scratch b
@@ -737,6 +963,7 @@ cmd_verify() {
     # Re-scan the pod, read-only, and compare with what the archive recorded.
     LIVE_ONLY=1
     : > "$SCRATCH/live.dirty"; : > "$SCRATCH/live.skipped"; : > "$SCRATCH/clone.list"
+    mkdir -p "$SCRATCH/live.refs"
     scan_all
     sort -u "$SCRATCH/clone.list" > "$SCRATCH/live.clones"
     LIVE_ONLY=0
@@ -744,6 +971,19 @@ cmd_verify() {
       pass "live clone list matches the archive"
     else
       fail "live clone list matches the archive (diff: $(diff <(sort -u "$DEST/CLONES.txt" 2>/dev/null) "$SCRATCH/live.clones" | tr '\n' ';'))"
+    fi
+    mkdir -p "$SCRATCH/arch.refs"
+    if [ -d "$DEST/refs" ]; then cp "$DEST"/refs/*.txt "$SCRATCH/arch.refs/" 2>/dev/null || true; fi
+    if diff -r "$SCRATCH/arch.refs" "$SCRATCH/live.refs" >/dev/null; then
+      pass "live refs match the archive"
+    else
+      fail "live refs match the archive (diff: $(diff -r "$SCRATCH/arch.refs" "$SCRATCH/live.refs" | grep -E '^(Only|diff|[<>])' | head -6 | tr '\n' ';'))"
+    fi
+    local skp='^(pruned|unreadable|not a usable|prunable)'
+    if diff <(grep -E "$skp" "$DEST/SKIPPED.txt" 2>/dev/null | sort) <(grep -E "$skp" "$SCRATCH/live.skipped" | sort) >/dev/null; then
+      pass "live skipped paths match the archive"
+    else
+      fail "live skipped paths match the archive"
     fi
     if diff <(sort "$DEST/DIRTY.txt") <(sort "$SCRATCH/live.dirty") >/dev/null; then
       pass "live dirty state matches the archive"
@@ -829,11 +1069,13 @@ DEST=$DEST_DEFAULT
 CONFIRMED=0
 OLD_GONE_OK=0
 LIVE=0
+ACCEPT_UNREADABLE=0
 while [ $# -gt 0 ]; do
   case $1 in
     --dest) [ $# -ge 2 ] || usage; DEST=$2; shift 2 ;;
     --session-ended-confirmed) CONFIRMED=1; shift ;;
     --live) LIVE=1; shift ;;
+    --accept-unreadable) ACCEPT_UNREADABLE=1; shift ;;
     --old-file-gone-ok) OLD_GONE_OK=1; shift ;;
     *) usage ;;
   esac
