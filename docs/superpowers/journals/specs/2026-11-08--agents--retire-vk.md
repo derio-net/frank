@@ -208,3 +208,10 @@ Operator's words, in chat rather than an answered question: 'approved. Run it wi
 ### d-phase1-only-filed · decision [filed → https://github.com/derio-net/frank/issues/951] · files d-phase1-only: This run ships Phase 1 only; Phase 2 is tracked in #950
 
 Filed the rest of `d-phase1-only` at deliver as https://github.com/derio-net/frank/issues/951.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-12T12:32:54+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
+
+Evidence: 2026-11-12 12:30 UTC. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704 and kali restart count 0 equal the baseline file. Pod created 2026-10-21 and kali started 2026-10-21, both before the merge
