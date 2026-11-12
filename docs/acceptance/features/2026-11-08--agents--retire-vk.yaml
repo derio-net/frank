@@ -155,13 +155,24 @@ rows:
     origin:
     - spec:2026-11-08--agents--retire-vk#R5
     levels: {}
-    status: not-implemented
-    notes: 2026-11-12. agent-images PR176 was merged with main, its branch build 43217543292
-      is green at b6de16b, and it is mergeable. The merge itself and the bump run it
-      triggers are owed.
+    status: walked
+    notes: 2026-11-12. agent-images PR176 merged as fe2fb9b and no longer builds vk-local.
+      Main build 43260930622 is green. Frank bump run 43264032464 succeeded with Verify
+      coverage green, and its bump PR 957 touches no vk-remote, vk-local or secure-agent-kali
+      pin.
     verify: live
     issues:
     - derio-net/frank#950
+    walks:
+    - strategy: live
+      harness: claude-code
+      model: claude-fable-5-2
+      outcome: pass
+      at: '2026-11-12T17:12:02Z'
+      evidence: 2026-11-12. agent-images PR176 merged as fe2fb9b and no longer builds
+        vk-local. Main build 43260930622 is green. Frank bump run 43264032464 succeeded
+        with Verify coverage green, and its bump PR 957 touches no vk-remote, vk-local
+        or secure-agent-kali pin.
   - id: gitops-push-token-continuity
     capability: ci
     acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting
