@@ -1,6 +1,6 @@
 # GitHub App installation-token generator (derio-fr-automation, App 3994132).
 #
-# OWNED BY TEKTON (tekton-extras) since the VibeKanban / secure-agent-pod retirement
+# OWNED BY TEKTON (tekton-extras) since VibeKanban and the secure-agent-pod were retired
 # (2026-11, spec 2026-11-08--agents--retire-vk): tekton-pipelines/frank-gitops-push
 # depends on this generator (cnc-promotion and staging-gate depend on that Secret).
 # It used to live under apps/secure-agent-pod (retired 2026-11), and removing that

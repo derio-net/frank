@@ -32,8 +32,6 @@ import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently 
 from .test_fr_isolation_target_env import (
     _containers,
     _env_value,
-    _load,
-    _reexport_loop_covers,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -43,12 +41,9 @@ REPO = Path(__file__).resolve().parents[2]
 # hermes-agent-shell runs hermes, not claude — both stay out on purpose.)
 REQUIRED = {
     REPO / "apps/alert-agent/manifests/deployment.yaml": {"agent"},
-    REPO / "apps/secure-agent-pod/manifests/deployment.yaml": {"kali", "vk-local"},
     REPO / "apps/n8n-01/manifests/deployment.yaml": {"multi-agent-shell"},
     REPO / "apps/cnc-base/manifests/statefulset-node.yaml": {"node"},
 }
-
-KALI_SHIM_CM = REPO / "apps/secure-agent-pod/manifests/configmap-fr-env.yaml"
 
 
 def test_env_in_all_claude_containers():
@@ -64,14 +59,3 @@ def test_env_in_all_claude_containers():
                 "OOMKilled the container (2026-08-27); updates ship via "
                 "agent-images, never in-pod"
             )
-
-
-def test_kali_shim_reexports_var():
-    """The kali fr-env profile.d shim carries DISABLE_AUTOUPDATER into SSH shells."""
-    cm = _load(KALI_SHIM_CM)
-    script = cm["data"]["35-secure-agent-pod-fr-env.sh"]
-    assert _reexport_loop_covers(script, "DISABLE_AUTOUPDATER"), (
-        "the kali 35-secure-agent-pod-fr-env.sh re-export loop line must include "
-        "DISABLE_AUTOUPDATER — kali's claude is launched from SSH login shells, "
-        "which sshd strips of the container env"
-    )

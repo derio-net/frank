@@ -10,7 +10,7 @@ Two things must both hold, or an SSH agent silently falls back to devcontainer
 mode and fails:
 
   1. every agent-bearing container declares FR_ISOLATION_TARGET=worktree in its
-     `env:` (kali, vk-local, hermes, ssh — NOT hindsight, no agent processes);
+     `env:` (hermes, ssh — NOT hindsight, no agent processes);
   2. the profile.d re-export shims carry FR_ISOLATION_TARGET into SSH login
      shells, since sshd (`UsePAM no`, no `PermitUserEnvironment`) scrubs the
      container env from login shells — the "sshd scrubs container env on login"
@@ -25,13 +25,11 @@ from pathlib import Path
 import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
 
 REPO = Path(__file__).resolve().parents[2]
-SECURE_AGENT_DEPLOY = REPO / "apps/secure-agent-pod/manifests/deployment.yaml"
 HERMES_DEPLOY = REPO / "apps/hermes-agent-shell/manifests/deployment.yaml"
 HERMES_SHIM_CM = REPO / "apps/hermes-agent-shell/manifests/configmap-byok-env.yaml"
-KALI_SHIM_CM = REPO / "apps/secure-agent-pod/manifests/configmap-fr-env.yaml"
 
 # Containers that run agent processes and so MUST carry the var.
-REQUIRED_CONTAINERS = {"kali", "vk-local", "hermes", "ssh"}
+REQUIRED_CONTAINERS = {"hermes", "ssh"}
 # Excluded on purpose — the Postgres/embedder sidecar runs no agent processes.
 EXCLUDED_CONTAINER = "hindsight"
 
@@ -62,14 +60,8 @@ def _reexport_loop_covers(script: str, var: str) -> bool:
 
 
 def test_env_in_all_agent_containers():
-    """kali, vk-local, hermes, ssh each carry FR_ISOLATION_TARGET=worktree."""
-    secure = _containers(SECURE_AGENT_DEPLOY)
-    hermes = _containers(HERMES_DEPLOY)
-    # Keep the namespaces separate: a future name collision across the two
-    # deployments must fail loudly, not silently shadow one entry.
-    overlap = secure.keys() & hermes.keys()
-    assert not overlap, f"container names collide across deployments: {overlap}"
-    containers = {**secure, **hermes}
+    """hermes and ssh each carry FR_ISOLATION_TARGET=worktree."""
+    containers = _containers(HERMES_DEPLOY)
 
     for name in REQUIRED_CONTAINERS:
         assert name in containers, f"container {name!r} not found in the deployments"
@@ -104,39 +96,4 @@ def test_hermes_shim_reexports_var():
         "the hermes shim must carry the static fallback "
         "'export FR_ISOLATION_TARGET=worktree' — /proc/1/environ is proctitle "
         "junk when sshd is PID 1 (ssh sidecar), so the environ loop never fires"
-    )
-
-
-def test_kali_shim_configmap_and_mount():
-    """secure-agent-pod ships a fr-env shim ConfigMap the kali container mounts."""
-    cm = _load(KALI_SHIM_CM)
-    assert cm["kind"] == "ConfigMap"
-    assert cm["metadata"]["name"] == "secure-agent-pod-env"
-    assert cm["metadata"]["namespace"] == "secure-agent-pod"
-    script = cm["data"]["35-secure-agent-pod-fr-env.sh"]
-    assert _reexport_loop_covers(script, "FR_ISOLATION_TARGET"), (
-        "the kali 35-secure-agent-pod-fr-env.sh re-export loop line must include "
-        "FR_ISOLATION_TARGET"
-    )
-
-    kali = _containers(SECURE_AGENT_DEPLOY)["kali"]
-    mount_path = "/etc/profile.d/35-secure-agent-pod-fr-env.sh"
-    mounts = [m for m in kali.get("volumeMounts", []) if m.get("mountPath") == mount_path]
-    assert mounts, f"kali must mount the shim at {mount_path}"
-    m = mounts[0]
-    assert m.get("subPath") == "35-secure-agent-pod-fr-env.sh", (
-        "the shim must be a single-file subPath mount"
-    )
-    assert m.get("readOnly") is True, "the shim mount must be readOnly"
-
-    # Pin the volume→ConfigMap linkage: a typo'd configMap.name leaves the pod
-    # stuck ContainerCreating — and with strategy Recreate the old pod is
-    # already gone, i.e. a full agent-shell outage that syncs "forever".
-    pod_spec = _load(SECURE_AGENT_DEPLOY)["spec"]["template"]["spec"]
-    volumes = {v["name"]: v for v in pod_spec.get("volumes", [])}
-    vol_name = m.get("name")
-    assert vol_name in volumes, f"kali shim mount references undefined volume {vol_name!r}"
-    assert volumes[vol_name].get("configMap", {}).get("name") == cm["metadata"]["name"], (
-        f"volume {vol_name!r} must reference the shim ConfigMap "
-        f"{cm['metadata']['name']!r} — a mismatch strands the pod in ContainerCreating"
     )
