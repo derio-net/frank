@@ -167,7 +167,7 @@ SCANNED_PATHS = [
     # but SCOPED to the two ops this work added. See _SCOPED_OPS below for why a
     # whole-file scan of a 144-op registry would rot the guard the same way.
     #
-    # `docs/acceptance/matrix.yaml` is the same shape and is scoped the same
+    # The acceptance matrix (`docs/acceptance/features/`) is the same shape and is scoped the same
     # way, by row id — see _SCOPED_ACCEPTANCE_ROWS. Measured 2026-09-11 rather
     # than assumed: a whole-file scan of it fires exactly one hit, on a row
     # belonging to an unrelated layer, where a frank issue citation happens to
@@ -342,7 +342,7 @@ def _rel(path: pathlib.Path) -> str:
 _SCOPED_OPS = ("orch-hermes-gbrain-cli-install", "orch-hermes-ssh-bun-repin")
 _MANUAL_OPS = REPO / "docs/runbooks/manual-operations.yaml"
 
-# `docs/acceptance/matrix.yaml` — same reasoning, different registry. The three
+# The acceptance matrix (fragments under `docs/acceptance/features/`) — same reasoning, different registry. The three
 # rows frank#793 adds are the ones in scope; the other ~90 belong to every
 # other layer in the repo.
 _SCOPED_ACCEPTANCE_ROWS = (
@@ -350,7 +350,7 @@ _SCOPED_ACCEPTANCE_ROWS = (
     "infer-rerank-oversized-refused-cleanly",
     "infer-rerank-batch-curve-measured",
 )
-_ACCEPTANCE_MATRIX = REPO / "docs/acceptance/matrix.yaml"
+_ACCEPTANCE_FEATURES = REPO / "docs/acceptance/features"
 
 
 def _manual_op_text() -> str:
@@ -367,11 +367,15 @@ def _manual_op_text() -> str:
 
 
 def _acceptance_row_text() -> str:
-    rows = yaml.safe_load(_ACCEPTANCE_MATRIX.read_text(encoding="utf-8"))["rows"]
+    rows = [
+        row
+        for frag in sorted(_ACCEPTANCE_FEATURES.glob("*.yaml"))
+        for row in (yaml.safe_load(frag.read_text(encoding="utf-8")) or {}).get("rows") or []
+    ]
     wanted = [row for row in rows if row.get("id") in _SCOPED_ACCEPTANCE_ROWS]
     assert len(wanted) == len(_SCOPED_ACCEPTANCE_ROWS), (
         f"expected rows {list(_SCOPED_ACCEPTANCE_ROWS)} in "
-        f"{_rel(_ACCEPTANCE_MATRIX)}, found {[row.get('id') for row in wanted]} — "
+        f"{_rel(_ACCEPTANCE_FEATURES)}, found {[row.get('id') for row in wanted]} — "
         "a row was renamed or dropped. Same reasoning as the manual-ops "
         "assertion above: a scoped scan that quietly narrows to nothing is "
         "worse than no scan, because it still reports green."
@@ -393,7 +397,7 @@ def _scan_units() -> list[tuple[str, str]]:
     units.append((f"{_rel(_MANUAL_OPS)}[{'+'.join(_SCOPED_OPS)}]", _manual_op_text()))
     units.append(
         (
-            f"{_rel(_ACCEPTANCE_MATRIX)}[{'+'.join(_SCOPED_ACCEPTANCE_ROWS)}]",
+            f"{_rel(_ACCEPTANCE_FEATURES)}[{'+'.join(_SCOPED_ACCEPTANCE_ROWS)}]",
             _acceptance_row_text(),
         )
     )

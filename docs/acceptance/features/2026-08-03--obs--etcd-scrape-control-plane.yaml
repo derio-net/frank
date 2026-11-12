@@ -1,0 +1,70 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-08-03--obs--etcd-scrape-control-plane
+repo: derio-net/frank
+rows:
+  - id: obs-etcd-server-metrics-scraped
+    capability: Control-plane observability
+    acceptance: Frank scrapes its own etcd and the etcd server metric surface is queryable,
+      so an etcd fault is visible before it becomes an API-server fault.
+    origin:
+    - spec:2026-08-03--obs--etcd-scrape-control-plane
+    levels:
+      unit:
+      - frank:scripts/tests/test_etcd_scrape.py
+    status: unwired
+    notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for
+      an operator-measured row). up{job="kube-etcd"} = 1 on 192.168.55.21/22/23:2381,
+      and etcd_server_has_leader (3 series), etcd_disk_wal_fsync_duration_seconds_bucket
+      (45) and etcd_mvcc_db_total_size_in_bytes (3) are present in VMSingle. The scrape
+      is apps/victoria-metrics/manifests/vmstaticscrape-kube-etcd.yaml (#804). #762''s
+      first version, a static Endpoints object from kubeEtcd.endpoints, deployed nothing:
+      ArgoCD resource.exclusions exclude Endpoints, so the app read Synced/Healthy with
+      an ExcludedResourceWarning and zero targets. The :2381 listener comes from the
+      Omni ConfigPatch, which only took effect after a drained rolling reboot of the
+      three minis, because Talos does not restart etcd for an extraArgs change. CI half:
+      scripts/tests/test_etcd_scrape.py asserts listener port vs scrape target ports,
+      targets vs the machine table, kubeEtcd.enabled false, and no ArgoCD-excluded kind
+      in the scrape path (plus a repo-wide excluded-kind tripwire); mutation-checked.'
+  - id: obs-etcd-quorum-loss-pages
+    capability: Control-plane observability
+    acceptance: Loss of etcd quorum reaches the operator, while routine rolling control-plane
+      maintenance does not.
+    origin:
+    - spec:2026-08-03--obs--etcd-scrape-control-plane
+    levels:
+      unit:
+      - frank:scripts/tests/test_etcd_scrape.py
+    status: not-implemented
+    notes: 'Wiring live since 2026-09-14: layer-2-etcd-no-leader and layer-2-etcd-member-down
+      evaluate against real series and read Normal (state inactive, health ok), with
+      etcd_server_has_leader = 1 on all three members. CI half (green): test_only_quorum_loss_pages
+      asserts both carry severity critical, for: >= 10m and NO health_bridge_only (so
+      they route to Telegram), while the other four etcd rules carry health_bridge_only
+      true. The 10m window is defended by the 2026-08-02 control-plane roll, which took
+      ~7 minutes and produced 48 alerts against a healthy cluster. STATUS STAYS not-implemented
+      on purpose: the acceptance claim is that a real quorum loss reaches the operator,
+      and no such event has occurred. It is not safely manufacturable on a three-node
+      quorum.'
+  - id: obs-etcd-blindness-is-tracked
+    capability: Control-plane observability
+    acceptance: If Frank stops scraping its own etcd, that silence is itself detected
+      rather than reading as health.
+    origin:
+    - spec:2026-08-03--obs--etcd-scrape-control-plane
+    levels:
+      unit:
+      - frank:scripts/tests/test_etcd_scrape.py
+    status: unwired
+    notes: 'MET on a REAL blindness event (operator decision: stands in for the planned
+      deliberate scrape pause, P5.T2.S2). After #762 merged the scrape had zero targets.
+      layer-2-etcd-scrape-absent went pending 2026-09-13T21:29:50Z and fired 21:44:50Z,
+      exactly its for: 15m. health-bridge opened frank-ops#126 and set frank-ops#2 dead
+      at 21:45:30Z, with no Telegram page (health_bridge_only). When the VMStaticScrape
+      fix went live the rule resolved, and health-bridge auto-closed frank-ops#126 at
+      2026-09-14T16:00:19Z (frank-ops#2 healthy). CI half: test_absent_watchdog_selects_the_job_the_scrape_declares
+      derives the job name from the VMStaticScrape jobName rather than a constant; mutation-checked.'

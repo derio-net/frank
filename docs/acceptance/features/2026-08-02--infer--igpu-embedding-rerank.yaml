@@ -1,0 +1,111 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-08-02--infer--igpu-embedding-rerank
+repo: derio-net/frank
+rows:
+  - id: infer-igpu-rerank-endpoint
+    capability: Retrieval models
+    acceptance: An in-cluster client can rerank a candidate passage set against a multilingual
+      cross-encoder and receive scored, well-separated result indices.
+    origin:
+    - spec:2026-08-02--infer--igpu-embedding-rerank
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-08-03 live: POST /v3/rerank returns {results:[{index,relevance_score}]};
+      scores well separated (0.0395 relevant vs 1.6e-5 irrelevant, ~2400x), not the
+      degenerate 1e-9..1e-12 pattern. Both servables AVAILABLE via GET /v1/config. CI
+      guards the manifest SHAPE (scripts/tests/test_ovms_retrieval_manifests.py), not
+      the serving behaviour, so this row is live-proof rather than ci.'
+  - id: infer-igpu-rerank-latency-measured
+    capability: Retrieval models
+    acceptance: Operators have a measured rerank latency figure for a 20-passage batch
+      on the mini iGPU, plus a same-node CPU control arm, instead of an arithmetic estimate.
+    origin:
+    - spec:2026-08-02--infer--igpu-embedding-rerank
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-08-03 by live measurement (manual, not automatable in CI). iGPU
+      rerank of 20 candidates: p50 77.3ms, p95 87.1ms, max 91.1ms, N=30 after warm-up.
+      CPU control arm on the same node, same weights: p50 1612.9ms, p95 1702.6ms ->
+      iGPU 20.9x faster. Caveat recorded: single-item embedding is only 1.1x (28.4 vs
+      32.2ms), request-overhead bound; and the ratio is at short sequence length.'
+  - id: infer-igpu-embeddings-endpoint
+    capability: Retrieval models
+    acceptance: In-cluster clients can obtain multilingual embeddings from Frank with
+      a recorded vector dimensionality.
+    origin:
+    - spec:2026-08-02--infer--igpu-embedding-rerank
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-08-03 live: POST /v3/embeddings returns 1024-dimensional vectors,
+      dimension read from the response. Single p50 28.4ms, batch-32 p50 93.2ms, throughput
+      35.2/343.5 items per s. CI guards the manifest shape only; the serving behaviour
+      is live proof.'
+  - id: infer-igpu-workload-preserves-quorum
+    capability: Control-plane safety
+    acceptance: A warm inference workload pinned to a control-plane mini leaves etcd
+      quorum and API-server latency unchanged relative to the two untouched peers.
+    origin:
+    - spec:2026-08-02--infer--igpu-embedding-rerank
+    levels: {}
+    status: unwired
+    notes: 'MET 2026-09-14 by live proof (status skipped: this repo''s convention for
+      an operator-measured row), superseding the 2026-08-03 PARTIAL, whose etcd half
+      was unmeasurable because Frank did not scrape etcd. Two soaks of 7500 rerank requests
+      were generated on mini-1 against ovms-retrieval (POST /v3/rerank, 20 candidates,
+      the bench script''s payload). Each was measured over its last 240s against a 60s
+      idle baseline taken just before. Soak 1 (16 workers): 16.59 req/s over 452s, all
+      200, p50 787ms / p99 2613ms. Soak 2 (48 workers): 16.49 req/s over 455s, all 200,
+      p50 2227ms / p99 10843ms. More workers only lengthened the queue, so throughput
+      is SERVER-bound at ~16.5/s, not a loader artefact. etcd: 0 leader changes on all
+      three members in both baselines and both load windows; etcd_server_has_leader
+      min 1 throughout; WAL fsync p99 on mini-1 (the loaded node) 2.0->3.4 and 2.0->3.5
+      ms, peers flat near 2.0 ms (alert threshold 50 ms). apiserver p99 (WATCH/CONNECT
+      excluded), cluster: 23.5->23.8 and 22.2->24.0 ms; mini-1 (.21): 23.9->24.1 and
+      22.3->24.2 ms. mini-2 (.22) read ~40-42 ms in both load windows but 43.8 ms in
+      an idle sample too, so that is not attributable to the load. mini-1 stayed Ready
+      with no Memory/Disk/PID pressure; ovms working set max 2299 MiB of 10 GiB; the
+      pool watchdog read busy and did not restart the pod. NOT LIKE-FOR-LIKE with 2026-08-03,
+      and that gap is now RESOLVED as not-a-regression (frank#810), not left open: the
+      ~16.5/s is simply 1/latency on a SERIALISED server, and the ~31/s it was compared
+      against was never this shape. The exporter pins concurrency to one stream - export_model.py
+      --num_streams defaults to 1 and this build never passes it, so the served graph.pbtxt
+      carries plugin_config NUM_STREAMS 1 - which is why 16 and 48 workers both land
+      on the sequential rate instead of scaling. Re-measured 2026-09-20 in-container
+      against this same 20-candidate payload (2365 bytes, 12 sequential calls): 189ms
+      cold, then warm min 59 / p50 60 / max 63 ms = 16.6/s sequential, matching both
+      soaks; 4 parallel calls took 240ms, i.e. 4x60, no overlap at all. The 2026-08-03
+      figure came from a SEQUENTIAL curl loop at ~31/s = ~32ms per request, while the
+      same day on the same server the 20-candidate bench measured p50 77.3ms (row infer-igpu-rerank-latency-measured).
+      A sequential loop cannot beat its own per-request latency, so that run provably
+      did not send 20 candidates, and its payload shape was never recorded - the comparison
+      was invalid on arithmetic grounds before anything about the guard entered it.
+      The guard from #793/#794 is EXONERATED twice over: on the one shape measured both
+      before and after it the server is faster (60 vs 77.3 ms), and it cannot have changed
+      concurrency, because the rerank export invocation is byte-identical across MODELS_REV
+      1 and 2 at the same pinned exporter ref (v2026.2.1), so NUM_STREAMS has been 1
+      since the first export. Raising --num_streams is therefore the only throughput
+      lever, and it is UNMEASURED: it would multiply the concurrent pinned-buffer sets
+      described in the igpu-dra runbook against the 16Gi ceiling and the watchdog thresholds,
+      so it needs the batch-curve treatment before it is touched.'
+  - id: gpu-igpu-claim-documented
+    capability: GPU documentation
+    acceptance: Operators have accurate documentation of how to claim a mini iGPU that
+      matches what is actually deployed (DRA ResourceClaim, not a device-plugin extended
+      resource).
+    origin:
+    - spec:2026-08-02--infer--igpu-embedding-rerank
+    levels:
+      unit:
+      - frank:scripts/tests/test_igpu_dra_docs.py
+    status: ci
+    notes: 'Test Plan row 8; phase05 README drifted a full API generation. Fixed 2026-08-02
+      (phase 4): patches/phase05-mini-config/README.md corrected to the DRA resource
+      driver + a worked ResourceClaim example, plus a new docs/runbooks/frank-gotchas/igpu-dra.md.
+      Unit guard scripts/tests/test_igpu_dra_docs.py runs on every PR via .github/workflows/repo-tripwires.yml
+      (pytest scripts/tests/ -q) — which is what status: ci records here, rather than
+      skipped.'

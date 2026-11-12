@@ -1,4 +1,4 @@
-schema_version: 10
+schema_version: 11
 run: 2026-11-08-feat-retire-vk
 workflow: fr-goal@1
 branch: feat/retire-vk

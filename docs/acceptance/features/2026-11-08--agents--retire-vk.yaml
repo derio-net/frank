@@ -1,0 +1,152 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-11-08--agents--retire-vk
+repo: derio-net/frank
+rows:
+  - id: vk-alerts-retired
+    capability: alerting
+    acceptance: The VK bridge and executor alerts are gone from Grafana and cannot fire.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R1
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: pod-removal-silent
+    capability: alerting
+    acceptance: Removing the pod raises no alert, and no dashboard or scrape depends
+      on it.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R11
+    levels: {}
+    status: not-implemented
+    notes: Phase 2, tracked in derio-net/frank#950
+    verify: live
+    issues:
+    - derio-net/frank#950
+  - id: vk-remote-removed
+    capability: agents
+    acceptance: The vk-remote stack is gone from the cluster, and its database dump
+      was verified first.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R2
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: pod-undisturbed-phase-1
+    capability: agents
+    acceptance: Retiring VK's dependencies does not restart the secure-agent-pod or
+      end a session running on it.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R7
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: pod-removed-after-archive
+    capability: agents
+    acceptance: The secure-agent-pod and its storage, addresses and cluster-admin binding
+      are gone, only after its unique files were archived and verified. Its crons, including
+      chorebot, stop with it.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R9
+    - spec:2026-11-08--agents--retire-vk#R10
+    - spec:2026-11-08--agents--retire-vk#R15
+    levels: {}
+    status: not-implemented
+    notes: Phase 2, tracked in derio-net/frank#950
+    verify: live
+    issues:
+    - derio-net/frank#950
+  - id: vk-surface-removed
+    capability: ingress
+    acceptance: vk.cluster.derio.net has no route, Authentik has no VK provider, and
+      the homepage has no VK tile.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R3
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: vk-mirror-retired
+    capability: ci
+    acceptance: Frank no longer mirrors or budgets derio-net/vibe-kanban, and that repo
+      is archived.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R4
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: vk-images-retired
+    capability: ci
+    acceptance: vk-local is no longer built, vk-remote, vk-local and secure-agent-kali
+      are no longer bumped, and bumps succeed for every remaining image.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R5
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: gitops-push-token-continuity
+    capability: ci
+    acceptance: Promotion pushes keep working, because frank-gitops-push keeps minting
+      tokens before and after the pod is gone.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R6
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: kali-image-retired
+    capability: ci
+    acceptance: secure-agent-kali is no longer built, and bumps succeed for every remaining
+      image.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R12
+    levels: {}
+    status: not-implemented
+    notes: Phase 2, tracked in derio-net/frank#950
+    verify: live
+    issues:
+    - derio-net/frank#950
+  - id: no-vk-references-remain
+    capability: repo
+    acceptance: No Frank workload, secret or client config still expects VK or the pod.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R13
+    levels: {}
+    status: not-implemented
+    notes: Phase 2, tracked in derio-net/frank#950
+    verify: none
+    issues:
+    - derio-net/frank#950
+  - id: vk-tooling-retired
+    capability: repo
+    acceptance: VK-only tooling, tests and docs are removed or marked historical.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R8
+    levels:
+      unit:
+      - frank:scripts/tests/test_vk_retired.py
+    status: ci
+    notes: Delivered in this PR, and guarded by test_vk_retired.py in the tripwires
+      job
+    verify: none
+  - id: vk-posts-superseded
+    capability: blog
+    acceptance: Readers of a VK or secure-agent-pod post see that it is superseded,
+      with the post still published.
+    origin:
+    - spec:2026-11-08--agents--retire-vk#R14
+    levels: {}
+    status: not-implemented
+    notes: Phase 2, tracked in derio-net/frank#950
+    verify: none
+    issues:
+    - derio-net/frank#950
