@@ -1575,3 +1575,182 @@ def test_verify_requires_one_valid_bundle_per_clone_and_sizes_are_reported(tmp_p
     v = _run("verify", "--dest", str(dest), env=env)
     assert v.returncode != 0 and "FAIL bundle recorded" in v.stdout
     (dest / "BUNDLES.txt").write_text(rec)
+
+
+# --- archive round 4 -----------------------------------------------------------
+
+def _autostash_rebase_fixture(home, tmp_path):
+    clone = _plain_clone(home, tmp_path)
+    (clone / "f").write_text("base\n")
+    (clone / "u.txt").write_text("committed u\n")
+    _git("add", "f", "u.txt", cwd=clone)
+    _git("commit", "-qm", "base files", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "topic", cwd=clone)
+    (clone / "f").write_text("topic edit\n")
+    _git("commit", "-qam", "t2", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "f").write_text("main edit\n")
+    _git("commit", "-qam", "m1", cwd=clone)
+    _git("checkout", "-q", "topic", cwd=clone)
+    (clone / "u.txt").write_text("uncommitted autostashed edit\n")
+    assert _git_rc("rebase", "--autostash", "main", cwd=clone).returncode != 0
+    assert (clone / ".git/rebase-merge/autostash").exists()
+    return clone
+
+
+def test_a_rebase_autostash_survives_archive_restore_and_continue(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _autostash_rebase_fixture(home, tmp_path)
+    auto = (clone / ".git/rebase-merge/autostash").read_text().strip()
+    state_before = (clone / ".git/rebase-merge/autostash").read_bytes()
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert (clone / ".git/rebase-merge/autostash").read_bytes() == state_before
+    assert auto in (dest / "EXTRA-REVS.txt").read_text()
+    assert "rebase-merge/" in (dest / "EXTRA-REVS.txt").read_text()   # other state files are mined too
+    wd = _wd(dest)
+    assert "uncommitted autostashed edit" in (wd / "autostash-0.patch").read_text()
+    # (c) the commit is fetchable from the bundle alone
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    only = tmp_path / "only-bundle"
+    subprocess.run(["git", "init", "-q", str(only)], check=True)
+    _git("fetch", "-q", str(bundle), "+refs/*:refs/archive/*", cwd=only)
+    assert _out("cat-file", "-t", auto, cwd=only).strip() == "commit"
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+    # (a) restore, resolve, continue: the autostashed edit comes back
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    assert (target / ".git/rebase-merge/autostash").read_text().strip() == auto
+    (target / "f").write_text("resolved\n")
+    _git("add", "f", cwd=target)
+    done = _git_rc("rebase", "--continue", cwd=target)
+    assert done.returncode == 0, done.stderr
+    assert (target / "u.txt").read_text() == "uncommitted autostashed edit\n"
+    # verify fails when the state file names an autostash that the bundles do not hold
+    ex = (dest / "EXTRA-REVS.txt").read_text()
+    (dest / "EXTRA-REVS.txt").write_text("\n".join(l for l in ex.splitlines() if auto not in l) + "\n")
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL autostash commits are in the bundles" in v.stdout
+
+
+def test_a_merge_autostash_survives_archive_restore_and_commit(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "c.txt").write_text("a\nb\nc\n")
+    (clone / "u.txt").write_text("committed u\n")
+    _git("add", "c.txt", "u.txt", cwd=clone)
+    _git("commit", "-qm", "base", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("checkout", "-q", "-b", "side", cwd=clone)
+    (clone / "c.txt").write_text("a\nside\nc\n")
+    _git("commit", "-qam", "side change", cwd=clone)
+    _git("checkout", "-q", "main", cwd=clone)
+    (clone / "c.txt").write_text("a\nmain\nc\n")
+    _git("commit", "-qam", "main change", cwd=clone)
+    (clone / "u.txt").write_text("merge autostashed edit\n")
+    assert _git_rc("merge", "--autostash", "side", cwd=clone).returncode != 0
+    assert (clone / ".git/MERGE_AUTOSTASH").exists()
+    auto = (clone / ".git/MERGE_AUTOSTASH").read_text().strip()
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    assert auto in (dest / "EXTRA-REVS.txt").read_text()
+    assert "merge autostashed edit" in (_wd(dest) / "autostash-0.patch").read_text()
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    (target / "c.txt").write_text("a\nresolved\nc\n")
+    _git("add", "c.txt", cwd=target)
+    assert _git_rc("commit", "--no-edit", cwd=target).returncode == 0
+    assert (target / "u.txt").read_text() == "merge autostashed edit\n"
+
+
+def test_restore_of_a_dirty_unborn_repository_without_a_bundle(tmp_path):
+    home = _fixture_home(tmp_path)
+    repo = home / "repos/unborn"
+    repo.mkdir(parents=True)
+    _git("init", "-q", "-b", "main", cwd=repo)
+    (repo / "a").write_text("staged\n")
+    _git("add", "a", cwd=repo)
+    (repo / "a").write_text("staged\nunstaged\n")
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, repo, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    assert _out("status", "--porcelain=v1", cwd=target) == _out("status", "--porcelain=v1", cwd=repo)
+    assert _out("ls-files", "-s", cwd=target) == _out("ls-files", "-s", cwd=repo)
+
+
+def test_restored_stashes_come_back_in_order_with_their_messages(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "s.txt").write_text("base\n")
+    _git("add", "s.txt", cwd=clone)
+    _git("commit", "-qm", "s", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    for msg in ("first stash", "second stash", "third stash"):
+        (clone / "s.txt").write_text(msg + "\n")
+        _git("stash", "push", "-q", "-m", msg, cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    assert _out("stash", "list", cwd=target) == _out("stash", "list", cwd=clone)
+    assert _out("stash", "show", "-p", "stash@{2}", cwd=target) == _out("stash", "show", "-p", "stash@{2}", cwd=clone)
+
+
+def test_restore_reapplies_skip_worktree_and_assume_unchanged_bits(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "au").write_text("1\n")
+    (clone / "sw").write_text("1\n")
+    _git("add", "au", "sw", cwd=clone)
+    _git("commit", "-qm", "hidden files", cwd=clone)
+    _git("push", "-q", "origin", "main", cwd=clone)
+    _git("update-index", "--assume-unchanged", "au", cwd=clone)
+    _git("update-index", "--skip-worktree", "sw", cwd=clone)
+    (clone / "au").write_text("edited au\n")
+    (clone / "sw").write_text("edited sw\n")
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    target = tmp_path / "restored"
+    rr = _restore_cmd(dest, clone, target, env)
+    assert rr.returncode == 0, rr.stdout + rr.stderr
+    assert _out("ls-files", "-v", cwd=target) == _out("ls-files", "-v", cwd=clone)
+    assert _out("status", "--porcelain=v1", cwd=target) == _out("status", "--porcelain=v1", cwd=clone)
+    assert (target / "sw").read_text() == "edited sw\n"
+
+
+def _df_stub(tmp_path, free_kb):
+    df = tmp_path / "df-stub"
+    df.write_text(f"#!/bin/sh\necho 'Filesystem 1024-blocks Used Available Capacity Mounted on'\n"
+                  f"echo '/dev/x 100000 1 {free_kb} 1% /'\n")
+    df.chmod(0o755)
+    return str(df)
+
+
+def test_space_preflight_aborts_when_free_space_is_short(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, {"DF": _df_stub(tmp_path, 1)}, home=home)
+    assert r.returncode != 0
+    assert "not enough free space" in r.stderr and "--skip-space-check" in r.stderr
+    assert "space check:" in r.stdout
+    assert not (dest / "secure-agent-pod-home.tar.gz").exists()   # nothing streamed yet
+
+
+def test_space_preflight_can_be_skipped_and_passes_with_room(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, {"DF": _df_stub(tmp_path, 1)}, home=home, args=("--skip-space-check",))
+    assert r.returncode == 0, r.stderr
+    assert "continuing because of --skip-space-check" in r.stderr
+    sub = tmp_path / "roomy"
+    sub.mkdir()
+    h2 = _fixture_home(sub)
+    r2, dest2, _, _ = _archive_ok(sub, {"DF": _df_stub(sub, 10_000_000)}, home=h2)
+    assert r2.returncode == 0, r2.stderr
+    assert "space check:" in r2.stdout

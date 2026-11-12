@@ -29,6 +29,7 @@ set -euo pipefail
 
 KUBECTL=${KUBECTL:-kubectl}
 SOPS=${SOPS:-sops}
+DF=${DF:-df}
 GIT=${GIT:-git}
 POD_HOME=${POD_HOME:-/home/claude}
 DEST_DEFAULT="$HOME/Archives/secure-agent-pod-2026-11"
@@ -36,7 +37,7 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 usage() {
   cat >&2 <<USAGE
-usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--live] [--old-file-gone-ok]
+usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--skip-space-check] [--live] [--old-file-gone-ok]
   archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
                    home tarball; one self-contained bundle per repository (all refs incl.
                    remote-tracking, no prerequisites); uncommitted clone state (index and
@@ -45,7 +46,9 @@ usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--des
                    on the pod. Known limits: reflog-only commits; ignored files are listed in
                    ignored/, not saved; clones under .cache or node_modules are pruned
                    (recorded in SKIPPED.txt). Unreadable paths and unusable repositories fail
-                   verify unless archive ran with --accept-unreadable (ACCEPTED.txt).
+                   verify unless archive ran with --accept-unreadable (ACCEPTED.txt). A
+                   preflight compares the pod's data with the free space at DEST (x1.2) and
+                   aborts unless --skip-space-check is given.
   verify           verify the archive in DEST, offline; --live also re-scans the pod
                    (read-only) and fails if its clones or dirty state changed since the archive
   restore-worktree rebuild a saved worktree locally: --dest ARCHIVE --worktree ORIGINAL_PATH
@@ -234,7 +237,7 @@ pl_status_counts() {   # status -z file -> "modified untracked"
     print "$m $u\n";' < "$1"
 }
 pl_hidden() {          # ls-files -v -z file -> NUL list of skip-worktree/assume-unchanged paths
-  perl -0777 -e 'my $d=<STDIN>; for my $e (split /\0/,$d){ next unless $e=~/^([abcdefghijklmnopqrstuvwxyzS]) (.*)$/s; print "$2\0"; }' < "$1"
+  perl -0777 -e 'my $d=<STDIN>; for my $e (split /\0/,$d){ next unless $e=~/^([abcdefghijklmnopqrstuvwxyzS]) (.*)$/s; print "$1 $2\0"; }' < "$1"
 }
 pl_lines() {           # NUL list -> one escaped line per path
   perl -0777 -e 'my $d=<STDIN>; for (split /\0/,$d){ next unless length; s/\\/\\\\/g; s/\n/\\n/g; print "$_\n"; }' < "$1"
@@ -421,20 +424,31 @@ bundle_refs() {
       done
     fi
   fi
-  # Extra revs: heads named by files or detached worktrees, no ref points at them.
+  # Extra revs: heads named by files or detached worktrees, no ref points at them. One
+  # batch check keeps the commits that exist; the rest are recorded, not bundled.
   if [ -s "$EXTRA_FILE" ]; then
+    local cands=() types
     while IFS=$'\t' read -r sha label; do
       [ -n "$sha" ] || continue
       case $seen in *" $sha "*) continue ;; esac
       seen="$seen$sha "
-      gprobe "$repo" cat-file -e "$sha^{commit}"
-      if [ "$STREAM_RC" = 0 ]; then
-        extras+=("$sha")
-        printf '%s\t%s\t%s\n' "$repo" "$sha" "$label" >> "$DEST/EXTRA-REVS.txt"
-      else
-        note_skip "missing object $sha ($label) in $repo; not bundled"
-      fi
+      cands+=("$sha")
     done < "$EXTRA_FILE"
+    if [ ${#cands[@]} -gt 0 ]; then
+      # shellcheck disable=SC2016  # the script runs on the pod
+      cap "$SCRATCH/extra.types" bash -c "$PODGITFN"'; r=$1; shift; printf "%s\n" "$@" | git -C "$r" cat-file --batch-check' _ "$repo" "${cands[@]}"
+      [ "$STREAM_RC" = 0 ] || die "could not check the extra revs of $repo"
+      types=$SCRATCH/extra.types
+      while IFS=$'\t' read -r sha label; do
+        [ -n "$sha" ] || continue
+        case $(grep -a "^$sha " "$types" | head -1) in
+          "$sha commit "*)
+            case " ${extras[*]+${extras[*]}} " in *" $sha "*) ;; *) extras+=("$sha") ;; esac
+            printf '%s\t%s\t%s\n' "$repo" "$sha" "$label" >> "$DEST/EXTRA-REVS.txt" ;;
+          *) note_skip "extra rev $sha ($label) in $repo is not a readable commit; not bundled" ;;
+        esac
+      done < "$EXTRA_FILE"
+    fi
   fi
   gprobe "$repo" rev-parse --verify -q HEAD
   if [ ! -s "$SCRATCH/refs.own" ] && [ "$STREAM_RC" != 0 ]; then
@@ -469,8 +483,32 @@ scan_patch_headers() {
 
 # Files in a worktree's git dir that describe an operation in progress. The first group
 # marks one as running; the rest travel with it.
-STATE_TRIGGERS="MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD rebase-merge rebase-apply sequencer BISECT_LOG BISECT_START"
-STATE_NAMES="$STATE_TRIGGERS MERGE_MSG MERGE_MODE AUTO_MERGE ORIG_HEAD SQUASH_MSG BISECT_TERMS BISECT_EXPECTED_REV BISECT_ANCESTORS_OK BISECT_NAMES"
+STATE_TRIGGERS="MERGE_HEAD MERGE_AUTOSTASH CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD rebase-merge rebase-apply sequencer BISECT_LOG BISECT_START"
+STATE_NAMES="$STATE_TRIGGERS MERGE_AUTOSTASH MERGE_MSG MERGE_MODE AUTO_MERGE ORIG_HEAD SQUASH_MSG BISECT_TERMS BISECT_EXPECTED_REV BISECT_ANCESTORS_OK BISECT_NAMES"
+
+# Git-dir files whose content can be the only reference to a commit (an autostash, a
+# stopped rebase step, a bisect or notes-merge state ...). Every sha found in them, in
+# these files and in everything under rebase-merge/, rebase-apply/ and sequencer/, rides
+# in the repository bundle as an extra rev.
+SHA_FILES="MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD REBASE_HEAD ORIG_HEAD MERGE_AUTOSTASH AUTO_MERGE FETCH_HEAD BISECT_START BISECT_LOG BISECT_TERMS BISECT_EXPECTED_REV BISECT_ANCESTORS_OK BISECT_NAMES NOTES_MERGE_PARTIAL NOTES_MERGE_REF"
+
+# export_stash_commit DIR PREFIX WT SHA: a stash-shaped commit (stash entry or autostash)
+# as patches: PREFIX.patch (tracked change), PREFIX.index.patch (staged part) and
+# PREFIX.untracked.patch (third parent, as new files).
+export_stash_commit() {
+  local dir=$1 prefix=$2 w=$3 sha=$4
+  stream_to "$dir/$prefix.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha"
+  [ "$STREAM_RC" = 0 ] || die "git diff failed for $prefix in $w"
+  stream_to "$dir/$prefix.index.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha^2"
+  [ "$STREAM_RC" = 0 ] || die "git diff failed for the index part of $prefix in $w"
+  gprobe "$w" rev-parse --verify -q "$sha^3"
+  case $STREAM_RC in
+    0) stream_to "$dir/$prefix.untracked.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$EMPTY_TREE" "$sha^3"
+       [ "$STREAM_RC" = 0 ] || die "git diff failed for the untracked part of $prefix in $w" ;;
+    1) ;;
+    *) die "git rev-parse failed for $prefix in $w" ;;
+  esac
+}
 
 # add_note FILE TEXT: a line for the worktree's NOTE.txt (written at the end).
 add_note() { echo "$2" >> "$1"; }
@@ -498,22 +536,35 @@ capture_worktree() {
   while IFS= read -r -d '' nm; do
     case " $STATE_TRIGGERS " in *" $nm "*) sf=1 ;; esac
   done < "$SCRATCH/state.names"
-  # Heads named by in-progress state files (every line: an octopus merge has several) are
-  # reachable from no ref; they go into the repository bundle as extra revs.
-  while IFS= read -r -d '' nm; do
-    case $nm in MERGE_HEAD|CHERRY_PICK_HEAD|REVERT_HEAD|REBASE_HEAD|ORIG_HEAD)
-      cap "$SCRATCH/head.file" cat "$gd/$nm"
-      [ "$STREAM_RC" = 0 ] || die "could not read $gd/$nm"
-      while IFS= read -r line; do
-        case $line in [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) printf '%s\t%s\n' "${line%% *}" "$w:$nm" >> "$EXTRA_FILE" ;; esac
-      done < "$SCRATCH/head.file" ;;
-    esac
-  done < "$SCRATCH/state.names"
+  # Every sha the git dir names (see SHA_FILES) is reachable from no ref necessarily; it
+  # goes into the repository bundle as an extra rev. Autostash commits are remembered for
+  # patch export too.
+  : > "$SCRATCH/autostash.shas"
+  if [ "$LIVE_ONLY" != 1 ]; then
+    # shellcheck disable=SC2016,SC2086  # the script runs on the pod; SHA_FILES is a word list
+    cap "$SCRATCH/gd.shas" bash -c "$PODGITFN"'; cd "$1" || exit 3; shift
+      { for n in "$@"; do if [ -f "$n" ]; then printf "%s\0" "$n"; fi; done
+        find rebase-merge rebase-apply sequencer -type f -print0 2>/dev/null; } |
+      while IFS= read -r -d "" f; do
+        grep -aEo "[0-9a-f]{40}" "$f" | while IFS= read -r sha; do printf "%s\t%s\n" "$sha" "$f"; done
+      done' _ "$gd" $SHA_FILES
+    [ "$STREAM_RC" = 0 ] || die "could not read the sha-bearing git-dir files of $gd"
+    while IFS=$'\t' read -r sha nm; do
+      [ -n "$sha" ] || continue
+      printf '%s\t%s\n' "$sha" "$w:$nm" >> "$EXTRA_FILE"
+      case ${nm##*/} in autostash|MERGE_AUTOSTASH) echo "$sha" >> "$SCRATCH/autostash.shas" ;; esac
+    done < "$SCRATCH/gd.shas"
+  fi
   if [ "$is_main" = 1 ]; then
     gprobe "$w" show-ref --verify -q refs/stash
     case $STREAM_RC in
       0) gfile "$SCRATCH/stash.shas" "$w" rev-list -g refs/stash
-         n=$(awk 'NF {c++} END {print c+0}' "$SCRATCH/stash.shas") ;;
+         n=$(awk 'NF {c++} END {print c+0}' "$SCRATCH/stash.shas")
+         # older entries are reachable only through the reflog: extra revs, so they can be
+         # restored as real stash entries
+         if [ "$LIVE_ONLY" != 1 ]; then
+           while IFS= read -r sha; do [ -z "$sha" ] || printf '%s\t%s\n' "$sha" "$w:stash" >> "$EXTRA_FILE"; done < "$SCRATCH/stash.shas"
+         fi ;;
       1) n=0 ;;
       *) die "git show-ref failed in $w (exit $STREAM_RC)" ;;
     esac
@@ -645,19 +696,22 @@ capture_worktree() {
     i=0
     while [ "$i" -lt "$n" ]; do
       sha=$(sed -n "$((i + 1))p" "$SCRATCH/stash.shas")
-      stream_to "$dir/stash-$i.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha"
-      [ "$STREAM_RC" = 0 ] || die "git diff failed for stash entry $i in $w"
-      stream_to "$dir/stash-$i.index.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$sha^1" "$sha^2"
-      [ "$STREAM_RC" = 0 ] || die "git diff failed for the index part of stash entry $i in $w"
-      gprobe "$w" rev-parse --verify -q "$sha^3"
-      case $STREAM_RC in
-        0) stream_to "$dir/stash-$i.untracked.patch" "${GITP[@]}" -C "$w" diff "${DIFFARGS[@]}" "$EMPTY_TREE" "$sha^3"
-           [ "$STREAM_RC" = 0 ] || die "git diff failed for untracked part of stash entry $i in $w" ;;
-        1) ;;
-        *) die "git rev-parse failed for stash entry $i in $w" ;;
-      esac
+      export_stash_commit "$dir" "stash-$i" "$w" "$sha"
       i=$((i + 1))
     done
+  fi
+
+  if [ -s "$SCRATCH/autostash.shas" ]; then
+    # An autostash holds uncommitted work while a rebase or merge is stopped. It stays
+    # named by the state file (restored with it); the patches make it recoverable even if
+    # the operation is aborted.
+    i=0
+    while IFS= read -r sha; do
+      [ -n "$sha" ] || continue
+      export_stash_commit "$dir" "autostash-$i" "$w" "$sha"
+      i=$((i + 1))
+    done < <(sort -u "$SCRATCH/autostash.shas")
+    add_note "$notes" "AUTOSTASH: uncommitted work is held by the autostash commit(s) named in the in-progress state; they are in the repository bundle, and autostash-N.patch/.index.patch/.untracked.patch export them. The restored state file lets 'git rebase --continue' / 'git merge --continue' re-apply them."
   fi
 
   if [ -s "$notes" ]; then adopt "$notes" "$dir/NOTE.txt"; fi
@@ -707,15 +761,44 @@ process_repo() {
   if [ "$LIVE_ONLY" = 1 ]; then collect_refs "$repo" "$name"; else bundle_refs "$repo" "$name" "$common"; fi
 }
 
-# scan_all: discovery plus per-repo processing (archive) or counting only (LIVE_ONLY).
-scan_all() {
+# process_all: per-repo processing of what discover found.
+process_all() {
   local repo kind common
-  discover
   while IFS=$'\t' read -r repo kind common; do
     [ -n "$repo" ] || continue
     echo "$common" >> "$SCRATCH/clone.list"
     process_repo "$repo" "$kind" "$common"
   done < "$SCRATCH/clones.tsv"
+}
+
+# scan_all: discovery plus per-repo processing (archive) or counting only (LIVE_ONLY).
+scan_all() { discover; process_all; }
+
+# space_preflight PRESENT_PATHS: the bundles hold complete histories, so compare what the
+# pod holds (git dirs plus the home paths) with the free space at DEST before streaming.
+space_preflight() {
+  local present=$1 repo kind common kb need free total=0 p args=()
+  while IFS=$'\t' read -r repo kind common; do
+    [ -n "$repo" ] || continue
+    cap "$SCRATCH/du" du -sk "$common"
+    kb=$(cut -f1 "$SCRATCH/du" | head -1)
+    total=$((total + ${kb:-0}))
+  done < "$SCRATCH/clones.tsv"
+  for p in $present; do args+=("$POD_HOME/$p"); done
+  if [ ${#args[@]} -gt 0 ]; then
+    cap "$SCRATCH/du" du -sk "${args[@]}"
+    while IFS=$'\t' read -r kb _; do total=$((total + ${kb:-0})); done < "$SCRATCH/du"
+  fi
+  need=$((total * 12 / 10))
+  free=$("$DF" -Pk "$DEST" | awk 'NR == 2 { print $4 }')
+  echo "space check: the pod holds about $total KiB to archive (x1.2 = $need KiB needed); $free KiB free at $DEST"
+  if [ "${free:-0}" -lt "$need" ]; then
+    if [ "$SKIP_SPACE_CHECK" = 1 ]; then
+      echo "WARNING: not enough free space ($free KiB < $need KiB); continuing because of --skip-space-check" >&2
+    else
+      die "not enough free space at $DEST: $free KiB free, about $need KiB needed (pod data $total KiB x 1.2). Free some space, point --dest elsewhere, or pass --skip-space-check."
+    fi
+  fi
 }
 
 cmd_archive() {
@@ -769,6 +852,8 @@ cmd_archive() {
   tv=$(cat "$SCRATCH/tarv")
   case $tv in *"GNU tar"*) tarflags+=("--warning=no-file-changed") ;; esac
 
+  discover
+  space_preflight "$present"
   echo "archiving home tree from $POD_HOME ..."
   # shellcheck disable=SC2086  # $present is a space-separated list of simple paths
   stream_to "$DEST/secure-agent-pod-home.tar.gz" tar -C "$POD_HOME" -czf - ${tarflags[@]+"${tarflags[@]}"} "${EXCLUDES[@]}" $present
@@ -780,7 +865,7 @@ cmd_archive() {
   gzip -t "$DEST/secure-agent-pod-home.tar.gz" || die "tarball fails gzip -t"
   tar -tzf "$DEST/secure-agent-pod-home.tar.gz" >/dev/null || die "tarball cannot be listed"
 
-  scan_all
+  process_all
   sort -u "$SCRATCH/clone.list" > "$DEST/CLONES.txt"
   echo "bundles: $TOTAL_BUNDLE_B bytes in total (pod git dirs: $TOTAL_POD_KB KiB); $(grep -c . "$DEST/LOCAL-ONLY.txt" || true) ref(s) hold commits no network remote has (LOCAL-ONLY.txt)"
   if [ "$ACCEPT_UNREADABLE" = 1 ]; then
@@ -981,6 +1066,23 @@ cmd_verify() {
   else
     fail "CLONES.txt and BUNDLES.txt present"
   fi
+  # An autostash named by a state file holds uncommitted work: its commit must be in the bundle.
+  local wd2 bfile ip sha2 missing2=""
+  if [ -d "$DEST/worktrees" ]; then
+    for wd2 in "$DEST"/worktrees/*/; do
+      [ -f "$wd2/inprogress.tar.gz" ] || continue
+      ip=$(mktemp -d)
+      tar -xzf "$wd2/inprogress.tar.gz" -C "$ip" 2>/dev/null || true
+      bfile=$(sed -n 's/^bundle=//p' "$wd2/meta.txt" 2>/dev/null)
+      for sha2 in $( { cat "$ip/MERGE_AUTOSTASH" "$ip/rebase-merge/autostash" "$ip/rebase-apply/autostash"; } 2>/dev/null | grep -aEo '[0-9a-f]{40}'); do
+        if ! grep -q "$sha2" "$DEST/EXTRA-REVS.txt" 2>/dev/null; then missing2="$missing2 $sha2"; continue; fi
+        git -C "$scratch" bundle unbundle "$DEST/bundles/$bfile" >/dev/null 2>&1 || true
+        git -C "$scratch" cat-file -e "$sha2^{commit}" 2>/dev/null || missing2="$missing2 $sha2"
+      done
+      rm -rf "$ip"
+    done
+  fi
+  if [ -z "$missing2" ]; then pass "autostash commits are in the bundles"; else fail "autostash commits are in the bundles (missing:$missing2)"; fi
   rm -rf "$scratch"
 
   if [ "$LIVE" = 1 ]; then
@@ -1025,28 +1127,46 @@ cmd_verify() {
 # DIR is an empty directory or a fresh clone of anything (it becomes a repository).
 cmd_restore_worktree() {
   [ -n "$RW_PATH" ] && [ -n "$RW_TARGET" ] || usage
-  local dir meta bundle head headref t ref sha cur x f p
+  local dir meta bundle head headref t ref sha cur x f p line
   dir=$(dirty_dir "$RW_PATH")
   meta=$dir/meta.txt
   [ -f "$meta" ] || die "no saved state for $RW_PATH in $DEST (not listed in DIRTY.txt?). For a clean repository: git fetch <bundle> 'refs/*:refs/*'"
   bundle=$(sed -n 's/^bundle=//p' "$meta"); head=$(sed -n 's/^head=//p' "$meta"); headref=$(sed -n 's/^headref=//p' "$meta")
-  [ -f "$DEST/bundles/$bundle" ] || die "bundle $bundle is missing from $DEST"
   mkdir -p "$RW_TARGET"
   t=$(cd "$RW_TARGET" && pwd -P)
   [ -d "$t/.git" ] || git init -q "$t"
-  # 1. every ref and object of the repository, from the bundle alone
-  git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*' '+HEAD:refs/archive/HEAD' 2>/dev/null \
-    || git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*'
-  # park the checkout on a throwaway ref, then recreate every ref under its own name
-  if [ "$head" != unborn ]; then git -C "$t" checkout -q -f --detach "$head"; fi
-  while read -r sha ref; do
-    case $ref in refs/archive/HEAD|"") continue ;; esac
-    git -C "$t" update-ref "refs/${ref#refs/archive/}" "$sha"
-  done < <(git -C "$t" for-each-ref --format='%(objectname) %(refname)' refs/archive/)
-  while read -r ref; do git -C "$t" update-ref -d "$ref"; done < <(git -C "$t" for-each-ref --format='%(refname)' refs/archive/)
+  if [ ! -f "$DEST/bundles/$bundle" ]; then
+    # No bundle means the repository had no refs: only an unborn HEAD can be restored.
+    [ "$head" = unborn ] || die "bundle $bundle is missing from $DEST"
+    case $headref in refs/heads/*) git -C "$t" symbolic-ref HEAD "$headref" ;; esac
+  else
+    # 1. every ref and object of the repository, from the bundle alone
+    git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*' '+HEAD:refs/archive/HEAD' 2>/dev/null \
+      || git -C "$t" fetch -q "$DEST/bundles/$bundle" '+refs/*:refs/archive/*'
+    # park the checkout on a throwaway ref, then recreate every ref under its own name
+    if [ "$head" != unborn ]; then git -C "$t" checkout -q -f --detach "$head"; fi
+    while read -r sha ref; do
+      case $ref in refs/archive/HEAD|"") continue ;; esac
+      git -C "$t" update-ref --create-reflog "refs/${ref#refs/archive/}" "$sha"
+    done < <(git -C "$t" for-each-ref --format='%(objectname) %(refname)' refs/archive/)
+    while read -r ref; do git -C "$t" update-ref -d "$ref"; done < <(git -C "$t" for-each-ref --format='%(refname)' refs/archive/)
+    # stash entries: replay oldest first, so stash@{0..n-1} come back in order with their messages
+    if [ -f "$dir/stash-shas.txt" ] && [ -f "$dir/stash-list.txt" ]; then
+      git -C "$t" update-ref -d refs/stash 2>/dev/null || true
+      local total k msg
+      total=$(grep -c . "$dir/stash-shas.txt" || true)
+      k=$((total - 1))
+      while [ "$k" -ge 0 ]; do
+        sha=$(sed -n "$((k + 1))p" "$dir/stash-shas.txt")
+        msg=$(sed -n "$((k + 1))p" "$dir/stash-list.txt"); msg=${msg#*: }
+        git -C "$t" stash store -m "$msg" "$sha"
+        k=$((k - 1))
+      done
+    fi
+  fi
   # 2. the checked-out state
   case $headref in
-    refs/heads/*) git -C "$t" checkout -q -f "${headref#refs/heads/}" 2>/dev/null || git -C "$t" checkout -q -f -B "${headref#refs/heads/}" "$head" ;;
+    refs/heads/*) [ "$head" = unborn ] || git -C "$t" checkout -q -f "${headref#refs/heads/}" 2>/dev/null || git -C "$t" checkout -q -f -B "${headref#refs/heads/}" "$head" ;;
     *) [ "$head" = unborn ] || git -C "$t" checkout -q -f --detach "$head" ;;
   esac
   # 3. index and working tree: staged changes, then unstaged ones (patches holding only
@@ -1060,6 +1180,17 @@ cmd_restore_worktree() {
   for x in untracked hidden conflicted; do
     if [ -f "$dir/$x.tar.gz" ]; then tar -xzf "$dir/$x.tar.gz" -C "$t"; fi
   done
+  # skip-worktree / assume-unchanged bits: the files came back with the tarball, so
+  # re-hide them (hidden.txt lines are "<ls-files -v tag> <path>").
+  if [ -f "$dir/hidden.txt" ]; then
+    while IFS= read -r line; do
+      f=${line#? }
+      case ${line%% *} in
+        S) git -C "$t" update-index --skip-worktree -- "$f" ;;
+        [a-z]) git -C "$t" update-index --assume-unchanged -- "$f" ;;
+      esac
+    done < "$dir/hidden.txt"
+  fi
   # 4. an operation in progress: its state files go back into the git dir
   if [ -f "$dir/inprogress.tar.gz" ]; then
     tar -xzf "$dir/inprogress.tar.gz" -C "$(git -C "$t" rev-parse --absolute-git-dir)"
@@ -1158,12 +1289,14 @@ OLD_GONE_OK=0
 RW_PATH=""
 RW_TARGET=""
 LIVE=0
+SKIP_SPACE_CHECK=0
 ACCEPT_UNREADABLE=0
 while [ $# -gt 0 ]; do
   case $1 in
     --dest) [ $# -ge 2 ] || usage; DEST=$2; shift 2 ;;
     --session-ended-confirmed) CONFIRMED=1; shift ;;
     --live) LIVE=1; shift ;;
+    --skip-space-check) SKIP_SPACE_CHECK=1; shift ;;
     --worktree) [ $# -ge 2 ] || usage; RW_PATH=$2; shift 2 ;;
     --target) [ $# -ge 2 ] || usage; RW_TARGET=$2; shift 2 ;;
     --accept-unreadable) ACCEPT_UNREADABLE=1; shift ;;
