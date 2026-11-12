@@ -208,3 +208,96 @@ Operator's words, in chat rather than an answered question: 'approved. Run it wi
 ### d-phase1-only-filed · decision [filed → https://github.com/derio-net/frank/issues/951] · files d-phase1-only: This run ships Phase 1 only; Phase 2 is tracked in #950
 
 Filed the rest of `d-phase1-only` at deliver as https://github.com/derio-net/frank/issues/951.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-12T12:32:54+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
+
+Evidence: 2026-11-12 12:30 UTC. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704 and kali restart count 0 equal the baseline file. Pod created 2026-10-21 and kali started 2026-10-21, both before the merge
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-11-12T12:32:57+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
+
+Evidence: Grafana restarted 2026-11-12 12:25 UTC after the tombstone was confirmed in the rules ConfigMap. The provisioning API on the running pod lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat Stale is inactive with instances only for audit_digest and session_manager. The retained vk_issue_bridge pushgateway group was deleted with HTTP 202 and 0 series remain
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-12T12:33:00+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
+
+Evidence: Namespace agents is NotFound. IngressRoute vk-remote was still live on 2026-11-12, was deleted by hand, and is now NotFound, and vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no application with vk in its slug and no VK proxy provider. The three live homepage ConfigMaps hold no VK tile. All seven changed Applications last operated at merge commit 8af826ee, traefik-extras only after an explicit sync
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-12T12:33:03+00:00 -->
+### test-plan-step-4 · discovery · Test Plan step 4: ran
+
+Step: `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
+
+Evidence: ClusterGenerator github-app-derio carries a tekton-extras tracking id. After a forced resync at epoch 1794486621, frank-gitops-push is SecretSynced with refreshTime 2026-11-12T12:30:21Z. agent-github-token and agent-secrets-tier2 in the pod namespace are still SecretSynced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-2 created=2026-11-12T12:33:21+00:00 -->
+### test-plan-step-1-2 · discovery · Test Plan step 1: ran
+
+Step: Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
+
+Evidence: Spec row 0. Supersedes an entry misfiled by one position. Dump on the Mac is 4.2 MB, created 2026-11-09 21:04:47 UTC, and pg_restore lists 331 TOC entries with 35 table data entries. Pod baseline file holds UID 26422d60 and kali restart count 0. Caveat. The dump and baseline are timestamped about 70 seconds after the merge at 21:03:35 UTC, and the app diff and no open bump PR checks left no record, so those two cannot be re-proved now. The pod creation time of 2026-10-21 proves it was not replaced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2-2 created=2026-11-12T12:33:24+00:00 -->
+### test-plan-step-2-2 · discovery · Test Plan step 2: ran
+
+Step: `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
+
+Evidence: Spec row 1. Supersedes an entry misfiled by one position. 2026-11-12 12:30 UTC. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704 and kali restart count 0 equal the baseline file. Pod created 2026-10-21 and kali started 2026-10-21, both before the merge
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3-2 created=2026-11-12T12:33:28+00:00 -->
+### test-plan-step-3-2 · discovery · Test Plan step 3: ran
+
+Step: After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
+
+Evidence: Spec row 2. Supersedes an entry misfiled by one position. Grafana restarted 2026-11-12 12:25 UTC after the tombstone was confirmed in the rules ConfigMap. The provisioning API on the running pod lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat Stale is inactive with instances only for audit_digest and session_manager. The retained vk_issue_bridge pushgateway group was deleted with HTTP 202 and 0 series remain
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4-2 created=2026-11-12T12:33:31+00:00 -->
+### test-plan-step-4-2 · discovery · Test Plan step 4: ran
+
+Step: `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
+
+Evidence: Spec row 3. Supersedes an entry misfiled by one position. Namespace agents is NotFound. IngressRoute vk-remote was still live on 2026-11-12, was deleted by hand, and is now NotFound, and vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no application with vk in its slug and no VK proxy provider. The three live homepage ConfigMaps hold no VK tile. All seven changed Applications last operated at merge commit 8af826ee, traefik-extras only after an explicit sync
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-12T12:33:34+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
+
+Evidence: Spec row 4. ClusterGenerator github-app-derio carries a tekton-extras tracking id. After a forced resync at epoch 1794486621, frank-gitops-push is SecretSynced with refreshTime 2026-11-12T12:30:21Z. agent-github-token and agent-secrets-tier2 in the pod namespace are still SecretSynced
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-6 created=2026-11-12T12:43:56+00:00 -->
+### test-plan-step-6 · owed · Test Plan step 6 owed
+
+what: The next agent-images bump run completes with its coverage check green.
+why: Spec row 5. Needs agent-images PR176 merged. Its branch build is green at b6de16b but the agent session was refused the merge and it is handed to the operator
+how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-6 --state fixed --note "<evidence>"
+owed_key: spec:2026-11-08--agents--retire-vk#step6
+
+<!-- fr:journal kind=owed scope=spec id=test-plan-step-7 created=2026-11-12T12:43:58+00:00 -->
+### test-plan-step-7 · owed · Test Plan step 7 owed
+
+what: `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
+why: Spec row 6. The fork archive must follow the agent-images merge and a green bump run. ci-delivery-check already holds no series for the fork
+how: fr journal resolve --scope spec --slug 2026-11-08--agents--retire-vk --id test-plan-step-7 --state fixed --note "<evidence>"
+owed_key: spec:2026-11-08--agents--retire-vk#step7
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6-2 created=2026-11-12T17:11:32+00:00 -->
+### test-plan-step-6-2 · discovery · Test Plan step 6: ran
+
+Step: The next agent-images bump run completes with its coverage check green.
+
+Evidence: Spec row 5. agent-images PR176 merged 2026-11-12 as fe2fb9b after a green branch build at b6de16b. Main build 43260930622 is green. Frank bump run 43264032464 succeeded with its Verify coverage step green and opened bump PR 957, which touches alert-agent, cnc-base, hermes-agent-shell and n8n-01 and no secure-agent-pod file
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7-2 created=2026-11-12T17:11:37+00:00 -->
+### test-plan-step-7-2 · discovery · Test Plan step 7: ran
+
+Step: `derio-net/vibe-kanban` reports `archived: true`, and `ci-delivery-check` reports no overdue finding for it.
+
+Evidence: Spec row 6. derio-net/vibe-kanban reports archived true and has 0 webhooks. ci-delivery-check holds no series for the fork and no overdue gauge is above zero. agent-github-token and agent-secrets-tier2 are still SecretSynced. Removing the four VK_REMOTE keys from Infisical is still owed by the operator

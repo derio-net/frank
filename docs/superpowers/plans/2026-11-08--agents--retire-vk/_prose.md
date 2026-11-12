@@ -29,7 +29,7 @@ commands:
   - After the sweep, delete both through the Grafana Alertmanager API (DELETE /api/alertmanager/grafana/api/v2/silence/<id>), or let them expire.
 verify:
   - The Grafana alerts API shows no VK alert and no job=vk_issue_bridge instance, with the silences gone.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -51,7 +51,7 @@ verify:
   - pg_restore lists tables from the dump.
   - The app diff shows no Deployment change.
   - No bump/agent-images PR is open; close any that is.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -75,7 +75,7 @@ verify:
   - kubectl get ns agents is NotFound.
   - kubectl -n tekton-pipelines get externalsecret frank-gitops-push reports SecretSynced with a refreshed token.
   - The kubectl -n secure-agent-pod pod UID and kali restart count equal the pre-merge baseline.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -93,5 +93,5 @@ commands:
 verify:
   - gh api repos/derio-net/vibe-kanban --jq .archived prints true.
   - agent-github-token and agent-secrets-tier2 in secure-agent-pod are still SecretSynced.
-status: pending
+status: done
 ```
