@@ -222,3 +222,10 @@ Evidence: 2026-11-12 12:30 UTC. Pod UID 26422d60-2ec3-4181-ad18-074e102d9704 and
 Step: `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
 
 Evidence: Grafana restarted 2026-11-12 12:25 UTC after the tombstone was confirmed in the rules ConfigMap. The provisioning API on the running pod lists 63 rules and none with a vk- UID. Layer 18 Persistent Agent Heartbeat Stale is inactive with instances only for audit_digest and session_manager. The retained vk_issue_bridge pushgateway group was deleted with HTTP 202 and 0 series remain
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-12T12:33:00+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: After the Grafana restart, the Grafana API lists none of the three VK rule UIDs, and `Layer 18 Persistent Agent Heartbeat Stale` has no `job=vk_issue_bridge` instance.
+
+Evidence: Namespace agents is NotFound. IngressRoute vk-remote was still live on 2026-11-12, was deleted by hand, and is now NotFound, and vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no application with vk in its slug and no VK proxy provider. The three live homepage ConfigMaps hold no VK tile. All seven changed Applications last operated at merge commit 8af826ee, traefik-extras only after an explicit sync
