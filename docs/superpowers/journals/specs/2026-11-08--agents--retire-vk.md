@@ -264,3 +264,10 @@ Evidence: Spec row 2. Supersedes an entry misfiled by one position. Grafana rest
 Step: `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
 
 Evidence: Spec row 3. Supersedes an entry misfiled by one position. Namespace agents is NotFound. IngressRoute vk-remote was still live on 2026-11-12, was deleted by hand, and is now NotFound, and vk.cluster.derio.net answers Traefik 404. The Authentik ORM returns no application with vk in its slug and no VK proxy provider. The three live homepage ConfigMaps hold no VK tile. All seven changed Applications last operated at merge commit 8af826ee, traefik-extras only after an explicit sync
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-12T12:33:34+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: `kubectl get clustergenerator github-app-derio` shows a `tekton-extras` tracking id. After a forced resync, `frank-gitops-push` is `SecretSynced` with a refreshed token.
+
+Evidence: Spec row 4. ClusterGenerator github-app-derio carries a tekton-extras tracking id. After a forced resync at epoch 1794486621, frank-gitops-push is SecretSynced with refreshTime 2026-11-12T12:30:21Z. agent-github-token and agent-secrets-tier2 in the pod namespace are still SecretSynced
