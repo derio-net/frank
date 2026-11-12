@@ -74,6 +74,7 @@ def test_registration_is_manual_and_child_stays_disabled():
         item for item in resources(result)
         if item.get("metadata", {}).get("name") == "paperclip-trial"
     )
+    assert application["metadata"]["finalizers"] == ["resources-finalizer.argocd.argoproj.io"]
     assert "automated" not in application["spec"]["syncPolicy"]
     assert application["spec"]["source"]["targetRevision"] == SHA
     assert application["spec"]["source"]["path"] == "apps/paperclip-trial"

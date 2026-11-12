@@ -40,6 +40,9 @@ No TLS termination or port-443 access is claimed by these ClusterIP services.
 Deployment, registration, replica changes, routing, credential creation, and
 ArgoCD sync require a later approved execution change. Removing desired state
 alone does not prove cleanup because the repository uses manual pruning.
+The Application has the repository-standard resource finalizer. Explicit deletion
+of an activated Application can cascade to its managed resources, so export
+required evidence before authorizing that deletion.
 
 ## Local verification
 

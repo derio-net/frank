@@ -7,6 +7,8 @@ kind: Application
 metadata:
   name: paperclip-trial
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
   source:
