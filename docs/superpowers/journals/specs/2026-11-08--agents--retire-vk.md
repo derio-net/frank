@@ -236,3 +236,10 @@ Evidence: Namespace agents is NotFound. IngressRoute vk-remote was still live on
 Step: `kubectl get ns agents` is NotFound. `kubectl -n traefik-system get ingressroute vk-remote` is NotFound, because the namespace's removal alone would hide a skipped manual delete. Authentik has no `vk-remote-cluster` application or `VK Remote (cluster)` provider, and the homepage has no VK tile.
 
 Evidence: ClusterGenerator github-app-derio carries a tekton-extras tracking id. After a forced resync at epoch 1794486621, frank-gitops-push is SecretSynced with refreshTime 2026-11-12T12:30:21Z. agent-github-token and agent-secrets-tier2 in the pod namespace are still SecretSynced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-2 created=2026-11-12T12:33:21+00:00 -->
+### test-plan-step-1-2 · discovery · Test Plan step 1: ran
+
+Step: Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
+
+Evidence: Spec row 0. Supersedes an entry misfiled by one position. Dump on the Mac is 4.2 MB, created 2026-11-09 21:04:47 UTC, and pg_restore lists 331 TOC entries with 35 table data entries. Pod baseline file holds UID 26422d60 and kali restart count 0. Caveat. The dump and baseline are timestamped about 70 seconds after the merge at 21:03:35 UTC, and the app diff and no open bump PR checks left no record, so those two cannot be re-proved now. The pod creation time of 2026-10-21 proves it was not replaced
