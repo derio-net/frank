@@ -27,6 +27,11 @@
 # are pruned and recorded in SKIPPED.txt. LOCAL-ONLY.txt is information: refs whose commits
 # no network remote tracking ref has (a remote whose URL is a local path does not count).
 #
+# Transport: pod calls that come back cut (no status line, digest mismatch, kubectl failing
+# without a status line) are retried up to 4 times with ARCHIVE_RETRY_DELAYS (default "2 5 10")
+# between attempts; a real non-zero exit status of the pod command is never retried.
+# RETRIES.txt lists the streams that needed retries.
+#
 # Env: KUBECTL (default kubectl), SOPS (default sops), GIT (default git), POD_HOME (default
 # /home/claude; tests point it at a fixture directory).
 set -euo pipefail
@@ -130,6 +135,7 @@ EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 read -r -d '' PODSTREAM <<'POD' || true
 d=$(mktemp -d) || exit 97
 trap 'rm -rf "$d"' EXIT
+trap 'exit 1' HUP INT TERM PIPE
 export STREAM_TMP="$d"
 mkfifo "$d/f"
 sha256sum < "$d/f" > "$d/sum" &
@@ -145,24 +151,61 @@ STREAM_ERR=""
 STREAM_RC=0
 LIVE_ONLY=0
 
+# Transport faults. `kubectl exec` through the proxied API drops streams now and then, of
+# any size. A CUT stream is retried (it is read-only on the pod, and every attempt starts a
+# fresh throwaway dir there that its EXIT/HUP/TERM trap removes): the pod's status line
+# missing, a pod-side digest that differs from the received bytes, or kubectl itself
+# failing without a status line. A real non-zero exit status reported through the sentinel
+# is NEVER retried. Up to 4 attempts, with ARCHIVE_RETRY_DELAYS between them (seconds,
+# space separated; default "2 5 10").
+STREAM_MAX_ATTEMPTS=4
+RETRY_DELAYS=${ARCHIVE_RETRY_DELAYS:-"2 5 10"}
+
 # stream_to OUTFILE CMD...: run CMD on the pod, store stdout in OUTFILE, and
 # require that the pod-side digest equals the digest of what arrived. Sets
 # STREAM_RC (the command's exit status) and STREAM_ERR (its stderr). Records the
-# digest in $DEST/REMOTE.sha256 when STREAM_RECORD=1.
+# digest in $DEST/REMOTE.sha256 when STREAM_RECORD=1. Output goes to OUTFILE.part first
+# and replaces OUTFILE only when complete, so a cut never leaves partial bytes behind.
 stream_to() {
   local out=$1; shift
-  local errf; errf=$(mktemp)
+  local part="$out.part" name errf attempt=1 reason kind delays=() d krc rc rsha lsha
+  name=$(basename "$out")
   mkdir -p "$(dirname "$out")"
-  rexec bash -c "$PODSTREAM" _ "$@" > "$out" 2> "$errf" || true
-  local rc rsha lsha
-  rc=$(sed -n 's/^REMOTE-RC //p' "$errf" | tail -1)
-  rsha=$(sed -n 's/^REMOTE-SHA256 //p' "$errf" | tail -1)
-  STREAM_ERR=$(grep -v -e '^REMOTE-RC ' -e '^REMOTE-SHA256 ' "$errf" || true)
-  rm -f "$errf"
-  [ -n "$rc" ] && [ -n "$rsha" ] || die "stream for $(basename "$out") ended without the pod's status line; the transfer was cut"
-  lsha=$(shasum -a 256 "$out" | cut -d' ' -f1)
-  [ "$rsha" = "$lsha" ] || die "stream for $(basename "$out") is damaged: pod sent $rsha, received $lsha"
+  read -r -a delays <<<"$RETRY_DELAYS"
+  while :; do
+    errf=$(mktemp)
+    krc=0
+    rexec bash -c "$PODSTREAM" _ "$@" > "$part" 2> "$errf" || krc=$?
+    rc=$(sed -n 's/^REMOTE-RC //p' "$errf" | tail -1)
+    rsha=$(sed -n 's/^REMOTE-SHA256 //p' "$errf" | tail -1)
+    STREAM_ERR=$(grep -v -e '^REMOTE-RC ' -e '^REMOTE-SHA256 ' "$errf" || true)
+    rm -f "$errf"
+    reason=""; kind=""
+    if [ -z "$rc" ] || [ -z "$rsha" ]; then
+      kind=nostatus
+      if [ "$krc" != 0 ]; then reason="kubectl exec failed (exit $krc) without the pod's status line"; else reason="no status line from the pod"; fi
+    else
+      lsha=$(shasum -a 256 "$part" | cut -d' ' -f1)
+      if [ "$rsha" != "$lsha" ]; then kind=digest; reason="pod sent $rsha, received $lsha"; fi
+    fi
+    [ -n "$reason" ] || break
+    rm -f "$part"
+    if [ "$attempt" -ge "$STREAM_MAX_ATTEMPTS" ]; then
+      rm -f "$out"
+      printf '%s\t%s\n' "$name" "$attempt" >> "$SCRATCH/retries.txt"
+      if [ "$kind" = digest ]; then
+        die "stream for $name is damaged: $reason (after $attempt attempts)"
+      fi
+      die "stream for $name ended without the pod's status line; the transfer was cut (after $attempt attempts)"
+    fi
+    d=${delays[$((attempt - 1))]:-10}
+    echo "retry: stream $name attempt $attempt/$STREAM_MAX_ATTEMPTS cut ($reason); retrying in ${d}s" >&2
+    sleep "$d"
+    attempt=$((attempt + 1))
+  done
+  mv "$part" "$out"
   STREAM_RC=$rc
+  if [ "$attempt" -gt 1 ]; then printf '%s\t%s\n' "$name" "$attempt" >> "$SCRATCH/retries.txt"; fi
   if [ "$STREAM_RECORD" = 1 ]; then echo "$rsha  ${out#"$DEST"/}" >> "$DEST/REMOTE.sha256"; fi
 }
 
@@ -217,12 +260,21 @@ gprobe() {
 # reads a here-string, so a huge listing cannot cause a SIGPIPE false negative the
 # way `printf | grep -q` does under pipefail.
 session_running() {
+  # Judged on argv[0]'s basename, not on any word in the line, so `sshd-session: claude
+  # [postauth]` (a login as user claude), `su - claude` or `sudo -u claude bash` do not count.
   awk '
-    /remote-control/ { next }
-    /(^|[ \/])claude( |$)/ { found=1; exit }
-    /claude-code/ || /claude\/versions/ { found=1; exit }
-    /herdr/ { found=1; exit }
-    /(^|[ \/])tmux( |:|$)/ { found=1; exit }
+    function base(x) { sub(/.*\//, "", x); return x }
+    {
+      first = base($1)
+      if (first ~ /^sshd/) next
+      if ($0 ~ /remote-control/) next
+      if (first == "claude" || first == "herdr" || first == "tmux" || first == "tmux:") { found = 1; exit }
+      if (first ~ /^claude-code/) { found = 1; exit }
+      if ($0 ~ /claude-code\// || $0 ~ /claude\/versions\//) { found = 1; exit }
+      if (first == "node" || first == "nodejs" || first == "bun") {
+        for (i = 2; i <= NF; i++) if (base($i) == "claude" || base($i) == "herdr") { found = 1; exit }
+      }
+    }
     END { exit found ? 0 : 1 }' <<<"$1"
 }
 
@@ -874,7 +926,7 @@ cmd_archive() {
   rm -rf "$DEST/bundles" "$DEST/worktrees" "$DEST/refs" "$DEST/tags" "$DEST/ignored"
   rm -f "$DEST/LOCAL-ONLY.txt" "$DEST/EXTRA-REVS.txt" "$DEST/BUNDLES.txt"
   rm -f "$DEST/REMOTE.sha256" "$DEST/SKIPPED.txt" "$DEST/DETACHED.txt" "$DEST/DIRTY.txt" \
-        "$DEST/EXCLUDED.txt" "$DEST/CLONES.txt" "$DEST/ACCEPTED.txt" "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
+        "$DEST/EXCLUDED.txt" "$DEST/CLONES.txt" "$DEST/ACCEPTED.txt" "$DEST/RETRIES.txt" "$DEST/MANIFEST.sha256" "$DEST/secure-agent-pod-home.tar.gz"
   mkdir -p "$DEST/bundles"
   : > "$DEST/REMOTE.sha256"; : > "$DEST/SKIPPED.txt"; : > "$DEST/DETACHED.txt"
   : > "$DEST/DIRTY.txt"; : > "$DEST/EXCLUDED.txt"; : > "$DEST/CLONES.txt"
@@ -939,6 +991,12 @@ cmd_archive() {
 
   process_all
   sort -u "$SCRATCH/clone.list" > "$DEST/CLONES.txt"
+  cp "$SCRATCH/retries.txt" "$DEST/RETRIES.txt"
+  if [ -s "$DEST/RETRIES.txt" ]; then
+    echo "transport retries: $(grep -c . "$DEST/RETRIES.txt") stream(s) needed more than one attempt (RETRIES.txt: stream, attempts)"
+  else
+    echo "transport retries: none"
+  fi
   echo "bundles: $TOTAL_BUNDLE_B bytes in total (pod git dirs: $TOTAL_POD_KB KiB); $(grep -c . "$DEST/LOCAL-ONLY.txt" || true) ref(s) hold commits no network remote has (LOCAL-ONLY.txt)"
   if [ "$ACCEPT_UNREADABLE" = 1 ]; then
     grep -E '^(unreadable|not a usable)' "$DEST/SKIPPED.txt" > "$DEST/ACCEPTED.txt" || true
@@ -1114,6 +1172,9 @@ cmd_verify() {
     done
   fi
 
+  if [ -s "$DEST/RETRIES.txt" ]; then
+    echo "INFO archive needed retries on the transport (stream, attempts): $(tr '\t\n' ' :' < "$DEST/RETRIES.txt")"
+  fi
   if [ -s "$DEST/LOCAL-ONLY.txt" ]; then
     echo "INFO $(grep -c . "$DEST/LOCAL-ONLY.txt") ref(s) hold commits no network remote has (LOCAL-ONLY.txt); the bundles carry all refs regardless"
   fi
@@ -1324,6 +1385,23 @@ sops_key_fp_from_git() {
   printf '%s\n' "$enc" | "$SOPS" -d --input-type yaml --output-type yaml /dev/stdin | data_value "$keyname" | fp
 }
 
+# kubectl_secret_with_retry KEY: read the live Secret value, retrying a failed or empty read
+# (same bounded attempts and delays as the exec streams).
+kubectl_secret_with_retry() {
+  local key=$1 attempt=1 v delays=() d
+  read -r -a delays <<<"$RETRY_DELAYS"
+  while :; do
+    if v=$("$KUBECTL" -n tekton-pipelines get secret github-app-derio-key -o "jsonpath={.data.$key}") && [ -n "$v" ]; then
+      printf '%s' "$v"; return 0
+    fi
+    [ "$attempt" -lt "$STREAM_MAX_ATTEMPTS" ] || return 1
+    d=${delays[$((attempt - 1))]:-10}
+    echo "retry: kubectl read of the live Secret attempt $attempt/$STREAM_MAX_ATTEMPTS failed; retrying in ${d}s" >&2
+    sleep "$d"
+    attempt=$((attempt + 1))
+  done
+}
+
 cmd_key_fingerprint() {
   local tekton="$REPO_ROOT/secrets/github-app/github-app-derio-key-tekton.yaml"
   local old="$REPO_ROOT/secrets/github-app/github-app-derio-key.yaml"
@@ -1334,7 +1412,7 @@ cmd_key_fingerprint() {
   [ -n "$keyname" ] || die "could not read the data key name from $tekton"
 
   local live tek oldfp="" bad=0 rc
-  live=$("$KUBECTL" -n tekton-pipelines get secret github-app-derio-key -o "jsonpath={.data.$keyname}" | fp) || die "live Secret value unusable"
+  live=$(kubectl_secret_with_retry "$keyname" | fp) || die "live Secret value unusable"
   tek=$(sops_key_fp "$tekton" "$keyname") || die "Tekton SOPS copy value unusable"
   echo "live Secret tekton-pipelines/github-app-derio-key : $live"
   echo "$(basename "$tekton")                  : $tek"
@@ -1384,6 +1462,7 @@ done
 
 SCRATCH=$(mktemp -d)
 trap 'rm -rf "$SCRATCH"' EXIT
+: > "$SCRATCH/retries.txt"
 
 case $SUB in
   archive) cmd_archive ;;

@@ -20,6 +20,29 @@ shift
 if [ "$1" = ps ]; then cat "$STUB_PS"; exit 0; fi
 # the pod-side digest wrapper: `bash -c <script> _ <cmd...>`; serve ps from the fixture
 if [ "$1" = bash ] && [ "$5" = ps ]; then exec bash -c "$3" _ cat "$STUB_PS"; fi
+if [ -n "${STUB_CALLS_LOG:-}" ]; then echo "$*" >> "$STUB_CALLS_LOG"; fi
+# transport faults: STUB_FAULT=drop|flip|nostatus|cut, first STUB_FAULT_TIMES matching calls
+if [ -n "${STUB_FAULT:-}" ]; then
+  m=${STUB_FAULT_MATCH:-}; hit=0
+  if [ -z "$m" ]; then hit=1; else case " $* " in *" $m "*) hit=1 ;; esac; fi
+  if [ "$hit" = 1 ]; then
+    n=$(cat "$STUB_FAULT_COUNT" 2>/dev/null || echo 0)
+    if [ "$n" -lt "${STUB_FAULT_TIMES:-1000}" ]; then
+      echo $((n + 1)) > "$STUB_FAULT_COUNT"
+      t=$(mktemp); e=$(mktemp); "$@" > "$t" 2> "$e"
+      case $STUB_FAULT in
+        drop) head -c "${STUB_FAULT_BYTES:-7}" "$t"; rm -f "$t" "$e"; exit 1 ;;
+        cut) head -c "${STUB_FAULT_BYTES:-7}" "$t"; cat "$e" >&2; rm -f "$t" "$e"; exit 0 ;;
+        flip) cat "$t"; printf x; cat "$e" >&2; rm -f "$t" "$e"; exit 0 ;;
+        nostatus) cat "$t"; grep -v '^REMOTE-' "$e" >&2; rm -f "$t" "$e"; exit 0 ;;
+      esac
+    fi
+  fi
+fi
+# a real, non-zero exit status of the pod command (reported through the sentinel)
+if [ -n "${STUB_FAIL_RC:-}" ] && [ "$1" = bash ]; then
+  case " $* " in *" $STUB_FAIL_RC "*) exec bash -c "$3" _ sh -c 'exit 7' ;; esac
+fi
 if [ -n "${STUB_FAIL:-}" ]; then
   case " $* " in *" $STUB_FAIL "*) echo "stub: $STUB_FAIL failed" >&2; exit 1 ;; esac
 fi
@@ -38,7 +61,9 @@ def _env(tmp_path, ps="bash\nclaude remote-control\n", home=None):
     stub.chmod(0o755)
     psf = tmp_path / "ps.txt"
     psf.write_text(ps)
-    env = {**os.environ, "KUBECTL": str(stub), "STUB_PS": str(psf)}
+    env = {**os.environ, "KUBECTL": str(stub), "STUB_PS": str(psf),
+           "STUB_FAULT_COUNT": str(tmp_path / "fault-count"), "STUB_CALLS_LOG": str(tmp_path / "calls.log"),
+           "ARCHIVE_RETRY_DELAYS": "0 0 0"}
     if home is not None:
         env["POD_HOME"] = str(home)
     return env
@@ -268,8 +293,11 @@ def test_bundle_is_self_contained_and_local_only_is_reported(tmp_path):
 
 
 def test_truncated_tarball_stream_fails_archive(tmp_path):
+    # a stub that ALWAYS truncates still fails, now after the bounded retries
     r, dest, _, _ = _archive_ok(tmp_path, {"STUB_CUT": "300"})
     assert r.returncode != 0
+    assert "after 4 attempts" in r.stderr
+    assert not list(dest.rglob("*.part"))
 
 
 def test_verify_fails_on_a_truncated_tarball(tmp_path):
@@ -1846,3 +1874,140 @@ def test_the_usage_text_lists_the_claude_exclusions():
     usage = subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True).stderr
     for needle in (".claude", "statsig", "shell-snapshots", "plugins/cache", "transcripts"):
         assert needle in usage, needle
+
+
+# --- bounded retry of cut exec streams; session guard vs sshd ---------------------
+
+def _calls(tmp_path, word):
+    log = tmp_path / "calls.log"
+    return [l for l in log.read_text().splitlines() if word in l] if log.exists() else []
+
+
+def test_a_probe_cut_on_the_first_attempt_succeeds_on_the_second(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    ref_env = tmp_path / "ref"
+    ref_env.mkdir()
+    h2 = _fixture_home(ref_env)
+    _plain_clone(h2, ref_env)
+    r0, dest0, _, _ = _archive_ok(ref_env, home=h2)
+    assert r0.returncode == 0, r0.stderr
+    r, dest, env, _ = _archive_ok(tmp_path, {"STUB_FAULT": "drop", "STUB_FAULT_MATCH": "for-each-ref",
+                                             "STUB_FAULT_TIMES": "1"}, home=home)
+    assert r.returncode == 0, r.stderr
+    assert "retry: stream refs.txt attempt 1/4" in r.stderr
+    assert "refs.txt\t2" in (dest / "RETRIES.txt").read_text()
+    assert len(_calls(tmp_path, "for-each-ref")) == 2
+    # identical to an uncut run (paths differ by tmp dir, so compare the ref listings' shapes)
+    got = sorted(l.split("\t")[:2] for p in (dest / "refs").iterdir() for l in p.read_text().splitlines())
+    want = sorted(l.split("\t")[:2] for p in (dest0 / "refs").iterdir() for l in p.read_text().splitlines())
+    assert [g[0] for g in got] == [w[0] for w in want]
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "INFO archive needed retries" in v.stdout and "refs.txt" in v.stdout
+
+
+def test_a_large_stream_cut_twice_then_succeeding_is_byte_identical(tmp_path):
+    home = _fixture_home(tmp_path)
+    clone = _plain_clone(home, tmp_path)
+    (clone / "big.bin").write_bytes(os.urandom(600_000))
+    _git("add", "big.bin", cwd=clone)
+    _git("commit", "-qm", "big", cwd=clone)
+    r, dest, env, _ = _archive_ok(tmp_path, {"STUB_FAULT": "cut", "STUB_FAULT_MATCH": "bundle",
+                                             "STUB_FAULT_TIMES": "2", "STUB_FAULT_BYTES": "100000"}, home=home)
+    assert r.returncode == 0, r.stderr
+    (bundle,) = list((dest / "bundles").glob("*.bundle"))
+    sha = subprocess.run(["shasum", "-a", "256", str(bundle)], capture_output=True, text=True).stdout.split()[0]
+    lines = [l for l in (dest / "REMOTE.sha256").read_text().splitlines() if l.endswith(bundle.name)]
+    assert lines == [f"{sha}  bundles/{bundle.name}"]
+    assert not list(dest.rglob("*.part"))
+    assert subprocess.run(["git", "bundle", "verify", str(bundle)], cwd=tmp_path / "home" / "repos" / "willikins",
+                          capture_output=True).returncode == 0
+    assert r.stderr.count("retry: stream") == 2
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+
+
+def test_four_cuts_in_a_row_die_with_the_attempt_count_and_leave_nothing(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, {"STUB_FAULT": "drop", "STUB_FAULT_MATCH": "bundle"}, home=home)
+    assert r.returncode != 0
+    assert "after 4 attempts" in r.stderr and r.stderr.count("retry: stream") == 3
+    assert not list(dest.rglob("*.part")) and not list((dest / "bundles").glob("*.bundle"))
+    assert "bundles/" not in (dest / "REMOTE.sha256").read_text()
+
+
+def test_a_real_nonzero_pod_exit_status_is_not_retried(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, {"STUB_FAIL_RC": "rev-list"}, home=home)
+    assert r.returncode != 0
+    assert "retry: stream" not in r.stderr
+    assert "exit 7" in r.stderr
+    assert len(_calls(tmp_path, "rev-list")) == 1
+
+
+def test_a_digest_mismatch_and_a_missing_status_line_are_retried(tmp_path):
+    for mode in ("flip", "nostatus", "cut"):
+        sub = tmp_path / mode
+        sub.mkdir()
+        home = _fixture_home(sub)
+        _plain_clone(home, sub)
+        r, dest, env, _ = _archive_ok(sub, {"STUB_FAULT": mode, "STUB_FAULT_MATCH": "--count",
+                                            "STUB_FAULT_TIMES": "1", "STUB_FAULT_BYTES": "1"}, home=home)
+        assert r.returncode == 0, (mode, r.stderr)
+        assert "retry: stream count attempt 1/4" in r.stderr, mode
+        assert "count\t2" in (dest / "RETRIES.txt").read_text(), mode
+
+
+def test_retries_are_reported_at_the_end_of_archive(tmp_path):
+    home = _fixture_home(tmp_path)
+    _plain_clone(home, tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, {"STUB_FAULT": "drop", "STUB_FAULT_MATCH": "--count",
+                                             "STUB_FAULT_TIMES": "2"}, home=home)
+    assert r.returncode == 0, r.stderr
+    assert "transport retries: 1 stream(s)" in r.stdout
+    assert "count\t3" in (dest / "RETRIES.txt").read_text()
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    h2 = _fixture_home(clean)
+    r2, dest2, env2, _ = _archive_ok(clean, home=h2)
+    assert (dest2 / "RETRIES.txt").read_text() == ""
+    assert "INFO archive needed retries" not in _run("verify", "--dest", str(dest2), env=env2).stdout
+
+
+def test_the_session_guard_ignores_sshd_logins_but_not_real_sessions(tmp_path):
+    sshd = "sshd-session: claude [postauth]\n"
+    for i, (ps, blocked) in enumerate((
+            (sshd, False),
+            ("/usr/sbin/sshd -D\nsshd: claude@pts/0\n", False),
+            ("bash\nsu - claude\nsudo -u claude bash\n", False),
+            (sshd + "claude --resume abc\n", True),
+            (sshd + "node /home/claude/.npm/claude-code/cli.js\n", True),
+            ("tmux: server\n", True),
+            ("herdr serve\n", True),
+            ("/home/claude/.local/share/claude/versions/2.1.0 --resume x\n", True))):
+        sub = tmp_path / f"g{i}"
+        sub.mkdir()
+        env = _env(sub, ps=ps, home=_fixture_home(sub))
+        out = _run("archive", "--dest", str(sub / "arch"), env=env)
+        if blocked:
+            assert out.returncode != 0 and "interactive session still running" in out.stderr, ps
+        else:
+            assert "interactive session still running" not in out.stderr, ps
+
+
+def test_key_fingerprint_retries_a_failing_kubectl_read(tmp_path):
+    import base64
+    a = base64.b64encode(b"pem-a").decode()
+    env = _key_env(tmp_path, a, a)
+    # a kubectl that fails twice, then answers
+    kubectl = tmp_path / "kubectl"
+    cnt = tmp_path / "kcount"
+    kubectl.write_text("#!/usr/bin/env bash\nn=$(cat '%s' 2>/dev/null || echo 0)\necho $((n+1)) > '%s'\n"
+                       "if [ \"$n\" -lt 2 ]; then exit 1; fi\nprintf '%%s' '%s'\n" % (cnt, cnt, a))
+    kubectl.chmod(0o755)
+    env["ARCHIVE_RETRY_DELAYS"] = "0 0 0"
+    ok = _run("key-fingerprint", "--old-file-gone-ok", env=env)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert int(cnt.read_text()) == 3
