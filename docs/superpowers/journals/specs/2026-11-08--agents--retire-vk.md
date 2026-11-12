@@ -443,3 +443,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/956.
 ### phase2-archive-claude-home · decision · The archive includes ~/.claude: transcripts, CLAUDE.md, settings, memory
 
 decider: operator, relayed by the orchestrator session on 2026-11-12 (this session did not hear it directly). /home/claude/.claude goes into the home tarball, excluding credentials (.credentials.json and other token or auth files by name) and pure caches (statsig, shell-snapshots, cache dirs, node_modules). Exclusions are listed in the usage text and EXCLUDED.txt, and verify's credential scan covers it.
+
+<!-- fr:journal kind=decision scope=spec id=phase2-r9-session-released created=2026-11-12T22:15:37+00:00 -->
+### phase2-r9-session-released · decision · R9: the pod's triage-state claude session may be stopped (relayed, not heard directly)
+
+Supersedes the gate half of phase2-r9-gate-prep-only. On 2026-11-12 the orchestrator session relayed that the operator confirmed the pod's interactive claude session in orgs/derio-net/triage-state is no longer relevant and can go, and that the orchestrator will stop it right before running archive. The operator also said there was no 'triage run' of theirs; the wording came from the spec. This session did not receive that confirmation from the operator itself, so it is recorded as relayed and unverified here. R9's second half still stands: the archive must be verified on the Mac before the PR leaves draft. No op was run by this session.
