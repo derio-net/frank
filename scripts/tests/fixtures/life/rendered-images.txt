@@ -46,7 +46,7 @@ ghcr.io/aquasecurity/node-collector:0.3.1
 ghcr.io/berriai/litellm-database:main-v1.83.14-stable.patch.1
 ghcr.io/derio-net/blog:c23a34d8c81d6aab925b12502902e4081d6178f3
 ghcr.io/derio-net/caddy-cloudflare:2.11.3
-ghcr.io/derio-net/cluster-update-fr:v0.1.0@sha256:d06fc27950338d680fcffbef91949f6367e97d26a43852168cdc2ef09331e8e0
+ghcr.io/derio-net/cluster-update-fr:v0.1.1@sha256:17b4dbd584fea9f1712b1b348124f4f6a9acb862a87071a3dd4a8c662c79168d
 ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
 ghcr.io/derio-net/gpu-switcher:v0.1.1
 ghcr.io/derio-net/health-bridge:v0.4.0
