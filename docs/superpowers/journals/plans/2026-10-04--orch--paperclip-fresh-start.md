@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-10-04--orch--paperclip-fresh-start
 
 <!-- fr:journal kind=decision scope=plan id=plan-shape created=2026-10-05T18:26:03+00:00 -->

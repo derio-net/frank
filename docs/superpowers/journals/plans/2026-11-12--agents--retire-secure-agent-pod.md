@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-11-12--agents--retire-secure-agent-pod
 
 <!-- fr:journal kind=decision scope=plan id=plan-one-agentic-phase created=2026-11-12T12:40:23+00:00 -->

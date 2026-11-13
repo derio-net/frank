@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-11-03-ci-outcome-alert-repeat
 
 <!-- fr:journal kind=repro scope=debug id=1d263c0cd0f1 created=2026-11-03T08:47:23+00:00 -->
