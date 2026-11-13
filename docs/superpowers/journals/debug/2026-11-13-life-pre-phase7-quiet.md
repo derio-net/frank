@@ -10,3 +10,8 @@ Live 2026-11-13: cluster-update-fr pod Init:CrashLoopBackOff (tailscale sidecar,
 ### 754249d82342 · root-cause · Four independent causes
 
 1) containerboot with empty TS_AUTHKEY falls into interactive login and exits (same container shape in hop-scan CronJob). 2) heartbeat rules treat 'never reported' as 'went stale'. 3) renovate Degraded is the ExternalSecret renovate-github-token (SecretSyncedError: PEM Secret + placeholder appID), NOT the suspended CronJob - ArgoCD's ExternalSecret health. 4) trivy: hand-made token Secret never created; it is not a session credential so it can be generated now.
+
+<!-- fr:journal kind=hypothesis scope=debug id=e89573635095 created=2026-11-13T22:34:59+00:00 -->
+### e89573635095 · hypothesis · Renovate Degraded is caused by suspend:true
+
+Brief's hypothesis. Ruled out: CronJob suspend has no health impact; resources list shows the ES Ready=False reason SecretSyncedError (message 'could not get secret data from provider') and ESO logs error on the renovate ExternalSecret.
