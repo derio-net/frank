@@ -127,6 +127,10 @@ def test_userspace_tailscale_sidecar_degrades_before_phase_7():
     assert "--login-server=https://headscale.hop.derio.net" in env["TS_EXTRA_ARGS"]["value"]
     assert env["TS_SOCKS5_SERVER"]["value"].startswith("localhost:")
     assert env["TS_KUBE_SECRET"]["value"] == "", "no in-cluster Secret state: the pod has no RBAC"
+    # containerboot enters Kubernetes mode on a non-empty KUBERNETES_SERVICE_HOST (the kubelet
+    # always injects it) and then needs the service-account token files, which this pod does not
+    # mount; TS_KUBE_SECRET="" alone does not stop it (Init:Error, 2026-11-13).
+    assert env["KUBERNETES_SERVICE_HOST"]["value"] == ""
 
 
 def test_lists_hop_pods_with_an_optional_read_only_kubeconfig():

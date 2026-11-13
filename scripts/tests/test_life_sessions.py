@@ -719,3 +719,26 @@ def test_agent_images_bump_covers_the_session_image():
     wf = (ROOT / ".github/workflows/agent-images-bump.yml").read_text()
     line = next(l for l in wf.splitlines() if l.strip().startswith("AGENT_IMAGES="))
     assert "upgrade-session" in line.split('"')[1].split()
+
+
+def test_app_namespaces_only_name_apps_that_deploy_to_the_host_cluster():
+    """An Application with `destination.name` (a vCluster registered as an ArgoCD cluster) has
+    its namespace INSIDE that vCluster. The host has no such namespace, so a Role generated there
+    fails the upgrade-sessions sync (`namespaces "cnc-staging" not found`), and where the host
+    happens to have a same-named namespace (`runs-fr`) it would grant a session rights on the
+    wrong workload. vCluster-destined apps are out of scope for in-cluster sessions."""
+    import life_policy
+    import life_sessions as ls
+
+    vcluster = {a["key"]: a["app"]["spec"]["destination"] for a in life_policy.applications()
+                if a["app"]["spec"]["destination"].get("name") not in (None, "in-cluster")}
+    assert {"frank/cnc-staging", "frank/cnc-staging-db", "frank/runs-fr-staging"} <= set(vcluster), \
+        "the vCluster-destined apps this guard exists for have moved; re-check the filter"
+    host_ns = {a["app"]["spec"]["destination"].get("namespace") for a in life_policy.applications()
+               if a["key"] not in vcluster}
+    for flag in ("stateful", "rollout"):
+        got = set(ls.app_namespaces(flag))
+        assert "cnc-staging" not in got
+        assert got <= host_ns, f"{flag}: {got - host_ns} is not a host-cluster destination namespace"
+    for d in of_kind("Role"):
+        assert d["metadata"]["namespace"] != "cnc-staging"
