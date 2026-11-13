@@ -5,7 +5,6 @@ resources:
   - ../../cnc-base/manifests
   - migration-job.yaml
   - snapshot-job.yaml
-  - snapshot-pvc.yaml
 patches:
   - path: app-patch.yaml
 images:

@@ -1,0 +1,16 @@
+# Landing PVC for the cnc-prod PreSync pg_dump Job (apps/cnc-prod/manifests/snapshot-job.yaml).
+# Owned by cnc-prod-db, NOT cnc-prod: the Job is a PreSync hook, and ArgoCD runs PreSync
+# BEFORE the Sync phase creates anything, so a PVC in cnc-prod itself never exists when the hook's
+# pod schedules (`persistentvolumeclaim "cnc-prod-snapshots" not found`, Pending forever). It must
+# also NOT be a hook itself: hook resources default to delete-before-recreate, which would wipe the
+# dumps on every sync. cnc-prod-db is wave 0 and cnc-prod wave 1, in the same namespace.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cnc-prod-snapshots
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
