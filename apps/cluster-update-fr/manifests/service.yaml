@@ -1,0 +1,28 @@
+# Two Services by audience. Metrics (9090) are scraped by pod and exposed through no Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-update-fr
+  namespace: cluster-update-fr
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cluster-update-fr
+  ports:
+    - name: ui
+      port: 8080
+      targetPort: ui
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-update-fr-session
+  namespace: cluster-update-fr
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cluster-update-fr
+  ports:
+    - name: session
+      port: 8081
+      targetPort: session

@@ -27,7 +27,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: marker
-          image: busybox:1.37
+          image: busybox:1.37.0
           securityContext:
             privileged: true
           command: ["/bin/sh", "-c"]

@@ -1,0 +1,8 @@
+# Smoke declaration for frank/cilium (spec R16/R17). The verifier runs these after every rollout.
+app: cilium
+cluster: frank
+checks:
+- kind: http
+  target: http://hubble-ui.kube-system.svc.cluster.local:80/
+  expect:
+    status: 200

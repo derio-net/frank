@@ -115,6 +115,11 @@ layers:
     name: Virtualization
     description: KubeVirt VMs as pods, CDI disk import, VM management UI
 
+  - code: life
+    number: 22
+    name: Update Lifecycle
+    description: Version declarations, update/security inventory, and verified upgrade paths for both clusters
+
   - code: repo
     name: Repository & Tooling
     description: Blog infrastructure, CI, repo restructuring, meta-tasks

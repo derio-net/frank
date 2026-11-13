@@ -11,7 +11,8 @@ RECONCILE = REPO_ROOT / "apps/tekton/manifests/mirror-reconcile.yaml"
 
 PREFERRED = {
     "derio-net": {
-        "willikins", "presentation-craft", "runs-fr",
+        "willikins", "presentation-craft",
+        "runs-fr", "cluster-update-fr",
     },
     "derio-homelab": {
         "proxmox-cluster", "omada-controller", "homelab", "ansible-pihole",

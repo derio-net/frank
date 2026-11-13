@@ -1,0 +1,11 @@
+# Smoke declaration for frank/infisical-extras (spec R16/R17). The verifier runs these after every rollout.
+app: infisical-extras
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/infisical-extras
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application: no workload of its own; proves the objects were applied and are healthy'

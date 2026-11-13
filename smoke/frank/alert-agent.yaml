@@ -1,0 +1,8 @@
+# Smoke declaration for frank/alert-agent (spec R16/R17). The verifier runs these after every rollout.
+app: alert-agent
+cluster: frank
+checks:
+- kind: http
+  target: http://alert-agent.alert-agent.svc.cluster.local:8080/healthz
+  expect:
+    status: 200

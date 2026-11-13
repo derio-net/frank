@@ -1,0 +1,9 @@
+# Smoke declaration for frank/gitea (spec R16/R17). The verifier runs these after every rollout.
+app: gitea
+cluster: frank
+checks:
+- kind: http
+  target: http://gitea-http.gitea.svc.cluster.local:3000/api/healthz
+  expect:
+    status: 200
+    body: '"status":\s*"pass"'

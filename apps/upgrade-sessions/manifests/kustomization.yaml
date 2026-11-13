@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No kustomize-level namespace: app-roles.yaml places Roles in each target app namespace.
+# networkpolicies.yaml and app-roles.yaml are GENERATED: scripts/life_sessions.py --write.
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - rbac.yaml
+  - app-roles.yaml
+  - networkpolicies.yaml

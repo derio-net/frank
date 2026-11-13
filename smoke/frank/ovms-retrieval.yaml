@@ -1,0 +1,14 @@
+# Smoke declaration for frank/ovms-retrieval (spec R16/R17). The verifier runs these after every rollout.
+app: ovms-retrieval
+cluster: frank
+checks:
+- kind: functional
+  name: bge-m3 servable ready
+  target: http://ovms-retrieval.retrieval.svc.cluster.local:8000/v2/models/bge-m3/ready
+  expect:
+    status: 200
+- kind: functional
+  name: bge-reranker-v2-m3 servable ready
+  target: http://ovms-retrieval.retrieval.svc.cluster.local:8000/v2/models/bge-reranker-v2-m3/ready
+  expect:
+    status: 200

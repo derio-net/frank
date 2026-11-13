@@ -1,0 +1,10 @@
+# Smoke declaration for frank/gitea-runner (spec R16/R17). The verifier runs these after every rollout.
+app: gitea-runner
+cluster: frank
+checks:
+- kind: exec-probe
+  target: deployment/act-runner
+  namespace: gitea-runner
+  expect:
+    available: true
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'

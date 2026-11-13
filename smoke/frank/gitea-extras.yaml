@@ -1,0 +1,11 @@
+# Smoke declaration for frank/gitea-extras (spec R16/R17). The verifier runs these after every rollout.
+app: gitea-extras
+cluster: frank
+checks:
+- kind: exec-probe
+  target: application/gitea-extras
+  namespace: argocd
+  expect:
+    health: Healthy
+    applied: true
+  reason: 'config-only application: no workload of its own; proves the objects were applied and are healthy'

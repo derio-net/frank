@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hop-scan
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - cronjob.yaml
+configMapGenerator:
+  - name: hop-scan-report
+    files:
+      - report.py=files/report.py
+# No name hash: every CronJob run starts a fresh pod that reads the current ConfigMap, so
+# nothing needs to roll, and prune stays false (repo convention).
+generatorOptions:
+  disableNameSuffixHash: true

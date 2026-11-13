@@ -1,0 +1,39 @@
+# Egress only: DNS, the shared Trivy server on Frank, and the internet on 443 / DERP-STUN /
+# WireGuard (headscale.hop.derio.net, DERP relays, image registries the scanner pulls from).
+# Private ranges are excluded from the internet rule so the pod cannot wander the LAN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hop-scan
+  namespace: hop-scan
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: trivy-system
+      ports:
+        - { protocol: TCP, port: 4954 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: UDP, port: 3478 }
+        - { protocol: UDP, port: 41641 }

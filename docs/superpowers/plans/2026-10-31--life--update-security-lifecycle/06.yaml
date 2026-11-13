@@ -1,0 +1,64 @@
+schema_version: 2
+phase:
+  number: 6
+  title: OS tracks, rollback documentation and the Omni runbook
+  tag: agentic
+  depends_on:
+  - 5
+  tracking_issue: null
+  acceptance:
+  - life-os-tracks
+  - life-rollback-and-rollouts
+  tier: standard
+  files:
+  - versions/**
+  - docs/runbooks/omni-upgrade.md
+  - docs/runbooks/life-rollback.md
+  - docs/upgrade-briefs/**
+  - scripts/life_tracks.py
+  - scripts/tests/test_life_*.py
+  - scripts/tests/fixtures/life/**
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 700
+tasks:
+- number: 1
+  title: Support matrix and step sequence (red → green)
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Write scripts/tests/test_life_tracks.py for scripts/life_tracks.py `next_steps(cluster_versions, target, matrix) -> list[Step]`: versions/support-matrix.yaml maps each Talos minor to its supported Kubernetes minors (from the Talos support-matrix docs, sourced with URLs in comments); cases: frank 1.12.6/1.35.3 → target 1.14.x/1.37.x yields [talos 1.13, k8s 1.36, talos 1.14, k8s 1.37]; hop 1.12.5/1.34.1 yields a k8s 1.35 step before the first Talos step if 1.34 is outside Talos 1.13's window (matrix-driven, not hard-coded); never two Kubernetes minors in one step; Kubernetes steps flagged one_way: true; Talos steps carry rollback: omni-revert (frank) / talosctl-rollback (hop). Run: FAILS.
+  - id: P6.T1.S2
+    text: |-
+      Implement life_tracks.py and versions/support-matrix.yaml (verify windows against the Talos docs; journal the URLs). Run: passes.
+- number: 2
+  title: Rollback and Omni runbooks (red → green)
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      Write scripts/tests/test_life_runbooks.py: docs/runbooks/life-rollback.md has one section per path (revert PR; Longhorn snapshot restore with exact `kubectl`/Longhorn UI steps; Frank Talos revert through Omni version field — NOT per-node talosctl rollback; Hop talosctl rollback; Kubernetes one-way note); docs/runbooks/omni-upgrade.md is an operator runbook run from the laptop with Backup, Upgrade (edit OMNI_VERSION, compose pull/up), Verify (machines healthy, refresh stored talosconfig — restart rotates certs), Recovery (scripts/omni-legacy-recovery/), and links derio-net/willikins#528. Run: FAILS.
+  - id: P6.T2.S2
+    text: |-
+      Write both runbooks. Run: passes.
+state:
+  steps:
+    P6.T1.S1:
+      state: x
+      ticked_at: '2026-11-01T17:26:56+00:00'
+      note: null
+    P6.T1.S2:
+      state: x
+      ticked_at: '2026-11-01T17:26:56+00:00'
+      note: null
+    P6.T2.S1:
+      state: x
+      ticked_at: '2026-11-01T17:26:56+00:00'
+      note: null
+    P6.T2.S2:
+      state: x
+      ticked_at: '2026-11-01T17:26:56+00:00'
+      note: null
+  completion:
+    at: '2026-11-01T17:26:57+00:00'
+    note: null
+    observed_prs: []

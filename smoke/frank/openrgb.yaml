@@ -1,0 +1,10 @@
+# Smoke declaration for frank/openrgb (spec R16/R17). The verifier runs these after every rollout.
+app: openrgb
+cluster: frank
+checks:
+- kind: exec-probe
+  target: daemonset/openrgb
+  namespace: openrgb
+  expect:
+    ready: all
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'

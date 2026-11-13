@@ -1,0 +1,82 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Pin and declare every version (Frank, Hop, Omni)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - life-every-version-pinned
+  skeleton: true
+  tier: standard
+  files:
+  - docs/layers.yaml
+  - versions/**
+  - omni/omni/omni.env.template
+  - apps/**/values.yaml
+  - apps/**/manifests/**
+  - clusters/hop/apps/**
+  - scripts/render_all_images.py
+  - scripts/tests/test_life_*.py
+  - scripts/tests/fixtures/life/**
+  - docs/superpowers/plans/**
+  - docs/acceptance/**
+  estimate_lines: 700
+tasks:
+- number: 1
+  title: Smoke — a trivial life guard goes green
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create scripts/tests/test_life_smoke.py with one test asserting docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md exists and contains "## Requirements", and that docs/layers.yaml has a layer with code `life`. Run `/Users/derio/Docs/projects/DERIO_NET/frank/.venv/bin/pytest scripts/tests/test_life_smoke.py -q` from the worktree: FAILS (no `life` layer). Add to docs/layers.yaml `- code: life / number: 22 / name: Update Lifecycle` with a one-line description in the file's existing style. Re-run: 1 passed. (All later pytest runs in this plan use that same interpreter path from the worktree cwd; the worktree has no .venv and .venv is NOT gitignored, so never create one there.)
+- number: 2
+  title: Version declarations (red → green)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Write scripts/tests/test_life_versions.py: load versions/frank.yaml and versions/hop.yaml; assert each has `talos:` and `kubernetes:` as exact semver strings (no leading v, no ranges), a `managed_by:` of `omni` (frank) / `talosctl` (hop), and a header comment; assert omni/omni/omni.env.template sets `OMNI_VERSION=` to an exact `vX.Y.Z` (not `${...}`). Run: FAILS.
+  - id: P1.T2.S2
+    text: |-
+      Measure live versions read-only (frank: `kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}'` with KUBECONFIG=/Users/derio/Docs/projects/DERIO_NET/frank/.talos/Frank_Kubeconfig.yaml, `omnictl get clusters -o yaml`; hop: KUBECONFIG from /Users/derio/Docs/projects/DERIO_NET/frank/.env_hop). Expected as of 2026-10-31: frank talos 1.12.6 / k8s 1.35.3, hop talos 1.12.5 / k8s 1.34.1. Write versions/frank.yaml and versions/hop.yaml with those values and a header comment saying the file is the DECLARED version (git leads the cluster, spec Part 3 'OS steps'), that frank is versions-only and NOT an Omni cluster template, and that hop steps use `talosctl upgrade` / `upgrade-k8s`. Read the running Omni version (`omnictl --version` server line, or the container image on the Omni host via the operator) — if not readable non-interactively, record the version stated in docs/runbooks/frank-gotchas/omni.md and journal a discovery that it is unverified. Set OMNI_VERSION in omni/omni/omni.env.template. Run the test: passes.
+- number: 3
+  title: Rendered-image audit and pinning (red → green → refactor)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Write scripts/tests/test_life_images_pinned.py using a pure function `find_unpinned(rendered_yaml: str) -> list[str]` from scripts/render_all_images.py, with fixtures in scripts/tests/fixtures/life/ covering: tag present (ok), digest present (ok), `:latest` (bad), no tag (bad), `$(params.x)` Tekton param (ignored), Helm-split repository+tag rendered into `image:` (ok). Also a test that the committed scripts/tests/fixtures/life/rendered-images.txt (the audit snapshot) lists zero unpinned images. Run: FAILS.
+  - id: P1.T3.S2
+    text: |-
+      Implement scripts/render_all_images.py: for each Application template in apps/root/templates and clusters/hop/apps/root/templates, render its source (`helm template` for chart sources with the repo's values file, `kubectl kustomize` / plain read for manifest paths), collect every `image:` and write the sorted list to scripts/tests/fixtures/life/rendered-images.txt; `--check` exits 1 listing unpinned images. Run it; for every unpinned image found, pin it in that app's values.yaml or manifest to the version currently running (`kubectl get pods -A -o jsonpath` read-only), regenerate the snapshot. Run the test: passes.
+  - id: P1.T3.S3
+    text: |-
+      Refactor: share the YAML-walking helper between render_all_images.py and the test; delete test_life_smoke.py's duplication if any. Re-run `.../pytest scripts/tests/test_life_versions.py scripts/tests/test_life_images_pinned.py -q`: all pass.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-10-31T19:23:32+00:00'
+      note: null
+  completion:
+    at: '2026-10-31T19:23:32+00:00'
+    note: null
+    observed_prs: []

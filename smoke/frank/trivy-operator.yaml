@@ -1,0 +1,9 @@
+# Smoke declaration for frank/trivy-operator (spec R16/R17). The verifier runs these after every rollout.
+app: trivy-operator
+cluster: frank
+checks:
+- kind: tcp
+  target: trivy-service.trivy-system.svc.cluster.local:4954
+  expect:
+    open: true
+  note: the built-in Trivy server (client/server mode) that the operator and the hop-scan job both use

@@ -73,7 +73,7 @@ spec:
             description: '"true" when this is a pending event Gitea has already moved past'
         steps:
           - name: check
-            image: python:3.13-slim
+            image: python:3.13.18-slim
             env:
               - name: GITEA_TOKEN
                 valueFrom:

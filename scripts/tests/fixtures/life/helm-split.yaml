@@ -1,0 +1,11 @@
+# What a chart renders after joining values: repository + tag
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: a
+          image: "quay.io/org/app:v2.0.1"
+        - name: b
+          image: "registry.local:5000/org/app:v2.0.1"

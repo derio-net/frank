@@ -1,0 +1,9 @@
+# Smoke declaration for frank/tekton-pipelines (spec R16/R17). The verifier runs these after every rollout.
+app: tekton-pipelines
+cluster: frank
+checks:
+- kind: tcp
+  target: tekton-pipelines-controller.tekton-pipelines.svc.cluster.local:9090
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

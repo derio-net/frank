@@ -1,0 +1,9 @@
+# Smoke declaration for frank/vcluster-staging (spec R16/R17). The verifier runs these after every rollout.
+app: vcluster-staging
+cluster: frank
+checks:
+- kind: tcp
+  target: staging.vcluster-staging.svc.cluster.local:443
+  expect:
+    open: true
+  note: the app declares no HTTP readiness endpoint, so only the listener is checked

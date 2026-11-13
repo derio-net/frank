@@ -1,0 +1,10 @@
+# Smoke declaration for frank/ci-budget (spec R16/R17). The verifier runs these after every rollout.
+app: ci-budget
+cluster: frank
+checks:
+- kind: exec-probe
+  target: cronjob/ci-budget-report
+  namespace: tekton-pipelines
+  expect:
+    last_job_succeeded: true
+  reason: 'no network surface (controller/daemon/job): readiness of the workload is the only observable'
