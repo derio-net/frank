@@ -555,3 +555,10 @@ Evidence: Archive run 5: rc 0, verify --live rc 0, no FAIL, 14 repo bundles self
 Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
 
 Evidence: Archive verify live exited 0 with no FAIL and all three pre-merge gates passed. Machine verify only because the operator has not inspected the archive by hand yet so R9 own look is still owed
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2-3 created=2026-11-13T22:12:32+00:00 -->
+### test-plan-step-2-3 · discovery · Test Plan step 2: ran
+
+Step: `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
+
+Evidence: Application namespace PV and LBs 215 218 219 were all gone about 4 minutes after the PR955 merge
