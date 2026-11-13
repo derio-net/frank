@@ -569,3 +569,10 @@ Evidence: Application namespace PV and LBs 215 218 219 were all gone about 4 min
 Step: `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and a server-side SubjectAccessReview for agent-sa on `get secrets -n upgrade-sessions` answers `false` (control `system:masters` true; `can-i --as` is vacuous through Omni, frank#963).
 
 Evidence: Binding NotFound and a server-side SubjectAccessReview answers false for agent-sa with system:masters true as control. Plain can-i with as was vacuous through Omni so the op check was replaced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4-3 created=2026-11-13T22:12:38+00:00 -->
+### test-plan-step-4-3 · discovery · Test Plan step 4: ran
+
+Step: After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+
+Evidence: Grafana API lists 58 rules and none of the five uids and the pushgateway series and dashboard CM are gone. Over an hour after the silence ended no pod alert fired and frank-gitops-push stayed SecretSynced
