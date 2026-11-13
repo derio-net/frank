@@ -2882,3 +2882,17 @@ operations:
   - Every remaining ExternalSecret in the cluster is SecretSynced after the Infisical cleanup.
   - The first agent-images bump run created after both the Frank merge and the agent-images kali removal completes with its coverage check green.
   status: pending
+- id: argocd-root-bootstrap
+  layer: gitops
+  app: root
+  plan: docs/superpowers/journals/debug/2026-11-13-root-selfheal-loop.md
+  when: Cluster bootstrap, and again after any edit to apps/root/bootstrap/root-application.yaml
+  why_manual: The root App-of-Apps cannot manage itself; it is the only Application applied by hand. Its source of truth is the manifest in git.
+  commands:
+  - source .env   # from the repo root, so KUBECONFIG resolves
+  - kubectl apply -f apps/root/bootstrap/root-application.yaml
+  verify:
+  - kubectl -n argocd get application root -o jsonpath='{.status.sync.status}' prints Synced and stays Synced across several refreshes.
+  - .status.operationState.operation.sync.autoHealAttemptsCount stops growing.
+  - kubectl -n argocd get application root -o jsonpath='{.spec.ignoreDifferences}' shows /metadata/finalizers.
+  status: done

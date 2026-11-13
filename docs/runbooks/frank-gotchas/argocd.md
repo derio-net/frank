@@ -515,3 +515,18 @@ the ArgoCD, Cilium and Longhorn Deployments, DaemonSets, Services and
 ConfigMaps, from before ArgoCD adopted them. They are harmless until git
 removes a list item that `helm` co-owns. That sync then fails the same way, on
 core infrastructure. Clear them deliberately, one app at a time, not in bulk.
+
+## root stuck OutOfSync: controller-added finalizers and a filtered selfHeal (2026-11-13, frank#956)
+
+**Symptom.** `root` is permanently `OutOfSync`, `autoHealAttemptsCount` climbs (59 observed) and new `apps/root/templates/*` never become Applications, while `argocd app diff root` shows only `finalizers`.
+
+**Cause, two parts.**
+1. ArgoCD 3.x adds `pre-delete-finalizer.argocd.argoproj.io` (+ `/cleanup`) or `post-delete-finalizer…` to Applications whose chart has delete hooks: longhorn and victoria-metrics (pre), gpu-operator (post). Templates list only `resources-finalizer`, so each sync strips the extras, the controller re-adds them and the diff reappears. A template comment claimed they were "added ad hoc and removed on sync"; that was false. victoria-metrics only looked like it converged in the instant after a strip.
+2. selfHeal's operation is **filtered**: `.status.operationState.operation.sync.resources` lists only the drifting Applications. It then overwrites a fresh full sync, and a `kubectl patch … --type=merge -p '{"operation":…}'` inherits the filter. Hence #913's six Applications were not created until `argocd --core app sync root --resource argoproj.io:Application:<name>`.
+
+**Fix.** Root's own manifest is in git (`apps/root/bootstrap/root-application.yaml`, applied by hand, manual-op `argocd-root-bootstrap`) with `ignoreDifferences: [{group: argoproj.io, kind: Application, jsonPointers: [/metadata/finalizers]}]`. Plain jsonPointer, and `RespectIgnoreDifferences` stays OFF on root: respecting it would also freeze the finalizer list on apply (see the array-freeze gotcha). Declaring the hook finalizers in the templates was rejected: a chart revision without hooks would drift the other way.
+
+**Verify.** `kubectl -n argocd get application root -o jsonpath='{.status.sync.status}'` stays `Synced` across refreshes and `autoHealAttemptsCount` stops growing. Check the filter field first whenever root "won't create" a template.
+
+**root's prune.** root runs `prune: true` (leaves are `prune: false`); `apps/root/values.yaml` used to say the opposite, now corrected.
+

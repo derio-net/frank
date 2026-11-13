@@ -1,0 +1,38 @@
+# The root App-of-Apps Application itself. It cannot manage itself (chicken and
+# egg), so it is applied by hand once per cluster: manual-op `argocd-root-bootstrap`.
+# This file is the source of truth for that apply; re-apply it after editing.
+# Lives OUTSIDE apps/root/templates/ on purpose — root renders only templates/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/derio-net/frank.git
+    targetRevision: main
+    path: apps/root
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    # root is the ONE Application that prunes (leaves are prune: false): deleting
+    # a template retires the app. See frank-gotchas/argocd.md "Removing a root template".
+    automated:
+      prune: true
+      selfHeal: true
+  # Child Applications' finalizers are CONTROLLER-OWNED: ArgoCD 3.x adds
+  # pre-delete-/post-delete-finalizer.argocd.argoproj.io(/cleanup) to any app
+  # whose chart ships delete hooks (longhorn, victoria-metrics, gpu-operator).
+  # Templates cannot declare them (a hook-free chart revision would drift the
+  # other way), so a sync strips them, the controller re-adds them, and root
+  # stays OutOfSync with selfHeal retrying forever. Ignore the whole list in the
+  # DIFF only. Do NOT add RespectIgnoreDifferences to root: a plain jsonPointer is
+  # safe for diffing, but respecting it on apply would stop root re-asserting
+  # resources-finalizer on children.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        - /metadata/finalizers
