@@ -9,9 +9,11 @@ summary: "Deploying a persistent Kali Linux container on gpu-1 as an always-on C
 weight: 19
 reader_goal: "Deploy a persistent Kali container on gpu-1 with SSH access, PVC-backed home directory, and headless Claude Code sessions"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 description: "Deploying a persistent Kali Linux container on gpu-1 as an always-on Claude Code workstation — because laptops sleep and mobile apps have limits."
 ---
+
+> **Update 2026-11.** The persistent Kali workstation described here was rebuilt as the secure-agent-pod, and that pod was retired in November 2026 together with VibeKanban. The post stays as a record of the first iteration; the agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 My laptop is not always online. The Claude mobile app is useful but cannot run terminal commands, install tools, or maintain a persistent workspace. This post covers deploying a persistent Kali Linux container on gpu-1 as an always-on development workstation, accessible via SSH from anywhere on the network.
 

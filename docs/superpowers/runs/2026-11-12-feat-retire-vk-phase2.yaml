@@ -1,0 +1,123 @@
+schema_version: 11
+run: 2026-11-12-feat-retire-vk-phase2
+workflow: fr-goal@1
+branch: feat/retire-vk-phase2
+started: '2026-11-12T12:22:53+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-11-12T12:28:40+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-11-08--agents--retire-vk-design.md
+  spec-review:
+    state: done
+    at: '2026-11-12T12:34:59+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-12T12:28:42+00:00'
+          agent: abdf7090e52ce5fe5
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          model: claude-fable-5-2
+          tier: hard
+          bound: opus
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T12:34:59+00:00'
+          outcome: done
+        evidence:
+          review: spec-review-phase2
+          reviewer: abdf7090e52ce5fe5
+          findings: s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,sr2-f1,sr2-f2,sr2-f3,sr2-f4,sr2-f5,sr2-f6,sr2-f7,sr2-f8,sr2-f9,sr2-f10,sr2-f11
+  plan:
+    state: done
+    at: '2026-11-12T12:40:23+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-11-12T12:35:03+00:00'
+          harness: claude-code
+          model: claude-fable-5-2
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T12:40:23+00:00'
+          outcome: done
+  plan-review:
+    state: done
+    at: '2026-11-12T12:40:26+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
+  implement:
+    state: done
+    at: '2026-11-12T13:44:45+00:00'
+    members:
+    - implement-phase
+    - review-phase
+    units:
+      phase/2:
+        state: manual
+      phase/1/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-12T12:40:26+00:00'
+          agent: a993760e989ba402d
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T13:03:58+00:00'
+          outcome: done
+        evidence:
+          tests: phase1-suite.log@65dcb9714c7c;tree=7aea5d8888fd4c53506a842a4e8d631fe4ec36199de491256583cb3a7b7dad81
+          visual: none
+      phase/1/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-12T13:04:00+00:00'
+          harness: claude-code
+          model: claude-fable-5-2
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T13:04:37+00:00'
+          outcome: abandoned
+        - dispatched: '2026-11-12T13:04:37+00:00'
+          harness: claude-code
+          model: claude-fable-5-2
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T13:44:45+00:00'
+          outcome: done
+        evidence:
+          review: p1-review
+          reviewer: a6f8b8e4c010e3e03
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10,p1-r11,p1-r12,p1-r13,p1-r14,p1-r15,p1-r16
+  journal-check:
+    state: done
+    at: '2026-11-12T13:44:49+00:00'
+    exit: 0
+    stdout: ''
+  deliver:
+    state: done
+    at: '2026-11-12T14:15:26+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/955
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-12T13:44:51+00:00'
+          harness: claude-code
+          model: claude-fable-5-2
+          session: f0811d81-131b-45c0-a253-363d27226931
+          returned: '2026-11-12T14:15:14+00:00'
+          outcome: done
+        evidence:
+          tests: deliver-suite-final.log@238d08b89b6e
+          proportionality: 8af826eecf30f61c0c004d9f9b9552eba307cea3:d729713e31f14f1a711e1c2d134dc44895f87ae6aa327b4826c6af29cea12f43
+          docs: none
+          visual: none
+fr_version: 6.3.0

@@ -270,4 +270,4 @@ The genuinely irreversible moment is not the merge. It is `omnictl apply` of the
 - [Authentik Proxy Provider](https://docs.goauthentik.io/docs/providers/proxy/)
 - [gethomepage.dev](https://gethomepage.dev/)
 
-**Next: [VK Relay — Tunneling the Browser to a Local Agent Server](/docs/building/25-vk-relay)**
+**Next: [VK Relay — Tunneling the Browser to a Local Agent Server](/docs/building/25-vk-relay)** *(retired 2026-11; kept as a record)*

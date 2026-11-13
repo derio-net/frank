@@ -458,7 +458,7 @@ Adding a new SSO-gated service is a one-line middleware reference on the
 IngressRoute. The first scar arrived a week later.
 
 {{< papers/scar date="2026-03-29" >}}
-We deployed the secure-agent-pod with TCP 22 (SSH) and UDP 60000-60015
+We deployed the secure-agent-pod (retired 2026-11; the lesson stands) with TCP 22 (SSH) and UDP 60000-60015
 (Mosh) on the same `192.168.55.215` LoadBalancer IP — both Services
 carried the `lbipam.cilium.io/ips: 192.168.55.215` annotation. The UDP
 Service ended up `<pending>` forever. Cilium's `lbipam.cilium.io/ips`

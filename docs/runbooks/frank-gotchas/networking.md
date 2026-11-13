@@ -61,7 +61,7 @@ _time:1d kubernetes.host:hop-1 AND _msg:"handled request" | stats by (request.ho
 
 ## gpu-1 NIC link-flap → Cilium datapath collapse → simultaneous SSH drops on all gpu-1 pods (2026-06-08)
 
-**Symptom.** Two unrelated SSH sessions — to `hermes-agent-shell` (LB `192.168.55.226`) and `secure-agent-pod` (LB `192.168.55.215`) — dropped at the *same instant* with `Shared connection to <ip> closed` and exit code **255**. Both pods are on **gpu-1**.
+**Symptom.** Two unrelated SSH sessions — to `hermes-agent-shell` (LB `192.168.55.226`) and `secure-agent-pod` (retired 2026-11; LB `192.168.55.215`) — dropped at the *same instant* with `Shared connection to <ip> closed` and exit code **255**. Both pods are on **gpu-1**.
 
 **Misleading "alive" signals.** Both pods were `Running` with `0` restarts; `kubectl exec` into them worked fine; the node was `Ready`; gpu-1 had ~105 GB free RAM. None of the usual Frank failure modes (Longhorn IM leak, `claude install` OOM that kills sshd, memory wedge) applied. The trap: `exec` rides API-server → kubelet → CRI (the node's kubelet stream) and does **not** traverse the Cilium pod datapath, whereas SSH-via-LoadBalancer **does**. So a pod can look perfectly healthy to the control plane while its pod networking is severed.
 

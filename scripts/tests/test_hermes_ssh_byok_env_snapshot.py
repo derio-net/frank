@@ -21,7 +21,7 @@ fix (issue candidate 1, no image rebuild) is:
      disk, wiped on restart), writable by the UID-1000 sidecar via fsGroup;
   3. the byok-env shim reads the snapshot file for the dynamic vars, as a
      fallback after /proc/1/environ (which still works where an init preserves
-     environ, e.g. secure-agent-pod's kali under s6).
+     environ, e.g. the retired secure-agent-pod's kali under s6).
 
 All three are load-bearing, so this test locks them.
 """

@@ -44,7 +44,7 @@ environment so a clone never inherits another host's setup:
 - **Local workstation (macOS):** local CDP to a logged-in **Brave** profile. The Mac-only
   conventions (the `brave-clawdia` session pair, CDP exposure caveats, the `uv`-clobber repair)
   are injected into context only on that host. See `agents/browser-harness-mac.md`.
-- **secure-agent-pod / Linux clones:** the remote **Browser Use** cloud browser, via
+- **Linux clones (the secure-agent-pod, retired 2026-11, used this):** the remote **Browser Use** cloud browser, via
   `BROWSER_USE_API_KEY`. No local CDP, no Brave.
 
 If you are unsure which transport is active, check for `BROWSER_USE_API_KEY` (cloud) versus a

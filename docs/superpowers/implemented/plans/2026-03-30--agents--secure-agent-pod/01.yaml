@@ -503,7 +503,8 @@ tasks:
       plan: 2026-03-30--agents--secure-agent-pod
       when: After Kali manifests removed and ArgoCD synced
       why_manual: PVC data deletion is destructive and irreversible; requires human confirmation
-      status: done
+      status: retired
+      retired: "2026-11 — secure-agent-pod retired (spec 2026-11-08--agents--retire-vk)."
       commands:
         - kubectl delete pvc kali-data -n kali-system
         - kubectl delete namespace kali-system

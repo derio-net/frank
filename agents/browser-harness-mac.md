@@ -2,7 +2,7 @@
 
 > **Scope guard — read this first.** This applies **only on the local macOS workstation**, where
 > browser-harness drives the **Brave-Clawdia** profile over local CDP on port 9222 (e.g. capturing
-> screenshots for the blog). It does **not** apply on the secure-agent-pod or any other clone of
+> screenshots for the blog). It does **not** apply on any Linux or pod clone (the secure-agent-pod, retired 2026-11, was one) of
 > this repo: there, browser-harness uses the **remote Browser Use cloud browser**
 > (`BROWSER_USE_API_KEY`). This file is deliberately **not** in `agents/rules/` (the always-loaded
 > shared rule registry); frank's SessionStart adapter injects it into context only when running on

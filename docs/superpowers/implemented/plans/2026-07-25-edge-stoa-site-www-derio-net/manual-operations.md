@@ -10,7 +10,7 @@ when: Before the first site-promotion run. PRE-EXISTING BREAK — cnc-promotion 
 why_manual: SOPS-encrypted bootstrap secret; needs the age key, which is deliberately absent from agent pods.
 commands:
 - '# frank-gitops-push has been SecretSyncedError since 2026-07-18 (1477 failures as of 2026-07-25): "error getting GH pem from secret: github-app-derio-key not found". ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret namespace and IGNORES secretRef.namespace, so the derio App PEM must exist in tekton-pipelines. It currently exists only in secure-agent-pod. The sibling github-app-stoa-key IS in tekton-pipelines, which is why the mirror token syncs and this one does not.'
-- 'source .env ; sops -d secrets/github-app/github-app-derio-key.yaml | sed ''s/namespace: secure-agent-pod/namespace: tekton-pipelines/'' | kubectl apply -f -'
+- source .env ; sops -d secrets/github-app/github-app-derio-key-tekton.yaml | kubectl apply -f -
 - '# Durable copy so a rebuild does not regress: create secrets/github-app/github-app-derio-key-tekton.yaml (same PEM, namespace tekton-pipelines), SOPS-encrypt with the same age key, and commit it.'
 - 'kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push force-sync=$(date +%s) --overwrite   # clears the cached SecretSyncedError'
 verify:

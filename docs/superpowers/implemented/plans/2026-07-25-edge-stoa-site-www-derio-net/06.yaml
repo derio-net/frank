@@ -19,10 +19,9 @@ tasks:
   - id: P6.T1.S1
     text: |-
       MANUAL. The derio-net App PEM must exist in tekton-pipelines, not
-      just secure-agent-pod (ESO resolves privateKey.secretRef in the
+      just secure-agent-pod, since retired (ESO resolves privateKey.secretRef in the
       CONSUMING namespace). From a host with SOPS + the age key:
-        sops -d secrets/github-app/github-app-derio-key.yaml \
-          | sed 's/namespace: secure-agent-pod/namespace: tekton-pipelines/' \
+        sops -d secrets/github-app/github-app-derio-key-tekton.yaml \
           | kubectl apply -f -
       Then commit a durable copy as
       secrets/github-app/github-app-derio-key-tekton.yaml (SOPS-encrypted,

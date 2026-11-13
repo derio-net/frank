@@ -35,9 +35,7 @@ jobs:
 
           # Capture the CURRENT (pre-bump) agent-images pin BEFORE the next step's
           # sed overwrites it — render_bump_body.py diffs old...new for the body.
-          # Read from the multi-agent-shell pin: it moves with every bump. The
-          # secure-agent-pod pins are frozen (excluded below) until that pod is
-          # retired, so reading one of them would relist already-shipped PRs.
+          # Read from the multi-agent-shell pin: it moves with every bump.
           OLD_AI_SHA=$(grep -oE 'multi-agent-shell:[a-f0-9]+' \
             apps/alert-agent/manifests/deployment.yaml | head -1 | cut -d: -f2)
 
@@ -76,9 +74,6 @@ jobs:
           #   2 = could not verify (GHCR API error) → FAIL-OPEN, pin anyway (the
           #       pre-existing behaviour) rather than stall the whole bump on a
           #       transient API glitch.
-          # The two secure-agent-pod images are NOT listed: that pod is being retired
-          # (spec 2026-11-08--agents--retire-vk) and rolling it ends a live session.
-          # Their pins stay frozen; the Verify-coverage step excludes them by name.
           # hermes-agent-shell-ssh + hermes-agent-shell-hindsight are the two
           # sidecar images the official-Hermes migration adds (willikins#285);
           # both must be here so the bump covers them and Verify-coverage passes
@@ -133,9 +128,6 @@ jobs:
           stale=$(grep -rEo "ghcr.io/derio-net/[a-z0-9-]+:[a-f0-9]{40}" apps/ \
                     | grep -vE ":${AI_SHA}\$" \
                     | grep -vE "derio-net/blog:" || true)
-          # Frozen on purpose until the secure-agent-pod Application is removed
-          # (Phase 2 of retire-vk deletes this exclusion together with the pod).
-          stale=$(printf '%s\n' "$stale" | grep -vE "derio-net/(secure-agent-kali|vk-local):" || true)
           for img in $SKIPPED; do
             stale=$(printf '%s\n' "$stale" | grep -vE "derio-net/${img}:" || true)
           done

@@ -93,7 +93,11 @@ Frank's Phase 1 PR merges BEFORE the `agent-images` PR, and any open
 from Frank `main`, which still rewrites the `secure-agent-kali` pin, and merging that
 bump rolls the `Recreate` pod. Merging `agent-images` afterwards also supplies the
 bump run Test Plan row 5 waits for. Phase 2 stays a draft until R9 is met, and its branch is cut from `main` after
-Phase 1 merges. Requirements R9-R15 are all implemented in that second PR.
+Phase 1 merges. Requirements R9-R15 are implemented in that second Frank PR, except
+the image build half of R12, which is the Phase 2 `agent-images` PR. Phase 2 has its
+own plan folder, `2026-11-12--agents--retire-secure-agent-pod`. Everything that changes
+the live cluster in Phase 2 is a `[manual]` phase: the operator performs the merge
+that triggers the cascade and runs the sweep. No agentic phase touches the pod.
 
 ### Phase 1
 
@@ -180,14 +184,25 @@ live pod, so it waits for Phase 2. VK gotchas stay where they are with a
 ### Phase 2
 
 **Archive and gate (R9).** A script, run by the operator, confirms no interactive
-session remains and writes a tarball to the Mac. It contains `interviews/`,
+session remains and writes a tarball to `~/Archives/secure-agent-pod-2026-11` on the
+Mac (operator decision, 2026-11-12). The script creates that directory `0700` and
+refuses a destination inside a git repository or with a looser mode. Phase 1's dump
+and baseline stay where Phase 1 wrote them, `$HOME/frank-retire-vk-archive/`. The tarball contains `interviews/`,
 `orgs/`, `.hermes`, the audit archive, the VK `db.v2.sqlite`,
-`repos/willikins/scripts/chorebot/config.yaml`, and one `git bundle` per clone
-covering all local-only branches. Credential files
+`repos/willikins/scripts/chorebot/config.yaml`, `~/.claude/` (session transcripts under
+`projects/`, `CLAUDE.md`, settings and memory; credentials and pure caches excluded,
+operator decision 2026-11-12), and one self-contained `git bundle` per clone
+covering every ref (no prerequisites, so a deleted or force-pushed upstream cannot break a restore). Credential files
 (`credentials.json`, `server_ed25519_signing_key`, `.ssh`, `.gnupg`,
 `.config/gh`, `.claude.json`) are excluded. chorebot's `config.yaml` is kept on
 purpose despite possibly holding tokens, because it is not in git. The script prints a file count and
 verifies the tarball and bundles. Regenerable caches are not archived.
+
+Bundles hold committed work only, so the script also captures uncommitted state from
+every clone and linked worktree: the `git status`, a binary patch of tracked changes
+against `HEAD`, a tarball of untracked (not ignored) files under the same credential
+excludes, and one patch per stash entry. Dirty clones are listed in `DIRTY.txt`, and
+`verify` names them. The script writes nothing to the pod's home.
 
 **Removal (R10).** Remove `apps/root/templates/secure-agent-pod.yaml`,
 `ns-secure-agent-pod.yaml` and `apps/secure-agent-pod/`. The PVC, Services, RBAC
@@ -196,6 +211,28 @@ the artifacts: the namespace and PV are gone, .215, .218 and .219 are free, and
 the ClusterRoleBinding is gone. The namespace's `github-app-derio-key` copy goes
 with it; `tekton-pipelines` has its own.
 
+Three gates run before the merge, as manual steps. First, Phase 1's Test Plan row 4
+has passed: the live `github-app-derio` ClusterGenerator carries a `tekton-extras`
+tracking id and is absent from `application secure-agent-pod` `.status.resources`.
+Otherwise the finalizer cascade deletes it (trap 1). Second, the live
+`tekton-pipelines/github-app-derio-key` matches both
+`secrets/github-app/github-app-derio-key-tekton.yaml` and the file being deleted,
+compared by SHA-256 fingerprint and never printed. Third,
+`kubectl -n argocd get application root -o jsonpath='{.spec.syncPolicy.automated}'`
+shows `prune: true`, since the root Application is not defined in git.
+
+**The cluster-admin binding (R10, frank#912).** `secure-agent-pod-cluster-admin`
+grants `cluster-admin` to `secure-agent-pod:agent-sa`. It is cluster-scoped, so a
+namespace delete does not remove it; only the Application finalizer does, and a
+finalizer stripped to clear a `DeletionError` would leave it behind for any later
+`agent-sa` to inherit. The sweep therefore runs
+`kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found`
+after the Application is NotFound (while the Application lives, `selfHeal` recreates
+it), then asserts NotFound and that
+`kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa`
+answers `no`. frank#913's upgrade sessions must not hold credentials before this
+passes. The `root-agents` group's cluster-admin is a separate change.
+
 **Observability (R11).** In the same PR, so nothing pages on the way down, tombstone
 `exercise-reminder-stale`, `session-manager-stale`, `audit-digest-stale`,
 `agent-pod-not-running` and `layer-18-persistent-agent-degraded`, delete the retained
@@ -203,16 +240,60 @@ heartbeat series as a recorded manual step, and remove `secure-agent-pod-dashboa
 mounts in `apps/victoria-metrics/values.yaml`, the heartbeat and namespace panels
 in `dashboard-cm.yaml`, and `vmpodscrape.yaml` (with the app).
 
+One PR does not by itself keep the removal silent: Grafana reads provisioning at
+boot, so the stored rules keep evaluating the retained heartbeat series after the pod
+is gone, and `session_manager` goes stale within about 15 minutes. The manual phase
+is therefore ordered: create one Grafana silence for the five rule uids before the
+merge; merge; confirm the rules ConfigMap holds the tombstones; restart Grafana;
+assert through the running Grafana API that none of the five uids exists; delete the
+retained `exercise_reminder`, `session_manager` and `audit_digest` pushgateway series
+and assert they are gone; delete the silence. `grafana-alerting` does not prune, so
+the live ConfigMap `grafana-secure-agent-pod-dashboard` in `monitoring` is deleted by
+hand and asserted NotFound. Every rule labelled `frank-ops#18` is tombstoned, so that
+tracker is closed as a recorded step.
+
 **Images and leftovers (R12, R13).** Remove the `kali` matrix leg and directory
-from `agent-images`, and the temporary exclusion from the bump workflow. In Frank,
+from `agent-images`, and the temporary exclusion from the bump workflow together
+with its local twin (`FROZEN_UNTIL_POD_RETIRED` and
+`test_frozen_images_are_not_bumped_by_the_workflow` in
+`scripts/tests/test_agent_images_bump_coverage.py`). In Frank,
 delete `secrets/secure-agent-pod/` and `secrets/github-app/github-app-derio-key.yaml`
 (after confirming the Tekton copy holds the same key, and retiring its runbook line),
 and update `test_claude_autoupdater_disabled.py`,
 `test_fr_isolation_target_env.py` and `test_config_reaches_the_process.py`, plus
 stale pointers in `references/access.md`, the browser-harness rules,
 `agents/rules/frank-gotchas.md` and `agents/rules/frank-infrastructure.md`.
-Update `README.md` with `/update-readme`. Add a tripwire test that fails if `apps/`
-reintroduces a VK or secure-agent-pod workload reference. Manual operations record:
+Update `README.md` with `/update-readme`.
+
+The tripwire already exists: extend `scripts/tests/test_vk_retired.py` instead of
+adding a file. Drop `POD_DEPLOYMENT`, `POD_PIN` and the `skip_pod` exemption, whose
+test would raise once the directory is deleted. Assert that `apps/secure-agent-pod`,
+both root templates and `secrets/secure-agent-pod` are absent, that the five uids
+are tombstoned and no longer defined, that the workflow has no frozen exclusion, and
+that nothing under `apps/`, `secrets/` or `.github/` names the pod's images
+(`secure-agent-kali`, `vk-local`), its namespace as a live target, or its three
+addresses. Prose that names the pod must say it is retired; the scan allows a line
+only when it carries `retired` or `HISTORICAL`, and tombstones are allowed by uid.
+
+Pointers the pod leaves behind are fixed, not exempted:
+`scripts/hooks/session-start.sh`, `apps/argocd-extras/manifests/externalsecret-repo-runs-fr.yaml`,
+both `apps/tekton/manifests/clustergenerator-*github-app*.yaml`,
+`apps/paperclip/manifests/deployment.yaml`, the `apps/hermes-agent-shell` manifests
+and its two root templates, `secrets/hermes-agent-shell/README.md`,
+`secrets/ruflo/README.md`, `patches/phase04-gpu/403-gpu1-pcie-aspm.yaml`,
+`docs/runbooks/frank-gotchas/networking.md`, and the comments in
+`test_staging_gate_manifests.py`, `test_etcd_scrape.py` and
+`test_hermes_ssh_byok_env_snapshot.py`. The pod's manual operations are retired in
+their plan blocks and then resynced, because the runbook is generated: the pod
+bootstrap and key-apply operations, and the operation that builds the Tekton key from
+`secrets/github-app/github-app-derio-key.yaml`, which is repointed at
+`github-app-derio-key-tekton.yaml` before the source file is deleted.
+
+`scripts/tests/fixtures/life/pin-exceptions.yaml` arrives with frank#913 and lists
+the `vk-local` and `secure-agent-kali` pins. Whichever of #913 and this PR merges
+second removes both entries. If the file is on `main` when this PR is rebased, this
+PR removes them and the tripwire asserts their absence; otherwise the PR body records
+that #913 must drop them. Manual operations record:
 removing the `agent-secrets-tier2` Infisical keys no other consumer uses, and
 removing the user-level `vibe_kanban` MCP entry on the Mac.
 
@@ -221,12 +302,14 @@ removing the user-level `vibe_kanban` MCP entry on the Mac.
 | Treatment | Posts |
 |---|---|
 | Superseded notice at top, bump `last_updated` | building `21-secure-agent-pod`, `25-vk-relay`, `26-vk-remote-self-host`; operating `14-secure-agent-pod`, `20-vk-relay`, `21-vk-remote` |
-| Short update note where VK or the pod is central | building `28-agent-images-sidecar`, operating `19-git-credentials-without-a-shell`, paper `17-agentic-orchestration` |
-| Fix or annotate passing mentions | building `00-overview`, `20-workflow-automation`, `22-health-monitoring`; operating `06-secrets`, `15-health-monitoring`; paper `15-ingress-and-service-catalog` |
+| Short update note where VK or the pod is central | building `18-persistent-agent`, `28-agent-images-sidecar`, operating `19-git-credentials-without-a-shell`, paper `17-agentic-orchestration` |
+| Fix or annotate passing mentions | building `00-overview`, `20-workflow-automation`, `22-health-monitoring`; operating `06-secrets`, `15-health-monitoring`; building `24-in-cluster-ingress`; papers `10-self-hosted-inference`, `15-ingress-and-service-catalog` |
 
 Notices point to `33-hermes-shell` as the agent shell that remains. Annotate the
 `blog/data/roadmap.yaml` entries rather than deleting them, since the layers
-happened. Posts stay published.
+happened. Posts stay published. Paper 17's `data/vendors.yaml` and its dossier are
+left as the research record they are. A test asserts that every bundle in the first
+two rows carries the `> **Update 2026-11.**` line.
 
 **Revival note (R15).** To revive chorebot: redeploy from `derio-net/willikins`
 `scripts/chorebot` as its own workload. Its data remains in Notion. Its
@@ -261,9 +344,9 @@ gate: devops
 - vk-posts-superseded: none — the blog build and its existing tests run in CI on the PR, and the notices are reviewed in the diff.
 - no-vk-references-remain: none — the new tripwire test in `scripts/tests/` verifies this in CI.
 
-## Test Plan
+## Phase 1 checks (shipped)
 
-Phase 1 only. Phase 2's checks are listed separately, because this run ships Phase 1.
+These were the Test Plan of the Phase 1 PR and are kept as its record.
 
 0. Pre-merge: the `postgres-vk` dump is verified on the Mac; the pod UID and restart counts are recorded; `argocd app diff secure-agent-pod` shows no Deployment change; no `bump/agent-images-*` PR is open.
 1. (op: step-2) `kubectl -n secure-agent-pod get pod` shows the same pod UID and `kali` restart count as the row 0 baseline.
@@ -278,12 +361,14 @@ Phase 1 only. Phase 2's checks are listed separately, because this run ships Pha
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
 | 2026-11-08--agents--retire-vk | `derio-net/frank` | `2026-11-08--agents--retire-vk` | — |
+| 2026-11-12--agents--retire-secure-agent-pod | `derio-net/frank` | `2026-11-12--agents--retire-secure-agent-pod` | 2026-11-08--agents--retire-vk |
 
-## Phase 2 checks (later PR)
+## Test Plan
 
-These become the Test Plan of the Phase 2 PR.
+Phase 2, post-merge and operator-driven, except row 7 which gates leaving draft.
 
-7. The archive lists and verifies on the Mac before the PR leaves draft, and contains chorebot's `config.yaml`.
-8. `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
-9. `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound.
-10. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+7. (op: premerge-archive) The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+8. (op: step-8) `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
+9. (op: step-9) `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and `kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa` answers `no`.
+10. (op: step-10) After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+11. (op: step-11) The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.

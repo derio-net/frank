@@ -9,10 +9,12 @@ summary: "Day-to-day commands for managing the secure agent pod — SSH access, 
 weight: 15
 reader_goal: "Connect to the secure agent pod via SSH and mosh, check s6-supervised service health, rotate secrets, and recover from OOM or crashloop states."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 description: "Day-to-day commands for managing the secure agent pod — SSH access, process health, s6-overlay supervision, VibeKanban, GitHub App token auth, and recovering from the gotchas…"
 ---
+
+> **Update 2026-11.** VibeKanban and the secure-agent-pod were retired in November 2026. This post is kept as a record of how they were built: the manifests, addresses and commands below no longer exist on the cluster. The agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 {{< last-updated >}}
 

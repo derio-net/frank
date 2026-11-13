@@ -28,7 +28,7 @@ data:
           "id": 1,
           "title": "Alert Summary",
           "type": "alertlist",
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
           "options": {
             "alertListType": "alertRules",
             "folder": { "title": "feature-health" },
@@ -41,106 +41,6 @@ data:
             },
             "viewMode": "list"
           }
-        },
-        {
-          "id": 2,
-          "title": "Cron Job Heartbeats — Sub-hourly",
-          "type": "table",
-          "gridPos": { "h": 4, "w": 16, "x": 8, "y": 0 },
-          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-          "targets": [
-            {
-              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-              "expr": "(time() - willikins_heartbeat_last_success_timestamp{job=\"session_manager\"}) / 60",
-              "instant": true,
-              "format": "table",
-              "refId": "A"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": { "type": "auto" },
-                "inspect": false
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 60 },
-                  { "color": "red", "value": 180 }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": { "id": "byName", "options": "Value" },
-                "properties": [
-                  { "id": "displayName", "value": "Minutes Since Last Success" },
-                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
-                ]
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "filterFieldsByName",
-              "options": {
-                "include": { "names": ["job", "Value"] }
-              }
-            }
-          ]
-        },
-        {
-          "id": 5,
-          "title": "Cron Job Heartbeats — Daily",
-          "type": "table",
-          "gridPos": { "h": 4, "w": 16, "x": 8, "y": 4 },
-          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-          "targets": [
-            {
-              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-              "expr": "(time() - willikins_heartbeat_last_success_timestamp{job=\"audit_digest\"}) / 60",
-              "instant": true,
-              "format": "table",
-              "refId": "A"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto",
-                "cellOptions": { "type": "auto" },
-                "inspect": false
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 1500 },
-                  { "color": "red", "value": 1560 }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": { "id": "byName", "options": "Value" },
-                "properties": [
-                  { "id": "displayName", "value": "Minutes Since Last Success" },
-                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
-                ]
-              }
-            ]
-          },
-          "transformations": [
-            {
-              "id": "filterFieldsByName",
-              "options": {
-                "include": { "names": ["job", "Value"] }
-              }
-            }
-          ]
         },
         {
           "id": 3,
@@ -196,7 +96,7 @@ data:
           "targets": [
             {
               "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
-              "expr": "kube_pod_status_phase{namespace=~\"secure-agent-pod|n8n-01|paperclip-system\", phase=\"Running\"}",
+              "expr": "kube_pod_status_phase{namespace=~\"n8n-01|paperclip-system\", phase=\"Running\"}",
               "instant": true,
               "format": "table",
               "refId": "A"

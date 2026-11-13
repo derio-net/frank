@@ -4,11 +4,11 @@ Apply with: `sops --decrypt <file> | kubectl apply -f -`
 
 Currently this directory holds:
 
-- `ruflo-shell-ssh-keys.yaml` *(to be created on first deploy — see below)* — Secret in `ruflo-system` mounted read-only into the `ruflo-shell` container at `/etc/ssh-keys`. Same shape as `secrets/secure-agent-pod/`'s `agent-ssh-keys` (which is referenced from `apps/secure-agent-pod/manifests/deployment.yaml`).
+- `ruflo-shell-ssh-keys.yaml` *(to be created on first deploy — see below)* — Secret in `ruflo-system` mounted read-only into the `ruflo-shell` container at `/etc/ssh-keys`. Same shape as the retired `secrets/secure-agent-pod/`'s `agent-ssh-keys`.
 
 ## Why SOPS not ESO
 
-The original Phase 2 plan called for an `ExternalSecret` reading SSH public keys from Infisical. Frank's existing pattern for SSH host/user keys is SOPS-bootstrap — `secure-agent-pod`'s `agent-ssh-keys` is a SOPS Secret applied out-of-band. We mirror that pattern here so the Deployment can reference a stable Secret name without bootstrapping ESO state.
+The original Phase 2 plan called for an `ExternalSecret` reading SSH public keys from Infisical. Frank's existing pattern for SSH host/user keys is SOPS-bootstrap — the retired `secure-agent-pod`'s `agent-ssh-keys` was a SOPS Secret applied out-of-band. We mirror that pattern here so the Deployment can reference a stable Secret name without bootstrapping ESO state.
 
 ## On first deploy
 

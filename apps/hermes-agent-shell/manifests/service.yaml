@@ -1,8 +1,9 @@
 # SSH + Mosh LoadBalancer for the hermes-agent-shell pod.
-# Single combined LB IP (ruflo/paperclip pattern, not secure-agent-pod's
-# two-IP split): MixedProtocolLBService (TCP + UDP on one Service) works on
+# Single combined LB IP (ruflo/paperclip pattern, not the two-IP split of the
+# retired secure-agent-pod): MixedProtocolLBService (TCP + UDP on one Service) works on
 # Cilium 1.17 + K8s 1.35. The mosh UDP range (60032–60047) does not overlap
-# secure-agent-pod/paperclip (60000–60015) or ruflo (60016–60031), so no
+# paperclip (60000–60015, a range the retired secure-agent-pod also used) or
+# ruflo (60016–60031), so no
 # `lbipam.cilium.io/sharing-key` is needed.
 # 192.168.55.226 confirmed unused across `apps/` at the time of this PR.
 #

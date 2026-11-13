@@ -32,7 +32,7 @@ If all keys are removed, delete the ExternalSecret entirely rather than leaving 
 ## ESO `GithubAccessToken` generator resolves `secretRef` in the consuming namespace (2026-06-08)
 
 ESO's `GithubAccessToken` generator (used to mint short-lived GitHub App
-installation tokens — e.g. for the secure-agent-pod and the tekton CI mirror)
+installation tokens — e.g. for the tekton CI mirror and, until 2026-11, the secure-agent-pod)
 resolves its `auth.privateKey.secretRef` **in the namespace of the consuming
 ExternalSecret**, and **ignores the `secretRef.namespace` field** — even when the
 generator is a cluster-scoped `ClusterGenerator`. Put the private-key Secret in
@@ -41,8 +41,8 @@ the *consumer's* namespace, not a central one:
 - Symptom: the ExternalSecret is `SecretSyncedError` with
   `error using generator: ... error getting GH pem from secret: secrets "<name>" not found`,
   while the key plainly exists — just in the wrong namespace.
-- Fix: SOPS the key into the consuming ns (e.g. `secure-agent-pod`,
-  `tekton-pipelines`) and drop the misleading `secretRef.namespace`.
+- Fix: SOPS the key into the consuming ns (e.g. `tekton-pipelines`; the
+  retired `secure-agent-pod` was another) and drop the misleading `secretRef.namespace`.
 - Note: the agent pod's ServiceAccount is cluster-admin anyway, so the key's
   namespace is moot for that threat model — the real protection is that the key
   is **never mounted into a container** (only the rotating token is).
@@ -283,7 +283,7 @@ generator: error getting GH pem from secret: secrets
 The `github-app-derio` ClusterGenerator names `github-app-derio-key`, and ESO
 resolves `auth.privateKey.secretRef` **in the namespace of the consuming
 ExternalSecret**, ignoring any `secretRef.namespace`. That PEM existed only in
-`secure-agent-pod`, which has its own ExternalSecret for the same App.
+`secure-agent-pod` (retired 2026-11), which had its own ExternalSecret for the same App.
 
 ### Why it stayed invisible
 
@@ -301,9 +301,7 @@ ExternalSecret**, ignoring any `secretRef.namespace`. That PEM existed only in
 ```bash
 # The PEM must exist in EVERY namespace that consumes the generator.
 source .env
-sops -d secrets/github-app/github-app-derio-key.yaml \
-  | sed 's/namespace: secure-agent-pod/namespace: tekton-pipelines/' \
-  | kubectl apply -f -
+sops -d secrets/github-app/github-app-derio-key-tekton.yaml | kubectl apply -f -
 
 # ESO caches the failure; force a resync rather than waiting out refreshInterval.
 kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push \
@@ -591,7 +589,8 @@ back with the node, so the old guard protected nothing there.
 
 `github-app-derio` is a cluster-scoped ESO `ClusterGenerator` that mints GitHub App
 installation tokens (derio-fr-automation, App 3994132). Its manifest sat in
-`apps/secure-agent-pod/manifests/`, so ArgoCD tracked it under the `secure-agent-pod`
+`apps/secure-agent-pod/manifests/` (retired 2026-11; it now lives in
+`apps/tekton/manifests/`), so ArgoCD tracked it under the `secure-agent-pod`
 Application. Its consumers were elsewhere: `tekton-pipelines/frank-gitops-push`
 (and, through that Secret, `cnc-promotion` and the staging gate), plus the pod's own
 `agent-github-token`.
