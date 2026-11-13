@@ -246,3 +246,23 @@ amendments:
     why: 2026-11-12. derio-net/vibe-kanban reports archived true with 0 webhooks. ci-delivery-check
       no longer lists the fork and holds no series for it. The four VK_REMOTE keys were
       removed from Infisical by the operator on 2026-11-12, so nothing is owed here.
+  - row: pod-removed-after-archive
+    op: set-status
+    base: 0
+    status: walk-owed
+    notes: '2026-11-13. Removal is proven live: Application, namespace, PV and LBs .215/.218/.219
+      NotFound (step-8), cluster-admin binding gone and a server-side SubjectAccessReview
+      for agent-sa answers false with a system:masters control true (step-9, frank#963
+      is why can-i --as is not used). Archive ~/Archives/secure-agent-pod-2026-11 (0700)
+      passed MACHINE verification only (verify --live rc=0, no FAIL, 14 repo bundles
+      self-contained). R9 asks for verification on the operator''s Mac and the operator
+      has NOT yet inspected the archive by hand, so that half is owed: do it, then walk
+      this row. Not papered over.'
+    why: '2026-11-13. Removal is proven live: Application, namespace, PV and LBs .215/.218/.219
+      NotFound (step-8), cluster-admin binding gone and a server-side SubjectAccessReview
+      for agent-sa answers false with a system:masters control true (step-9, frank#963
+      is why can-i --as is not used). Archive ~/Archives/secure-agent-pod-2026-11 (0700)
+      passed MACHINE verification only (verify --live rc=0, no FAIL, 14 repo bundles
+      self-contained). R9 asks for verification on the operator''s Mac and the operator
+      has NOT yet inspected the archive by hand, so that half is owed: do it, then walk
+      this row. Not papered over.'
