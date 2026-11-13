@@ -2011,3 +2011,149 @@ def test_key_fingerprint_retries_a_failing_kubectl_read(tmp_path):
     ok = _run("key-fingerprint", "--old-file-gone-ok", env=env)
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert int(cnt.read_text()) == 3
+
+
+# --- SIGPIPE under pipefail, *.git discovery, --accept-skipped ------------------
+
+def _rewrite_tarball(dest, home, first, filler, last=()):
+    """Replace the home tarball with a big one whose wanted members sort FIRST."""
+    import io
+    t = dest / "secure-agent-pod-home.tar.gz"
+    with tarfile.open(t, "w:gz") as tf:
+        def add(name, data=b"x"):
+            ti = tarfile.TarInfo(name)
+            ti.size = len(data)
+            tf.addfile(ti, io.BytesIO(data))
+        for n in first:
+            add(n)
+        for i in range(filler):
+            add(f"zzz/directory-{i:05d}/some-rather-long-file-name-{i:05d}.txt")
+        for n in last:
+            add(n)
+    # keep the manifests consistent so only the structural checks can speak
+    sha = subprocess.run(["shasum", "-a", "256", str(t)], capture_output=True, text=True).stdout.split()[0]
+    rem = [l for l in (dest / "REMOTE.sha256").read_text().splitlines()
+           if not l.endswith("  secure-agent-pod-home.tar.gz")]
+    rem.append(f"{sha}  secure-agent-pod-home.tar.gz")
+    (dest / "REMOTE.sha256").write_text("\n".join(rem) + "\n")
+    subprocess.run("find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 shasum -a 256 "
+                   "| sed 's#  \\./#  #' > MANIFEST.sha256", shell=True, cwd=dest, check=True)
+
+
+def test_verify_finds_early_members_in_a_huge_tarball_listing(tmp_path):
+    home = _claude_home(tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    _rewrite_tarball(dest, home,
+                     first=("interviews/a.txt", "orgs/b.txt", ".claude/projects/slug/x.jsonl"),
+                     filler=4000,
+                     last=("repos/willikins/scripts/chorebot/config.yaml",))
+    listing_size = sum(len(n) + 1 for n in tarfile.open(dest / "secure-agent-pod-home.tar.gz").getnames())
+    assert listing_size > 64 * 1024
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode == 0, v.stdout
+    assert "PASS tarball has interviews/" in v.stdout and "PASS tarball has orgs/" in v.stdout
+    assert "INFO .claude/projects is in the tarball" in v.stdout
+    assert "PASS tarball lists chorebot config.yaml" in v.stdout
+
+
+def test_a_credential_at_the_end_of_a_huge_listing_is_still_found(tmp_path):
+    home = _claude_home(tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    _rewrite_tarball(dest, home, first=("interviews/a.txt", "orgs/b.txt"), filler=4000,
+                     last=("repos/willikins/scripts/chorebot/config.yaml", ".claude/.credentials.json"))
+    v = _run("verify", "--dest", str(dest), env=env)
+    assert v.returncode != 0 and "FAIL no credential files in tarball" in v.stdout
+
+
+def test_no_early_exit_consumer_is_left_in_a_pipe():
+    import re
+    bad = []
+    for n, line in enumerate(SCRIPT.read_text().splitlines(), 1):
+        code = line.strip()
+        if code.startswith("#"):
+            continue
+        # a consumer that can exit before its producer is done (SIGPIPE under pipefail)
+        if re.search(r"\|\s*(head\b|sed\s+-n\b)", code) or re.search(r"\|\s*grep\s+-[A-Za-z]*[qm]", code):
+            bad.append((n, code))
+    assert not bad, bad
+
+
+def _bare_with_commit(tmp_path, where):
+    work = tmp_path / f"w-{where.name}"
+    work.mkdir()
+    _git("init", "-q", "-b", "main", cwd=work)
+    (work / "x").write_text("x")
+    _git("add", "x", cwd=work)
+    _git("commit", "-qm", "bare commit", cwd=work)
+    subprocess.run(["git", "clone", "-q", "--bare", str(work), str(where)], check=True)
+
+
+def test_only_real_bare_directories_named_dot_git_are_repositories(tmp_path):
+    home = _fixture_home(tmp_path)
+    logs = home / ".vscode-server/data/logs/20261101/exthost1"
+    logs.mkdir(parents=True)
+    (logs / "vscode.git").write_text("a log file named like a repository")
+    (home / ".vscode-server/data/logs/20261101/exthost2/vscode.git").mkdir(parents=True)
+    (home / ".vscode-server/data/logs/20261101/exthost2/vscode.git/git.log").write_text("log")
+    (home / "repos/junk.git").mkdir(parents=True)
+    (home / "repos/junk.git/note").write_text("no HEAD, no objects")
+    real = home / "repos/x.git"
+    _bare_with_commit(tmp_path, real)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    clones = (dest / "CLONES.txt").read_text()
+    assert "x.git" in clones and "vscode.git" not in clones and "junk.git" not in clones
+    assert "not a usable" not in (dest / "SKIPPED.txt").read_text()
+    assert [b for b in (dest / "bundles").glob("*x.git*.bundle")]
+    assert _run("verify", "--dest", str(dest), env=env).returncode == 0
+
+
+def _with_skipped(dest, lines):
+    p = dest / "SKIPPED.txt"
+    p.write_text(p.read_text() + "".join(l + "\n" for l in lines))
+    # keep the manifest consistent: only the skipped-path handling is under test
+    subprocess.run("find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 shasum -a 256 "
+                   "| sed 's#  \\./#  #' > MANIFEST.sha256", shell=True, cwd=dest, check=True)
+
+
+def test_verify_accept_skipped_downgrades_only_matching_paths(tmp_path):
+    r, dest, env, _ = _archive_ok(tmp_path)
+    assert r.returncode == 0, r.stderr
+    _with_skipped(dest, ["not a usable git repository: /h/.vscode-server/data/logs/a/vscode.git",
+                         "not a usable git repository: /h/.vscode-server/data/logs/b/vscode.git",
+                         "not a usable git repository: /h/repos/really-broken"])
+    before = sorted(p.name for p in dest.iterdir())
+    skipped_before = (dest / "SKIPPED.txt").read_bytes()
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+    one = _run("verify", "--dest", str(dest), "--accept-skipped", "*/vscode.git", env=env)
+    assert one.returncode != 0 and "FAIL no unreadable or unusable paths" in one.stdout
+    assert "really-broken" in one.stdout
+    both = _run("verify", "--dest", str(dest), "--accept-skipped", "*/vscode.git",
+                "--accept-skipped", "/h/repos/*", env=env)
+    assert both.returncode == 0, both.stdout
+    assert "WARN accepted by --accept-skipped '*/vscode.git'" in both.stdout
+    assert "WARN accepted by --accept-skipped '/h/repos/*'" in both.stdout
+    assert (dest / "SKIPPED.txt").read_bytes() == skipped_before     # nothing written into the archive
+    assert sorted(p.name for p in dest.iterdir()) == before
+
+
+def test_verify_live_reclassifies_regular_files_named_dot_git(tmp_path):
+    home = _fixture_home(tmp_path)
+    r, dest, env, _ = _archive_ok(tmp_path, home=home)
+    assert r.returncode == 0, r.stderr
+    afile = home / "logs/vscode.git"
+    afile.parent.mkdir(parents=True)
+    afile.write_text("log")
+    adir = home / "repos/realdir"
+    adir.mkdir(parents=True)
+    _with_skipped(dest, [f"not a usable git repository: {afile}"])
+    ok = _run("verify", "--live", "--dest", str(dest), env=env)
+    assert ok.returncode == 0, ok.stdout
+    assert f"INFO {afile} was a regular file named *.git (older discovery), not a repository" in ok.stdout
+    assert "PASS live skipped paths match the archive" in ok.stdout
+    # offline verify of the same archive still fails: it cannot ask the pod
+    assert _run("verify", "--dest", str(dest), env=env).returncode != 0
+    _with_skipped(dest, [f"not a usable git repository: {adir}"])
+    bad = _run("verify", "--live", "--dest", str(dest), env=env)
+    assert bad.returncode != 0 and "FAIL no unreadable or unusable paths" in bad.stdout

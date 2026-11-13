@@ -46,7 +46,7 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 usage() {
   cat >&2 <<USAGE
-usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--skip-space-check] [--live] [--old-file-gone-ok]
+usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--dest DIR] [--session-ended-confirmed] [--accept-unreadable] [--skip-space-check] [--accept-skipped GLOB]... [--live] [--old-file-gone-ok]
   archive          copy the files worth keeping off the pod into DEST (default $DEST_DEFAULT):
                    home tarball (interviews, orgs, .hermes, ~/.claude, the audit archive, the
                    vibe-kanban sqlite, chorebot's config; see below); one self-contained bundle per repository (all refs incl.
@@ -66,7 +66,10 @@ usage: $(basename "$0") <archive|verify|key-fingerprint|restore-worktree> [--des
                    shell-snapshots, cache, .cache, plugins/cache, plugins/marketplaces,
                    node_modules, *.lock); EXCLUDED.txt lists what was left out. Git clones under
                    .claude are still bundled. Transcripts are complete only once the session has ended.
-  verify           verify the archive in DEST, offline; --live also re-scans the pod
+  verify           verify the archive in DEST, offline; --accept-skipped GLOB (repeatable)
+                   downgrades SKIPPED.txt unreadable / not-usable lines whose path matches the glob
+                   from FAIL to WARN, naming the glob, e.g. --accept-skipped '*/vscode.git'
+                   (it writes nothing into the archive); --live also re-scans the pod
                    (read-only) and fails if its clones or dirty state changed since the archive
   restore-worktree rebuild a saved worktree locally: --dest ARCHIVE --worktree ORIGINAL_PATH
                    --target DIR (an empty dir or fresh clone); never contacts the pod
@@ -357,7 +360,16 @@ discover() {
   case $STREAM_RC in 0|1) ;; *) die "find (repositories) failed on the pod (exit $STREAM_RC)" ;; esac
   if [ -n "$STREAM_ERR" ]; then while IFS= read -r line; do note_skip "unreadable: $line"; done <<<"$STREAM_ERR"; fi
   while IFS= read -r -d '' p; do
-    case $p in */.git) repo=${p%/.git} ;; *) repo=$p ;; esac
+    case $p in
+      */.git) repo=${p%/.git} ;;
+      *)
+        # A *.git path is a bare repository only if it is a directory with HEAD, objects/ and
+        # refs/. Anything else named *.git (log directories, files) is not a candidate at all.
+        # shellcheck disable=SC2016  # the script runs on the pod
+        cap "$SCRATCH/probe" sh -c '[ -d "$1" ] && [ -f "$1/HEAD" ] && [ -d "$1/objects" ] && [ -d "$1/refs" ]' _ "$p"
+        [ "$STREAM_RC" = 0 ] || continue
+        repo=$p ;;
+    esac
     case $repo in *$'\n'*) die "repository path contains a newline: unsupported" ;; esac
     # A junk HEAD or a repository the pod user may not read must be recorded, not abort
     # the run: the failing rev-parse is handled explicitly (a bare `cd "$(...)"` would
@@ -518,7 +530,7 @@ bundle_refs() {
       types=$SCRATCH/extra.types
       while IFS=$'\t' read -r sha label; do
         [ -n "$sha" ] || continue
-        case $(grep -a "^$sha " "$types" | head -1) in
+        case $(grep -a -m1 "^$sha " "$types") in
           "$sha commit "*)
             case " ${extras[*]+${extras[*]}} " in *" $sha "*) ;; *) extras+=("$sha") ;; esac
             printf '%s\t%s\t%s\n' "$repo" "$sha" "$label" >> "$DEST/EXTRA-REVS.txt" ;;
@@ -534,7 +546,7 @@ bundle_refs() {
     return 0
   fi
   cap "$SCRATCH/du" du -sk "$common"
-  kb=$(cut -f1 "$SCRATCH/du" | head -1)
+  read -r kb _ < "$SCRATCH/du" || kb=0
   TOTAL_POD_KB=$((TOTAL_POD_KB + ${kb:-0}))
   echo "bundling $repo (git dir on the pod: ${kb:-?} KiB)"
   stream_to "$DEST/bundles/$name.bundle" "${GITP[@]}" "${SEL[@]}" bundle create - --all ${extras[@]+"${extras[@]}"}
@@ -858,7 +870,7 @@ space_preflight() {
   while IFS=$'\t' read -r repo kind common; do
     [ -n "$repo" ] || continue
     cap "$SCRATCH/du" du -sk "$common"
-    kb=$(cut -f1 "$SCRATCH/du" | head -1)
+    read -r kb _ < "$SCRATCH/du" || kb=0
     total=$((total + ${kb:-0}))
   done < "$SCRATCH/clones.tsv"
   for p in $present; do args+=("$POD_HOME/$p"); done
@@ -1054,11 +1066,13 @@ cmd_verify() {
     else
       fail "tarball passes gzip -t and lists cleanly"; listing=""
     fi
-    if printf '%s\n' "$listing" | grep -q 'repos/willikins/scripts/chorebot/config.yaml$'; then
+    # here-strings, never `printf | grep -q`: grep -q exits at the first match, printf then dies of
+    # SIGPIPE and pipefail turns a found member into a failure once the listing outgrows the pipe
+    if grep -q 'repos/willikins/scripts/chorebot/config.yaml$' <<<"$listing"; then
       pass "tarball lists chorebot config.yaml"; else fail "tarball lists chorebot config.yaml"; fi
-    if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}interviews/'; then pass "tarball has interviews/"; else fail "tarball has interviews/"; fi
-    if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}orgs/'; then pass "tarball has orgs/"; else fail "tarball has orgs/"; fi
-    if printf '%s\n' "$listing" | grep -q '^\(\./\)\{0,1\}\.claude/projects/'; then
+    if grep -q '^\(\./\)\{0,1\}interviews/' <<<"$listing"; then pass "tarball has interviews/"; else fail "tarball has interviews/"; fi
+    if grep -q '^\(\./\)\{0,1\}orgs/' <<<"$listing"; then pass "tarball has orgs/"; else fail "tarball has orgs/"; fi
+    if grep -q '^\(\./\)\{0,1\}\.claude/projects/' <<<"$listing"; then
       echo "INFO .claude/projects is in the tarball (session transcripts; complete only if no session ran during the archive)"
     else
       echo "WARN .claude/projects is not in the tarball (no session transcripts archived)"
@@ -1091,7 +1105,38 @@ cmd_verify() {
       if [ -s "$DEST/ACCEPTED.txt" ]; then
         echo "WARN unreadable or unusable paths, accepted by the operator (--accept-unreadable):"; sed 's/^/     /' "$DEST/ACCEPTED.txt"
       else
-        fail "no unreadable or unusable paths (SKIPPED.txt):"; grep -E '^(unreadable|not a usable)' "$DEST/SKIPPED.txt" | sed 's/^/     /'
+        local sl sbad="" starget sg smatched
+        : > "$SCRATCH/reclass.txt"
+        if [ "$LIVE" = 1 ]; then
+          # An older discovery listed regular files named *.git; the pod says what each path is.
+          while IFS= read -r sl; do
+            case $sl in "not a usable git repository: "*) ;; *) continue ;; esac
+            starget=${sl#*: }
+            # shellcheck disable=SC2016  # the script runs on the pod
+            cap "$SCRATCH/probe" sh -c 'if [ -d "$1" ]; then echo dir; else echo notdir; fi' _ "$starget"
+            [ "$STREAM_RC" = 0 ] || die "could not ask the pod about $starget"
+            if [ "$(cat "$SCRATCH/probe")" = notdir ]; then
+              echo "$sl" >> "$SCRATCH/reclass.txt"
+              echo "INFO $starget was a regular file named *.git (older discovery), not a repository"
+            fi
+          done < "$DEST/SKIPPED.txt"
+        fi
+        while IFS= read -r sl; do
+          case $sl in unreadable*|"not a usable"*) ;; *) continue ;; esac
+          if grep -Fxq -- "$sl" "$SCRATCH/reclass.txt"; then continue; fi
+          starget=${sl#*: }
+          smatched=""
+          set -f
+          for sg in ${ACCEPT_GLOBS[@]+"${ACCEPT_GLOBS[@]}"}; do
+            # shellcheck disable=SC2254  # $sg is a glob on purpose
+            case $starget in $sg) smatched=$sg; break ;; esac
+          done
+          set +f
+          if [ -n "$smatched" ]; then echo "WARN accepted by --accept-skipped '$smatched': $sl"; else sbad="$sbad$sl"$'\n'; fi
+        done < "$DEST/SKIPPED.txt"
+        if [ -z "$sbad" ]; then pass "no unreadable or unusable paths (the ones listed above were accepted or reclassified)"; else
+          fail "no unreadable or unusable paths (SKIPPED.txt):"; printf '%s' "$sbad" | sed 's/^/     /'
+        fi
       fi
     else
       pass "no unreadable or unusable paths"
@@ -1241,10 +1286,11 @@ cmd_verify() {
     if diff -r "$SCRATCH/arch.refs" "$SCRATCH/live.refs" >/dev/null; then
       pass "live refs match the archive"
     else
-      fail "live refs match the archive (diff: $(diff -r "$SCRATCH/arch.refs" "$SCRATCH/live.refs" | grep -E '^(Only|diff|[<>])' | head -6 | tr '\n' ';'))"
+      fail "live refs match the archive (diff: $(diff -r "$SCRATCH/arch.refs" "$SCRATCH/live.refs" | awk '/^(Only|diff|[<>])/ && n++ < 6' | tr '\n' ';'))"
     fi
     local skp='^(pruned|unreadable|not a usable|prunable)'
-    if diff <(grep -E "$skp" "$DEST/SKIPPED.txt" 2>/dev/null | sort) <(grep -E "$skp" "$SCRATCH/live.skipped" | sort) >/dev/null; then
+    if [ ! -f "$SCRATCH/reclass.txt" ]; then : > "$SCRATCH/reclass.txt"; fi
+    if diff <(grep -E "$skp" "$DEST/SKIPPED.txt" 2>/dev/null | grep -vxFf "$SCRATCH/reclass.txt" | sort) <(grep -E "$skp" "$SCRATCH/live.skipped" | sort) >/dev/null; then
       pass "live skipped paths match the archive"
     else
       fail "live skipped paths match the archive"
@@ -1445,6 +1491,7 @@ RW_PATH=""
 RW_TARGET=""
 LIVE=0
 SKIP_SPACE_CHECK=0
+ACCEPT_GLOBS=()
 ACCEPT_UNREADABLE=0
 while [ $# -gt 0 ]; do
   case $1 in
@@ -1452,6 +1499,7 @@ while [ $# -gt 0 ]; do
     --session-ended-confirmed) CONFIRMED=1; shift ;;
     --live) LIVE=1; shift ;;
     --skip-space-check) SKIP_SPACE_CHECK=1; shift ;;
+    --accept-skipped) [ $# -ge 2 ] || usage; ACCEPT_GLOBS+=("$2"); shift 2 ;;
     --worktree) [ $# -ge 2 ] || usage; RW_PATH=$2; shift 2 ;;
     --target) [ $# -ge 2 ] || usage; RW_TARGET=$2; shift 2 ;;
     --accept-unreadable) ACCEPT_UNREADABLE=1; shift ;;
