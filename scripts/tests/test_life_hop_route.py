@@ -121,8 +121,12 @@ def test_userspace_tailscale_sidecar_degrades_before_phase_7():
     assert ts["image"].startswith("tailscale/tailscale:v") or "/tailscale:" in ts["image"]
     env = {e["name"]: e for e in ts["env"]}
     assert env["TS_USERSPACE"]["value"] == "true"
-    key = env["TS_AUTHKEY"]["valueFrom"]["secretKeyRef"]
-    assert (key["name"], key["key"], key["optional"]) == ("frank-updater-tailscale", "authkey", True)
+    # the key is an OPTIONAL volume the wrapper polls, never env (env cannot see a later Secret)
+    assert "TS_AUTHKEY" not in env
+    (vol,) = [v for v in pod["volumes"] if v["name"] == "ts-authkey"]
+    assert (vol["secret"]["secretName"], vol["secret"]["optional"]) == ("frank-updater-tailscale", True)
+    assert {m["name"] for c in _all_containers(pod) if c["name"] != "tailscale"
+            for m in c.get("volumeMounts", [])}.isdisjoint({"ts-authkey"})
     assert "--advertise-tags=tag:frank-updater" in env["TS_EXTRA_ARGS"]["value"]
     assert "--login-server=https://headscale.hop.derio.net" in env["TS_EXTRA_ARGS"]["value"]
     assert env["TS_SOCKS5_SERVER"]["value"].startswith("localhost:")
@@ -245,7 +249,7 @@ def test_p3_sec_3_tailscale_state_is_not_visible_to_the_scanner():
     byname = {c["name"]: c for c in _all_containers(pod)}
     ts, scan = byname["tailscale"], byname["scan"]
     mounts = lambda c: {m["name"]: m["mountPath"] for m in c.get("volumeMounts", [])}
-    assert mounts(ts) == {"ts-state": "/ts-state"}
+    assert mounts(ts) == {"ts-state": "/ts-state", "ts-authkey": "/ts-authkey"}
     assert "ts-state" not in mounts(scan)
     for name, c in byname.items():
         if name != "tailscale":

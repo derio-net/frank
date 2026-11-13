@@ -3168,6 +3168,11 @@ data:
               summary: "The update console has not completed a vulnerability scan in 36h (or its metrics vanished). New CVEs are going unseen."
               runbook: "kubectl -n update-console get pods,cronjobs; check the console logs and cluster_update_last_scan_timestamp_seconds in VMUI. Spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md"
 
+          # Armed only once the console has reported at least once in the last 30d (VM retention):
+          # before phase 7 it cannot send a report (no Telegram secret), which is by design. After
+          # the first report a vanished or stale metric is a critical page as before (the second
+          # branch of the expression keeps "metric vanished" loud). NoData therefore means "never
+          # reported", which is not a stale heartbeat.
           - uid: life-report-heartbeat-stale
             title: Lifecycle report heartbeat stale
             condition: C
@@ -3177,7 +3182,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: '(time() - max(cluster_update_last_report_timestamp_seconds)) or vector(1e9)'
+                  expr: '(time() - max(cluster_update_last_report_timestamp_seconds)) or (vector(1e9) and on() (count(last_over_time(cluster_update_last_report_timestamp_seconds[30d])) > 0))'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -3194,7 +3199,7 @@ data:
                   expression: B
                   conditions:
                     - evaluator: { type: gt, params: [129600] }
-            noDataState: Alerting
+            noDataState: OK
             execErrState: Error
             for: 30m
             labels:
@@ -3206,7 +3211,7 @@ data:
 
           - uid: life-hop-scan-heartbeat-stale
             title: Hop image scan heartbeat stale
-            condition: C
+            condition: F
             data:
               - refId: A
                 relativeTimeRange: { from: 129600, to: 0 }
@@ -3228,6 +3233,24 @@ data:
                   expression: B
                   conditions:
                     - evaluator: { type: lt, params: [1] }
+              # Gate: armed once the job has ever run configured (any heartbeat other than the
+              # by-design "no hop-readonly-kubeconfig" one, healthy or blind). Phase 7 supplies the
+              # kubeconfig, so the first real run arms it; before that the job cannot succeed.
+              - refId: D
+                relativeTimeRange: { from: 2592000, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: D
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND NOT _msg:"no hop-readonly-kubeconfig" | stats count() as value'
+              - refId: E
+                relativeTimeRange: { from: 2592000, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: E, type: reduce, expression: D, reducer: last, settings: { mode: dropNN } }
+              - refId: F
+                relativeTimeRange: { from: 129600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: F, type: math, expression: "$C && $E > 0" }
             noDataState: OK
             execErrState: Error
             for: 30m
@@ -3240,6 +3263,8 @@ data:
           # A blind run (kubeconfig/tailnet/scanner failure) still prints a heartbeat, with
           # healthy=false. Short 6h window: it alarms within a rule interval of the 03:17 run and
           # clears the same day; persistent blindness is also caught by the 36h rule above.
+          # "skipped: no hop-readonly-kubeconfig" is the by-design pre-phase-7 state, not blindness:
+          # it is excluded here and arms nothing. Once the kubeconfig exists any blind run pages.
           - uid: life-hop-scan-unhealthy
             title: Hop image scan ran blind
             condition: C
@@ -3250,7 +3275,7 @@ data:
                 model:
                   refId: A
                   queryType: stats
-                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND NOT _msg:"\"healthy\": true" | stats count() as value'
+                  expr: 'kubernetes.namespace_name:hop-scan AND _msg:"hop-scan heartbeat" AND NOT _msg:"\"healthy\": true" AND NOT _msg:"no hop-readonly-kubeconfig" | stats count() as value'
               - refId: B
                 relativeTimeRange: { from: 21600, to: 0 }
                 datasourceUid: __expr__

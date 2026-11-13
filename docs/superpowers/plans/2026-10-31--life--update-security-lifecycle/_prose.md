@@ -230,3 +230,28 @@ status: pending
 ## Deployment deviations
 
 None yet.
+
+### Trivy server token (not a session credential: runnable before phase 7)
+
+`trivy-operator-trivy-config` (trivy-system) and `trivy-server-token` (hop-scan) carry ONE random
+shared token. Neither is a session or cluster credential, so they do not wait for frank#912; until the
+first exists `trivy-server-0` sits in CreateContainerConfigError and the app is Progressing (#914 p3-r7).
+The script generates the token, SOPS-encrypts both manifests into `secrets/trivy/`, applies them
+server-side, and checks the three readers hold the same value (fingerprints only).
+
+```yaml
+# manual-operation
+id: life-trivy-token
+layer: life
+app: trivy-operator
+plan: 2026-10-31--life--update-security-lifecycle
+when: "[ANY TIME, before or after merge] resolves trivy-server-0 CreateContainerConfigError"
+why_manual: "A generated shared secret must not live in git unencrypted nor be an ArgoCD resource (SOPS-only)"
+commands:
+  - "cd <repo root> && source .env && bash scripts/trivy-token/bootstrap.sh"
+  - "git add secrets/trivy && commit them on the PR branch"
+verify:
+  - "kubectl -n trivy-system get pod trivy-server-0 shows 1/1 Running (first start downloads the vulnerability DB)"
+  - "the script's closing line reads: OK: one token, three readers"
+status: pending
+```
