@@ -266,3 +266,27 @@ amendments:
       self-contained). R9 asks for verification on the operator''s Mac and the operator
       has NOT yet inspected the archive by hand, so that half is owed: do it, then walk
       this row. Not papered over.'
+  - row: pod-removal-silent
+    op: set-status
+    base: 0
+    status: walked
+    notes: '2026-11-13 (post-merge, PR955 c23a34d8). Grafana provisioning API lists
+      58 rules and none of the five pod rule uids after the restart; pushgateway jobs
+      exercise_reminder/session_manager/audit_digest deleted (remaining: ci-delivery-check);
+      grafana-secure-agent-pod-dashboard ConfigMap deleted. More than an hour after
+      the 48h silence was deleted no pod-related alert fired (only unrelated TLS canaries
+      and Layer 16).'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-13T22:00:00Z'
+      evidence: 'step-10: Grafana API 58 rules, none of the five uids; pushgateway DELETE
+        202 for the three jobs; dashboard CM gone; no pod-related alert firing at 11:53Z,
+        over 1h after silence delete.'
+    why: '2026-11-13 (post-merge, PR955 c23a34d8). Grafana provisioning API lists 58
+      rules and none of the five pod rule uids after the restart; pushgateway jobs exercise_reminder/session_manager/audit_digest
+      deleted (remaining: ci-delivery-check); grafana-secure-agent-pod-dashboard ConfigMap
+      deleted. More than an hour after the 48h silence was deleted no pod-related alert
+      fired (only unrelated TLS canaries and Layer 16).'
