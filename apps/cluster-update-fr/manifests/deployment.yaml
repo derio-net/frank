@@ -129,7 +129,7 @@ spec:
         # spec.backendversion) by atomic rename. Pinned to the same image and digest as
         # SESSION_IMAGE in console.env (agent-images@1f893195): one pin, bumped together.
         - name: omni-status
-          image: ghcr.io/derio-net/upgrade-session:1f89319519ae19e930ec5ba2a33dda0b6c2c0140@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
+          image: ghcr.io/derio-net/upgrade-session:dbdf5f69f39a8cfaf729f732e56a725f98c311ce@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
