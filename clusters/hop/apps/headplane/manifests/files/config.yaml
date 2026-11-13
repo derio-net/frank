@@ -1,8 +1,14 @@
 server:
   host: "0.0.0.0"
   port: 3000
-  cookie_secret: "hop-headplane-cookie-secret-32c!"
-  cookie_secure: false
+  # Placeholder only. Headplane 0.5.5 validates this file BEFORE applying env
+  # overrides, so it must hold a 32-character value; the real session-signing
+  # key comes from HEADPLANE_SERVER__COOKIE_SECRET (Secret headplane-cookie-secret,
+  # SOPS-encrypted in secrets/hop/, applied out-of-band). Guarded by
+  # scripts/tests/test_headplane_cookie_secret_from_secret.py.
+  cookie_secret: "env-override-placeholder-0000000"
+  # Browsers reach Headplane only through Caddy's TLS.
+  cookie_secure: true
 
 headscale:
   url: "http://headscale.headscale-system.svc:8080"
