@@ -25,3 +25,8 @@ runs-fr is public (git ls-remote anonymous OK), so repo-runs-fr ES, its ClusterG
 ### ef707b2f6c9c · finding [open] · runs-fr-staging: prerequisites present, vCluster not registered
 
 Pod resource.exclusions for https://staging.vcluster-staging.svc:443 is live in argocd-cm (since 2026-09-20, controller restarted 2026-09-22 after). Only cluster-cnc-staging is registered. Operator runs manual op cicd-staging-gate-register-vcluster.
+
+<!-- fr:journal kind=review scope=debug id=753cc33cae32 created=2026-11-13T23:36:27+00:00 -->
+### 753cc33cae32 · review · Self review
+
+No review findings; full suite 2284 pass. Remaining failure test_every_rendered_image_resolves is main's #971 digest drift (4 agent-images digests), unrelated.
