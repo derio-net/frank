@@ -541,3 +541,10 @@ decider: operator, relayed by the orchestrator session on 2026-11-12 (this sessi
 ### phase2-r9-session-released · decision · R9: the pod's triage-state claude session may be stopped (relayed, not heard directly)
 
 Supersedes the gate half of phase2-r9-gate-prep-only. On 2026-11-12 the orchestrator session relayed that the operator confirmed the pod's interactive claude session in orgs/derio-net/triage-state is no longer relevant and can go, and that the orchestrator will stop it right before running archive. The operator also said there was no 'triage run' of theirs; the wording came from the spec. This session did not receive that confirmation from the operator itself, so it is recorded as relayed and unverified here. R9's second half still stands: the archive must be verified on the Mac before the PR leaves draft. No op was run by this session.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-3 created=2026-11-13T22:12:08+00:00 -->
+### test-plan-step-1-3 · discovery · Test Plan step 1: ran
+
+Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+
+Evidence: Archive run 5: rc 0, verify --live rc 0, no FAIL, 14 repo bundles self-contained, in ~/Archives/secure-agent-pod-2026-11 at mode 0700. Gates passed: generator owner tekton-extras, key fingerprint equal across live Secret and both SOPS files, root prune true. Machine verify only: the operator has not yet inspected the archive by hand, so R9's own-look half is still owed.
