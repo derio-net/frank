@@ -6,6 +6,7 @@ remote argv locally against a fixture standing in for the pod's home
 cluster, and every destination lives under tmp_path, outside any git work tree.
 """
 import os
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -236,9 +237,20 @@ def test_key_fingerprint_compares_without_printing_key_material(tmp_path):
     kubectl.write_text(f"#!/usr/bin/env bash\nprintf '%s' '{b64}'\n")
     sops = tmp_path / "sops"
     sops.write_text(f"#!/usr/bin/env bash\nprintf 'data:\\n    key: {b64}\\n'\n")
-    for f in (kubectl, sops):
+    # The old key file was deleted from main by the retirement itself, so the script reads it
+    # from origin/main. Stub that one git call: the test must not depend on what the real
+    # history holds (it went red on main the moment the file was gone).
+    git = tmp_path / "git"
+    real_git = shutil.which("git")
+    git.write_text(
+        "#!/usr/bin/env bash\n"
+        'case "$*" in *"show origin/main:secrets/github-app/github-app-derio-key.yaml"*)'
+        " printf 'data:\\n    key: ENC[stub]\\n'; exit 0;; esac\n"
+        f'exec "{real_git}" "$@"\n'
+    )
+    for f in (kubectl, sops, git):
         f.chmod(0o755)
-    env = {**os.environ, "KUBECTL": str(kubectl), "SOPS": str(sops)}
+    env = {**os.environ, "KUBECTL": str(kubectl), "SOPS": str(sops), "GIT": str(git)}
     r = _run("key-fingerprint", env=env)
     assert r.returncode == 0, r.stdout + r.stderr
     assert secret not in r.stdout + r.stderr and b64 not in r.stdout + r.stderr
