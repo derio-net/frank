@@ -3,7 +3,7 @@ apps:
   frank/alert-agent:
     charts: []
     images:
-    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:ff80c0b9f240a1575c9f3942e840a11a453e8f530b288deda6665394c5ca3d14
     paths:
     - apps/alert-agent/**
     - apps/root/templates/alert-agent.yaml
@@ -265,7 +265,7 @@ apps:
     images:
     - ghcr.io/agentic-stoa/cnc-frd:0.18.0
     - ghcr.io/agentic-stoa/cnc-fru:0.7.5
-    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:ff80c0b9f240a1575c9f3942e840a11a453e8f530b288deda6665394c5ca3d14
     - postgres:16.15@sha256:1beaa3084eee2676f20a9cd9928f0bf2c5bf674f8e49f81017912183d377c61c
     paths:
     - apps/cnc-prod/manifests/**
@@ -309,7 +309,7 @@ apps:
     images:
     - ghcr.io/agentic-stoa/cnc-frd:0.18.0
     - ghcr.io/agentic-stoa/cnc-fru:0.7.5
-    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:ff80c0b9f240a1575c9f3942e840a11a453e8f530b288deda6665394c5ca3d14
     paths:
     - apps/cnc-staging/manifests/**
     - apps/root/templates/cnc-staging.yaml
@@ -551,8 +551,8 @@ apps:
     charts: []
     images:
     - docker.io/nousresearch/hermes-agent:v2026.7.7.2
-    - ghcr.io/derio-net/hermes-agent-shell-hindsight:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
-    - ghcr.io/derio-net/hermes-agent-shell-ssh:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    - ghcr.io/derio-net/hermes-agent-shell-hindsight:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:02a9f73ed5e5e495244940e6d10c101d95e263492718b84520b3efe03dfcaa14
+    - ghcr.io/derio-net/hermes-agent-shell-ssh:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:4b09077b6d5f810f813deaca752748cb4e2fb24962d8cbef344243dc93bbb2fb
     - pgvector/pgvector:0.8.6-pg18@sha256:691673308c99d2161ba298736f3147f1f22d79de2fb7ec93ae9b4afcab870b62
     paths:
     - apps/hermes-agent-shell/manifests/**
@@ -789,7 +789,7 @@ apps:
     charts: []
     images:
     - docker.io/n8nio/n8n:2.13.4
-    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
+    - ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:ff80c0b9f240a1575c9f3942e840a11a453e8f530b288deda6665394c5ca3d14
     paths:
     - apps/n8n-01/manifests/**
     - apps/root/templates/n8n-01.yaml
