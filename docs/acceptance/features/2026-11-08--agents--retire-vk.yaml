@@ -290,3 +290,24 @@ amendments:
       deleted (remaining: ci-delivery-check); grafana-secure-agent-pod-dashboard ConfigMap
       deleted. More than an hour after the 48h silence was deleted no pod-related alert
       fired (only unrelated TLS canaries and Layer 16).'
+  - row: gitops-push-token-continuity
+    op: set-status
+    base: 0
+    status: walked
+    notes: '2026-11-13. Phase 1 half walked 2026-11-12; Phase 2 half proven with the
+      pod gone: namespace, Application, PV and LBs NotFound (step-8), github-app-derio
+      still tracked by tekton-extras, frank-gitops-push SecretSynced and refreshed 487s
+      before the 11:53Z check, key fingerprint equal across the live Secret and both
+      SOPS files.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-13T22:00:00Z'
+      evidence: 'step-8 and step-10, 2026-11-13 11:53Z: frank-gitops-push SecretSynced
+        refreshed 487s ago with the pod gone.'
+    why: '2026-11-13. Phase 1 half walked 2026-11-12; Phase 2 half proven with the pod
+      gone: namespace, Application, PV and LBs NotFound (step-8), github-app-derio still
+      tracked by tekton-extras, frank-gitops-push SecretSynced and refreshed 487s before
+      the 11:53Z check, key fingerprint equal across the live Secret and both SOPS files.'
