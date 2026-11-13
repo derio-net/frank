@@ -10,3 +10,8 @@ Triage report found paperclip (sync fails image: Required value since 2026-09-12
 ### 3b9471b89b64 · root-cause · paperclip: stale hand-apply field manager; backlog includes an IMAGE bump
 
 Same shape as frank#827. NOT repaired: pending sync moves image sha-8e6edcd -> sha-d554c47 (Drizzle migrations auto-run on boot; snapshot the Postgres PVC first), removes the paperclip-shell sidecar and hermes-init, adds PAPERCLIP_ANNOUNCEMENTS_ENABLED=false, a Service LB change, and leaves 8 prune:false orphans. Operator decision per brief.
+
+<!-- fr:journal kind=root-cause scope=debug id=738c81ada986 created=2026-11-13T22:58:53+00:00 -->
+### 738c81ada986 · root-cause · cnc-prod: PreSync hook mounts a PVC only the Sync phase creates
+
+snapshot-pvc.yaml was a plain resource in the same app; PreSync runs first so the pod stayed Pending. Moved the PVC to cnc-prod-db (wave 0), not a hook (hook resources are deleted before recreate and would wipe dumps).
