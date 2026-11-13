@@ -20,3 +20,8 @@ snapshot-pvc.yaml was a plain resource in the same app; PreSync runs first so th
 ### 8371feab59e9 · finding [fixed] · argocd-extras, cnc-prod, infisical, staging-gate, cnc-staging-host fixed in git
 
 runs-fr is public (git ls-remote anonymous OK), so repo-runs-fr ES, its ClusterGenerator and manual op cicd-staging-gate-argocd-runs-fr-repo-key are removed; test_presync_hook_pvc_exists_before_hook.py pins the PVC fix; infisical ignores /metadata/annotations/updatedAt; staging-gate notify timeout 2m0s; cnc-staging-host ES remoteRef defaults explicit. kubectl diff --server-side is empty even on the OLD manifests (ESO webhook defaults on dry-run), so Synced-after-merge is unproven until ArgoCD reconciles.
+
+<!-- fr:journal kind=finding scope=debug id=ef707b2f6c9c created=2026-11-13T22:58:59+00:00 state=open -->
+### ef707b2f6c9c · finding [open] · runs-fr-staging: prerequisites present, vCluster not registered
+
+Pod resource.exclusions for https://staging.vcluster-staging.svc:443 is live in argocd-cm (since 2026-09-20, controller restarted 2026-09-22 after). Only cluster-cnc-staging is registered. Operator runs manual op cicd-staging-gate-register-vcluster.
