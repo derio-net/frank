@@ -548,3 +548,10 @@ Supersedes the gate half of phase2-r9-gate-prep-only. On 2026-11-12 the orchestr
 Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
 
 Evidence: Archive run 5: rc 0, verify --live rc 0, no FAIL, 14 repo bundles self-contained, in ~/Archives/secure-agent-pod-2026-11 at mode 0700. Gates passed: generator owner tekton-extras, key fingerprint equal across live Secret and both SOPS files, root prune true. Machine verify only: the operator has not yet inspected the archive by hand, so R9's own-look half is still owed.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-4 created=2026-11-13T22:12:28+00:00 -->
+### test-plan-step-1-4 · discovery · Test Plan step 1: ran
+
+Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+
+Evidence: Archive verify live exited 0 with no FAIL and all three pre-merge gates passed. Machine verify only because the operator has not inspected the archive by hand yet so R9 own look is still owed
