@@ -311,3 +311,25 @@ amendments:
       gone: namespace, Application, PV and LBs NotFound (step-8), github-app-derio still
       tracked by tekton-extras, frank-gitops-push SecretSynced and refreshed 487s before
       the 11:53Z check, key fingerprint equal across the live Secret and both SOPS files.'
+  - row: kali-image-retired
+    op: set-status
+    base: 0
+    status: walked
+    notes: 2026-11-13. agent-images PR177 merged 2026-11-13T15:09Z and stops building
+      secure-agent-kali. First agent-images bump after both Phase 2 PRs (build dbdf5f69
+      green, frank bump run 43453158820 success) passed its coverage check; bump PR
+      971 merged and rolled out all 8 bumped containers healthy. No apps/ or .github
+      reference to secure-agent-kali remains on main.
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-13T22:00:00Z'
+      evidence: step-11 plus agent-images#177 merged; bump run 43453158820 success;
+        frank#971 rolled out healthy.
+    why: 2026-11-13. agent-images PR177 merged 2026-11-13T15:09Z and stops building
+      secure-agent-kali. First agent-images bump after both Phase 2 PRs (build dbdf5f69
+      green, frank bump run 43453158820 success) passed its coverage check; bump PR
+      971 merged and rolled out all 8 bumped containers healthy. No apps/ or .github
+      reference to secure-agent-kali remains on main.
