@@ -15,3 +15,8 @@ Live 2026-11-13: cluster-update-fr pod Init:CrashLoopBackOff (tailscale sidecar,
 ### e89573635095 · hypothesis · Renovate Degraded is caused by suspend:true
 
 Brief's hypothesis. Ruled out: CronJob suspend has no health impact; resources list shows the ES Ready=False reason SecretSyncedError (message 'could not get secret data from provider') and ESO logs error on the renovate ExternalSecret.
+
+<!-- fr:journal kind=finding scope=debug id=8e40b5e79695 created=2026-11-13T23:10:18+00:00 state=fixed -->
+### 8e40b5e79695 · finding [fixed] · Quiet pre-phase-7 state, armed by the phase-7 inputs
+
+Sidecar waits on an OPTIONAL secret volume (env cannot see a later Secret; proven by test_a_key_that_appears_later... and in the real tailscale image); session shape/admission/golden untouched. Heartbeat rules armed by first report / first configured heartbeat; unhealthy ignores only 'no hop-readonly-kubeconfig'. Renovate ES ignore-healthcheck tied to suspend:true by test. Trivy token: scripts/trivy-token/bootstrap.sh + manual-op life-trivy-token (operator runs). Full suite: 2193 passed.
