@@ -15,3 +15,8 @@ False: it holds the same pre-delete finalizers live; reads Synced only just afte
 ### ea17c9dbccf5 · root-cause · Controller-added delete-hook finalizers vs undeclared root
 
 ArgoCD 3.x adds pre/post-delete finalizers to Apps whose charts ship hooks; templates declare only resources-finalizer; root was not in git so had no ignoreDifferences. Filtered selfHeal ops then overwrite full syncs.
+
+<!-- fr:journal kind=review scope=debug id=edcf3e17eb05 created=2026-11-13T22:34:50+00:00 -->
+### edcf3e17eb05 · review · Self-review
+
+No findings raised; ignoreDifferences on root is diff-only (RespectIgnoreDifferences deliberately off).
