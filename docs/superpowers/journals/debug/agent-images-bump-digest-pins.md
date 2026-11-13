@@ -10,3 +10,8 @@ agent-images-bump.yml sed rewrote only the hex tag; a digest-pinned ref kept its
 ### bada51202a49 · finding [fixed] · repin script resolves new digest
 
 scripts/agent_images_repin.py: tag-only refs unchanged; digest refs get docker buildx imagetools digest of the new tag, hard fail if unresolved. Workflow logs in to GHCR and calls it. scripts/tests/test_agent_images_repin.py pins it.
+
+<!-- fr:journal kind=review scope=debug id=15f461758246 created=2026-11-13T17:50:42+00:00 -->
+### 15f461758246 · review · Review
+
+Self-reviewed; no findings. Live buildx digest resolution untested locally (runs in CI job).
