@@ -253,3 +253,16 @@ Both comments rewritten.
 ### p1-r16-resolved · finding [fixed] · resolves p1-r16: manual-op block and ops.yaml name different revision fields for the same sync check (phase 1)
 
 The manual-op block now names operationState.phase and syncResult.revision, and the runbook was resynced.
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-2 created=2026-11-13T22:13:10+00:00 phase=2 -->
+### manual-phase-2 · owed · 2026-11-12--agents--retire-secure-agent-pod: manual phase 2 is not ticked (phase 2)
+
+what: do manual phase 2 of 2026-11-12--agents--retire-secure-agent-pod and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 2 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod
+owed_key: plan:2026-11-12--agents--retire-secure-agent-pod#p2
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-2-resolved created=2026-11-13T22:13:14+00:00 phase=2 state=open resolves=manual-phase-2 filed_as=derio-net/frank#974 -->
+### manual-phase-2-resolved · finding [filed → derio-net/frank#974] · resolves manual-phase-2: 2026-11-12--agents--retire-secure-agent-pod: manual phase 2 is not ticked (phase 2)
+
+Filed at archive as derio-net/frank#974; still owed until discharged.
