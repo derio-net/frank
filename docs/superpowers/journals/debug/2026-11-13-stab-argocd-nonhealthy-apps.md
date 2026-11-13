@@ -15,3 +15,8 @@ Same shape as frank#827. NOT repaired: pending sync moves image sha-8e6edcd -> s
 ### 738c81ada986 · root-cause · cnc-prod: PreSync hook mounts a PVC only the Sync phase creates
 
 snapshot-pvc.yaml was a plain resource in the same app; PreSync runs first so the pod stayed Pending. Moved the PVC to cnc-prod-db (wave 0), not a hook (hook resources are deleted before recreate and would wipe dumps).
+
+<!-- fr:journal kind=finding scope=debug id=8371feab59e9 created=2026-11-13T22:58:56+00:00 state=fixed -->
+### 8371feab59e9 · finding [fixed] · argocd-extras, cnc-prod, infisical, staging-gate, cnc-staging-host fixed in git
+
+runs-fr is public (git ls-remote anonymous OK), so repo-runs-fr ES, its ClusterGenerator and manual op cicd-staging-gate-argocd-runs-fr-repo-key are removed; test_presync_hook_pvc_exists_before_hook.py pins the PVC fix; infisical ignores /metadata/annotations/updatedAt; staging-gate notify timeout 2m0s; cnc-staging-host ES remoteRef defaults explicit. kubectl diff --server-side is empty even on the OLD manifests (ESO webhook defaults on dry-run), so Synced-after-merge is unproven until ArgoCD reconciles.
