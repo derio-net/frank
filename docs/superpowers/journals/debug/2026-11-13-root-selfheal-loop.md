@@ -20,3 +20,8 @@ ArgoCD 3.x adds pre/post-delete finalizers to Apps whose charts ship hooks; temp
 ### edcf3e17eb05 · review · Self-review
 
 No findings raised; ignoreDifferences on root is diff-only (RespectIgnoreDifferences deliberately off).
+
+<!-- fr:journal kind=finding scope=debug id=ad95219502d9 created=2026-11-13T22:34:58+00:00 state=fixed -->
+### ad95219502d9 · finding [fixed] · Root declared in git with finalizer ignoreDifferences
+
+apps/root/bootstrap/root-application.yaml applied live: Synced, heal count static at 13. Tripwire, gotcha, manual-op argocd-root-bootstrap, #956 doc fixed.
