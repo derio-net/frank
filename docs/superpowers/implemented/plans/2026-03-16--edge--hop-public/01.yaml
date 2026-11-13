@@ -2291,7 +2291,7 @@ tasks:
         - "rotate.sh ends with: OK: live key differs from every value ever committed"
         - "After merge + sync: bash scripts/headplane-session-key/verify.sh → live key 302 + Secure cookie; every committed value 200"
         - "Browser: https://headplane.hop.derio.net/admin/ logs in again with the API key (old sessions are signed out)"
-      status: pending
+      status: done
       ```
 
       ---
