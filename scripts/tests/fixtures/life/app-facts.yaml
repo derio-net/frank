@@ -243,7 +243,7 @@ apps:
   frank/cluster-update-fr:
     charts: []
     images:
-    - ghcr.io/derio-net/cluster-update-fr:v0.1.0@sha256:d06fc27950338d680fcffbef91949f6367e97d26a43852168cdc2ef09331e8e0
+    - ghcr.io/derio-net/cluster-update-fr:v0.1.1@sha256:17b4dbd584fea9f1712b1b348124f4f6a9acb862a87071a3dd4a8c662c79168d
     - ghcr.io/derio-net/upgrade-session:1f89319519ae19e930ec5ba2a33dda0b6c2c0140@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
     - tailscale/tailscale:v1.82.5
     paths:

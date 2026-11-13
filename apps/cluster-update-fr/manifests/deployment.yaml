@@ -81,8 +81,8 @@ spec:
             - {name: ts-state, mountPath: /ts-state}
       containers:
         - name: console
-          # Release v0.1.0 (cluster-update-fr@0cfdd4bd), digest from the release notes.
-          image: ghcr.io/derio-net/cluster-update-fr:v0.1.0@sha256:d06fc27950338d680fcffbef91949f6367e97d26a43852168cdc2ef09331e8e0
+          # Release v0.1.1 (cluster-update-fr@504a86b3), digest from the release notes.
+          image: ghcr.io/derio-net/cluster-update-fr:v0.1.1@sha256:17b4dbd584fea9f1712b1b348124f4f6a9acb862a87071a3dd4a8c662c79168d
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
