@@ -183,8 +183,10 @@ headscale:
 server:
   host: 0.0.0.0
   port: 3000
-  cookie_secret: "exactly-32-characters-needed!!!"
+  cookie_secret: <32-character-random-string>
 ```
+
+> **Update (2026-11):** "ignores environment variables" holds only by default. Setting `HEADPLANE_LOAD_ENV_OVERRIDES=true` makes every `HEADPLANE_<SECTION>__<KEY>` variable override the file. Overrides apply *after* the file is validated, though, so the file still needs a 32-character `cookie_secret`. Frank now keeps a fixed placeholder there and injects the real session-signing key as `HEADPLANE_SERVER__COOKIE_SECRET` from a SOPS-encrypted Secret. It also sets `cookie_secure: true`, since browsers only reach Headplane through Caddy's TLS. Verified against the 0.5.5 image: a session signed with the file value is rejected once the override is on.
 
 ### Deviation 6: config_strict Kills the Listener
 
