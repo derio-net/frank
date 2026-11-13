@@ -4,7 +4,7 @@
 # by the policies in apps/cluster-update-fr/manifests/admission-policy.yaml, exec/attach/
 # port-forward/proxy into sessions, ephemeral containers, TokenRequests for the session and
 # runs-fr ServiceAccounts, and pods running as runs-fr. AI agents bound to cluster-admin
-# (root-agents) are a known gap: derio-net/frank#912. secure-agent-pod's agent-sa is gone
+# (root-agents) are a known gap: derio-net/frank#912. The retired secure-agent-pod's agent-sa is gone
 # (frank#950 Phase 2, 2026-11-13).
 #
 # Read-only view for every in-cluster session type: rollout checks, ArgoCD's applied revision

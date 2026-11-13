@@ -146,7 +146,7 @@ spec:
         kubernetes.io/metadata.name: upgrade-sessions
 ---
 # p5-r10: RBAC grants pods/exec into session pods to more than runs-fr: the admin ClusterRole
-# (bound to root-devops) and every cluster-admin binding (root-agents; secure-agent-pod's
+# (bound to root-devops) and every cluster-admin binding (root-agents; the retired secure-agent-pod's
 # agent-sa until frank#950 removed it). A shell or a port-forward into a session is that session's credentials and its
 # tailscale proxies. Only runs-fr (the operator's attach path) and cluster-admins proper
 # (system:masters, root-admins) may CONNECT. The VAP plugin handles CONNECT (Kubernetes 1.35);
