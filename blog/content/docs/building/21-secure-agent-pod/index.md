@@ -9,9 +9,11 @@ summary: "Rebuilding the Kali workstation as a hardened, non-root pod with layer
 weight: 22
 reader_goal: "Deploy a hardened non-root agent pod with layered security (non-root, dropped capabilities, Cilium egress, s6-overlay supervision) and a VibeKanban sidecar"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 description: "Rebuilding the Kali workstation as a hardened, non-root pod with layered defenses — because giving an AI agent skip-permissions demands more than trust."
 ---
+
+> **Update 2026-11.** VibeKanban and the secure-agent-pod were retired in November 2026. This post is kept as a record of how they were built: the manifests, addresses and commands below no longer exist on the cluster. The agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 In building post 18, we deployed a persistent Kali container on gpu-1 as an always-on Claude Code workstation. It worked — SSH in from anywhere, persistent {{< abbr "PVC" >}}, self-healing pod. But it ran as root, had unrestricted network access, and installed tools at runtime.
 

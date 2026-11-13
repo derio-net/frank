@@ -1,0 +1,50 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] Phase 2 live sequence: archive, gates, merge, sweep, assert'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - pod-removed-after-archive
+  - pod-removal-silent
+  - kali-image-retired
+tasks:
+- number: 1
+  title: Run the live sequence
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Confirm the triage run on the pod has ended, then run manual-op `agents-retire-pod-archive` (`bash scripts/retire-secure-agent-pod.sh archive`, then `verify`) and inspect ~/Archives/secure-agent-pod-2026-11 yourself before going on.
+  - id: P2.T1.S2
+    text: |-
+      Run manual-op `agents-retire-pod-premerge`: generator ownership, key fingerprints, root prune, Phase 1 Test Plan row 4 passed, and the five-rule Grafana silence created.
+  - id: P2.T1.S3
+    text: |-
+      Mark the PR ready and merge it, then run manual-op `agents-retire-pod-postmerge-sweep`: sync check, Application and namespace gone, explicit ClusterRoleBinding delete with both assertions, Grafana restart with the API assertion, retained series, dashboard ConfigMap, silence delete.
+  - id: P2.T1.S4
+    text: |-
+      Merge the agent-images PR that removes the kali build, confirm the resulting bump run is green, then run manual-op `agents-retire-pod-leftovers` and Test Plan rows 8-11.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

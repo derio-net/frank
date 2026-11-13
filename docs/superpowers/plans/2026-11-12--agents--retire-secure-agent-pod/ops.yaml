@@ -1,0 +1,121 @@
+schema_version: 2
+ops:
+- id: premerge-archive
+  summary: Archive the pod's unique files to the Mac and verify the archive
+  phase: pre-merge
+  apply: |-
+    bash scripts/retire-secure-agent-pod.sh archive
+  mutating: true
+  check: |-
+    bash scripts/retire-secure-agent-pod.sh verify
+- id: premerge-generator-owner
+  summary: github-app-derio belongs to tekton-extras, so the pod's cascade cannot delete it
+  phase: pre-merge
+  apply: |-
+    kubectl get clustergenerator github-app-derio -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}{"\n"}'; kubectl -n argocd get application secure-agent-pod -o jsonpath='{range .status.resources[*]}{.kind}/{.name}{"\n"}{end}'
+  mutating: false
+  check: |-
+    kubectl get clustergenerator github-app-derio -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/tracking-id}' | grep -q '^tekton-extras:' && res=$(kubectl -n argocd get application secure-agent-pod -o jsonpath='{range .status.resources[*]}{.kind}{"\n"}{end}') && test -n "$res" && ! printf '%s\n' "$res" | grep -q '^ClusterGenerator$'
+- id: premerge-key-fingerprint
+  summary: The Tekton copy of the derio App key equals the SOPS files, by fingerprint
+  phase: pre-merge
+  apply: |-
+    bash scripts/retire-secure-agent-pod.sh key-fingerprint
+  mutating: false
+  check: |-
+    bash scripts/retire-secure-agent-pod.sh key-fingerprint >/dev/null
+- id: premerge-root-prune
+  summary: The root Application prunes, so removing the template removes the Application
+  phase: pre-merge
+  apply: |-
+    kubectl -n argocd get application root -o jsonpath='{.spec.syncPolicy.automated}{"\n"}'
+  mutating: false
+  check: |-
+    test "$(kubectl -n argocd get application root -o jsonpath='{.spec.syncPolicy.automated.prune}')" = true
+- id: premerge-silence
+  summary: Silence the five pod rules so nothing pages between the merge and the Grafana restart
+  phase: pre-merge
+  apply: |-
+    mkdir -p "$HOME/.cache/frank-retire-pod" && A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && python3 -c 'import json,datetime as d; n=d.datetime.now(d.timezone.utc); print(json.dumps({"matchers":[{"name":"__alert_rule_uid__","value":"exercise-reminder-stale|session-manager-stale|audit-digest-stale|agent-pod-not-running|layer-18-persistent-agent-degraded","isRegex":True,"isEqual":True}],"startsAt":n.isoformat(),"endsAt":(n+d.timedelta(hours=48)).isoformat(),"createdBy":"retire-secure-agent-pod","comment":"frank#950 Phase 2: pod removal, until Grafana restarts with the tombstones"}))' | curl -sf -u "$A" -H 'Content-Type: application/json' -X POST -d @- http://192.168.55.203/api/alertmanager/grafana/api/v2/silences | python3 -c 'import json,sys; print(json.load(sys.stdin)["silenceID"])' > "$HOME/.cache/frank-retire-pod/silence-id"
+  mutating: true
+  check: |-
+    A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && test "$(curl -sf -u "$A" "http://192.168.55.203/api/alertmanager/grafana/api/v2/silence/$(cat "$HOME/.cache/frank-retire-pod/silence-id")" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"]["state"])')" = active
+- id: sweep-revisions
+  summary: root and grafana-alerting have really applied the merge, not just reported Synced
+  phase: post-merge
+  apply: |-
+    kubectl -n argocd patch application root --type=merge -p '{"operation":{"sync":{"revision":"HEAD","prune":true,"syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'; for a in grafana-alerting victoria-metrics; do kubectl -n argocd patch application "$a" --type=merge -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'; done
+  mutating: true
+  check: |-
+    git fetch -q origin main && M=$(git log -1 --format=%H origin/main -- docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod/ops.yaml) && for a in root grafana-alerting; do test "$(kubectl -n argocd get application "$a" -o jsonpath='{.status.operationState.phase}')" = Succeeded || exit 1; R=$(kubectl -n argocd get application "$a" -o jsonpath='{.status.operationState.syncResult.revision}') && test -n "$R" && git merge-base --is-ancestor "$M" "$R" || exit 1; done
+- id: step-8
+  summary: The Application, namespace, PV and the three LoadBalancer addresses are gone
+  phase: post-merge
+  needs: [sweep-revisions]
+  apply: |-
+    kubectl -n argocd get application secure-agent-pod --ignore-not-found; kubectl get ns secure-agent-pod --ignore-not-found; kubectl get pv | grep secure-agent-pod/ || true; kubectl get svc -A -o wide | grep -E '192\.168\.55\.(215|218|219)( |,|$)' || true
+  mutating: false
+  check: |-
+    app=$(kubectl -n argocd get application secure-agent-pod --ignore-not-found -o name) && ns=$(kubectl get ns secure-agent-pod --ignore-not-found -o name) && pv=$(kubectl get pv -o jsonpath='{range .items[?(@.spec.claimRef.namespace=="secure-agent-pod")]}{.metadata.name}{"\n"}{end}') && ips=$(kubectl get svc -A -o jsonpath='{range .items[*]}{.status.loadBalancer.ingress[*].ip}{"\n"}{end}' | grep -E '^192\.168\.55\.(215|218|219)$' || true) && test -z "$app$ns$pv$ips"
+- id: step-9
+  summary: Delete the cluster-admin binding explicitly and prove agent-sa holds nothing
+  phase: post-merge
+  needs: [step-8]
+  apply: |-
+    kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found
+  mutating: true
+  check: |-
+    crb=$(kubectl get clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found -o name) && test -z "$crb" && j=$(kubectl get clusterrolebinding -o json) && test "$(printf '%s' "$j" | python3 -c 'import json,sys; b=[i["metadata"]["name"] for i in json.load(sys.stdin)["items"] if any(s.get("namespace")=="secure-agent-pod" for s in (i.get("subjects") or []))]; print("NONE" if not b else " ".join(b))')" = NONE && kubectl auth can-i get pods -n default >/dev/null && test "$(kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa 2>/dev/null || true)" = no
+- id: sweep-grafana-restart
+  summary: Restart Grafana once the rules ConfigMap holds the five tombstones
+  phase: post-merge
+  needs: [sweep-revisions]
+  apply: |-
+    cm=$(kubectl -n monitoring get cm grafana-alerting-rules -o yaml) && printf '%s' "$cm" | grep -q 'orgId: 1, uid: agent-pod-not-running' && dep=$(kubectl -n monitoring get deploy victoria-metrics-grafana -o yaml) && test -n "$dep" && ! printf '%s' "$dep" | grep -q grafana-secure-agent-pod-dashboard && kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana && kubectl -n monitoring rollout status deploy/victoria-metrics-grafana --timeout=300s
+  mutating: true
+  check: |-
+    A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && curl -sf -u "$A" http://192.168.55.203/api/v1/provisioning/alert-rules | python3 -c 'import json,sys; gone={"exercise-reminder-stale","session-manager-stale","audit-digest-stale","agent-pod-not-running","layer-18-persistent-agent-degraded"}; rules=json.load(sys.stdin); sys.exit(1 if (not rules or gone & {r["uid"] for r in rules}) else 0)'
+- id: sweep-series
+  summary: Delete the heartbeat series the pod left in the pushgateway
+  phase: post-merge
+  needs: [step-8]
+  apply: |-
+    kubectl -n monitoring port-forward svc/pushgateway 19091:9091 >/dev/null 2>&1 & pf=$!; sleep 4; for j in exercise_reminder session_manager audit_digest; do curl -s -X DELETE "http://127.0.0.1:19091/metrics/job/$j"; done; kill $pf
+  mutating: true
+  check: |-
+    kubectl -n monitoring port-forward svc/pushgateway 19091:9091 >/dev/null 2>&1 & pf=$!; sleep 4; out=$(curl -sf http://127.0.0.1:19091/api/v1/metrics); rc=$?; kill $pf; test $rc -eq 0 && printf '%s' "$out" | python3 -c 'import json,sys; jobs={g["labels"].get("job") for g in json.load(sys.stdin)["data"]}; sys.exit(1 if jobs & {"exercise_reminder","session_manager","audit_digest"} else 0)'
+- id: sweep-dashboard-cm
+  summary: Delete the dashboard ConfigMap that prune false leaves behind
+  phase: post-merge
+  needs: [sweep-grafana-restart]
+  apply: |-
+    kubectl -n monitoring delete configmap grafana-secure-agent-pod-dashboard --ignore-not-found
+  mutating: true
+  check: |-
+    out=$(kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard --ignore-not-found -o name) && test -z "$out"
+- id: sweep-silence-delete
+  summary: Remove the bridging silence once the rules are gone
+  phase: post-merge
+  needs: [sweep-grafana-restart, sweep-series]
+  apply: |-
+    A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && curl -sf -u "$A" -X DELETE "http://192.168.55.203/api/alertmanager/grafana/api/v2/silence/$(cat "$HOME/.cache/frank-retire-pod/silence-id")" && date +%s > "$HOME/.cache/frank-retire-pod/silence-deleted-at"
+  mutating: true
+  check: |-
+    A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && test "$(curl -sf -u "$A" "http://192.168.55.203/api/alertmanager/grafana/api/v2/silence/$(cat "$HOME/.cache/frank-retire-pod/silence-id")" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"]["state"])')" = expired
+- id: step-10
+  summary: An hour after the silence went, nothing fires because of the removal and frank-gitops-push still mints tokens
+  phase: post-merge
+  needs: [sweep-silence-delete, sweep-dashboard-cm]
+  apply: |-
+    A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && curl -sf -u "$A" 'http://192.168.55.203/api/alertmanager/grafana/api/v2/alerts?active=true&silenced=false' | python3 -c 'import json,sys; [print(a["labels"].get("alertname"), a["labels"].get("namespace","")) for a in json.load(sys.stdin)]'; kubectl -n tekton-pipelines get externalsecret frank-gitops-push
+  mutating: false
+  check: |-
+    test $(( $(date +%s) - $(cat "$HOME/.cache/frank-retire-pod/silence-deleted-at") )) -ge 3600 && A="$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-user}' | base64 -d):$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)" && curl -sf -u "$A" 'http://192.168.55.203/api/alertmanager/grafana/api/v2/alerts?active=true' | python3 -c 'import json,sys; bad=[a for a in json.load(sys.stdin) if "secure-agent-pod" in json.dumps(a) or a["labels"].get("job") in ("exercise_reminder","session_manager","audit_digest")]; sys.exit(1 if bad else 0)' && kubectl -n tekton-pipelines get externalsecret frank-gitops-push -o json | python3 -c 'import json,sys,datetime as d; e=json.load(sys.stdin); c=e["status"]["conditions"][0]; age=d.datetime.now(d.timezone.utc).timestamp()-d.datetime.fromisoformat(e["status"]["refreshTime"].replace("Z","+00:00")).timestamp(); sys.exit(0 if c["reason"]=="SecretSynced" and age<3600 else 1)'
+- id: step-11
+  summary: The first agent-images bump run after BOTH PRs merged is green
+  phase: post-merge
+  apply: |-
+    gh api repos/derio-net/agent-images/git/trees/main --jq '.tree[].path'; gh run list -R derio-net/frank --workflow agent-images-bump.yml --limit 3
+  mutating: false
+  check: |-
+    git fetch -q origin main && M=$(git log -1 --format=%cI origin/main -- docs/superpowers/plans/2026-11-12--agents--retire-secure-agent-pod/ops.yaml) && tree=$(gh api repos/derio-net/agent-images/git/trees/main --jq '.tree[].path') && printf '%s\n' "$tree" | grep -qx base && ! printf '%s\n' "$tree" | grep -qx kali && K=$(gh api 'repos/derio-net/agent-images/commits?path=kali&per_page=1' --jq '.[0].commit.committer.date') && test -n "$K" && gh run list -R derio-net/frank --workflow agent-images-bump.yml --limit 10 --json conclusion,createdAt | python3 -c 'import json,sys,datetime as d; f=lambda x: d.datetime.fromisoformat(x.replace("Z","+00:00")); m=max(f(sys.argv[1]),f(sys.argv[2])); runs=sorted((r for r in json.load(sys.stdin) if f(r["createdAt"])>m), key=lambda r: r["createdAt"]); sys.exit(0 if runs and runs[0]["conclusion"]=="success" else 1)' "$M" "$K"

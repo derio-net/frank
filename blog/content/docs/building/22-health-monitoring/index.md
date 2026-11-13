@@ -162,6 +162,8 @@ Five alert rules in the "Feature Health" folder, all created via the Grafana pro
 | Endpoint Down | `probe_success{probe_group="feature_health"}` | < 1 | critical |
 | Agent Pod Not Running | `kube_pod_status_phase{namespace="secure-agent-pod", phase="Running"}` | < 1 | critical |
 
+> **Update 2026-11.** The secure-agent-pod was retired in November 2026. The Exercise Reminder, Session Manager, Audit Digest and Agent Pod rules above (and the layer-18 roll-up) were deleted and tombstoned in Grafana; the Endpoint Down rule remains. The table is kept as a record.
+
 ### Grafana 12.x SSE Format
 
 The biggest gotcha: Grafana 12.x uses Server-Side Expressions ({{< abbr "SSE" >}}) that require a specific three-step format for alert rules. The classic condition format (`datasourceUid: "-100"`) that older tutorials show no longer works.
@@ -195,9 +197,9 @@ The dashboard at `/d/fh-overview/feature-health` has four panels:
 | Panel | Type | What It Shows |
 |-------|------|---------------|
 | Feature Health Alerts | Alert list | Firing/pending/NoData alerts from the Feature Health folder |
-| Cron Job Heartbeats | Table | Minutes since last successful run per cron job |
+| Cron Job Heartbeats *(removed 2026-11)* | Table | Minutes since last successful run per cron job |
 | Endpoint Probes | Table | UP/DOWN status for each monitored endpoint |
-| Pod Status | Table | Running pods across secure-agent-pod, n8n-01, paperclip-system |
+| Pod Status | Table | Running pods across n8n-01, paperclip-system (secure-agent-pod was retired 2026-11) |
 
 ## VictoriaMetrics Operator Webhook TLS
 

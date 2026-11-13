@@ -9,10 +9,12 @@ summary: "Why $GITHUB_TOKEN is set in your terminal but missing in VS Code's git
 weight: 20
 reader_goal: "Fix git authentication in VS Code and non-interactive contexts inside the agent pod, without exposing credentials subprocess-wide."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 last_updated_commit: https://github.com/derio-net/frank/commit/f0c46c7d
 description: "Why $GITHUB_TOKEN is set in your terminal but missing in VS Code's git — and a credential helper that fixes it permanently by reading /proc/1/environ."
 ---
+
+> **Update 2026-11.** The secure-agent-pod this post debugs was retired in November 2026. The credential-helper lesson (a token in `$GITHUB_TOKEN` does not reach non-interactive git) still applies to any agent shell, such as the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}); the pod's paths and commands below are a record.
 
 {{< last-updated >}}
 

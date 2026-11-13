@@ -44,7 +44,7 @@ kubectl get externalsecrets -A
 ```console
 $ kubectl get externalsecrets -A
 NAMESPACE          NAME                       STORE       REFRESH INTERVAL   STATUS         READY
-agents             vk-remote-secrets          infisical   5m                 SecretSynced   True
+agents             vk-remote-secrets          infisical   5m                 SecretSynced   True   # retired 2026-11 with VibeKanban
 gitea              gitea-secrets              infisical   5m                 SecretSynced   True
 monitoring         grafana-alerting-secrets   infisical   5m                 SecretSynced   True
 paperclip-system   paperclip-anthropic        infisical   5m                 SecretSynced   True

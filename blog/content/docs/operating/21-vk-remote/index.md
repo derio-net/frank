@@ -9,10 +9,12 @@ summary: "Self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync st
 weight: 22
 reader_goal: "Verify the VK Remote stack is healthy, check ElectricSQL replication, re-trigger the init job, and diagnose sync failures."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 last_updated_commit: https://github.com/derio-net/frank/commit/eff627fb
 description: "Self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync status, API verification, and troubleshooting."
 ---
+
+> **Update 2026-11.** VibeKanban and the secure-agent-pod were retired in November 2026. This post is kept as a record of how they were built: the manifests, addresses and commands below no longer exist on the cluster. The agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 {{< last-updated >}}
 

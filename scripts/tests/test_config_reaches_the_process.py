@@ -55,7 +55,6 @@ EXEMPT: dict[str, str] = {
     # Agent shells: the mounted ConfigMaps are login-shell shims and helper
     # scripts read per-invocation or per-login, not parsed once by a daemon. A
     # roll would evict live operator sessions for no correctness gain.
-    "apps/secure-agent-pod/manifests:secure-agent-pod": "profile.d shims read per-login; rolling evicts live sessions",
     # hermes-agent-shell mounts a SECOND kind of read-once ConfigMap since
     # frank#759: the gbrain sidecar's /docker-entrypoint-initdb.d SQL. That one
     # is not merely cheap to leave unhashed — rolling the pod on a change to it

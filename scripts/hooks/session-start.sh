@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook — inject the local Brave-Clawdia browser rule ONLY on this Mac.
 #
-# This repo is cloned on the secure-agent-pod too, where browser-harness uses the remote cloud
+# This repo was cloned on the (since retired) secure-agent-pod too, where browser-harness used the remote cloud
 # browser (not local Brave/CDP). The Mac-specific rule therefore lives OUTSIDE agents/rules/
 # (the always-loaded shared rule registry) and is injected here only when running on this Mac with
 # the Clawdia setup present. On Linux/pod clones, uname != Darwin → skipped, so the rule never

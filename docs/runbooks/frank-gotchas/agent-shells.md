@@ -1,6 +1,6 @@
-# Frank Gotchas — Agent shells (paperclip-shell *[retired 2026-10-04]*, ruflo-shell, secure-agent-kali)
+# Frank Gotchas — Agent shells (paperclip-shell *[retired 2026-10-04]*, ruflo-shell, secure-agent-kali *[retired 2026-11]*)
 
-> **Live shells today:** ruflo-shell, secure-agent-kali, hermes-agent-shell, alert-agent and the other multi-agent-shell pods. `paperclip-shell` was retired 2026-10-04 with the Paperclip fresh start; mentions of it below are historical and kept for the lessons.
+> **Live shells today:** ruflo-shell, hermes-agent-shell, alert-agent and the other multi-agent-shell pods. `paperclip-shell` was retired 2026-10-04 with the Paperclip fresh start, and the secure-agent-pod (`secure-agent-kali` + `vk-local`) was retired 2026-11 with VibeKanban; mentions of either below are historical and kept for the lessons.
 
 Long-form companion to the **Agent shells** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
@@ -10,7 +10,7 @@ These all share the `agent-shell-base` image (s6-overlay v3 init, sshd, supercro
 
 Entrypoints, configs, and templates must live outside (e.g., `/opt/`, `/entrypoint.sh`) and seed PVC contents on first boot.
 
-## secure-agent-kali claude install pattern (intentional duplicate)
+## HISTORICAL (retired 2026-11): secure-agent-kali claude install pattern (intentional duplicate)
 
 secure-agent-kali bootstraps `claude` via `npm i -g` (root-owned, at `/usr/bin/claude`) and updates via the native installer into `~/.local/bin/claude` on the PV. The `⚠ Leftover npm global installation at /usr/bin/claude` warning from `claude doctor` is **expected and intentional** — do not try to remove it. Baking the native installer into the image would be wiped by the PV mount on first boot.
 
@@ -40,13 +40,13 @@ Same applies to anything you call from outside the supervisor (e.g. `kubectl exe
 
 ## `agent-shell-base` parameterizes user via `AGENT_USER` / `AGENT_HOME`
 
-Defaults `agent` / `/home/agent`. `secure-agent-kali` overrides to `claude` / `/home/claude` to preserve PV-resident state. New shell-driven children inherit the defaults — don't hardcode `/home/claude` in any new `cont-init.d` / `services.d` script.
+Defaults `agent` / `/home/agent`. `secure-agent-kali` (retired 2026-11) overrode to `claude` / `/home/claude` to preserve PV-resident state. New shell-driven children inherit the defaults — don't hardcode `/home/claude` in any new `cont-init.d` / `services.d` script.
 
 ## `cont-init.d/30-authorized-keys` only fires at pod boot
 
 It COPIES (not symlinks) `/etc/ssh-keys/authorized_keys` into `${AGENT_HOME}/.ssh/authorized_keys`. sshd runs with the default `AuthorizedKeysFile=~/.ssh/authorized_keys` (no drop-in in `/etc/ssh/sshd_config.d/`), so anything that lands in `/etc/ssh-keys/` after boot or that gets rotated mid-life never reaches sshd unless you re-run the hook by hand or restart the pod.
 
-This bites two cases on every shell sidecar (ruflo-shell, secure-agent-kali, and formerly paperclip-shell — retired 2026-10-04):
+This bites two cases on every shell sidecar (ruflo-shell, formerly secure-agent-kali (retired 2026-11) and paperclip-shell (retired 2026-10-04)):
 - (1) bootstrapping the SOPS-managed `*-ssh-keys` Secret on a pod that's already running with `optional: true` on its volume — the pod booted with `/etc/ssh-keys/` empty so the `[ -f ]` guard short-circuited
 - (2) any operator-key rotation
 
@@ -66,7 +66,7 @@ Long-term fix would be a `ln -sf` in the hook so the symlink follows kubelet's a
 
 ## `/etc/skel/.tmux.conf` only seeds on first boot of a fresh PV
 
-Existing PVs (like `secure-agent-kali`'s) keep their existing `~/.tmux.conf`. To pick up the resurrect/continuum config, append `source-file /etc/agent/tmux-resurrect.conf` to `~/.tmux.conf` manually once.
+Existing PVs (like the retired `secure-agent-kali`'s) keep their existing `~/.tmux.conf`. To pick up the resurrect/continuum config, append `source-file /etc/agent/tmux-resurrect.conf` to `~/.tmux.conf` manually once.
 
 ## s6 crashloop bail (5 deaths in 60s) leaves the service down silently
 
@@ -176,12 +176,12 @@ Workarounds, in order of cleanliness:
 
 super-fr v3.15.0 (derio-net/super-fr#397) shipped docker-less isolation host modes. **Host-worktree mode** activates when the process env carries `FR_ISOLATION_TARGET=worktree`: `fr isolation up/exec/down` runs as a plain git worktree in the host env — zero docker/devcontainer calls — so `fr-goal` / `fr-brainstorming` / `fr-debugging` become runnable inside Frank's unprivileged agent pods (which cannot spawn a devcontainer). Unknown values fail closed; a host without the variable is unchanged (still devcontainer mode). frank#686.
 
-Frank declares the variable on **every agent-bearing container**, across both pods (spec: `docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md`):
+Frank declares the variable on **every agent-bearing container**, across both pods (the secure-agent-pod half was retired 2026-11; spec: `docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md`):
 
 | Deployment | Container | Why |
 |---|---|---|
-| `secure-agent-pod` | `kali` | interactive agent shell (SSH + `kubectl exec`) |
-| `secure-agent-pod` | `vk-local` | spawns VK executor processes — they inherit this env |
+| `secure-agent-pod` (retired 2026-11) | `kali` | interactive agent shell (SSH + `kubectl exec`) |
+| `secure-agent-pod` (retired 2026-11) | `vk-local` | spawns VK executor processes — they inherit this env |
 | `hermes-agent-shell` | `hermes` | gateway runs the agent's terminal commands |
 | `hermes-agent-shell` | `ssh` | interactive sidecar (SSH/Mosh + `kubectl exec`) |
 
@@ -190,7 +190,7 @@ Excluded on purpose: `hindsight` (Postgres/embedder sidecar, no agent processes)
 **A plain env var is not sufficient on its own.** Both pods serve interactive agents over SSH/Mosh, and sshd (`UsePAM no`, no `PermitUserEnvironment`) scrubs the container env from login shells — the "sshd scrubs container env on login" gotcha above. Env-only would cover VK executors (children of `vk-local`) and `kubectl exec` sessions, but an agent SSHing in would see NO `FR_ISOLATION_TARGET` and silently fall back to devcontainer mode → fail. So the var is also re-exported into SSH login shells via the established `/proc/1/environ` profile.d-shim pattern (readable because these containers run entirely as UID 1000, so PID 1 is the same UID):
 
 - **hermes** — the existing `apps/hermes-agent-shell/manifests/configmap-byok-env.yaml` (`35-hermes-agent-shell-byok-env.sh`) already re-exports the BYOK vars; `FR_ISOLATION_TARGET` was added to its loop list (`OPENAI_BASE_URL OPENAI_API_KEY FR_ISOLATION_TARGET`). No new mount. **BUT the environ loop is vacuous in this sidecar** (see the PID-1 caveat below) — the var is actually delivered by a static `export FR_ISOLATION_TARGET=worktree` fallback appended to the shim (fine: it's static config, not a secret; the guard test pins the literal to the Deployment value).
-- **kali** — a new `apps/secure-agent-pod/manifests/configmap-fr-env.yaml` (ConfigMap `secure-agent-pod-env`, key `35-secure-agent-pod-fr-env.sh`) follows the hermes pattern exactly, re-exporting only `FR_ISOLATION_TARGET`. The `kali` container mounts it single-file via subPath at `/etc/profile.d/35-secure-agent-pod-fr-env.sh` (readOnly). Numbered `35-` so it runs before the image's `50-…-motd.sh`. `vk-local` needs no shim (no sshd; executors inherit the process env directly).
+- **kali** (retired 2026-11) — a new `apps/secure-agent-pod/manifests/configmap-fr-env.yaml` (ConfigMap `secure-agent-pod-env`, key `35-secure-agent-pod-fr-env.sh`) follows the hermes pattern exactly, re-exporting only `FR_ISOLATION_TARGET`. The `kali` container mounts it single-file via subPath at `/etc/profile.d/35-secure-agent-pod-fr-env.sh` (readOnly). Numbered `35-` so it runs before the image's `50-…-motd.sh`. `vk-local` needs no shim (no sshd; executors inherit the process env directly).
 
 Both shim files are subPath mounts — kubelet never live-updates them — but the value is static, so a normal pod roll suffices. Both Deployments use `strategy: Recreate`, so ArgoCD auto-sync on merge rolls each pod (briefly dropping live SSH/tmux/VK sessions); the operator controls timing by choosing when to merge.
 
@@ -200,7 +200,7 @@ Both shim files are subPath mounts — kubelet never live-updates them — but t
 
 The whole contract (all four containers carry the var, both shims re-export it, the kali shim ConfigMap exists and is mounted) is pinned by the guard test `scripts/tests/test_fr_isolation_target_env.py`. Verify live with `kubectl exec … -- sh -c 'echo $FR_ISOLATION_TARGET'` (process env) and `kubectl exec … -- bash -lc 'echo $FR_ISOLATION_TARGET'` (login-shell path, proves the profile.d shim).
 
-## secure-agent-kali build: pin `kali.download`, never the `http.kali.org` redirector
+## HISTORICAL (retired 2026-11): secure-agent-kali build: pin `kali.download`, never the `http.kali.org` redirector
 
 The `agent-images` kali Dockerfile builds on `debian:bookworm-slim` → `agent-base` → `agent-shell-base`, then adds the kali-rolling repo and `apt-get dist-upgrade`s onto it. The repo URL **must** be the official Cloudflare-backed CDN `https://kali.download/kali`, not `https://http.kali.org/kali`.
 
@@ -531,7 +531,7 @@ drift fails whichever side moved.
 
 ## Agent GitHub auth: rotating App installation token — git helper + gh wrapper, not a PAT (2026-06-08)
 
-The secure-agent-pod authenticates to GitHub with a short-lived **GitHub App
+The secure-agent-pod (retired 2026-11; the lessons carry to the remaining shells) authenticated to GitHub with a short-lived **GitHub App
 installation token** (App `derio-fr-automation`), not a personal access token.
 ESO's `GithubAccessToken` ClusterGenerator mints a ~1 h token; an ExternalSecret
 writes it to the `agent-github-token` Secret, mounted as a **live-updated volume**
@@ -577,7 +577,7 @@ Two consumers, two shims — both read the mounted token file:
    fr-bridge tracks repos across orgs, so each needs coverage (add to the install)
    or its own App/token — or drop it from the bridge's repo list.
 
-### Recovery — live stopgap before the fixed image rolls
+### HISTORICAL (retired 2026-11): Recovery — live stopgap before the fixed image rolls
 
 Durable fix is in `agent-images` (gitconfig `$(cat)`, the gh wrapper,
 `02-credential-migrate` upgrades). To patch a running pod immediately
@@ -1103,9 +1103,9 @@ image's s6 `postgres` longrun should back off exponentially and give up loudly i
 retrying forever on a fatal, non-transient bind error (see `s6 crashloop bail` above — that
 5-deaths-in-60s bail evidently does not apply to this service).
 
-## Under `Recreate` + an RWO PVC, image PULL TIME is DOWNTIME — so layer SHAPE is an availability property (2026-08-15)
+## Retired incident (secure-agent-pod, 2026-11), live lesson for any `Recreate` + RWO workload: Under `Recreate` + an RWO PVC, image PULL TIME is DOWNTIME — so layer SHAPE is an availability property (2026-08-15)
 
-`secure-agent-pod` mounts an RWO PVC, so its Deployment must be `strategy: Recreate`
+The retired `secure-agent-pod` mounted an RWO PVC, so its Deployment had to be `strategy: Recreate`
 (the RollingUpdate deadlock in `storage-secrets-ssa.md`). `Recreate` kills the old pod
 **first**, so nothing runs until the new image finishes pulling. Every second of pull is
 an outage of everything the pod hosts — including the `fr-bridge` supercronic cron.

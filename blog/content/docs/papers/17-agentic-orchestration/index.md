@@ -33,6 +33,8 @@ related_operating: "docs/operating/14-secure-agent-pod"
 description: "Agent orchestration is a four-job problem — isolation, persistent state, access, and fleet dispatch — and the six contenders in 2026 (secure-agent-pod, VibeKanban, Paperclip +…"
 ---
 
+> **Update 2026-11.** Two of the six contenders compared here, the secure-agent-pod and VibeKanban, were retired from Frank in November 2026 (see the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}) for the agent shell that remains). The analysis is left as written; it is the research record, and the vendor data and dossier are unchanged.
+
 ## TL;DR
 
 Agent orchestration is a four-job problem — isolation, persistent state,

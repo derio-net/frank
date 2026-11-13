@@ -174,12 +174,6 @@ grafana:
       subPath: feature-health.json
       configMap: grafana-alerting-dashboard
       readOnly: true
-    # secure-agent-pod operating dashboard (Phase 5 soak readings)
-    - name: sap-dashboard-provider
-      mountPath: /etc/grafana/provisioning/dashboards/secure-agent-pod-provider.yaml
-      subPath: secure-agent-pod-provider.yaml
-      configMap: grafana-secure-agent-pod-dashboard
-      readOnly: true
     # Blog Edge dashboards — obs layer phase 2
     - name: blog-edge-dashboard-provider
       mountPath: /etc/grafana/provisioning/dashboards/blog-edge-provider.yaml
@@ -195,11 +189,6 @@ grafana:
       mountPath: /var/lib/grafana/dashboards/blog-edge/security-events.json
       subPath: security-events.json
       configMap: grafana-blog-edge-dashboard
-      readOnly: true
-    - name: sap-dashboard-json
-      mountPath: /var/lib/grafana/dashboards/secure-agent-pod/secure-agent-pod.json
-      subPath: secure-agent-pod.json
-      configMap: grafana-secure-agent-pod-dashboard
       readOnly: true
     # Curated etcd dashboard — obs layer, Layer 2 control-plane quorum.
     # Distinct from (and does not disable) the chart's own "etcd" board — see

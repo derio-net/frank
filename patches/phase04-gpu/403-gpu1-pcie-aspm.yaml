@@ -24,7 +24,7 @@
 ##
 ## ⚠ DISRUPTIVE: reboots gpu-1 — the ONLY GPU node (ollama / litellm / comfyui)
 ## and host of single-replica workloads (infisical) + the agent pods
-## (hermes-agent-shell, secure-agent-pod, n8n, paperclip). Longhorn volumes stay
+## (hermes-agent-shell, n8n, paperclip; the secure-agent-pod was retired 2026-11). Longhorn volumes stay
 ## up (replicas on other nodes). Pods come back when gpu-1 rejoins (~3-5 min).
 ## If pcie_aspm=off does NOT hold the link, escalate to: switch-end cable +
 ## different switch port, then cap the link to 1G (enp3s0 ethtool / 2.5G

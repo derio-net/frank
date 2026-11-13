@@ -1,8 +1,11 @@
 # Accessing Infisical-synced secrets from inside a Frank pod
 
-This reference documents the pattern in place for the
-`secure-agent-pod` namespace. Adapt the names when adding new
-workloads.
+This reference documents the pattern as it ran in the `secure-agent-pod`
+namespace. **That pod was retired in 2026-11** (spec
+`2026-11-08--agents--retire-vk-design`): its namespace, manifests and the
+`agent-secrets-tier2` Secret are gone, and the names below are HISTORICAL. The
+ExternalSecret pattern itself still applies; adapt the names for the workload at
+hand.
 
 ## Pipeline
 
@@ -12,9 +15,9 @@ Infisical  (UI: https://infisical.cluster.derio.net, project: frank-cluster, env
    │ ClusterSecretStore 'infisical'   (ESO auth: Universal Auth token)
    ▼
 ExternalSecret 'agent-secrets-tier2'  (refreshInterval: 5m)
-   │   manifest: apps/secure-agent-pod/manifests/externalsecret-github-token.yaml
+   │   manifest: apps/<app>/manifests/externalsecret-*.yaml   (was apps/secure-agent-pod/…, retired)
    ▼
-K8s Secret agent-secrets-tier2  (namespace: secure-agent-pod)
+K8s Secret agent-secrets-tier2  (namespace: secure-agent-pod, retired)
    │
    │ envFrom on the deployment
    ▼
@@ -27,13 +30,12 @@ $GITHUB_TOKEN, $GEMINI_API_KEY, …
 
 ## How a pod reads its own secrets
 
-The secure-agent-pod ServiceAccount (`agent-sa`) has cluster-admin,
-which is broader than necessary but acceptable for this tier. The
-**recommended in-pod read path** is through the SA's kubeconfig at
-`/home/claude/.kube/config`:
+The retired secure-agent-pod's ServiceAccount (`agent-sa`) had cluster-admin,
+which was broader than necessary. The **in-pod read path** was the SA's
+kubeconfig at `/home/claude/.kube/config`:
 
 ```bash
-kubectl -n secure-agent-pod get secret agent-secrets-tier2 \
+kubectl -n <namespace> get secret <secret> \
   -o jsonpath='{.data.KEY_NAME}' | base64 -d
 ```
 
@@ -52,7 +54,8 @@ in Infisical alone does not propagate it.
    env var (`GEMINI_API_KEY` → `GEMINI_API_KEY`) or namespaced with a
    scope prefix (`GITHUB_SECURE_AGENT_POD`, `KALI_C2_TELEGRAM_BOT_TOKEN`).
 2. **Manifest** — append to
-   `apps/secure-agent-pod/manifests/externalsecret-github-token.yaml`:
+   the workload's ExternalSecret manifest (formerly
+   `apps/secure-agent-pod/manifests/externalsecret-github-token.yaml`, retired):
 
    ```yaml
        - secretKey: MY_NEW_KEY         # the env var name seen by the pod
@@ -67,7 +70,7 @@ in Infisical alone does not propagate it.
    ESO syncs within `refreshInterval` (5 minutes). Verify:
 
    ```bash
-   kubectl -n secure-agent-pod get secret agent-secrets-tier2 -o json \
+   kubectl -n <namespace> get secret <secret> -o json \
      | jq -r '.data | keys[]' | grep MY_NEW_KEY
    ```
 

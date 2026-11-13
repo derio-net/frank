@@ -26,7 +26,7 @@
 # argv/environ region with the process title ("sshd: … [listener] …"), so
 # /proc/1/environ returns proctitle bytes, not the env. The loop below is
 # therefore vacuous here (kept: it documents intent and works wherever an
-# init preserves environ, e.g. secure-agent-pod's kali under s6).
+# init preserves environ, e.g. the retired secure-agent-pod's kali under s6).
 #
 # TWO fallbacks recover the vars in the ssh sidecar (frank#688):
 #   • FR_ISOLATION_TARGET is a STATIC value → a literal fallback export at the

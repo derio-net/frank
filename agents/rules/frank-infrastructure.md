@@ -26,11 +26,8 @@
 | Paperclip | 192.168.55.212 | Cilium L2 LoadBalancer (port 3100) |
 | ComfyUI | 192.168.55.213 | Cilium L2 LoadBalancer (port 8188) |
 | GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
-| Secure Agent Pod (SSH) | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH) |
 | n8n-01 | 192.168.55.216 | Cilium L2 LoadBalancer (port 5678) |
 | Tekton Dashboard | 192.168.55.217 | Cilium L2 LoadBalancer (port 9097) |
-| Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081) |
-| Secure Agent Pod (Mosh) | 192.168.55.219 | Cilium L2 LoadBalancer (UDP 60000-60015) |
 | Traefik Ingress | 192.168.55.220 | Cilium L2 LoadBalancer |
 | GitHub webhook receiver (Tekton github-listener) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
 | GoatCounter | 192.168.55.224 | Cilium L2 LoadBalancer (port 8080, public ingest via Hop) |

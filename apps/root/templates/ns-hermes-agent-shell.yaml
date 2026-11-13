@@ -3,8 +3,8 @@ kind: Namespace
 metadata:
   name: hermes-agent-shell
   labels:
-    # Matches the sibling shell namespaces (ns-secure-agent-pod, paperclip,
-    # ruflo). The hermes container is runAsNonRoot + drop ALL caps, so it
+    # Matches the sibling shell namespaces (the retired secure-agent-pod's,
+    # paperclip, ruflo). The hermes container is runAsNonRoot + drop ALL caps, so it
     # actually satisfies `restricted`; we enforce `baseline` to stay
     # consistent with the family and audit/warn at `restricted`.
     pod-security.kubernetes.io/enforce: baseline

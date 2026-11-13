@@ -21,7 +21,7 @@ spec:
       # sidecar's sshd terminates fast. 45s mirrors the family.
       terminationGracePeriodSeconds: 45
       # Pinned to gpu-1 — Frank's largest CPU/RAM box (same reason paperclip /
-      # secure-agent-pod sit there). NO GPU requested: hermes inference is
+      # the since-retired secure-agent-pod sat there). NO GPU requested: hermes inference is
       # remote via the in-cluster LiteLLM gateway. The nvidia.com/gpu:NoSchedule
       # toleration mirrors the cluster's defensive idiom so the pod survives any
       # future re-assert of the gpu-only taint.

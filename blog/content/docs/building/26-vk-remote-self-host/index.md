@@ -9,9 +9,11 @@ summary: "The VibeKanban cloud announced shutdown with 30 days' notice. This is 
 weight: 27
 reader_goal: "Deploy a self-hosted VibeKanban remote backend with PostgreSQL + ElectricSQL real-time sync, Rust/Axum API, and Authentik SSO"
 diataxis: tutorial
-last_updated: 2026-07-15
+last_updated: 2026-11-12
 description: "The VibeKanban cloud announced shutdown with 30 days' notice. This is how we deployed the self-hosted remote crate — PostgreSQL, ElectricSQL, and a Rust API — before the lights…"
 ---
+
+> **Update 2026-11.** VibeKanban and the secure-agent-pod were retired in November 2026. This post is kept as a record of how they were built: the manifests, addresses and commands below no longer exist on the cluster. The agent shell that remains is the [Hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}).
 
 On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow was already failing — likely early decommissioning. The local {{< abbr "VK" >}} features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 {{< abbr "MCP" >}} tools that the agentic workflow depends on — all that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.
 
