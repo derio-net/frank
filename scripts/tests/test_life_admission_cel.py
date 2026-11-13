@@ -336,8 +336,10 @@ def _identity(subject):
 
 def test_the_repo_binds_these_admin_subjects():
     got = {(s["kind"], s.get("namespace"), s["name"]) for s in _admin_subjects()}
-    assert got == {("Group", None, "root-admins"), ("Group", None, "root-devops"), ("Group", None, "root-agents"),
-                   ("ServiceAccount", "secure-agent-pod", "agent-sa")}, "a new admin binding: decide its exec rights"
+    # secure-agent-pod's agent-sa binding was removed with the pod (frank#950 Phase 2, 2026-11-13);
+    # the CEL cases below still use that identity as a hostile caller.
+    assert got == {("Group", None, "root-admins"), ("Group", None, "root-devops"), ("Group", None, "root-agents")}, \
+        "a new admin binding: decide its exec rights"
 
 
 @pytest.mark.parametrize("subject", _admin_subjects(), ids=lambda s: s["name"])
