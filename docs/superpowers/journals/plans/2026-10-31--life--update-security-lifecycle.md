@@ -1110,3 +1110,17 @@ Grouped follow-up (operator chose grouping).
 ### p6-r11-resolved-2 · finding [deferred → derio-net/frank#914] · resolves p6-r11: test_life_runbooks is keyword-grep only
 
 Grouped follow-up (operator chose grouping).
+
+<!-- fr:journal kind=decision scope=plan id=postmerge-closeout-2026-11-13 created=2026-11-13T22:08:43+00:00 -->
+### postmerge-closeout-2026-11-13 · decision · Post-merge close-out of the agentic part (#913 merged dc1b61ae, 2026-11-13); phase 7 stays owed and gated
+
+Plan NOT archived: manual phase 7 is owed (tracked frank#973). P7.T1.S1 blocks every session credential until frank#912 closes; no phase-7 op was run.
+
+Follow-up PRs merged 2026-11-13: #964, #966 (+ cluster-update-fr#2, release v0.1.1), #967, #969, #970, #971. Open issues: #963 (Omni ignores kubectl --as, so the life-admission-dry-run op is invalid as written), #972 (agent-images bump PRs get no CI), #912 (gate), #914 (grouped deferred findings).
+
+Live, asserted 2026-11-13 ~23:00 CET: Applications exist only after a manual full sync of root (root's selfHeal loop filters each sync to victoria-metrics/gpu-operator/longhorn; separate stability item). hop-scan Synced/Healthy; runs-fr Synced/Healthy (derio-net/runs-fr made PUBLIC, operator decision, secret-scanned); upgrade-sessions Synced/Healthy (after #966); runs-fr-staging Unknown/Unknown (vCluster target).
+
+Owed / known-degraded (not fixed here):
+- cluster-update-fr Degraded: pod on v0.1.1 but the tailscale init container CrashLoopBackOffs (pod 2/3 Init:CrashLoopBackOff, 6 restarts/20m). No auth key exists until phase 7, so it loops on interactive login. Proposed fix, not done: gate the sidecar on the Secret being present (optional secret + skip/sleep when empty) or scale the app to 0 until phase 7.
+- renovate Degraded: CronJob is suspended until phase 7 by design.
+- trivy-operator Progressing: trivy-server-0 is CreateContainerConfigError, secret trivy-operator-trivy-config not found (hand-created Secret, already tracked as p3-r7 / frank#914; applied in phase 7).
