@@ -155,6 +155,10 @@
             "value": ""
           },
           {
+            "name": "KUBERNETES_SERVICE_HOST",
+            "value": ""
+          },
+          {
             "name": "TS_SOCKS5_SERVER",
             "value": "localhost:1055"
           },

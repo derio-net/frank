@@ -51,6 +51,12 @@ spec:
                   value: /ts-state/tailscaled.sock
                 - name: TS_KUBE_SECRET
                   value: ""
+                # containerboot switches to Kubernetes mode on a non-empty KUBERNETES_SERVICE_HOST (the
+                # kubelet always injects it) and then needs the service-account token files, which this
+                # pod does not mount. TS_KUBE_SECRET="" is not enough; an explicit empty value here
+                # overrides the injected one (tailscale v1.82.5 settings.go InKubernetes).
+                - name: KUBERNETES_SERVICE_HOST
+                  value: ""
                 - name: TS_SOCKS5_SERVER
                   value: localhost:1055
                 - name: TS_AUTHKEY

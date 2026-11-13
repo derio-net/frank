@@ -191,6 +191,11 @@ HOP_HOSTILE = {
     "kernel networking": lambda p: _envvar(_ts(p), "TS_USERSPACE").update(value="false"),
     "state elsewhere": lambda p: _envvar(_ts(p), "TS_STATE_DIR").update(value="/tmp"),
     "kube secret state": lambda p: _envvar(_ts(p), "TS_KUBE_SECRET").update(value="tailscale"),
+    # Pinned to "": a non-empty value puts containerboot back in Kubernetes mode, where it wants the
+    # service-account token this pod never mounts (and, if one were mounted, a cluster credential).
+    "kube service host back on": lambda p: _envvar(_ts(p), "KUBERNETES_SERVICE_HOST").update(value="10.96.0.1"),
+    "kube service host dropped": lambda p: _ts(p).update(
+        env=[e for e in _ts(p)["env"] if e["name"] != "KUBERNETES_SERVICE_HOST"]),
     "extra tag": lambda p: _envvar(_ts(p), "TS_EXTRA_ARGS").update(
         value=_envvar(_ts(p), "TS_EXTRA_ARGS")["value"].replace("tag:frank-session", "tag:frank-session,tag:hop-node")),
     "authkey from another secret": lambda p: _authkey(p)["valueFrom"]["secretKeyRef"].update(name="us-other-creds"),

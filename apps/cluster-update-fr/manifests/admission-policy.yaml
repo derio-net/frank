@@ -36,9 +36,9 @@ spec:
     - name: runId
       expression: "has(object.metadata.labels) && 'fr.run/id' in object.metadata.labels ? object.metadata.labels['fr.run/id'] : ''"
     - name: tsEnvNames
-      expression: "['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']"
+      expression: "['TS_USERSPACE', 'TS_STATE_DIR', 'TS_SOCKET', 'TS_KUBE_SECRET', 'KUBERNETES_SERVICE_HOST', 'TS_SOCKS5_SERVER', 'TS_OUTBOUND_HTTP_PROXY_LISTEN', 'TS_AUTHKEY', 'TS_EXTRA_ARGS']"
     - name: tsFixedEnv
-      expression: "{'TS_USERSPACE': 'true', 'TS_STATE_DIR': '/ts-state', 'TS_SOCKET': '/ts-state/tailscaled.sock', 'TS_KUBE_SECRET': '', 'TS_SOCKS5_SERVER': 'localhost:1055', 'TS_OUTBOUND_HTTP_PROXY_LISTEN': 'localhost:1056'}"
+      expression: "{'TS_USERSPACE': 'true', 'TS_STATE_DIR': '/ts-state', 'TS_SOCKET': '/ts-state/tailscaled.sock', 'TS_KUBE_SECRET': '', 'KUBERNETES_SERVICE_HOST': '', 'TS_SOCKS5_SERVER': 'localhost:1055', 'TS_OUTBOUND_HTTP_PROXY_LISTEN': 'localhost:1056'}"
     # tag:frank-session alone (p5-r3; never hop-scan's tag:frank-updater), Frank's own control
     # server, and the hostname of THIS session.
     - name: tsArgs

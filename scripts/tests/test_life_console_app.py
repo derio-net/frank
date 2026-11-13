@@ -206,6 +206,10 @@ def test_tailscale_sidecar_has_its_own_state_and_user():
     assert env["TS_SOCKS5_SERVER"]["value"] == "localhost:1055"
     assert env["TS_AUTHKEY"]["valueFrom"]["secretKeyRef"]["optional"] is True
     assert "--advertise-tags=tag:frank-updater" in env["TS_EXTRA_ARGS"]["value"]
+    # containerboot enters Kubernetes mode on a non-empty KUBERNETES_SERVICE_HOST (the kubelet
+    # always injects it) and then needs the service-account token files, which this pod does not
+    # mount; TS_KUBE_SECRET="" alone does not stop it (Init:Error, 2026-11-13).
+    assert env["KUBERNETES_SERVICE_HOST"]["value"] == ""
     assert ts["securityContext"]["runAsUser"] not in (None, 0)
     state = next(m["name"] for m in ts["volumeMounts"] if m["mountPath"] == env["TS_STATE_DIR"]["value"])
     assert state not in {m["name"] for m in container()["volumeMounts"]}, "console must not read the node key"
