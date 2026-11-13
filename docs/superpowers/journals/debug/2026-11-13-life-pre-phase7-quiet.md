@@ -20,3 +20,8 @@ Brief's hypothesis. Ruled out: CronJob suspend has no health impact; resources l
 ### 8e40b5e79695 · finding [fixed] · Quiet pre-phase-7 state, armed by the phase-7 inputs
 
 Sidecar waits on an OPTIONAL secret volume (env cannot see a later Secret; proven by test_a_key_that_appears_later... and in the real tailscale image); session shape/admission/golden untouched. Heartbeat rules armed by first report / first configured heartbeat; unhealthy ignores only 'no hop-readonly-kubeconfig'. Renovate ES ignore-healthcheck tied to suspend:true by test. Trivy token: scripts/trivy-token/bootstrap.sh + manual-op life-trivy-token (operator runs). Full suite: 2193 passed.
+
+<!-- fr:journal kind=review scope=debug id=8301a8afa3fe created=2026-11-13T23:10:32+00:00 -->
+### 8301a8afa3fe · review · Review
+
+No independent reviewer dispatched; self-review only. Known limits: sessions' hop-os sidecar (console repo) not changed - with a missing key its non-optional secretKeyRef gives CreateContainerConfigError, not a crash loop; arming windows are bounded by retention (30d).
