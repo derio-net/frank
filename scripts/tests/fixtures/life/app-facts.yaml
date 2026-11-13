@@ -941,44 +941,6 @@ apps:
     rollout: false
     services: []
     stateful: false
-  frank/secure-agent-pod:
-    charts: []
-    images:
-    - ghcr.io/derio-net/secure-agent-kali:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
-    - ghcr.io/derio-net/vk-local:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91
-    paths:
-    - apps/root/templates/secure-agent-pod.yaml
-    - apps/secure-agent-pod/manifests/**
-    rollout: false
-    services:
-    - name: secure-agent-mosh
-      namespace: secure-agent-pod
-      ports:
-      - 60000
-      - 60001
-      - 60002
-      - 60003
-      - 60004
-      - 60005
-      - 60006
-      - 60007
-      - 60008
-      - 60009
-      - 60010
-      - 60011
-      - 60012
-      - 60013
-      - 60014
-      - 60015
-    - name: secure-agent-ssh
-      namespace: secure-agent-pod
-      ports:
-      - 22
-    - name: secure-agent-vibekanban
-      namespace: secure-agent-pod
-      ports:
-      - 8081
-    stateful: true
   frank/staging-gate:
     charts: []
     images:
@@ -1362,7 +1324,7 @@ apps:
   hop/blog:
     charts: []
     images:
-    - ghcr.io/derio-net/blog:bb12c2922c03bfbdb7ae69e41a157e3354355c44
+    - ghcr.io/derio-net/blog:c23a34d8c81d6aab925b12502902e4081d6178f3
     paths:
     - clusters/hop/apps/blog/manifests/**
     - clusters/hop/apps/root/templates/blog.yaml

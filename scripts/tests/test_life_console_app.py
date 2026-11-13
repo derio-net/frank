@@ -722,5 +722,8 @@ def test_phase_7_gates_session_credentials_on_removing_ai_agent_cluster_admin():
     first = plan["tasks"][0]["steps"][0]
     assert first["id"] == "P7.T1.S1"
     for needle in ("derio-net/frank#912", "secure-agent-pod-cluster-admin", "authentik-root-agents",
-                   "auth can-i get secrets -n upgrade-sessions", "derio-net/frank#950"):
+                   "SubjectAccessReview", "derio-net/frank#950"):
         assert needle in first["text"], needle
+    # `kubectl auth can-i --as` is vacuous through the Omni proxy (it answers for the caller),
+    # so the gate must never be written as a can-i answer that has to read "no".
+    assert "answer no" not in first["text"]
