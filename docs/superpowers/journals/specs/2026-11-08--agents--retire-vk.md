@@ -576,3 +576,10 @@ Evidence: Binding NotFound and a server-side SubjectAccessReview answers false f
 Step: After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
 
 Evidence: Grafana API lists 58 rules and none of the five uids and the pushgateway series and dashboard CM are gone. Over an hour after the silence ended no pod alert fired and frank-gitops-push stayed SecretSynced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5-2 created=2026-11-13T22:12:40+00:00 -->
+### test-plan-step-5-2 · discovery · Test Plan step 5: ran
+
+Step: The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.
+
+Evidence: agent-images build dbdf5f69 green and frank bump run 43453158820 succeeded. Final bump PR 971 merged and rolled out all 8 containers healthy
