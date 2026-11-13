@@ -562,3 +562,10 @@ Evidence: Archive verify live exited 0 with no FAIL and all three pre-merge gate
 Step: `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
 
 Evidence: Application namespace PV and LBs 215 218 219 were all gone about 4 minutes after the PR955 merge
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3-3 created=2026-11-13T22:12:35+00:00 -->
+### test-plan-step-3-3 · discovery · Test Plan step 3: ran
+
+Step: `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and a server-side SubjectAccessReview for agent-sa on `get secrets -n upgrade-sessions` answers `false` (control `system:masters` true; `can-i --as` is vacuous through Omni, frank#963).
+
+Evidence: Binding NotFound and a server-side SubjectAccessReview answers false for agent-sa with system:masters true as control. Plain can-i with as was vacuous through Omni so the op check was replaced
