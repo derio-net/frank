@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-11-08--agents--retire-vk
 
 <!-- fr:journal kind=discovery scope=spec id=operator-brief created=2026-11-08T19:31:46+00:00 input=true -->

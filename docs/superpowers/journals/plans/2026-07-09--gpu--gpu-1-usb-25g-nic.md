@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-07-09--gpu--gpu-1-usb-25g-nic
 
 <!-- fr:journal kind=owed scope=plan id=manual-phase-2 created=2026-11-02T22:01:30+00:00 phase=2 -->

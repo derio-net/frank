@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-11-08--agents--retire-vk
 
 <!-- fr:journal kind=decision scope=plan id=p1-pod-dir-exempt-from-reference-scan created=2026-11-08T22:09:07+00:00 phase=1 -->
