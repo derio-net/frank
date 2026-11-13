@@ -43,6 +43,9 @@ jobs:
           echo "old_ai_sha=$OLD_AI_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved: OLD_AI_SHA=$OLD_AI_SHA AI_SHA=$AI_SHA"
 
+      - name: Log in to GHCR (digest resolution)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       - name: Update manifests
         id: bump
         env:
@@ -80,6 +83,9 @@ jobs:
           # once #616's manifests pin them.
           # upgrade-session is the disposable upgrade-session image (agent-images#171); frank pins
           # it in apps/cluster-update-fr (console SESSION_IMAGE + omni-status sidecar).
+          # A pin may carry `@sha256:<digest>` (frank#913). Runtimes pull by DIGEST, so the repin
+          # script resolves the new tag's digest and writes tag@newdigest; it exits non-zero if it
+          # cannot, which fails this step (never keeps the old digest). Tag-only pins just get the tag.
           AGENT_IMAGES="multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell upgrade-session"
 
           tag_exists() {
@@ -101,7 +107,7 @@ jobs:
             fi
             [ "$r" -eq 2 ] && echo "::warning::could not verify ${img}@${AI_SHA} in GHCR (API error) — pinning anyway (fail-open)"
             { grep -rlZ "ghcr.io/derio-net/$img:[a-f0-9]" apps/ 2>/dev/null || true; } \
-              | xargs -0 -r sed -i "s|ghcr.io/derio-net/$img:[a-f0-9]\+|ghcr.io/derio-net/$img:$AI_SHA|g"
+              | xargs -0 -r python3 scripts/agent_images_repin.py "$img" "$AI_SHA"
           done
           echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
           # An `if`, not `[ ... ] && echo`: this is the step's last command, and a

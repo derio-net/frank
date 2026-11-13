@@ -1,4 +1,4 @@
-<!-- fr:journal-schema=3 -->
+<!-- fr:journal-schema=4 -->
 # Journal: 2026-10-31--life--update-security-lifecycle
 
 <!-- fr:journal kind=discovery scope=spec id=brief created=2026-10-31T09:13:40+00:00 input=true -->
