@@ -280,3 +280,8 @@ Pre-existing scope of any repo-static guard.
 ### p1-r11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/987] · resolves p1-r11: vendored Tekton controllers read Secrets cluster-wide: a platform fact (phase 1)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/987.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r12-resolved-2 created=2026-11-14T21:20:34+00:00 phase=1 state=open resolves=p1-r12 tracked_by=https://github.com/derio-net/frank/issues/988 -->
+### p1-r12-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/988] · resolves p1-r12: Helm-rendered RBAC is invisible to a repo-static guard (phase 1)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/988.
