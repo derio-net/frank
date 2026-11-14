@@ -285,3 +285,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/987.
 ### p1-r12-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/988] · resolves p1-r12: Helm-rendered RBAC is invisible to a repo-static guard (phase 1)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/988.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r8-resolved-2 created=2026-11-14T21:20:43+00:00 state=open resolves=l-tests-r8 tracked_by=https://github.com/derio-net/frank/issues/989 -->
+### l-tests-r8-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/989] · resolves l-tests-r8: guard scans only apps/*.yaml; pre-existing scope
+
+Filed at deliver as https://github.com/derio-net/frank/issues/989.
