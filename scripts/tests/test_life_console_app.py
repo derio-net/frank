@@ -204,7 +204,10 @@ def test_tailscale_sidecar_has_its_own_state_and_user():
     env = {e["name"]: e for e in ts["env"]}
     assert env["TS_USERSPACE"]["value"] == "true"
     assert env["TS_SOCKS5_SERVER"]["value"] == "localhost:1055"
-    assert env["TS_AUTHKEY"]["valueFrom"]["secretKeyRef"]["optional"] is True
+    assert "TS_AUTHKEY" not in env, "the key is an optional volume the wrapper polls (env cannot see a later Secret)"
+    vol = next(v for v in pod()["volumes"] if v["name"] == "ts-authkey")
+    assert vol["secret"]["secretName"] == "frank-updater-tailscale" and vol["secret"]["optional"] is True
+    assert "ts-authkey" not in {m["name"] for m in container()["volumeMounts"]}, "console must not read the key"
     assert "--advertise-tags=tag:frank-updater" in env["TS_EXTRA_ARGS"]["value"]
     # containerboot enters Kubernetes mode on a non-empty KUBERNETES_SERVICE_HOST (the kubelet
     # always injects it) and then needs the service-account token files, which this pod does not

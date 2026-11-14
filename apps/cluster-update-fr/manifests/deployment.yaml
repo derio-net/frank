@@ -43,6 +43,25 @@ spec:
         - name: tailscale
           image: tailscale/tailscale:v1.82.5
           restartPolicy: Always
+          # The auth key (Secret frank-updater-tailscale, a phase-7 credential) arrives as an OPTIONAL
+          # secret VOLUME, not env: env is resolved once at container start, so a key created later could
+          # never reach a running container, which would look healthy and never join. Without a key
+          # containerboot would fall into an interactive login and crash-loop, so wait for the file
+          # instead (kubelet projects a later-created Secret into an existing optional volume within its
+          # sync period, ~1-2 min), then hand it over as TS_AUTHKEY. Kept identical in hop-scan's CronJob.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              f=/ts-authkey/authkey
+              trap 'kill $! 2>/dev/null; exit 0' TERM INT
+              if [ ! -s "$f" ]; then
+                echo "tailscale: no auth key yet (phase 7); waiting for $f, not starting an interactive login"
+                until [ -s "$f" ]; do sleep 10 & wait $!; done
+              fi
+              TS_AUTHKEY=$(cat "$f")
+              export TS_AUTHKEY
+              exec /usr/local/bin/containerboot
           env:
             - name: TS_USERSPACE
               value: "true"
@@ -60,12 +79,6 @@ spec:
               value: ""
             - name: TS_SOCKS5_SERVER
               value: localhost:1055
-            - name: TS_AUTHKEY
-              valueFrom:
-                secretKeyRef:
-                  name: frank-updater-tailscale
-                  key: authkey
-                  optional: true
             - name: TS_EXTRA_ARGS
               value: "--login-server=https://headscale.hop.derio.net --hostname=frank-update-console --advertise-tags=tag:frank-updater"
           securityContext:
@@ -79,6 +92,7 @@ spec:
             limits: {cpu: 200m, memory: 256Mi}
           volumeMounts:
             - {name: ts-state, mountPath: /ts-state}
+            - {name: ts-authkey, mountPath: /ts-authkey, readOnly: true}
       containers:
         - name: console
           # Release v0.1.1 (cluster-update-fr@504a86b3), digest from the release notes.
@@ -165,6 +179,13 @@ spec:
             - {name: omni-scratch, mountPath: /tmp}
             - {name: omni-reader, mountPath: /var/run/omni, readOnly: true}
       volumes:
+        - name: ts-authkey
+          secret:
+            secretName: frank-updater-tailscale
+            optional: true
+            defaultMode: 0440
+            items:
+              - {key: authkey, path: authkey}
         - name: state
           persistentVolumeClaim:
             claimName: cluster-update-fr-state

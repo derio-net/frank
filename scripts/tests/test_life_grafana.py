@@ -96,10 +96,15 @@ def test_console_metric_rules_stay_loud_when_the_metric_vanishes():
         a = q(rule)
         assert a["datasourceUid"] == VM_DS
         assert metric in a["model"]["expr"]
-        assert "or vector(" in a["model"]["expr"], "absent metric must read as stale, not as NoData"
+        assert "or vector(" in a["model"]["expr"] or "or (vector(" in a["model"]["expr"], \
+            "absent metric must read as stale, not as NoData"
         ev = q(rule, "C")["model"]["conditions"][0]["evaluator"]
         assert ev["type"] == "gt" and ev["params"][0] >= 36 * 3600  # daily job + slack
-        assert rule["noDataState"] == "Alerting"
+        if uid == "life-report-heartbeat-stale":
+            # armed only once it has reported (test_life_pre_phase7_quiet.py): never-reported = NoData
+            assert "last_over_time(" in a["model"]["expr"] and rule["noDataState"] == "OK"
+        else:
+            assert rule["noDataState"] == "Alerting"
 
 
 def test_hop_scan_logs_rule_uses_msg_and_stats():
@@ -121,8 +126,9 @@ def test_hop_scan_logs_rule_uses_msg_and_stats():
 def test_rules_chain_a_b_c():
     for uid in UIDS:
         rule = rules()[uid][1]
-        assert [d["refId"] for d in rule["data"]] == ["A", "B", "C"]
-        assert rule["condition"] == "C"
+        armed = uid == "life-hop-scan-heartbeat-stale"  # + D,E,F: armed once configured
+        assert [d["refId"] for d in rule["data"]] == (["A", "B", "C", "D", "E", "F"] if armed else ["A", "B", "C"])
+        assert rule["condition"] == ("F" if armed else "C")
         assert q(rule, "B")["model"]["type"] == "reduce"
         assert q(rule, "C")["model"]["type"] == "threshold"
         assert rule["annotations"]["summary"] and rule["annotations"]["runbook"]
