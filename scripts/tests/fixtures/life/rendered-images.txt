@@ -50,12 +50,12 @@ ghcr.io/derio-net/cluster-update-fr:v0.1.1@sha256:17b4dbd584fea9f1712b1b348124f4
 ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
 ghcr.io/derio-net/gpu-switcher:v0.1.1
 ghcr.io/derio-net/health-bridge:v0.4.0
-ghcr.io/derio-net/hermes-agent-shell-hindsight:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:02a9f73ed5e5e495244940e6d10c101d95e263492718b84520b3efe03dfcaa14
-ghcr.io/derio-net/hermes-agent-shell-ssh:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:4b09077b6d5f810f813deaca752748cb4e2fb24962d8cbef344243dc93bbb2fb
-ghcr.io/derio-net/multi-agent-shell:dbb1b7fadf6594cdc659d964a4f1a527a7ca7a91@sha256:ff80c0b9f240a1575c9f3942e840a11a453e8f530b288deda6665394c5ca3d14
+ghcr.io/derio-net/hermes-agent-shell-hindsight:dbdf5f69f39a8cfaf729f732e56a725f98c311ce@sha256:4b9b760481e35f54b3488c1ddcfe2c59b39fcdfb73f6f4678d028c758fc2ed72
+ghcr.io/derio-net/hermes-agent-shell-ssh:dbdf5f69f39a8cfaf729f732e56a725f98c311ce@sha256:193017ef3c9bdcb35f1f0962f9ce938996c728a7305adb5cdaa4715359cc3739
+ghcr.io/derio-net/multi-agent-shell:dbdf5f69f39a8cfaf729f732e56a725f98c311ce@sha256:396aead96784f4e7da8cca077386a5b622168dac0bdaebbae9b3cae7f15a4a0d
 ghcr.io/derio-net/openrgb:1.0rc2
 ghcr.io/derio-net/ovms-retrieval-models:2
-ghcr.io/derio-net/upgrade-session:1f89319519ae19e930ec5ba2a33dda0b6c2c0140@sha256:8dcb0ece8b00c3aa2232e8f1b26dd4ba6afdcd5e04ec42865e7efd63fcde79da
+ghcr.io/derio-net/upgrade-session:dbdf5f69f39a8cfaf729f732e56a725f98c311ce@sha256:70d1092f8f7ab773a84fd48bcee6a74437e7f130f9213b300cc36ccfef516fe4
 ghcr.io/external-secrets/external-secrets:v2.1.0
 ghcr.io/falcosecurity/plugins/plugin/container:0.6.3
 ghcr.io/gethomepage/homepage:v1.12.1

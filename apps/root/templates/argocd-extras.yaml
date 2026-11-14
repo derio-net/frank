@@ -6,9 +6,9 @@ metadata:
   annotations:
     # Sync before consumers: this app materializes the ArgoCD repository
     # credentials its consumers need to clone private sources —
-    # repo-stoa-companies for stoa-live-mirror-sync, repo-runs-fr (plus its
-    # scoped ClusterGenerator) for runs-fr-staging. The wave tidies the
-    # first-sync window (same pattern as cert-manager).
+    # repo-stoa-companies for stoa-live-mirror-sync. (runs-fr is public since
+    # 2026-11-13, so it needs none.) The wave tidies the first-sync window
+    # (same pattern as cert-manager).
     argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
