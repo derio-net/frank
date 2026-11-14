@@ -598,3 +598,8 @@ Filed at archive as derio-net/frank#983; still owed until discharged.
 ### test-plan-step-6-resolved-2 · finding [fixed] · resolves test-plan-step-6: Test Plan step 6 owed
 
 Recorded as ran in test-plan-step-6-2 on 2026-11-12 (agent-images bump run green; vibe-kanban archived). The owed entry was never discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-7-resolved-2 created=2026-11-14T19:28:57+00:00 state=fixed resolves=test-plan-step-7 -->
+### test-plan-step-7-resolved-2 · finding [fixed] · resolves test-plan-step-7: Test Plan step 7 owed
+
+Recorded as ran in test-plan-step-7-2 on 2026-11-12 (agent-images bump run green; vibe-kanban archived). The owed entry was never discharged.
