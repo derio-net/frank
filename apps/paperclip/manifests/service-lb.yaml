@@ -5,6 +5,10 @@ kind: Service
 metadata:
   name: paperclip-lb
   namespace: paperclip-system
+  labels:
+    # L2-announce from gpu-1 only (apps/cilium/manifests/l2-policy.yaml). eTP Local
+    # needs the announcer to be the pod's node, and Cilium does not pick it.
+    l2.derio.net/pinned: gpu-1
   annotations:
     lbipam.cilium.io/ips: "192.168.55.212"
 spec:
@@ -12,7 +16,7 @@ spec:
   # Local keeps a LAN client's real source IP (no SNAT to a node/router address).
   # Load-bearing for TRUST_PROXY (loopback + pod CIDR): under Cluster a request
   # to .212 can arrive from an in-CIDR address and be trusted as a proxy.
-  # Cilium L2 then announces .212 only from the node hosting the pod (gpu-1).
+  # The pinned-gpu-1 L2 policy (label above) makes gpu-1 the announcer; Cilium 1.17 does not do it for Local.
   externalTrafficPolicy: Local
   selector:
     app.kubernetes.io/name: paperclip

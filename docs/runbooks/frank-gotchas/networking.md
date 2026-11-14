@@ -354,3 +354,14 @@ Same family as ArgoCD's "`Synced` can mean synced to a STALE revision"
 `storage-secrets-ssa.md`: in each, a check runs, reports success, and is
 measuring something other than what the reader believes. The general defence is
 a negative control — assert that something which *must* fail actually does.
+
+## Pinned L2 announcement for `externalTrafficPolicy: Local` Services
+
+Symptom: `curl http://192.168.55.212:3100/` from the LAN fails instantly with `Couldn't connect` (connection refused in single-digit ms), while the Traefik hostname works and ArgoCD is green. A timeout would mean nobody announces the IP; a fast refusal means a node DID answer ARP but has no local endpoint.
+
+Cause: Cilium 1.17 elects the L2 announcer per Service among all nodes the matching policies allow, and does not exclude nodes without a local endpoint for `Local` traffic. `default-l2-policy` has no `nodeSelector`, so raspi-1 won the `cilium-l2announce-paperclip-system-paperclip-lb` lease (2026-10-09) and kept renewing it; the only pod runs on gpu-1 (Deployment `nodeSelector`).
+
+Fix (2026-11-14): label the Service `l2.derio.net/pinned: gpu-1`; `pinned-gpu-1-l2-policy` selects that label + node gpu-1; `default-l2-policy` gets `serviceSelector: DoesNotExist(l2.derio.net/pinned)`. Policies are additive, so the exclusion is required. The lease moved to gpu-1 within ~5 s of the default-policy edit; `.212` then answered 200 and a forged `X-Forwarded-For: 203.0.113.9` request logged the client's real address and a 403. Leases of the other 19 LoadBalancer Services were untouched.
+
+Check: `kubectl -n kube-system get lease cilium-l2announce-<ns>-<svc> -o jsonpath='{.spec.holderIdentity}'` must equal the pod's node. If the pod ever moves, move the label value and the policy's node with it (the guard compares the Deployment `nodeSelector`).
+

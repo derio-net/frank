@@ -39,11 +39,13 @@ spec:
       namespace: infisical
       jsonPointers:
         - /data
-    # Infisical chart stamps an updatedAt timestamp on the Deployment pod
-    # template on every render, causing permanent drift.
+    # Infisical chart stamps an updatedAt timestamp on the Deployment AND its pod
+    # template on every render, causing permanent drift. Both are plain
+    # jsonPointers (NOT array-item jqPathExpressions — those freeze the array).
     - group: apps
       kind: Deployment
       name: infisical-infisical-standalone-infisical
       namespace: infisical
       jsonPointers:
+        - /metadata/annotations/updatedAt
         - /spec/template/metadata/annotations/updatedAt

@@ -351,7 +351,9 @@ spec:
   steps:
     - name: notify
       image: curlimages/curl:8.7.1
-      timeout: 2m
+      # Written as 2m0s, not 2m: Tekton's defaulting rewrites 2m -> 2m0s, so SSA never converged
+      # and the app sat OutOfSync forever.
+      timeout: 2m0s
       env:
         - {name: HOME, value: /tekton/home}
         - {name: APP, value: $(params.app)}

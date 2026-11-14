@@ -19,6 +19,10 @@ spec:
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       ref: values
+    # The pg_dump snapshot PVC for cnc-prod's PreSync hook (see the manifest header).
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: apps/cnc-prod-db/manifests
   destination:
     server: {{ .Values.destination.server }}
     namespace: cnc

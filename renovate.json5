@@ -153,6 +153,7 @@
         "apps/awx/manifests/**",
         "apps/awx/values.yaml",
         "apps/cluster-update-fr/manifests/**",
+        "apps/cnc-prod-db/manifests/**",
         "apps/cnc-prod-db/values.yaml",
         "apps/cnc-prod/manifests/**",
         "apps/cnc-staging-db/values.yaml",
