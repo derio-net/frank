@@ -9,20 +9,15 @@ ArgoCD cluster named `staging` (manual op, not this repo):
    registered cluster list; name is used for consistency with `cnc-staging`,
    so the registered Secret's `name` is the one identity to keep in sync.
 
-2. ArgoCD can clone the PRIVATE github.com/derio-net/runs-fr chart repo. As of
-   2026-09-14 the only ArgoCD repository Secret on the cluster was the
-   in-cluster Gitea `repo-stoa-companies` (listed with
-   `kubectl -n argocd get secret -l argocd.argoproj.io/secret-type=repository`).
-   The credential is an ESO-minted installation token from a SCOPED
-   ClusterGenerator on the existing derio-fr-automation App: same App and
-   installation as `github-app-derio`, but restricted at mint time to the
-   gated repos with `contents: read`. The App installation itself holds
-   contents/pull_requests/issues/workflows write across every derio-net repo,
-   which ArgoCD must never carry.
+2. (retired 2026-11-13) ArgoCD once needed a scoped, ESO-minted credential to clone
+   github.com/derio-net/runs-fr. The repo is PUBLIC now, so ArgoCD clones it
+   anonymously and no ExternalSecret/ClusterGenerator exists for it. Do not
+   re-add one: the credential sat in SecretSyncedError for ~50 days (its PEM was
+   never placed in the argocd namespace) and left argocd-extras Degraded.
 
 These run in CI (`.github/workflows/repo-tripwires.yml` runs scripts/tests/ on
 every PR). The Application/AppProject assertions shell out to
-`helm template apps/root` and fail closed. The ExternalSecret/ClusterGenerator
+`helm template apps/root` and fail closed. The ClusterGenerator
 assertions read raw manifests, because apps/root renders only the App-of-Apps
 CRs, not what each Application deploys.
 """
@@ -48,14 +43,11 @@ STAGING_VCLUSTER_URL = "https://staging.vcluster-staging.svc:443"
 # be the `.svc`-LESS form, the opposite of the ArgoCD registration above.
 STAGING_GATE_KUBECONFIG_URL = "https://staging.vcluster-staging:443"
 EXTRA_SANS = ["staging.vcluster-staging.svc", "staging.vcluster-staging.svc.cluster.local"]
-RUNS_FR_REPO_URL = "https://github.com/derio-net/runs-fr.git"
 
 # The shared, unscoped generator the scoped one mirrors (same App + install).
 DERIO_GENERATOR = "github-app-derio"
-# The scoped read-only generator ArgoCD repository credentials use.
-ARGOCD_READ_GENERATOR = "github-app-derio-argocd-read"
 # Every ClusterGenerator that existed before this plan. A new name outside
-# BASELINE | {ARGOCD_READ_GENERATOR} is a generator this plan did not intend.
+# BASELINE is a generator this plan did not intend.
 # github-app-derio-mirror (2026-10-18, github-preferred mirroring) is a SEPARATE,
 # repo-scoped generator for the Tekton mirror; github-app-derio stays unscoped.
 # The update & security lifecycle (plan 2026-10-31--life--update-security-lifecycle) adds three
@@ -66,7 +58,6 @@ BASELINE_GENERATORS = {
     "github-app-cluster-update-console",   # phase 4: the console, the only merger of update PRs
     "github-app-cluster-update-session",   # phase 4: upgrade sessions; contents+PRs on frank only
 }
-MANUAL_OP_ID = "cicd-staging-gate-argocd-runs-fr-repo-key"
 
 
 def _render() -> list:
@@ -106,20 +97,6 @@ def _generators() -> dict:
     }
 
 
-def _runs_fr_repo_es() -> dict:
-    matches = [
-        d
-        for d in _raw_manifests()
-        if d.get("kind") == "ExternalSecret"
-        and d.get("metadata", {}).get("namespace") == "argocd"
-        and ((d.get("spec", {}).get("target", {}).get("template", {}) or {}).get("data") or {}).get("url")
-        == RUNS_FR_REPO_URL
-    ]
-    assert len(matches) == 1, (
-        f"expected exactly one argocd ExternalSecret templating {RUNS_FR_REPO_URL}, "
-        f"found {len(matches)}"
-    )
-    return matches[0]
 
 
 def test_runs_fr_staging_addresses_the_vcluster_by_name():
@@ -155,66 +132,13 @@ def test_infrastructure_project_has_the_staging_destination_by_name():
     )
 
 
-def test_argocd_has_a_repository_credential_for_the_private_runs_fr_repo():
-    spec = _runs_fr_repo_es()["spec"]
-    template = spec["target"]["template"]
-    labels = template.get("metadata", {}).get("labels", {})
-    assert labels.get("argocd.argoproj.io/secret-type") == "repository", (
-        f"the templated Secret must carry the repository label ArgoCD scans "
-        f"for: {labels}"
-    )
-    data = template["data"]
-    assert data.get("type") == "git"
-    assert data.get("username") == "x-access-token"
-    assert data.get("password") == "{{ .token }}"
-
-    generator_names = {
-        entry.get("sourceRef", {}).get("generatorRef", {}).get("name")
-        for entry in (spec.get("dataFrom") or [])
-    }
-    assert generator_names == {ARGOCD_READ_GENERATOR}, (
-        f"the ArgoCD credential must be minted by the scoped read-only generator "
-        f"{ARGOCD_READ_GENERATOR}, never the unscoped {DERIO_GENERATOR}: "
-        f"{generator_names}"
-    )
-
-    refresh = spec.get("refreshInterval", "")
-    assert refresh.endswith("m") and int(refresh[:-1]) < 60, (
-        f"refreshInterval must stay under the ~1h installation-token TTL, "
-        f"got: {refresh!r}"
-    )
 
 
-def test_argocd_read_generator_is_scoped_to_read_only_on_the_gated_repos():
-    generators = _generators()
-    assert ARGOCD_READ_GENERATOR in generators, (
-        f"missing ClusterGenerator {ARGOCD_READ_GENERATOR}"
-    )
-    scoped = generators[ARGOCD_READ_GENERATOR]["spec"]
-    base = generators[DERIO_GENERATOR]["spec"]
-    assert scoped["kind"] == "GithubAccessToken"
-
-    s = scoped["generator"]["githubAccessTokenSpec"]
-    b = base["generator"]["githubAccessTokenSpec"]
-    assert (s["appID"], s["installID"]) == (b["appID"], b["installID"]), (
-        "the scoped generator must mint from the same App installation as "
-        f"{DERIO_GENERATOR} (no new App, no new PEM)"
-    )
-    assert s["auth"]["privateKey"]["secretRef"] == {"name": "github-app-derio-key", "key": "key"}, (
-        "ESO ignores secretRef.namespace and resolves it in the CONSUMER "
-        "namespace, so no namespace field may appear here"
-    )
-    assert s.get("repositories") == ["runs-fr"], (
-        f"token must be restricted to the gated repos only: {s.get('repositories')}"
-    )
-    assert s.get("permissions") == {"contents": "read"}, (
-        f"token must carry contents:read and nothing else: {s.get('permissions')}"
-    )
 
 
 def test_no_unintended_cluster_generator_is_added():
     names = set(_generators())
-    unexpected = names - BASELINE_GENERATORS - {ARGOCD_READ_GENERATOR}
+    unexpected = names - BASELINE_GENERATORS
     assert not unexpected, f"unexpected ClusterGenerators added: {sorted(unexpected)}"
     missing = BASELINE_GENERATORS - names
     assert not missing, f"pre-existing ClusterGenerators removed: {sorted(missing)}"
@@ -225,23 +149,6 @@ def test_no_unintended_cluster_generator_is_added():
     )
 
 
-def test_repo_credential_manifests_are_wired_into_an_argocd_ns_application():
-    """A manifest no Application sources is inert. The owning Application must
-    already target namespace argocd rather than widening staging-gate."""
-    es_path = _runs_fr_repo_es()["_path"]
-    gen_path = _generators()[ARGOCD_READ_GENERATOR]["_path"]
-    apps = [d for d in _render() if d.get("kind") == "Application"]
-    for path in (es_path, gen_path):
-        rel = str(path.parent.relative_to(REPO))
-        owning = [
-            a for a in apps
-            if (a["spec"].get("source") or {}).get("path", "").rstrip("/") == rel
-        ]
-        assert owning, f"no Application sources {rel} — {path.name} would never be applied"
-        assert all(a["spec"]["destination"].get("namespace") == "argocd" for a in owning), (
-            f"the Application owning {rel} must target namespace argocd: "
-            f"{[a['metadata']['name'] for a in owning]}"
-        )
 
 
 TEKTON_DIR = REPO / "apps/staging-gate/tekton"
@@ -1086,7 +993,7 @@ def test_notify_step_has_a_short_explicit_timeout():
     the whole `finally` window either -- a short explicit step timeout."""
     notify_task = _find_task(_tekton_docs(), "staging-gate-notify")
     step = notify_task["spec"]["steps"][0]
-    assert step.get("timeout") == "2m", step.get("timeout")
+    assert step.get("timeout") == "2m0s", step.get("timeout")  # canonical form: Tekton rewrites "2m"
 
 
 def test_notify_script_fails_closed_on_an_empty_telegram_credential():
@@ -1129,19 +1036,6 @@ def test_readme_documents_the_smoke_rbac_blast_radius():
     assert "?ref={sha}" in text or "ref={sha}" in text
 
 
-def test_repo_credential_comment_documents_the_consumer_namespace_pem():
-    """ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's
-    namespace, which hid frank-gitops-push for seven days. The COMMENT (not the
-    YAML body, where `namespace: argocd` appears anyway) must name the PEM
-    Secret, the argocd namespace, and the manual op that places it there."""
-    path = _runs_fr_repo_es()["_path"]
-    comments = "\n".join(
-        line for line in path.read_text().splitlines() if line.lstrip().startswith("#")
-    )
-    for needle in ("github-app-derio-key", "argocd", MANUAL_OP_ID):
-        assert needle in comments, (
-            f"{path.relative_to(REPO)} comments must mention {needle!r}"
-        )
 
 
 VCLUSTER_API_PORT = 8443

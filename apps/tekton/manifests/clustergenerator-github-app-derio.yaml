@@ -24,8 +24,8 @@
 # (omitted here = the App's full install: repository_selection ALL derio-net repos,
 # contents/issues/PRs/workflows write — verified 2026-09-14). Consumers that need
 # less get their own scoped generator on the same App instead of scoping this one,
-# which tekton (and, until it was retired, secure-agent-pod) shared (see
-# apps/argocd-extras/manifests/clustergenerator-github-app-derio-argocd-read.yaml).
+# which tekton (and, until it was retired, secure-agent-pod) shared (e.g. the
+# github-app-renovate / -cluster-update-* generators).
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: ClusterGenerator
 metadata:
