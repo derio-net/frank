@@ -379,3 +379,24 @@ amendments:
       tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
       keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
       on 2026-11-13/14.
+  - row: vk-posts-superseded
+    op: set-status
+    base: 0
+    status: walked
+    notes: '2026-11-14. All nine posts stay published (draft false, HTTP 200 on blog.derio.net/frank)
+      and carry a retirement notice that says retired rather than superseded: building
+      18, 21, 25, 26, 28, operating 14, 20, 21, and paper 17 (own wording). Added by
+      PR955.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-14T10:00:00Z'
+      evidence: 'curl of all 9 live pages 2026-11-14: HTTP 200, notice text present
+        in each served page.'
+    verify: live
+    why: '2026-11-14. All nine posts stay published (draft false, HTTP 200 on blog.derio.net/frank)
+      and carry a retirement notice that says retired rather than superseded: building
+      18, 21, 25, 26, 28, operating 14, 20, 21, and paper 17 (own wording). Added by
+      PR955.'
