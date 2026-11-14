@@ -1,0 +1,134 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Scoped root-agents RBAC, generator, guard and coupled docs
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - root-agents-no-secrets
+  - root-agents-read-only-triage
+  - no-ai-agent-cluster-admin
+  tier: standard
+  files:
+  - apps/authentik-extras/manifests/*
+  - scripts/root_agents_rbac.py
+  - scripts/tests/test_root_agents_rbac.py
+  - scripts/tests/test_life_admission_cel.py
+  - apps/cluster-update-fr/manifests/admission-policy.yaml
+  - apps/upgrade-sessions/manifests/rbac.yaml
+  - docs/upgrade-briefs/*
+  - blog/content/docs/building/13-unified-auth/index.md
+  - docs/acceptance/*
+  - docs/runbooks/manual-operations.yaml
+  estimate_lines: 650
+tasks:
+- number: 1
+  title: 'RED: the guard and the generator contract'
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tests/test_root_agents_rbac.py: load every ClusterRole, Role, ClusterRoleBinding and RoleBinding under apps/ (yaml.safe_load_all, skipping Helm-templated files that do not parse). Assert (R7): (a) `scripts/root_agents_rbac.py --check` exits 0; (b) no generated RoleBinding sits in upgrade-sessions, cluster-update-fr or runs-fr, and none names a namespace whose key starts with `hop/`; (c) every `root-agents` subject resolves to rules with no `secrets`, no `*` resource or verb, no impersonate/bind/escalate/serviceaccounts/token and no write verb; (d) no Group subject outside root-admins, root-devops, system:masters, and no ServiceAccount outside a named allowlist (cluster-update-fr console, runs-fr, the upgrade-sessions session ServiceAccounts, each with a reason string), can get/list Secrets in a protected namespace, following Role/ClusterRole refs and the admin/cluster-admin built-ins from a small table.
+  - id: P1.T1.S2
+    text: |-
+      Run `.venv/bin/pytest scripts/tests/test_root_agents_rbac.py -q`; expect red (generator and ClusterRole missing). Save the log.
+  - id: P1.T1.S3
+    text: |-
+      Write scripts/root_agents_rbac.py mirroring scripts/life_sessions.py (--write / --check, a HEADER marking the file GENERATED): namespaces = life_sessions._destinations() keys starting `frank/`, minus PROTECTED = {upgrade-sessions, cluster-update-fr, runs-fr}, sorted and deduplicated; emit one RoleBinding `root-agents-ns-read` per namespace (subject Group root-agents, roleRef ClusterRole root-agents-ns-read). Run --write to create apps/authentik-extras/manifests/root-agents-rbac.yaml.
+  - id: P1.T1.S4
+    text: |-
+      Edit apps/authentik-extras/manifests/k8s-rbac.yaml: delete the authentik-root-agents -> cluster-admin binding; add ClusterRole root-agents-cluster-read (nodes, namespaces, persistentvolumes, storageclasses, customresourcedefinitions; get/list/watch) with ClusterRoleBinding authentik-root-agents-read; add ClusterRole root-agents-ns-read with an explicit get/list/watch resource list (pods, pods/log, services, endpoints, configmaps, events, persistentvolumeclaims, apps workloads, batch jobs/cronjobs, networking ingresses/policies, argoproj applications/rollouts, longhorn volumes), no secrets and no wildcards. Add a header comment naming the cutover manual operation.
+  - id: P1.T1.S5
+    text: |-
+      Run the new test again; expect green. Refactor: pull the shared admin-subject helper out of test_life_admission_cel.py only if the two tests duplicate more than a screenful, otherwise record `refactor` reason: the two tests resolve different questions.
+- number: 2
+  title: Coupled tests, comments and docs
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Edit scripts/tests/test_life_admission_cel.py (around lines 342-347): expected admin-subject set becomes {root-admins, root-devops}; fix the comment and keep the parametrised exec test valid. Run it green.
+  - id: P1.T2.S2
+    text: |-
+      Reword the closed-gap text in apps/cluster-update-fr/manifests/admission-policy.yaml (lines ~148-150) and apps/upgrade-sessions/manifests/rbac.yaml (lines ~6-7), keeping `derio-net/frank#912` in the rbac header; make the same edit in docs/upgrade-briefs/AGENTS.md and docs/upgrade-briefs/CLAUDE.md (line ~154) keeping the tokens root-agents, secure-agent-pod and derio-net/frank#912 that scripts/tests/test_life_briefs.py:257-266 requires. Run test_life_briefs.py and test_life_console_app.py green.
+  - id: P1.T2.S3
+    text: |-
+      Update blog/content/docs/building/13-unified-auth/index.md (role table line ~141 and the 'deliberate decision' paragraph ~297-305) to the new scoped state and the claude-agent finding; run `fr docs check` and fix findings via the page or its reviewed stamp.
+  - id: P1.T2.S4
+    text: |-
+      Add the cutover manual-operation block (`# manual-operation`, id auth-root-agents-cutover, status pending) to the plan prose and run /sync-runbook so docs/runbooks/manual-operations.yaml carries it; include the BEFORE/AFTER SubjectAccessReview matrix command, the `system:masters` control, the Authentik ORM membership move, the fresh-token TokenReview and the revert path.
+- number: 3
+  title: Quality gate
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Run the full local suite with `.venv/bin/pytest scripts/tests -q`, excluding the five hugo test files, into a log outside the repo; the exit code must be 0. Run `scripts/validate-plans.sh` and `fr plan self-review` on this plan.
+  - id: P1.T3.S2
+    text: |-
+      Run `kubectl create --dry-run=client -f` on k8s-rbac.yaml and root-agents-rbac.yaml, and `kubectl get ns -o name` read-only to list any generated namespace missing on the live cluster; record the difference in the phase record.
+- number: 4
+  title: The cutover script the devops ops run
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Write scripts/tests/test_root_agents_cutover_script.py (red first): the script exists, passes `bash -n`, uses `set -euo pipefail`, never echoes a token, and its `matrix` subcommand builds authorization.k8s.io/v1 SubjectAccessReview objects (kubectl create -f -, reading .status.allowed) rather than `kubectl auth can-i --as`, always with a system:masters control user that must answer allowed.
+  - id: P1.T4.S2
+    text: |-
+      Write scripts/root-agents-cutover.sh with subcommands `matrix` (prints every allow and deny cell for group root-agents and group root-admins, namespaces read from the generated root-agents-rbac.yaml, plus the system:masters control), `verify` (exits non-zero unless every allow cell is allowed, every deny cell denied incl. Secrets in argocd, infisical, authentik, kube-system, longhorn-system, upgrade-sessions, cluster-update-fr, runs-fr, impersonate, serviceaccounts/token, and the control allowed), `move-membership` (Authentik ORM via kubectl exec: add claude-agent to root-agents then remove it from root-admins, idempotent), `membership` (read back; fails unless claude-agent is only in root-agents) and `token-review` (mints a k8s-agent token from the operator's .env_agent and TokenReviews it in one pipeline, printing only the groups and never the token; fails if root-admins is among them). Run the test green and `bash -n` the script.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T1.S5:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-11-14T20:37:35+00:00'
+      note: null
+  completion:
+    at: '2026-11-14T20:37:35+00:00'
+    note: null
+    observed_prs: []

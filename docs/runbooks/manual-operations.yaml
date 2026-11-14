@@ -268,6 +268,27 @@ operations:
   verify:
   - Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option
   status: n/a
+- id: auth-root-agents-cutover
+  layer: auth
+  app: authentik-extras
+  plan: 2026-11-14--auth--root-agents-least-privilege
+  when: After the PR merges and ArgoCD applies the new bindings (devops gate)
+  why_manual: Authentik group membership lives in the running Authentik database, and prune is false so the old cluster-admin binding must be deleted by hand
+  commands:
+  - 'source .env   # from the repo root, so KUBECONFIG resolves'
+  - 'kubectl get ns -o name   # every namespace in apps/authentik-extras/manifests/root-agents-rbac.yaml must exist, or that sync fails'
+  - 'Check what claude-agent uses its Authentik superuser status for (API calls with its token): leaving root-admins drops is_superuser, not only the kube binding'
+  - 'bash scripts/root-agents-cutover.sh matrix   # BEFORE: server-side SubjectAccessReview matrix for groups root-agents and root-admins, each beside a system:masters control that must answer allowed (never kubectl auth can-i --as: the Omni proxy ignores it, frank#963)'
+  - 'bash scripts/root-agents-cutover.sh move-membership   # Authentik ORM: add claude-agent to root-agents, then remove it from root-admins'
+  - 'K8S_AGENT_CLIENT_SECRET=<client secret from kubeconfig-agent.yaml --oidc-client-secret> K8S_AGENT_USERNAME=claude-agent K8S_AGENT_PASSWORD=<its app-password token> bash scripts/root-agents-cutover.sh token-review   # export these by hand; do NOT source .env_agent (it repoints KUBECONFIG at the agent). With client id+secret only the token belongs to the synthetic client-credentials user, not claude-agent. Prints authenticated, username and groups, never the token; fails unless authenticated and root-admins is absent'
+  - 'kubectl delete clusterrolebinding authentik-root-agents --ignore-not-found   # prune is false, so git alone leaves it live'
+  - 'bash scripts/root-agents-cutover.sh matrix   # AFTER'
+  - 'REVERT (any step failing): kubectl apply the old binding from `git show <merge>~1:apps/authentik-extras/manifests/k8s-rbac.yaml` (the authentik-root-agents document), and re-add claude-agent to root-admins in Authentik'
+  verify:
+  - 'bash scripts/root-agents-cutover.sh verify exits 0: every allow cell allowed, every deny cell denied (Secrets in argocd, infisical, authentik, kube-system, longhorn-system, upgrade-sessions, cluster-update-fr, runs-fr), and the system:masters control allowed'
+  - 'bash scripts/root-agents-cutover.sh membership exits 0: claude-agent is only in root-agents'
+  - kubectl get clusterrolebinding authentik-root-agents is NotFound
+  status: pending
 - id: auth-talos-oidc-patch
   layer: auth
   app: n/a

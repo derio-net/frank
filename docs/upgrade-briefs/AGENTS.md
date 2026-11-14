@@ -150,7 +150,8 @@ around you are and are not.
   pod (except the operator's runs-fr gateway and cluster-admins proper), ephemeral containers,
   minting a token for a session or runs-fr ServiceAccount (only the kubelet, for its own pod),
   and running a pod as runs-fr.
-- **Known gap:** AI agents bound to cluster-admin (secure-agent-pod's `agent-sa` and the
-  `root-agents` group) can still read session Secrets and could remove these policies. Scoping
-  them down is tracked in derio-net/frank#912. Nothing in this session may use such an agent
-  or its credentials.
+- **Closing gap:** the `root-agents` group is read-only with no Secrets and no right in this namespace, and
+  secure-agent-pod's `agent-sa` binding is gone. The last path, the AI identity (`claude-agent`) sitting in
+  `root-admins`, closes when the devops-gated cutover `auth-root-agents-cutover` has run
+  (derio-net/frank#912; check `status:` in docs/runbooks/manual-operations.yaml). Nothing in this session may use an agent credential that holds
+  cluster-admin.

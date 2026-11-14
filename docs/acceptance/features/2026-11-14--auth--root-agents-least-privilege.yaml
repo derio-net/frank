@@ -1,0 +1,40 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-11-14--auth--root-agents-least-privilege
+repo: derio-net/frank
+rows:
+  - id: root-agents-no-secrets
+    capability: cluster-access
+    acceptance: No member of the root-agents group can read Secrets in any namespace,
+      and none can reach upgrade-sessions, cluster-update-fr or runs-fr.
+    origin:
+    - spec:2026-11-14--auth--root-agents-least-privilege#R2
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: root-agents-read-only-triage
+    capability: cluster-access
+    acceptance: A member of root-agents can still read cluster state (nodes, workloads,
+      ConfigMaps) in every app namespace except the protected three, and can change
+      nothing.
+    origin:
+    - spec:2026-11-14--auth--root-agents-least-privilege#R1
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: no-ai-agent-cluster-admin
+    capability: cluster-access
+    acceptance: No AI-agent identity holds cluster-admin, and the old authentik-root-agents
+      cluster-admin binding no longer exists.
+    origin:
+    - spec:2026-11-14--auth--root-agents-least-privilege#R4
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live

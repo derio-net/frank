@@ -3,9 +3,10 @@
 # and they are trusted with session credentials by operator decision. Everyone else is refused,
 # by the policies in apps/cluster-update-fr/manifests/admission-policy.yaml, exec/attach/
 # port-forward/proxy into sessions, ephemeral containers, TokenRequests for the session and
-# runs-fr ServiceAccounts, and pods running as runs-fr. AI agents bound to cluster-admin
-# (root-agents) are a known gap: derio-net/frank#912. The retired secure-agent-pod's agent-sa is gone
-# (frank#950 Phase 2, 2026-11-13).
+# runs-fr ServiceAccounts, and pods running as runs-fr. AI agents hold no cluster-admin:
+# root-agents is read-only without Secrets and bound to none of these namespaces
+# (derio-net/frank#912, cutover auth-root-agents-cutover). The retired secure-agent-pod's agent-sa is
+# gone (frank#950 Phase 2, 2026-11-13).
 #
 # Read-only view for every in-cluster session type: rollout checks, ArgoCD's applied revision
 # (R16), node health for OS steps. No secrets, no configmaps, no logs, no exec/attach/port-forward.
