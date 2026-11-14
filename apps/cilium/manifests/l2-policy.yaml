@@ -2,7 +2,39 @@ apiVersion: "cilium.io/v2alpha1"
 kind: CiliumL2AnnouncementPolicy
 metadata:
   name: default-l2-policy
+# Announces every LoadBalancer IP from ANY node, EXCEPT Services labelled
+# l2.derio.net/pinned (those are announced by a dedicated policy below). L2
+# policies are additive: a Service matched by two of them can be announced by
+# the union of their nodes, so a pinned Service must be excluded HERE, not just
+# claimed there.
 spec:
+  serviceSelector:
+    matchExpressions:
+      - {key: l2.derio.net/pinned, operator: DoesNotExist}
+  interfaces:
+    - ^eth[0-9]+
+    - ^en[a-z0-9]+
+  externalIPs: true
+  loadBalancerIPs: true
+---
+# Announce pinned Services from the node that runs their pod. Needed for
+# externalTrafficPolicy: Local on a hard-pinned workload: Cilium 1.17 does NOT
+# narrow the L2 election to nodes holding an endpoint, so under the default policy
+# paperclip-lb (.212) was announced by raspi-1 (lease held since 2026-10-09) while
+# its only pod runs on gpu-1, and every direct LAN connection was refused
+# (announcer has no local endpoint). Pin = label on the Service + the node here;
+# guarded by scripts/tests/test_l2_pinned_services.py.
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: pinned-gpu-1-l2-policy
+spec:
+  serviceSelector:
+    matchLabels:
+      l2.derio.net/pinned: gpu-1
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/hostname: gpu-1
   interfaces:
     - ^eth[0-9]+
     - ^en[a-z0-9]+
