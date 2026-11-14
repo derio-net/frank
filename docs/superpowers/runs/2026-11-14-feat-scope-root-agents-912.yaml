@@ -112,8 +112,10 @@ steps:
           findings: l-security-r1,l-security-r2,l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
           lenses: security=9:l-security-r1,l-security-r2;tests=7:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
   deliver:
-    state: running
-    at: '2026-11-14T20:47:49+00:00'
+    state: done
+    at: '2026-11-14T21:23:11+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/985
     units:
       step/deliver:
         attempts:
@@ -121,5 +123,13 @@ steps:
           harness: claude-code
           model: claude-sonnet-5-5
           session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
+          returned: '2026-11-14T21:22:39+00:00'
+          outcome: done
+        evidence:
+          tests: deliver-suite2.log@39ca621eb6df
+          walk: none
+          proportionality: 9109e49fe0dc591e7d5bd9b617c85668a0ef7b8c:1850ba23ef5a9f1618735cedb75fe61e3b1c9530ecfceccc0d5ea3a0f06fe082
+          docs: none
+          visual: none
 fr_version: 7.0.0rc2
 pr: https://github.com/derio-net/frank/pull/985
