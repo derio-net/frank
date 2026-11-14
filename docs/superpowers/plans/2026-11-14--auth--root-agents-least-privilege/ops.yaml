@@ -1,0 +1,42 @@
+schema_version: 2
+ops:
+- id: cutover-matrix-before
+  summary: SubjectAccessReview matrix BEFORE the cutover, with the system:masters control
+  phase: post-merge
+  apply: |-
+    bash scripts/root-agents-cutover.sh matrix
+  mutating: false
+  check: |-
+    bash scripts/root-agents-cutover.sh matrix >/dev/null
+- id: cutover-move-membership
+  summary: Move claude-agent from root-admins to root-agents in Authentik (add first, then remove)
+  phase: post-merge
+  apply: |-
+    bash scripts/root-agents-cutover.sh move-membership
+  mutating: true
+  check: |-
+    bash scripts/root-agents-cutover.sh membership
+- id: cutover-token-review
+  summary: A freshly minted k8s-agent token reviews as root-agents or no group, never root-admins
+  phase: post-merge
+  apply: |-
+    bash scripts/root-agents-cutover.sh token-review
+  mutating: false
+  check: |-
+    bash scripts/root-agents-cutover.sh token-review >/dev/null
+- id: cutover-delete-binding
+  summary: Delete the old authentik-root-agents cluster-admin binding (prune is false, so git alone leaves it live)
+  phase: post-merge
+  apply: |-
+    kubectl delete clusterrolebinding authentik-root-agents --ignore-not-found
+  mutating: true
+  check: |-
+    ! kubectl get clusterrolebinding authentik-root-agents
+- id: cutover-matrix-after
+  summary: SubjectAccessReview matrix AFTER the cutover meets every expectation
+  phase: post-merge
+  apply: |-
+    bash scripts/root-agents-cutover.sh matrix
+  mutating: false
+  check: |-
+    bash scripts/root-agents-cutover.sh verify

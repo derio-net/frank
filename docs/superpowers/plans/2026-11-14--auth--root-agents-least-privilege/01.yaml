@@ -61,10 +61,19 @@ tasks:
   steps:
   - id: P1.T3.S1
     text: |-
-      Run the full local suite with `.venv/bin/pytest scripts/tests -q --ignore` of the five hugo test files, into a log outside the repo; every exit code must be 0. Run `scripts/validate-plans.sh` and `fr plan self-review` on this plan.
+      Run the full local suite with `.venv/bin/pytest scripts/tests -q`, excluding the five hugo test files, into a log outside the repo; the exit code must be 0. Run `scripts/validate-plans.sh` and `fr plan self-review` on this plan.
   - id: P1.T3.S2
     text: |-
-      Render the changed manifests with `kubectl apply --dry-run=server` is NOT possible pre-merge, so instead run `kubectl create --dry-run=client -f` on k8s-rbac.yaml and root-agents-rbac.yaml and `kubectl get ns -o name` read-only to list any generated namespace missing on the live cluster; record the diff in the phase record.
+      Run `kubectl create --dry-run=client -f` on k8s-rbac.yaml and root-agents-rbac.yaml, and `kubectl get ns -o name` read-only to list any generated namespace missing on the live cluster; record the difference in the phase record.
+- number: 4
+  title: The cutover script the devops ops run
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Write scripts/tests/test_root_agents_cutover_script.py (red first): the script exists, passes `bash -n`, uses `set -euo pipefail`, never echoes a token, and its `matrix` subcommand builds authorization.k8s.io/v1 SubjectAccessReview objects (kubectl create -f -, reading .status.allowed) rather than `kubectl auth can-i --as`, always with a system:masters control user that must answer allowed.
+  - id: P1.T4.S2
+    text: |-
+      Write scripts/root-agents-cutover.sh with subcommands `matrix` (prints every allow and deny cell for group root-agents and group root-admins, namespaces read from the generated root-agents-rbac.yaml, plus the system:masters control), `verify` (exits non-zero unless every allow cell is allowed, every deny cell denied incl. Secrets in argocd, infisical, authentik, kube-system, longhorn-system, upgrade-sessions, cluster-update-fr, runs-fr, impersonate, serviceaccounts/token, and the control allowed), `move-membership` (Authentik ORM via kubectl exec: add claude-agent to root-agents then remove it from root-admins, idempotent), `membership` (read back; fails unless claude-agent is only in root-agents) and `token-review` (mints a k8s-agent token from the operator's .env_agent and TokenReviews it in one pipeline, printing only the groups and never the token; fails if root-admins is among them). Run the test green and `bash -n` the script.
 state:
   steps:
     P1.T1.S1:
@@ -108,6 +117,14 @@ state:
       ticked_at: null
       note: null
     P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
       state: ' '
       ticked_at: null
       note: null

@@ -155,7 +155,11 @@ The static guard (R7) is covered by the required `tripwires` CI check on every P
 
 ## Test Plan
 
-- [ ] Post-merge, operator-driven (`fr ops gate`): run the cutover above. Record the BEFORE and AFTER SubjectAccessReview matrices with the `system:masters` control, the Authentik membership read-back (`claude-agent` only in `root-agents`), and `kubectl get clusterrolebinding authentik-root-agents` returning NotFound.
+- [ ] (op: cutover-matrix-before) Record the SubjectAccessReview matrix before the cutover, with the `system:masters` control.
+- [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
+- [ ] (op: cutover-token-review) TokenReview a freshly minted `k8s-agent` token: groups never include `root-admins`.
+- [ ] (op: cutover-delete-binding) Delete the old `authentik-root-agents` binding.
+- [ ] (op: cutover-matrix-after) Record the matrix after the cutover: every allow cell allowed, every deny cell denied, the control allowed.
 - [ ] Close #912 on that passing matrix; this unblocks P7.T1.S1 of the update-security-lifecycle plan.
 
 ## Implementation Plans
