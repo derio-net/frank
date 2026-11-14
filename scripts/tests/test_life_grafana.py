@@ -102,7 +102,7 @@ def test_console_metric_rules_stay_loud_when_the_metric_vanishes():
         assert ev["type"] == "gt" and ev["params"][0] >= 36 * 3600  # daily job + slack
         if uid == "life-report-heartbeat-stale":
             # armed only once it has reported (test_life_pre_phase7_quiet.py): never-reported = NoData
-            assert "last_over_time(" in a["model"]["expr"] and rule["noDataState"] == "OK"
+            assert "max_over_time(" in a["model"]["expr"] and rule["noDataState"] == "OK"
         else:
             assert rule["noDataState"] == "Alerting"
 

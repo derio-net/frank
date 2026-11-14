@@ -140,9 +140,10 @@ def test_report_rule_fires_only_for_a_metric_that_existed():
     rule = _rules()["life-report-heartbeat-stale"]
     expr = _q(rule, "A")["model"]["expr"]
     assert "cluster_update_last_report_timestamp_seconds" in expr
-    # "has it EVER reported" looks back through the whole retention (1 month), and only a
-    # series that existed there turns the vanished-metric branch into a stale reading.
-    assert re.search(r"count\(last_over_time\(cluster_update_last_report_timestamp_seconds\[30d\]\)\)\s*>\s*0", expr)
+    # 0 is how the console says "never sent" (it exports the metric from boot), so only a value
+    # > 0 is a report, for the age AND for "has it ever reported" (retention is 1 month).
+    assert re.search(r"time\(\) - \(max\(cluster_update_last_report_timestamp_seconds\) > 0\)", expr)
+    assert re.search(r"count\(max_over_time\(cluster_update_last_report_timestamp_seconds\[30d\]\) > 0\) > 0", expr)
     assert "vector(1e9)" in expr
     assert rule["noDataState"] == "OK", "never reported = nothing to be stale, so NoData must not fire"
     assert rule["labels"]["severity"] == "critical", "armed, it stays as loud as before"
