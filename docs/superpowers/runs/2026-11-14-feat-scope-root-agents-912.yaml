@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-11-14--auth--root-agents-least-privilege-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-11-14T20:15:45+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-14T20:15:45+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
   plan:
     state: pending
   plan-review:
