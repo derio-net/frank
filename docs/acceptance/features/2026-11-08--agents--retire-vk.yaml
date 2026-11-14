@@ -355,3 +355,27 @@ amendments:
       agent-sa answers false. Archive ~/Archives/secure-agent-pod-2026-11 passed machine
       verify --live with rc 0 and no FAIL, and the operator inspected it by hand on
       2026-11-14 and said the archive is fine, so R9 is met.'
+  - row: no-vk-references-remain
+    op: set-status
+    base: 0
+    status: ci
+    notes: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
+    why: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
+  - row: no-vk-references-remain
+    op: add-level
+    base: 1
+    level: unit
+    ref: frank:scripts/tests/test_vk_retired.py
+    why: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
