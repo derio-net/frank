@@ -3,7 +3,7 @@ run: 2026-11-14-feat-scope-root-agents-912
 workflow: fr-goal@1
 branch: feat/scope-root-agents-912
 started: '2026-11-14T19:44:38+00:00'
-cursor: lens-review
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -95,8 +95,8 @@ steps:
     stdout: |
       2 out-of-scope finding(s): p1-r11, p1-r12
   lens-review:
-    state: running
-    at: '2026-11-14T20:43:47+00:00'
+    state: done
+    at: '2026-11-14T20:47:47+00:00'
     units:
       step/lens-review:
         attempts:
@@ -104,6 +104,13 @@ steps:
           harness: claude-code
           model: claude-sonnet-5-5
           session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
+          returned: '2026-11-14T20:47:47+00:00'
+          outcome: done
+        evidence:
+          review: lens-review-1
+          reviewer: security=a17620546061703a4,tests=a56cbc13742b62b66
+          findings: l-security-r1,l-security-r2,l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
+          lenses: security=9:l-security-r1,l-security-r2;tests=7:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
   deliver:
     state: pending
 fr_version: 7.0.0rc2

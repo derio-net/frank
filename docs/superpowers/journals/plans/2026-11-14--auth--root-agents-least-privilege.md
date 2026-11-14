@@ -170,3 +170,108 @@ Platform fact, not caused by this change.
 ### p1-r12-resolved · finding [out-of-scope] · resolves p1-r12: Helm-rendered RBAC is invisible to a repo-static guard (phase 1)
 
 Limit of any repo-static guard, not caused by this change.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r1 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-security-r1 · finding [open] (reviewer: in scope) · root-agents-ns-read grants pods/log, configmaps and pod specs in credential-store namespaces; the matrix tests only secrets
+
+root-agents-ns-read grants pods/log, configmaps and pod specs in credential-store namespaces; the matrix tests only secrets
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r2 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-security-r2 · finding [open] (reviewer: in scope) · ops.yaml cutover-token-review check re-runs the apply and mints a second token
+
+ops.yaml cutover-token-review check re-runs the apply and mints a second token
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r1 · finding [open] (reviewer: in scope) · freshness test restates the generator; no independent namespace pin
+
+freshness test restates the generator; no independent namespace pin
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r2 · finding [open] (reviewer: in scope) · hop/ prefix assertion can never fail
+
+hop/ prefix assertion can never fail
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r3 · finding [open] (reviewer: in scope) · namespaces and move-membership subcommands untested
+
+namespaces and move-membership subcommands untested
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r4 · finding [open] (reviewer: in scope) · verify tested against only one broken cell
+
+verify tested against only one broken cell
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r5 · finding [open] (reviewer: in scope) · matrix test substring-only; generated-file precheck untested
+
+matrix test substring-only; generated-file precheck untested
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r6 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r6 · finding [open] (reviewer: in scope) · fake curl discards stdin and args; secret handling unverified
+
+fake curl discards stdin and args; secret handling unverified
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r7 created=2026-11-14T20:47:46+00:00 state=open review_scope=in -->
+### l-tests-r7 · finding [open] (reviewer: in scope) · guard seen>=2 is loose and the cluster-read binding is not required
+
+guard seen>=2 is loose and the cluster-read binding is not required
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r8 created=2026-11-14T20:47:46+00:00 state=open review_scope=out -->
+### l-tests-r8 · finding [open] (reviewer: out of scope) · guard scans only apps/*.yaml; pre-existing scope
+
+guard scans only apps/*.yaml; pre-existing scope
+
+<!-- fr:journal kind=review scope=plan id=lens-review-1 created=2026-11-14T20:47:46+00:00 -->
+### lens-review-1 · review · lens review: security (2 findings), tests (8 findings)
+
+One dispatched reviewer per lens over the diff from the merge base. Security found no injection, token leak or ordering defect in the cutover script; tests found the generator, deny cells, move-membership and secret handling under-tested.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r1-resolved created=2026-11-14T20:47:46+00:00 state=refuted resolves=l-security-r1 -->
+### l-security-r1-resolved · finding [refuted] · resolves l-security-r1: root-agents-ns-read grants pods/log, configmaps and pod specs in credential-store namespaces; the matrix tests only secrets
+
+Same exposure as p1-r7: the spec's Design states the choice (pods, ConfigMaps and logs in those namespaces, never Secrets) and the operator confirmed it as one design. Agents get strictly less than the built-in view that root-developers already holds cluster-wide. Narrowing pods/log or ConfigMaps in credential-store namespaces is the operator's call and is listed in the PR for that.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r2-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-security-r2 -->
+### l-security-r2-resolved · finding [fixed] · resolves l-security-r2: ops.yaml cutover-token-review check re-runs the apply and mints a second token
+
+The op's check now reads membership back instead of minting again.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r1 -->
+### l-tests-r1-resolved · finding [fixed] · resolves l-tests-r1: freshness test restates the generator; no independent namespace pin
+
+Guard pins argocd, monitoring, authentik, infisical, kube-system and longhorn-system and a floor of 30 namespaces, and ties PROTECTED across generator, guard and script.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r2 -->
+### l-tests-r2-resolved · finding [fixed] · resolves l-tests-r2: hop/ prefix assertion can never fail
+
+The impossible hop/ assertion is replaced with a check that Hop-only namespaces never appear.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r3 -->
+### l-tests-r3-resolved · finding [fixed] · resolves l-tests-r3: namespaces and move-membership subcommands untested
+
+namespaces and move-membership have behavioural tests (ACTION=move reaches the pod, add precedes remove, read does not mutate).
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r4 -->
+### l-tests-r4-resolved · finding [fixed] · resolves l-tests-r4: verify tested against only one broken cell
+
+verify is tested once per deny cell leaking and per trusted-admin lockout, with a parametrised fake.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r5 -->
+### l-tests-r5-resolved · finding [fixed] · resolves l-tests-r5: matrix test substring-only; generated-file precheck untested
+
+The matrix test checks cell count, control markers and the generated-file precheck with bad files.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r6-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r6 -->
+### l-tests-r6-resolved · finding [fixed] · resolves l-tests-r6: fake curl discards stdin and args; secret handling unverified
+
+The fake curl records args and stdin; tests prove secrets reach curl on stdin only and username mode sends the form fields.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r7-resolved created=2026-11-14T20:47:46+00:00 state=fixed resolves=l-tests-r7 -->
+### l-tests-r7-resolved · finding [fixed] · resolves l-tests-r7: guard seen>=2 is loose and the cluster-read binding is not required
+
+The guard requires 31+ root-agents bindings, the cluster-read binding by name and roleRef, and every generated binding's roleRef and subject.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r8-resolved created=2026-11-14T20:47:46+00:00 state=open resolves=l-tests-r8 out_of_scope=true -->
+### l-tests-r8-resolved · finding [out-of-scope] · resolves l-tests-r8: guard scans only apps/*.yaml; pre-existing scope
+
+Pre-existing scope of any repo-static guard.
