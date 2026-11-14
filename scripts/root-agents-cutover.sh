@@ -24,6 +24,7 @@ fi
 
 GEN="${ROOT_AGENTS_GEN:-apps/authentik-extras/manifests/root-agents-rbac.yaml}"
 PROTECTED="upgrade-sessions cluster-update-fr runs-fr"
+EXCLUDED_NS="authentik infisical argocd kube-system longhorn-system"
 SECRET_NS="argocd infisical authentik kube-system longhorn-system upgrade-sessions cluster-update-fr runs-fr"
 AGENT_USER="claude-agent"
 ISSUER_TOKEN_URL="${K8S_AGENT_TOKEN_URL:-https://auth.cluster.derio.net/application/o/token/}"
@@ -66,14 +67,14 @@ cell() {
 matrix() {
   local ns
   FAILS=0
-  generated_namespaces | grep -qx argocd || { echo "argocd missing from $GEN" >&2; FAILS=$((FAILS + 1)); }
   generated_namespaces | grep -qx monitoring || { echo "monitoring missing from $GEN" >&2; FAILS=$((FAILS + 1)); }
-  for ns in $PROTECTED; do
-    if generated_namespaces | grep -qx "$ns"; then echo "protected namespace $ns is bound in $GEN" >&2; FAILS=$((FAILS + 1)); fi
+  for ns in $PROTECTED $EXCLUDED_NS; do
+    if generated_namespaces | grep -qx "$ns"; then echo "protected or credential-store namespace $ns is bound in $GEN" >&2; FAILS=$((FAILS + 1)); fi
   done
 
   echo "== group root-agents: allow =="
-  cell root-agents root-agents allow get pods argocd
+  cell root-agents root-agents allow get pods monitoring
+  cell root-agents root-agents allow get pods monitoring log
   cell root-agents root-agents allow get configmaps monitoring
   cell root-agents root-agents allow list nodes -
   echo "== group root-agents: deny =="
@@ -81,6 +82,11 @@ matrix() {
     cell root-agents root-agents deny get secrets "$ns"
   done
   cell root-agents root-agents deny list pods upgrade-sessions
+  for ns in $EXCLUDED_NS; do
+    cell root-agents root-agents deny get pods "$ns"
+    cell root-agents root-agents deny get pods "$ns" log
+    cell root-agents root-agents deny get configmaps "$ns"
+  done
   cell root-agents root-agents deny create pods argocd
   cell root-agents root-agents deny impersonate users -
   cell root-agents root-agents deny create serviceaccounts argocd token

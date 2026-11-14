@@ -289,6 +289,20 @@ operations:
   - 'bash scripts/root-agents-cutover.sh membership exits 0: claude-agent is only in root-agents'
   - kubectl get clusterrolebinding authentik-root-agents is NotFound
   status: pending
+- id: auth-root-agents-exclude-credential-namespaces
+  layer: auth
+  app: authentik-extras
+  plan: n/a
+  when: After the exclusion PR merges (the generated root-agents-rbac.yaml no longer binds five namespaces)
+  why_manual: prune is false, so the five RoleBindings the first PR created stay live after git drops them
+  commands:
+  - 'source .env   # from the repo root, so KUBECONFIG resolves'
+  - 'for ns in authentik infisical argocd kube-system longhorn-system; do kubectl -n $ns delete rolebinding root-agents-ns-read --ignore-not-found; done'
+  - 'bash scripts/root-agents-cutover.sh verify   # AFTER: pods, pods/log and configmaps denied in the five, every control answered allowed'
+  verify:
+  - 'for ns in authentik infisical argocd kube-system longhorn-system; do kubectl -n $ns get rolebinding root-agents-ns-read; done   # all NotFound'
+  - bash scripts/root-agents-cutover.sh verify exits 0
+  status: pending
 - id: auth-talos-oidc-patch
   layer: auth
   app: n/a

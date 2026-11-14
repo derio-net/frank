@@ -11,6 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTECTED = {"upgrade-sessions", "cluster-update-fr", "runs-fr"}
+EXCLUDED = {"authentik", "infisical", "argocd", "kube-system", "longhorn-system"}
 # Namespaces whose Secrets are the credential store of the update pipeline or of the platform.
 SECRET_NAMESPACES = PROTECTED | {"argocd", "infisical", "authentik", "kube-system", "longhorn-system"}
 SECRET_GROUPS_OK = {"root-admins", "root-devops", "system:masters"}
@@ -108,14 +109,15 @@ def test_no_generated_binding_in_protected_or_hop_namespaces():
     assert gen, "the generated RoleBindings are missing"
     for d in gen:
         ns = d["metadata"]["namespace"]
-        assert ns not in PROTECTED, ns
+        assert ns not in PROTECTED | EXCLUDED, ns
     got = {d["metadata"]["namespace"] for d in gen}
     # Namespaces that exist only on Hop (its root chart is a different cluster) must never leak in through
     # life_sessions._destinations(), which yields hop/* keys too.
     assert not got & {"caddy-system", "headscale-system", "crowdsec-system", "falco-system"}, got
     # An independent pin, so a generator regression that drops namespaces cannot regenerate itself green.
-    assert {"argocd", "monitoring", "authentik", "infisical", "kube-system", "longhorn-system"} <= got, got
-    assert len(got) >= 30, len(got)
+    assert "monitoring" in got and "traefik-system" in got, got
+    assert not got & (PROTECTED | EXCLUDED), got & (PROTECTED | EXCLUDED)  # no read in credential stores
+    assert len(got) >= 25, len(got)
     for d in gen:
         assert d["roleRef"] == {"kind": "ClusterRole", "name": "root-agents-ns-read",
                                 "apiGroup": "rbac.authorization.k8s.io"}, d["metadata"]["namespace"]
@@ -126,8 +128,10 @@ def test_protected_set_is_the_same_everywhere():
     sys.path.insert(0, str(ROOT / "scripts"))
     import root_agents_rbac
     assert set(root_agents_rbac.PROTECTED) == PROTECTED
+    assert set(root_agents_rbac.EXCLUDED) == EXCLUDED
     script = (ROOT / "scripts/root-agents-cutover.sh").read_text()
     assert f'PROTECTED="{" ".join(sorted(PROTECTED, key=script.index))}"' in script
+    assert f'EXCLUDED_NS="{" ".join(sorted(EXCLUDED, key=script.index))}"' in script
 
 
 def test_the_cluster_scoped_read_binding_exists_and_names_the_cluster_role():
@@ -154,7 +158,7 @@ def test_every_root_agents_subject_is_read_only_and_secretless():
             assert not (FORBIDDEN_VERBS & set(r.get("verbs") or [])), (f, r)
         if b["kind"] == "RoleBinding":
             assert b["metadata"]["namespace"] not in PROTECTED
-    assert seen >= 31, f"root-agents bindings found: {seen} (1 cluster-read + one per namespace expected)"
+    assert seen >= 26, f"root-agents bindings found: {seen} (1 cluster-read + one per bound namespace expected)"
 
 
 def test_root_agents_has_no_cluster_admin_binding():

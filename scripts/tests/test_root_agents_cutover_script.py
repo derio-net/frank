@@ -52,7 +52,7 @@ if a[:1] == ["create"]:
         print("true"); sys.exit(0)
     if pol == "broken" and res == "secrets" and ns == "argocd":
         print("true"); sys.exit(0)
-    protected = {"upgrade-sessions", "cluster-update-fr", "runs-fr"}
+    protected = {"upgrade-sessions", "cluster-update-fr", "runs-fr", "authentik", "infisical", "argocd", "kube-system", "longhorn-system"}
     ok = verb in ("get", "list") and res in ("pods", "configmaps", "nodes") and ns not in protected
     print("true" if ok else "false"); sys.exit(0)
 sys.exit(0)
@@ -146,7 +146,9 @@ def test_token_review_refuses_root_admins_and_prints_no_token(env):
     assert run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, K8S_AGENT_USERNAME="claude-agent").returncode != 0
 
 
-DENY_CELLS = ["list:pods:upgrade-sessions", "create:pods:argocd", "impersonate:users:", "bind:clusterroles:",
+DENY_CELLS = ["get:pods/log:authentik", "get:pods/log:infisical", "get:pods/log:argocd", "get:pods/log:kube-system",
+              "get:pods/log:longhorn-system", "get:configmaps:argocd", "get:configmaps:authentik", "get:pods:infisical",
+              "get:configmaps:kube-system", "get:configmaps:longhorn-system", "list:pods:upgrade-sessions", "create:pods:argocd", "impersonate:users:", "bind:clusterroles:",
               "escalate:clusterroles:", "create:serviceaccounts/token:argocd", "get:secrets:infisical",
               "get:secrets:upgrade-sessions", "get:secrets:runs-fr"]
 
@@ -164,7 +166,7 @@ def test_verify_fails_when_a_trusted_admin_is_locked_out(env, cell):
 
 
 def test_verify_fails_when_a_read_cell_is_denied(env):
-    assert run("verify", env, FAKE_LOCKOUT="get:pods:argocd").returncode != 0
+    assert run("verify", env, FAKE_LOCKOUT="get:pods:monitoring").returncode != 0
 
 
 def test_matrix_reports_every_cell_and_the_control(env):
@@ -181,11 +183,11 @@ def test_matrix_prechecks_the_generated_file(env, tmp_path):
         f = tmp_path / "gen.yaml"
         f.write_text("".join(f"---\nmetadata:\n  name: x\n  namespace: {n}\n" for n in nss))
         return str(f)
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd", "monitoring")).returncode == 0
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring")).returncode != 0  # argocd missing
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd")).returncode != 0  # monitoring missing
-    for ns in ("upgrade-sessions", "cluster-update-fr", "runs-fr"):
-        assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd", "monitoring", ns)).returncode != 0, ns
+    assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring")).returncode == 0
+    assert run("verify", env, ROOT_AGENTS_GEN=gen("tekton-pipelines")).returncode != 0  # monitoring missing
+    for ns in ("upgrade-sessions", "cluster-update-fr", "runs-fr", "authentik", "infisical", "argocd",
+               "kube-system", "longhorn-system"):
+        assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring", ns)).returncode != 0, ns
 
 
 def test_namespaces_subcommand_names_the_missing_namespace(env, tmp_path):

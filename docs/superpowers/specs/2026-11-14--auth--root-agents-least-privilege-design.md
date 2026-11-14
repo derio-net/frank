@@ -60,7 +60,7 @@ Reading it together:
 ## Requirements
 
 R1. Members of Authentik group `root-agents` receive cluster-scoped read only: a new ClusterRole `root-agents-cluster-read` (nodes, namespaces, persistentvolumes, storageclasses, customresourcedefinitions; get/list/watch) bound by a new ClusterRoleBinding `authentik-root-agents-read`.
-R2. Members of `root-agents` receive namespaced read through a dedicated ClusterRole `root-agents-ns-read` (an explicit resource list, no wildcards, no Secrets, no aggregation labels) via one generated RoleBinding per Frank app namespace, never in `upgrade-sessions`, `cluster-update-fr` or `runs-fr`.
+R2. Members of `root-agents` receive namespaced read through a dedicated ClusterRole `root-agents-ns-read` (an explicit resource list, no wildcards, no Secrets, no aggregation labels) via one generated RoleBinding per Frank app namespace, never in `upgrade-sessions`, `cluster-update-fr` or `runs-fr`, and none in the credential-store namespaces `authentik`, `infisical`, `argocd`, `kube-system` and `longhorn-system` (amended 2026-11-14 by operator decision: pod specs, pod logs and ConfigMaps there can carry credentials, so the read is withheld, not only Secrets).
 R3. `root-agents` holds no write verb anywhere and no `impersonate`, `serviceaccounts/token`, `escalate`, `bind` or `secrets` access, and no right in `upgrade-sessions`, `cluster-update-fr` or `runs-fr`.
 R4. The `authentik-root-agents` -> `cluster-admin` binding is removed from git and deleted from the cluster, after the new bindings are proven by a SubjectAccessReview matrix.
 R5. No AI-agent identity holds `cluster-admin`: the `claude-agent` service account moves from `root-admins` to `root-agents` (a live Authentik change, recorded as a manual operation).
@@ -87,9 +87,11 @@ R9. Before and after the cutover, a SubjectAccessReview matrix proves the intend
   roleRef that ClusterRole. The namespace set takes the `scripts/life_sessions._destinations()`
   keys that start with `frank/` (it also yields `hop/*` keys such as `caddy-system`,
   which do not exist on Frank), minus `PROTECTED = {upgrade-sessions,
-  cluster-update-fr, runs-fr}`. Agents DO get this read in `infisical`, `authentik`,
-  `kube-system` and `longhorn-system` (pod specs and ConfigMaps, never Secrets): a
-  deliberate choice because triage needs them, and the matrix proves the Secrets denial there. A new app namespace is denied until the file is
+  cluster-update-fr, runs-fr}` and `EXCLUDED = {authentik, infisical, argocd, kube-system,
+  longhorn-system}`. Agents get NO read in the five excluded credential stores (first
+  design: read without Secrets; reversed 2026-11-14 once two reviewers flagged that logs
+  and literal pod env can carry credentials), and the matrix proves pods, pod logs and
+  ConfigMaps are denied there as well as Secrets. A new app namespace is denied until the file is
   regenerated; the CI guard fails the PR that adds one without regenerating.
 
 A RoleBinding to a namespace that does not exist yet fails that sync, the same
@@ -136,8 +138,8 @@ live proof is the SAR matrix, not CI.
 8. Revert (any step failing): `kubectl apply` the old binding from `git show main~1:...`,
    and re-add `claude-agent` to `root-admins`.
 
-SAR matrix, group `root-agents`: allowed = get pods in `argocd`, list nodes, get
-`configmaps` in `monitoring` (both taken from the generated file, not typed by hand); denied = get `secrets` in `argocd`, `infisical`, `authentik`, `kube-system`, `longhorn-system`, `upgrade-sessions`,
+SAR matrix, group `root-agents`: allowed = get pods and pods/log in `monitoring`, list nodes, get
+`configmaps` in `monitoring` (both taken from the generated file, not typed by hand); denied = get pods, pods/log and `configmaps` in each of `argocd`, `infisical`, `authentik`, `kube-system`, `longhorn-system`; get `secrets` in `argocd`, `infisical`, `authentik`, `kube-system`, `longhorn-system`, `upgrade-sessions`,
 `cluster-update-fr`, `runs-fr`; list pods in `upgrade-sessions`; create `pods`
 anywhere; `impersonate` users; create `serviceaccounts/token`; `bind`/`escalate`
 clusterroles.
