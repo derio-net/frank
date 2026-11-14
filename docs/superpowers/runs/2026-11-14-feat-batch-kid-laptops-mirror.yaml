@@ -1,0 +1,27 @@
+schema_version: 11
+run: 2026-11-14-feat-batch-kid-laptops-mirror
+workflow: fr-goal@1
+branch: feat/batch-kid-laptops-mirror
+started: '2026-11-14T22:07:35+00:00'
+cursor: brainstorm
+steps:
+  brainstorm:
+    state: pending
+  spec-review:
+    state: pending
+  plan:
+    state: pending
+  plan-review:
+    state: pending
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  journal-check:
+    state: pending
+  lens-review:
+    state: pending
+  deliver:
+    state: pending
+fr_version: 7.0.0rc2
