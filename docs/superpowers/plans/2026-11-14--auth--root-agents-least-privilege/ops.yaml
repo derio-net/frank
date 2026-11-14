@@ -1,5 +1,13 @@
 schema_version: 2
 ops:
+- id: premerge-namespaces
+  summary: Every namespace the generated RoleBindings name exists on the live cluster
+  phase: pre-merge
+  apply: |-
+    bash scripts/root-agents-cutover.sh namespaces
+  mutating: false
+  check: |-
+    bash scripts/root-agents-cutover.sh namespaces >/dev/null
 - id: cutover-matrix-before
   summary: SubjectAccessReview matrix BEFORE the cutover, with the system:masters control
   phase: post-merge

@@ -118,6 +118,20 @@ print("GROUPS=" + ",".join(sorted(g.name for g in u.ak_groups.all())))
 '
 }
 
+# Every namespace the generated RoleBindings name must exist on the live cluster, or that RoleBinding fails the sync.
+namespaces() {
+  local want have missing
+  want=$(sed -n 's/^  namespace: //p' "$(dirname "$0")/../apps/authentik-extras/manifests/root-agents-rbac.yaml" | sort -u)
+  have=$(kubectl get ns -o name | sed 's#^namespace/##' | sort -u)
+  missing=$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have"))
+  if [ -n "$missing" ]; then
+    echo "namespaces: generated but missing on the cluster:" >&2
+    printf '  %s\n' $missing >&2
+    return 1
+  fi
+  echo "namespaces: all $(printf '%s\n' "$want" | wc -l | tr -d ' ') generated namespaces exist"
+}
+
 move_membership() {
   orm move
 }
@@ -133,22 +147,39 @@ membership() {
   fi
 }
 
-# Mint, review and discard in one pipeline: neither the client secret nor the token reaches argv or stdout.
+# Mint, review and discard in one pipeline: neither the secrets nor the token reach argv or stdout.
+# Which Authentik user the token belongs to depends on how it is requested:
+#   - client_id + client_secret only  -> the provider's synthetic user ("ak-<provider>-client_credentials"),
+#     which is NOT claude-agent and carries no group membership;
+#   - plus K8S_AGENT_USERNAME / K8S_AGENT_PASSWORD (a service account and its app-password token)
+#     -> that service account, i.e. the identity this cutover is about.
+# The review prints the resolved username so the operator sees which of the two was exercised; use the
+# second mode for the cutover proof. Source the values into the environment by hand (do NOT `source
+# .env_agent`: it repoints KUBECONFIG at the agent identity and would run this review as that agent).
 token_review() {
-  : "${K8S_AGENT_CLIENT_SECRET:?set K8S_AGENT_CLIENT_SECRET (the k8s-agent client secret from .env_agent) in the environment}"
-  local client_id="${K8S_AGENT_CLIENT_ID:-k8s-agent}" groups
-  # scope=openid profile: ask for the groups claim, the worst case for this identity.
-  groups=$(
-    printf 'data = "grant_type=client_credentials&scope=openid+profile+email"\ndata-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' \
-        "$client_id" "$K8S_AGENT_CLIENT_SECRET" \
+  : "${K8S_AGENT_CLIENT_SECRET:?set K8S_AGENT_CLIENT_SECRET (the k8s-agent client secret, kubeconfig-agent.yaml --oidc-client-secret) in the environment}"
+  local client_id="${K8S_AGENT_CLIENT_ID:-k8s-agent}" out authenticated user groups cfg
+  cfg=$(printf 'data = "grant_type=client_credentials&scope=openid+profile+email"\ndata-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' \
+        "$client_id" "$K8S_AGENT_CLIENT_SECRET")
+  if [ -n "${K8S_AGENT_USERNAME:-}" ]; then
+    : "${K8S_AGENT_PASSWORD:?set K8S_AGENT_PASSWORD (the app-password token of the service account) with K8S_AGENT_USERNAME}"
+    cfg+=$(printf '\ndata-urlencode = "username=%s"\ndata-urlencode = "password=%s"\n' "$K8S_AGENT_USERNAME" "$K8S_AGENT_PASSWORD")
+  fi
+  out=$(
+    printf '%s\n' "$cfg" \
       | curl -sS --fail -K - "$ISSUER_TOKEN_URL" \
       | python3 -c '
 import json, sys
 print(json.dumps({"apiVersion": "authentication.k8s.io/v1", "kind": "TokenReview",
                   "spec": {"token": json.load(sys.stdin)["access_token"]}}))' \
-      | kubectl create -f - -o jsonpath='{.status.user.groups}'
+      | kubectl create -f - -o jsonpath='{.status.authenticated}{"|"}{.status.user.username}{"|"}{.status.user.groups}'
   )
-  echo "groups: $groups"
+  authenticated=${out%%|*}; user=${out#*|}; groups=${user#*|}; user=${user%%|*}
+  echo "authenticated: $authenticated  user: $user  groups: $groups"
+  if [ "$authenticated" != "true" ]; then
+    echo "token-review: the token was not authenticated, so this proves nothing" >&2
+    return 1
+  fi
   case "$groups" in
     *root-admins*) echo "token-review: the fresh token still carries root-admins" >&2; return 1 ;;
   esac
@@ -156,9 +187,10 @@ print(json.dumps({"apiVersion": "authentication.k8s.io/v1", "kind": "TokenReview
 
 case "${1:-}" in
   matrix) matrix ;;
+  namespaces) namespaces ;;
   verify) verify ;;
   move-membership) move_membership ;;
   membership) membership ;;
   token-review) token_review ;;
-  *) echo "usage: $0 {matrix|verify|move-membership|membership|token-review}" >&2; exit 2 ;;
+  *) echo "usage: $0 {matrix|namespaces|verify|move-membership|membership|token-review}" >&2; exit 2 ;;
 esac

@@ -302,7 +302,7 @@ authentik-root-developers   ClusterRole/view            143d
 authentik-root-agents-read  ClusterRole/root-agents-cluster-read   143d
 ```
 
-Read the ROLE column against your intent, not against your memory. `root-agents` used to hold `cluster-admin`, and that was a finding: the group was empty, so the grant did nothing, while the AI identity (`claude-agent`) sat in `root-admins` and could ask for that group in its token. Both are fixed (frank#912): the group is now read-only without Secrets, and `claude-agent` moves into it. A missing binding is the safer failure — the group authenticates and can do nothing. The dangerous direction is a binding that quietly grants more than the group's name suggests.
+Read the ROLE column against your intent, not against your memory. `root-agents` used to hold `cluster-admin`, and that was a finding: the group was empty, so the grant did nothing, while the AI identity (`claude-agent`) sat in `root-admins` and could ask for that group in its token. The first half is fixed in git (frank#912): the group is now read-only without Secrets. The second is a live Authentik step, moving `claude-agent` into it, that a devops-gated cutover performs and proves with a SubjectAccessReview matrix. A missing binding is the safer failure — the group authenticates and can do nothing. The dangerous direction is a binding that quietly grants more than the group's name suggests.
 
 **3. Is the service actually protected?**
 

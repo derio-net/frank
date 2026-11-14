@@ -32,7 +32,12 @@ Reading it together:
    by itself change what any identity can do.
 2. The AI identity (`claude-agent`) is in `root-admins`, not `root-agents`. Its
    August token carried no groups, so the claim is only emitted when the token
-   request asks for the `profile` scope. A client holding that credential can ask
+   request asks for the `profile` scope. Which Authentik user a `k8s-agent` token
+   belongs to depends on how it is requested: client id and secret alone give the
+   provider's synthetic `ak-Kubernetes Agent Access-client_credentials` user (the August
+   TokenReview), while a service account's username and app-password token give that
+   service account, `claude-agent`. The repo cannot show which the operator uses, so
+   the live token review is run in the second mode, which is the one that matters. A client holding that credential can ask
    for it and receive `root-admins`, which is `cluster-admin`. **That is the real
    hole behind #912**, and the issue text (which names `root-agents`) misses it.
 3. A fresh TokenReview was not run: `.env_agent` is not on this machine, and the
@@ -155,6 +160,7 @@ The static guard (R7) is covered by the required `tripwires` CI check on every P
 
 ## Test Plan
 
+- [ ] (op: premerge-namespaces) Before merging, confirm every generated namespace exists live.
 - [ ] (op: cutover-matrix-before) Record the SubjectAccessReview matrix before the cutover, with the `system:masters` control.
 - [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
 - [ ] (op: cutover-token-review) TokenReview a freshly minted `k8s-agent` token: groups never include `root-admins`.

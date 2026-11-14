@@ -17,8 +17,10 @@ SECRET_GROUPS_OK = {"root-admins", "root-devops", "system:masters"}
 # ServiceAccounts that may read Secrets in a protected namespace, each with its reason.
 SA_ALLOWLIST = {
     ("cluster-update-fr", "cluster-update-fr"): "the console launches sessions and holds their credentials",
-    ("runs-fr", "*"): "the runs-fr workloads own their own namespace",
-    ("upgrade-sessions", "*"): "session ServiceAccounts act inside their own namespace",
+    ("upgrade-sessions", "upgrade-session-chart-major"): "session type; acts inside its own namespace",
+    ("upgrade-sessions", "upgrade-session-stateful"): "session type; acts inside its own namespace",
+    ("upgrade-sessions", "upgrade-session-rollouts"): "session type; acts inside its own namespace",
+    ("upgrade-sessions", "upgrade-session-frank-os"): "session type; acts inside its own namespace",
     # Vendored Tekton controllers: upstream grants them cluster-wide Secret access (git credentials,
     # webhook TLS); they are platform controllers, not agent identities. Narrowing them means forking vendor/.
     ("tekton-pipelines", "tekton-pipelines-controller"): "vendored controller; resolves PipelineRun secrets",
@@ -28,7 +30,13 @@ SA_ALLOWLIST = {
     ("tekton-pipelines", "tekton-triggers-webhook"): "vendored webhook; owns its TLS Secret",
     ("tekton-pipelines", "tekton-triggers-core-interceptors"): "vendored interceptors; read webhook secrets",
 }
-FORBIDDEN_RESOURCES = {"secrets", "serviceaccounts", "serviceaccounts/token", "*"}
+# `get` on pods/exec, pods/attach, pods/portforward opens a websocket stream, so the connect
+# subresources are forbidden even for a read-only verb set.
+FORBIDDEN_RESOURCES = {"secrets", "serviceaccounts", "serviceaccounts/token", "*", "pods/exec", "pods/attach",
+                       "pods/portforward", "pods/proxy", "nodes/proxy", "services/proxy"}
+# What a root-agents ClusterRoleBinding may name: cluster-scoped kinds only. A namespaced kind bound
+# cluster-wide would reach the protected namespaces, which only per-namespace RoleBindings can exclude.
+CLUSTER_SCOPED = {"nodes", "namespaces", "persistentvolumes", "storageclasses", "customresourcedefinitions"}
 FORBIDDEN_VERBS = {"impersonate", "bind", "escalate", "*", "create", "update", "patch", "delete",
                    "deletecollection"}
 READ = {"get", "list", "watch", "*"}
@@ -49,10 +57,14 @@ def _docs():
 
 DOCS = list(_docs())
 ROLES = {}
+AGGREGATED = set()  # roles that aggregate, or are aggregated into view/edit/admin
 BINDINGS = []
 for _f, _d in DOCS:
     if _d["kind"] in ("Role", "ClusterRole"):
         ROLES[(_d["kind"], _d["metadata"].get("namespace"), _d["metadata"]["name"])] = _d.get("rules") or []
+        if _d.get("aggregationRule") or any(k.startswith("rbac.authorization.k8s.io/aggregate-to-")
+                                            for k in (_d["metadata"].get("labels") or {})):
+            AGGREGATED.add(_d["metadata"]["name"])
     elif _d["kind"] in ("RoleBinding", "ClusterRoleBinding"):
         BINDINGS.append((_f, _d))
 
@@ -109,7 +121,10 @@ def test_every_root_agents_subject_is_read_only_and_secretless():
         assert b["roleRef"]["name"] not in BUILTIN, f"{f}: root-agents bound to built-in {b['roleRef']['name']}"
         rules = _rules_of(b)
         assert rules, f"{f}: {b['metadata']['name']} resolves to no rules"
+        assert b["roleRef"]["name"] not in AGGREGATED, f"{f}: {b['roleRef']['name']} uses aggregation"
         for r in rules:
+            if b["kind"] == "ClusterRoleBinding":
+                assert set(r.get("resources") or []) <= CLUSTER_SCOPED, (f, r)
             assert not (FORBIDDEN_RESOURCES & set(r.get("resources") or [])), (f, r)
             assert not (FORBIDDEN_VERBS & set(r.get("verbs") or [])), (f, r)
         if b["kind"] == "RoleBinding":

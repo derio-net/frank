@@ -29,7 +29,8 @@ if a[:1] == ["exec"]:
 if a[:1] == ["create"]:
     sar = json.load(sys.stdin)
     if sar.get("kind") == "TokenReview":
-        print(os.environ.get("FAKE_TOKEN_GROUPS", '["system:authenticated"]')); sys.exit(0)
+        print(os.environ.get("FAKE_TOKEN_AUTH", "true") + "|" + os.environ.get("FAKE_TOKEN_USER", "authentik:claude-agent")
+              + "|" + os.environ.get("FAKE_TOKEN_GROUPS", '["system:authenticated"]')); sys.exit(0)
     assert sar["apiVersion"] == "authorization.k8s.io/v1" and sar["kind"] == "SubjectAccessReview", sar
     s = sar["spec"]; groups = s.get("groups", []); ra = s.get("resourceAttributes", {})
     pol = os.environ.get("FAKE_POLICY", "good")
@@ -127,3 +128,10 @@ def test_token_review_refuses_root_admins_and_prints_no_token(env):
     assert ok.returncode == 0, ok.stderr
     assert "root-agents" in ok.stdout and "fake-access-token" not in ok.stdout + ok.stderr and secret not in ok.stdout
     assert run("token-review", env).returncode != 0  # no client secret configured
+    # an unauthenticated review proves nothing, even with empty groups
+    bad = run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, FAKE_TOKEN_AUTH="", FAKE_TOKEN_GROUPS="")
+    assert bad.returncode != 0 and "not authenticated" in bad.stderr
+    # the resolved user is printed, so the operator sees which identity the review exercised
+    assert "claude-agent" in ok.stdout
+    # username mode needs the password too
+    assert run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, K8S_AGENT_USERNAME="claude-agent").returncode != 0

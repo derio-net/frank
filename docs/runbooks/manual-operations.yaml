@@ -280,7 +280,7 @@ operations:
   - 'Check what claude-agent uses its Authentik superuser status for (API calls with its token): leaving root-admins drops is_superuser, not only the kube binding'
   - 'bash scripts/root-agents-cutover.sh matrix   # BEFORE: server-side SubjectAccessReview matrix for groups root-agents and root-admins, each beside a system:masters control that must answer allowed (never kubectl auth can-i --as: the Omni proxy ignores it, frank#963)'
   - 'bash scripts/root-agents-cutover.sh move-membership   # Authentik ORM: add claude-agent to root-agents, then remove it from root-admins'
-  - 'bash scripts/root-agents-cutover.sh token-review   # mints a fresh k8s-agent token from .env_agent, TokenReviews it, prints only the groups; root-admins must be absent'
+  - 'K8S_AGENT_CLIENT_SECRET=<client secret from kubeconfig-agent.yaml --oidc-client-secret> K8S_AGENT_USERNAME=claude-agent K8S_AGENT_PASSWORD=<its app-password token> bash scripts/root-agents-cutover.sh token-review   # export these by hand; do NOT source .env_agent (it repoints KUBECONFIG at the agent). With client id+secret only the token belongs to the synthetic client-credentials user, not claude-agent. Prints authenticated, username and groups, never the token; fails unless authenticated and root-admins is absent'
   - 'kubectl delete clusterrolebinding authentik-root-agents --ignore-not-found   # prune is false, so git alone leaves it live'
   - 'bash scripts/root-agents-cutover.sh matrix   # AFTER'
   - 'REVERT (any step failing): kubectl apply the old binding from `git show <merge>~1:apps/authentik-extras/manifests/k8s-rbac.yaml` (the authentik-root-agents document), and re-add claude-agent to root-admins in Authentik'
