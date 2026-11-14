@@ -29,8 +29,8 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-11-14T19:27:15+00:00'
       note: null
     P2.T1.S2:
       state: x
@@ -41,10 +41,12 @@ state:
       ticked_at: '2026-11-13T22:13:41+00:00'
       note: null
     P2.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-11-14T19:27:17+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-11-14T19:28:01+00:00'
+    note: 'Manual phase done by hand 2026-11-12..14: archive verified (machine plus
+      operator inspection), pre-merge gates, merge, post-merge sweep, leftovers op,
+      bump run 971 healthy. See Test Plan rows 7-11 and the four ops marked done.'
     observed_prs: []

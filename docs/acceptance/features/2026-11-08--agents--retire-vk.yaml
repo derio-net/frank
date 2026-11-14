@@ -333,3 +333,70 @@ amendments:
       green, frank bump run 43453158820 success) passed its coverage check; bump PR
       971 merged and rolled out all 8 bumped containers healthy. No apps/ or .github
       reference to secure-agent-kali remains on main.
+  - row: pod-removed-after-archive
+    op: set-status
+    base: 1
+    status: walked
+    notes: '2026-11-14. Removal proven live 2026-11-13: Application, namespace, PV and
+      LBs 215/218/219 NotFound, cluster-admin binding gone, SubjectAccessReview for
+      agent-sa answers false. Archive ~/Archives/secure-agent-pod-2026-11 passed machine
+      verify --live with rc 0 and no FAIL, and the operator inspected it by hand on
+      2026-11-14 and said the archive is fine, so R9 is met.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-14T08:00:00Z'
+      evidence: Machine verify --live rc 0 no FAIL (2026-11-13) plus operator hand inspection
+        of the archive 2026-11-14 (archive is fine).
+    why: '2026-11-14. Removal proven live 2026-11-13: Application, namespace, PV and
+      LBs 215/218/219 NotFound, cluster-admin binding gone, SubjectAccessReview for
+      agent-sa answers false. Archive ~/Archives/secure-agent-pod-2026-11 passed machine
+      verify --live with rc 0 and no FAIL, and the operator inspected it by hand on
+      2026-11-14 and said the archive is fine, so R9 is met.'
+  - row: no-vk-references-remain
+    op: set-status
+    base: 0
+    status: ci
+    notes: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
+    why: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
+  - row: no-vk-references-remain
+    op: add-level
+    base: 1
+    level: unit
+    ref: frank:scripts/tests/test_vk_retired.py
+    why: 2026-11-14. Guarded by test_vk_retired.py. A grep of apps, clusters and .github
+      finds only historical comments about the retired pod and the Authentik state absent
+      tombstone for vk-remote-cluster. The operator also removed the Infisical tier2
+      keys, the user-level vibe_kanban MCP entry, the wezterm workspace and frank-ops#18
+      on 2026-11-13/14.
+  - row: vk-posts-superseded
+    op: set-status
+    base: 0
+    status: walked
+    notes: '2026-11-14. All nine posts stay published (draft false, HTTP 200 on blog.derio.net/frank)
+      and carry a retirement notice that says retired rather than superseded: building
+      18, 21, 25, 26, 28, operating 14, 20, 21, and paper 17 (own wording). Added by
+      PR955.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-14T10:00:00Z'
+      evidence: 'curl of all 9 live pages 2026-11-14: HTTP 200, notice text present
+        in each served page.'
+    verify: live
+    why: '2026-11-14. All nine posts stay published (draft false, HTTP 200 on blog.derio.net/frank)
+      and carry a retirement notice that says retired rather than superseded: building
+      18, 21, 25, 26, 28, operating 14, 20, 21, and paper 17 (own wording). Added by
+      PR955.'

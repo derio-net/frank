@@ -583,3 +583,23 @@ Evidence: Grafana API lists 58 rules and none of the five uids and the pushgatew
 Step: The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.
 
 Evidence: agent-images build dbdf5f69 green and frank bump run 43453158820 succeeded. Final bump PR 971 merged and rolled out all 8 containers healthy
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-6-resolved created=2026-11-14T19:28:33+00:00 state=open resolves=test-plan-step-6 filed_as=derio-net/frank#982 -->
+### test-plan-step-6-resolved · finding [filed → derio-net/frank#982] · resolves test-plan-step-6: Test Plan step 6 owed
+
+Filed at archive as derio-net/frank#982; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-7-resolved created=2026-11-14T19:28:34+00:00 state=open resolves=test-plan-step-7 filed_as=derio-net/frank#983 -->
+### test-plan-step-7-resolved · finding [filed → derio-net/frank#983] · resolves test-plan-step-7: Test Plan step 7 owed
+
+Filed at archive as derio-net/frank#983; still owed until discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-6-resolved-2 created=2026-11-14T19:28:48+00:00 state=fixed resolves=test-plan-step-6 -->
+### test-plan-step-6-resolved-2 · finding [fixed] · resolves test-plan-step-6: Test Plan step 6 owed
+
+Recorded as ran in test-plan-step-6-2 on 2026-11-12 (agent-images bump run green; vibe-kanban archived). The owed entry was never discharged.
+
+<!-- fr:journal kind=finding scope=spec id=test-plan-step-7-resolved-2 created=2026-11-14T19:28:57+00:00 state=fixed resolves=test-plan-step-7 -->
+### test-plan-step-7-resolved-2 · finding [fixed] · resolves test-plan-step-7: Test Plan step 7 owed
+
+Recorded as ran in test-plan-step-7-2 on 2026-11-12 (agent-images bump run green; vibe-kanban archived). The owed entry was never discharged.
