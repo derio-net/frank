@@ -1,0 +1,58 @@
+schema_version: 2
+run: 2026-11-14-feat-scope-root-agents-912
+captures:
+- host: h-698e9f49
+  harness: claude-code
+  mode: devcontainer
+  captured_at: '2026-11-14T20:15:43+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
+    role: main
+    models:
+      claude-sonnet-5-5:
+        input: 58
+        cache_write: 188894
+        cache_read: 4612019
+        output: 21573
+        usd: null
+        usd_source: none
+    activity:
+      other:
+        usd: null
+        turns: 12
+      paperwork:
+        usd: null
+        turns: 13
+    steps:
+      (outside run):
+        usd: null
+        turns: 5
+        input: 12
+        cache_write: 141627
+        cache_read: 703072
+        output: 1034
+      brainstorm:
+        usd: null
+        turns: 20
+        input: 46
+        cache_write: 47267
+        cache_read: 3908947
+        output: 20539
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 5
+          input: 12
+          cache_write: 141627
+          cache_read: 703072
+          output: 1034
+        brainstorm:
+          usd: null
+          turns: 20
+          input: 46
+          cache_write: 47267
+          cache_read: 3908947
+          output: 20539
