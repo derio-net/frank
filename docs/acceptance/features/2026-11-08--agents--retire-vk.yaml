@@ -333,3 +333,25 @@ amendments:
       green, frank bump run 43453158820 success) passed its coverage check; bump PR
       971 merged and rolled out all 8 bumped containers healthy. No apps/ or .github
       reference to secure-agent-kali remains on main.
+  - row: pod-removed-after-archive
+    op: set-status
+    base: 1
+    status: walked
+    notes: '2026-11-14. Removal proven live 2026-11-13: Application, namespace, PV and
+      LBs 215/218/219 NotFound, cluster-admin binding gone, SubjectAccessReview for
+      agent-sa answers false. Archive ~/Archives/secure-agent-pod-2026-11 passed machine
+      verify --live with rc 0 and no FAIL, and the operator inspected it by hand on
+      2026-11-14 and said the archive is fine, so R9 is met.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-14T08:00:00Z'
+      evidence: Machine verify --live rc 0 no FAIL (2026-11-13) plus operator hand inspection
+        of the archive 2026-11-14 (archive is fine).
+    why: '2026-11-14. Removal proven live 2026-11-13: Application, namespace, PV and
+      LBs 215/218/219 NotFound, cluster-admin binding gone, SubjectAccessReview for
+      agent-sa answers false. Archive ~/Archives/secure-agent-pod-2026-11 passed machine
+      verify --live with rc 0 and no FAIL, and the operator inspected it by hand on
+      2026-11-14 and said the archive is fine, so R9 is met.'
