@@ -3168,11 +3168,12 @@ data:
               summary: "The update console has not completed a vulnerability scan in 36h (or its metrics vanished). New CVEs are going unseen."
               runbook: "kubectl -n update-console get pods,cronjobs; check the console logs and cluster_update_last_scan_timestamp_seconds in VMUI. Spec: docs/superpowers/specs/2026-10-31--life--update-security-lifecycle-design.md"
 
-          # Armed only once the console has reported at least once in the last 30d (VM retention):
-          # before phase 7 it cannot send a report (no Telegram secret), which is by design. After
-          # the first report a vanished or stale metric is a critical page as before (the second
-          # branch of the expression keeps "metric vanished" loud). NoData therefore means "never
-          # reported", which is not a stale heartbeat.
+          # Armed only once a report was REALLY sent. The console exports this metric from boot with
+          # value 0 meaning "never sent" (cluster-update-fr internal/metrics: ts(zero time) = 0), and
+          # before phase 7 it cannot send (no Telegram secret): `daily report not sent: telegram: not
+          # configured` every 5 min. So only a value > 0 counts, both for the age and for the arming
+          # term. After a real report a stale value, or a metric that vanished, pages as before.
+          # NoData therefore means "never sent", which is not a stale heartbeat.
           - uid: life-report-heartbeat-stale
             title: Lifecycle report heartbeat stale
             condition: C
@@ -3182,7 +3183,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: '(time() - max(cluster_update_last_report_timestamp_seconds)) or (vector(1e9) and on() (count(last_over_time(cluster_update_last_report_timestamp_seconds[30d])) > 0))'
+                  expr: '(time() - (max(cluster_update_last_report_timestamp_seconds) > 0)) or (vector(1e9) and on() (count(max_over_time(cluster_update_last_report_timestamp_seconds[30d]) > 0) > 0))'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
