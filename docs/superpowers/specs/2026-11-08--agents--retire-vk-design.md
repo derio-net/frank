@@ -229,8 +229,8 @@ finalizer stripped to clear a `DeletionError` would leave it behind for any late
 `kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found`
 after the Application is NotFound (while the Application lives, `selfHeal` recreates
 it), then asserts NotFound and that
-`kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa`
-answers `no`. frank#913's upgrade sessions must not hold credentials before this
+a server-side SubjectAccessReview for `system:serviceaccount:secure-agent-pod:agent-sa` (get secrets in `upgrade-sessions`)
+answers `false`, with a `system:masters` control answering `true` (`kubectl auth can-i --as` is ignored through Omni: frank#963). frank#913's upgrade sessions must not hold credentials before this
 passes. The `root-agents` group's cluster-admin is a separate change.
 
 **Observability (R11).** In the same PR, so nothing pages on the way down, tombstone
@@ -369,6 +369,6 @@ Phase 2, post-merge and operator-driven, except row 7 which gates leaving draft.
 
 7. (op: premerge-archive) The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
 8. (op: step-8) `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
-9. (op: step-9) `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and `kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa` answers `no`.
+9. (op: step-9) `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and a server-side SubjectAccessReview for agent-sa on `get secrets -n upgrade-sessions` answers `false` (control `system:masters` true; `can-i --as` is vacuous through Omni, frank#963).
 10. (op: step-10) After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
 11. (op: step-11) The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.

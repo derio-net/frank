@@ -541,3 +541,45 @@ decider: operator, relayed by the orchestrator session on 2026-11-12 (this sessi
 ### phase2-r9-session-released · decision · R9: the pod's triage-state claude session may be stopped (relayed, not heard directly)
 
 Supersedes the gate half of phase2-r9-gate-prep-only. On 2026-11-12 the orchestrator session relayed that the operator confirmed the pod's interactive claude session in orgs/derio-net/triage-state is no longer relevant and can go, and that the orchestrator will stop it right before running archive. The operator also said there was no 'triage run' of theirs; the wording came from the spec. This session did not receive that confirmation from the operator itself, so it is recorded as relayed and unverified here. R9's second half still stands: the archive must be verified on the Mac before the PR leaves draft. No op was run by this session.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-3 created=2026-11-13T22:12:08+00:00 -->
+### test-plan-step-1-3 · discovery · Test Plan step 1: ran
+
+Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+
+Evidence: Archive run 5: rc 0, verify --live rc 0, no FAIL, 14 repo bundles self-contained, in ~/Archives/secure-agent-pod-2026-11 at mode 0700. Gates passed: generator owner tekton-extras, key fingerprint equal across live Secret and both SOPS files, root prune true. Machine verify only: the operator has not yet inspected the archive by hand, so R9's own-look half is still owed.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1-4 created=2026-11-13T22:12:28+00:00 -->
+### test-plan-step-1-4 · discovery · Test Plan step 1: ran
+
+Step: The archive lists and verifies in `~/Archives/secure-agent-pod-2026-11` (mode `0700`) before the PR leaves draft, and contains chorebot's `config.yaml`. Before the merge, the three gates under "Removal" pass: generator ownership, key fingerprints, root `prune`.
+
+Evidence: Archive verify live exited 0 with no FAIL and all three pre-merge gates passed. Machine verify only because the operator has not inspected the archive by hand yet so R9 own look is still owed
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2-3 created=2026-11-13T22:12:32+00:00 -->
+### test-plan-step-2-3 · discovery · Test Plan step 2: ran
+
+Step: `kubectl -n argocd get application secure-agent-pod` is NotFound, `kubectl get ns secure-agent-pod` is NotFound, the PV is gone, and no Service holds .215, .218 or .219.
+
+Evidence: Application namespace PV and LBs 215 218 219 were all gone about 4 minutes after the PR955 merge
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3-3 created=2026-11-13T22:12:35+00:00 -->
+### test-plan-step-3-3 · discovery · Test Plan step 3: ran
+
+Step: `kubectl get clusterrolebinding secure-agent-pod-cluster-admin` is NotFound after the explicit delete, and a server-side SubjectAccessReview for agent-sa on `get secrets -n upgrade-sessions` answers `false` (control `system:masters` true; `can-i --as` is vacuous through Omni, frank#963).
+
+Evidence: Binding NotFound and a server-side SubjectAccessReview answers false for agent-sa with system:masters true as control. Plain can-i with as was vacuous through Omni so the op check was replaced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4-3 created=2026-11-13T22:12:38+00:00 -->
+### test-plan-step-4-3 · discovery · Test Plan step 4: ran
+
+Step: After the Grafana restart, the Grafana API lists none of the five rule uids, the three heartbeat series are gone from the pushgateway, and `monitoring/grafana-secure-agent-pod-dashboard` is NotFound. No alert fires because of the removal during the following hour, and `frank-gitops-push` is still `SecretSynced` after that hour.
+
+Evidence: Grafana API lists 58 rules and none of the five uids and the pushgateway series and dashboard CM are gone. Over an hour after the silence ended no pod alert fired and frank-gitops-push stayed SecretSynced
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5-2 created=2026-11-13T22:12:40+00:00 -->
+### test-plan-step-5-2 · discovery · Test Plan step 5: ran
+
+Step: The next agent-images bump run after both Phase 2 PRs merge completes with its coverage check green and no frozen exclusion.
+
+Evidence: agent-images build dbdf5f69 green and frank bump run 43453158820 succeeded. Final bump PR 971 merged and rolled out all 8 containers healthy

@@ -95,7 +95,7 @@ commands:
   - kubectl -n argocd get application secure-agent-pod --ignore-not-found
   - kubectl get ns secure-agent-pod --ignore-not-found
   - kubectl delete clusterrolebinding secure-agent-pod-cluster-admin --ignore-not-found
-  - kubectl auth can-i get secrets -n upgrade-sessions --as=system:serviceaccount:secure-agent-pod:agent-sa
+  - Prove agent-sa holds nothing with a server-side SubjectAccessReview (`kubectl create -f -` of a SubjectAccessReview for agent-sa with its serviceaccount groups, get secrets in upgrade-sessions), with a system:masters control that must answer true; never `kubectl auth can-i --as`, which the Omni proxy ignores (frank#963)
   - |-
     kubectl -n monitoring get cm grafana-alerting-rules -o yaml | grep 'orgId: 1, uid: agent-pod-not-running'  # the tombstone proves the sync; restart only once this matches
   - kubectl -n monitoring rollout restart deploy/victoria-metrics-grafana
@@ -104,7 +104,7 @@ commands:
   - Delete the silence created before the merge once the Grafana API lists none of the five rule uids.
 verify:
   - The Application and the namespace are NotFound, the agent-home PV is gone, and no Service holds 192.168.55.215, .218 or .219.
-  - kubectl get clusterrolebinding secure-agent-pod-cluster-admin is NotFound and the auth can-i check prints no.
+  - kubectl get clusterrolebinding secure-agent-pod-cluster-admin is NotFound and the SubjectAccessReview for agent-sa answers false while the system:masters control answers true.
   - GET /api/v1/provisioning/alert-rules on Grafana lists none of the five uids.
   - The pushgateway serves no exercise_reminder, session_manager or audit_digest group.
   - kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard is NotFound.
