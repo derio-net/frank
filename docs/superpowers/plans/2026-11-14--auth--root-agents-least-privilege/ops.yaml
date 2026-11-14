@@ -31,7 +31,7 @@ ops:
     bash scripts/root-agents-cutover.sh token-review
   mutating: false
   check: |-
-    bash scripts/root-agents-cutover.sh token-review >/dev/null
+    bash scripts/root-agents-cutover.sh membership >/dev/null
 - id: cutover-delete-binding
   summary: Delete the old authentik-root-agents cluster-admin binding (prune is false, so git alone leaves it live)
   phase: post-merge
