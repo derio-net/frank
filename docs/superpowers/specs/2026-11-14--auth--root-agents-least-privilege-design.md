@@ -157,3 +157,9 @@ The static guard (R7) is covered by the required `tripwires` CI check on every P
 
 - [ ] Post-merge, operator-driven (`fr ops gate`): run the cutover above. Record the BEFORE and AFTER SubjectAccessReview matrices with the `system:masters` control, the Authentik membership read-back (`claude-agent` only in `root-agents`), and `kubectl get clusterrolebinding authentik-root-agents` returning NotFound.
 - [ ] Close #912 on that passing matrix; this unblocks P7.T1.S1 of the update-security-lifecycle plan.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-11-14--auth--root-agents-least-privilege | `derio-net/frank` | `2026-11-14--auth--root-agents-least-privilege` | — |
