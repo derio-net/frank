@@ -3,8 +3,9 @@ kind: Application
 metadata:
   name: gpu-operator
   namespace: argocd
-  # Only resources-finalizer is valid here. post-delete-finalizer variants
-  # were added ad-hoc to the cluster and will be removed by ArgoCD on sync.
+  # Declare only resources-finalizer. The post-delete-finalizer variants are added by the
+  # ArgoCD controller (this chart ships delete hooks), NOT ad hoc and NOT removed
+  # by sync; root ignores /metadata/finalizers on Applications (apps/root/bootstrap).
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
