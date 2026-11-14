@@ -30,3 +30,8 @@ Pod resource.exclusions for https://staging.vcluster-staging.svc:443 is live in 
 ### 753cc33cae32 · review · Self review
 
 No review findings; full suite 2284 pass. Remaining failure test_every_rendered_image_resolves is main's #971 digest drift (4 agent-images digests), unrelated.
+
+<!-- fr:journal kind=finding scope=debug id=06e57f84517a created=2026-11-14T09:16:11+00:00 state=fixed -->
+### 06e57f84517a · finding [fixed] · Paperclip fresh start executed (ops 1-5)
+
+Operator-ordered 2026-11-14. Pause hook already inactive; DB volume backed up (Longhorn backup pre-paperclip-fresh-start-20261114, R2); stale manager dropped; sync Succeeded; Deployment sha-d554c47 single container; operator approved wipe (paperclip-data had no backup); sweep removed 8 prune:false orphans + paperclip-shell-ssh-keys; app Synced/Healthy. Bootstrap-admin left to the operator's browser; resume-companies-mirror deferred.
