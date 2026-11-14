@@ -61,9 +61,10 @@ journal:
       claude-agent (service_account) and akadmin; the k8s-agent provider's profile scope mapping
       emits a groups claim. So the binding grants nothing today and the real exposure is
       claude-agent in root-admins (cluster-admin) reachable by requesting the profile scope. A fresh
-      TokenReview was not run (.env_agent absent on this host). Folded into spec R5 as a live
-      membership move under the devops gate, decided without re-asking per the orchestrator note;
-      decider: orchestrator-note. Revert is re-adding claude-agent to root-admins.
+      TokenReview was not run (.env_agent absent on this host). Operator then chose, in the
+      second answered round, to move claude-agent from root-admins to root-agents as a devops-gated
+      live step (spec R5) and confirmed the four earlier answers as one design; decider: operator.
+      Revert is re-adding claude-agent to root-admins.
   - kind: lens
     lens: security
     title: RBAC scoping change on a credential boundary; examine for escalation paths
