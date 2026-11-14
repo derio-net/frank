@@ -22,7 +22,8 @@ SA_ALLOWLIST = {
     # Vendored Tekton controllers: upstream grants them cluster-wide Secret access (git credentials,
     # webhook TLS); they are platform controllers, not agent identities. Narrowing them means forking vendor/.
     ("tekton-pipelines", "tekton-pipelines-controller"): "vendored controller; resolves PipelineRun secrets",
-    ("tekton-pipelines", "tekton-pipelines-resolvers"): "vendored remote resolvers; reads git credentials",
+    ("tekton-pipelines-resolvers", "tekton-pipelines-resolvers"): "vendored remote resolvers; reads git credentials",
+    ("tekton-pipelines", "tekton-triggers-sa"): "EventListener SA; reads trigger secrets for the CI pipelines",
     ("tekton-pipelines", "tekton-triggers-controller"): "vendored controller",
     ("tekton-pipelines", "tekton-triggers-webhook"): "vendored webhook; owns its TLS Secret",
     ("tekton-pipelines", "tekton-triggers-core-interceptors"): "vendored interceptors; read webhook secrets",

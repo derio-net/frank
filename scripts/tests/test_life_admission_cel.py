@@ -342,8 +342,9 @@ def _identity(subject):
 def test_the_repo_binds_these_admin_subjects():
     got = {(s["kind"], s.get("namespace"), s["name"]) for s in _admin_subjects()}
     # secure-agent-pod's agent-sa binding was removed with the pod (frank#950 Phase 2, 2026-11-13);
-    # the CEL cases below still use that identity as a hostile caller.
-    assert got == {("Group", None, "root-admins"), ("Group", None, "root-devops"), ("Group", None, "root-agents")}, \
+    # the CEL cases below still use that identity as a hostile caller. root-agents is read-only now
+    # (frank#912, root_agents_rbac), so it is no longer an admin subject.
+    assert got == {("Group", None, "root-admins"), ("Group", None, "root-devops")}, \
         "a new admin binding: decide its exec rights"
 
 

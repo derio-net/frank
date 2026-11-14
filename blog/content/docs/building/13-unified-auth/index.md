@@ -138,7 +138,7 @@ ClusterRoleBindings map Authentik groups to Kubernetes RBAC:
 | root-admins | cluster-admin |
 | root-devops | admin |
 | root-developers | view |
-| root-agents | cluster-admin |
+| root-agents | read-only: `root-agents-cluster-read`, plus `root-agents-ns-read` per app namespace; no Secrets, no write |
 
 ## Deploying Authentik
 
@@ -290,19 +290,19 @@ If your new blueprint is missing here, the problem is upstream of Authentik enti
 
 **2. Do the group mappings still say what you think?**
 
-These four bindings are the whole of the kubectl authorization story, and two of them grant `cluster-admin`:
+These bindings are the whole of the kubectl authorization story, and one of them grants `cluster-admin`:
 
 ```console
 $ kubectl get clusterrolebinding authentik-root-admins authentik-root-devops \
-    authentik-root-developers authentik-root-agents
+    authentik-root-developers authentik-root-agents-read
 NAME                        ROLE                        AGE
 authentik-root-admins       ClusterRole/cluster-admin   143d
 authentik-root-devops       ClusterRole/admin           143d
 authentik-root-developers   ClusterRole/view            143d
-authentik-root-agents       ClusterRole/cluster-admin   143d
+authentik-root-agents-read  ClusterRole/root-agents-cluster-read   143d
 ```
 
-Read the ROLE column against your intent, not against your memory. `root-agents` holding `cluster-admin` is a deliberate decision here; on most clusters it would be a finding. A missing binding is the safer failure — the group authenticates and can do nothing. The dangerous direction is a binding that quietly grants more than the group's name suggests.
+Read the ROLE column against your intent, not against your memory. `root-agents` used to hold `cluster-admin`, and that was a finding: the group was empty, so the grant did nothing, while the AI identity (`claude-agent`) sat in `root-admins` and could ask for that group in its token. Both are fixed (frank#912): the group is now read-only without Secrets, and `claude-agent` moves into it. A missing binding is the safer failure — the group authenticates and can do nothing. The dangerous direction is a binding that quietly grants more than the group's name suggests.
 
 **3. Is the service actually protected?**
 
