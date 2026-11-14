@@ -95,7 +95,15 @@ steps:
     stdout: |
       2 out-of-scope finding(s): p1-r11, p1-r12
   lens-review:
-    state: pending
+    state: running
+    at: '2026-11-14T20:43:47+00:00'
+    units:
+      step/lens-review:
+        attempts:
+        - dispatched: '2026-11-14T20:43:47+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
   deliver:
     state: pending
 fr_version: 7.0.0rc2
