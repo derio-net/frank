@@ -159,3 +159,8 @@ row_kinds:
 run_gate: devops
 run_kind: live
 ```
+
+<!-- fr:journal kind=finding scope=spec id=s7-resolved-2 created=2026-11-14T21:20:17+00:00 state=open resolves=s7 tracked_by=https://github.com/derio-net/frank/issues/986 -->
+### s7-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/986] · resolves s7: Matrix cells assumed, not cited
+
+Filed at deliver as https://github.com/derio-net/frank/issues/986.
