@@ -45,3 +45,128 @@ quality gate task; no production code
 ### no-refactor-p1-t4 · discovery · no-refactor-because P1.T4 (phase 1)
 
 the script and its fake-kubectl test were written once; no duplication to remove
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r1 · finding [open] (reviewer: in scope) · token-review client-credentials mode likely authenticates as the synthetic user, not claude-agent (phase 1)
+
+token-review client-credentials mode likely authenticates as the synthetic user, not claude-agent
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r2 · finding [open] (reviewer: in scope) · token-review passes on an unauthenticated TokenReview (phase 1)
+
+token-review passes on an unauthenticated TokenReview
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r3 · finding [open] (reviewer: in scope) · token-review env vars undocumented; sourcing .env_agent repoints KUBECONFIG (phase 1)
+
+token-review env vars undocumented; sourcing .env_agent repoints KUBECONFIG
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r4 · finding [open] (reviewer: in scope) · guard does not forbid get on pods/exec, portforward, nodes/proxy, services/proxy (phase 1)
+
+guard does not forbid get on pods/exec, portforward, nodes/proxy, services/proxy
+
+<!-- fr:journal kind=finding scope=plan id=p1-r5 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r5 · finding [open] (reviewer: in scope) · guard allows a root-agents ClusterRoleBinding to namespaced kinds cluster-wide (phase 1)
+
+guard allows a root-agents ClusterRoleBinding to namespaced kinds cluster-wide
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r6 · finding [open] (reviewer: in scope) · guard fails open on unresolved roles, aggregation and User subjects (phase 1)
+
+guard fails open on unresolved roles, aggregation and User subjects
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r7 · finding [open] (reviewer: in scope) · no audit of ConfigMaps, pod env and pod logs in credential-store namespaces (phase 1)
+
+no audit of ConfigMaps, pod env and pod logs in credential-store namespaces
+
+<!-- fr:journal kind=finding scope=plan id=p1-r8 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r8 · finding [open] (reviewer: in scope) · SA allowlist wildcards and six tekton entries (phase 1)
+
+SA allowlist wildcards and six tekton entries
+
+<!-- fr:journal kind=finding scope=plan id=p1-r9 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r9 · finding [open] (reviewer: in scope) · docs state the gap closed before the cutover has run (phase 1)
+
+docs state the gap closed before the cutover has run
+
+<!-- fr:journal kind=finding scope=plan id=p1-r10 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=in -->
+### p1-r10 · finding [open] (reviewer: in scope) · live namespace-exists check is prose only (phase 1)
+
+live namespace-exists check is prose only
+
+<!-- fr:journal kind=finding scope=plan id=p1-r11 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=out -->
+### p1-r11 · finding [open] (reviewer: out of scope) · vendored Tekton controllers read Secrets cluster-wide: a platform fact (phase 1)
+
+vendored Tekton controllers read Secrets cluster-wide: a platform fact
+
+<!-- fr:journal kind=finding scope=plan id=p1-r12 created=2026-11-14T20:43:42+00:00 phase=1 state=open review_scope=out -->
+### p1-r12 · finding [open] (reviewer: out of scope) · Helm-rendered RBAC is invisible to a repo-static guard (phase 1)
+
+Helm-rendered RBAC is invisible to a repo-static guard
+
+<!-- fr:journal kind=review scope=plan id=review-p1 created=2026-11-14T20:43:42+00:00 phase=1 -->
+### review-p1 · review · independent review of phase 1: 12 findings (10 in scope, 2 out) (phase 1)
+
+Reviewer read the RBAC manifests, generator, guard, cutover script and tests, coupled docs, manual operation and spec; verified no secrets, wildcards, impersonate/bind/escalate or write verbs in either role and no generated binding in the protected namespaces. It ran nothing.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r1-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r1 -->
+### p1-r1-resolved · finding [fixed] · resolves p1-r1: token-review client-credentials mode likely authenticates as the synthetic user, not claude-agent (phase 1)
+
+token-review gained a service-account mode (K8S_AGENT_USERNAME/PASSWORD) and prints the resolved username; the spec records that client id+secret alone yields the synthetic user. Which mode the operator uses stays unverifiable from the repo, so the cutover op runs the second mode.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r2-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r2 -->
+### p1-r2-resolved · finding [fixed] · resolves p1-r2: token-review passes on an unauthenticated TokenReview (phase 1)
+
+token-review now requires status.authenticated=true; test added.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r3-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r3 -->
+### p1-r3-resolved · finding [fixed] · resolves p1-r3: token-review env vars undocumented; sourcing .env_agent repoints KUBECONFIG (phase 1)
+
+The manual operation documents the variables and says not to source .env_agent.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r4-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r4 -->
+### p1-r4-resolved · finding [fixed] · resolves p1-r4: guard does not forbid get on pods/exec, portforward, nodes/proxy, services/proxy (phase 1)
+
+pods/exec, attach, portforward, pods/proxy, nodes/proxy and services/proxy are forbidden resources.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r5-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r5 -->
+### p1-r5-resolved · finding [fixed] · resolves p1-r5: guard allows a root-agents ClusterRoleBinding to namespaced kinds cluster-wide (phase 1)
+
+A root-agents ClusterRoleBinding may name only cluster-scoped kinds (CLUSTER_SCOPED).
+
+<!-- fr:journal kind=finding scope=plan id=p1-r6-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r6 -->
+### p1-r6-resolved · finding [fixed] · resolves p1-r6: guard fails open on unresolved roles, aggregation and User subjects (phase 1)
+
+Aggregation (aggregationRule or aggregate-to labels) now fails the guard. An unresolved role already fails for root-agents bindings (rules asserted non-empty); unresolved or Helm-rendered roles of other subjects are the platform limit in p1-r12; User subjects named root-agents do not exist, and the Group subject is what Authentik emits.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r7-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=refuted resolves=p1-r7 -->
+### p1-r7-resolved · finding [refuted] · resolves p1-r7: no audit of ConfigMaps, pod env and pod logs in credential-store namespaces (phase 1)
+
+The spec's Design states the choice (pods, ConfigMaps, logs in those namespaces, never Secrets) and the operator confirmed it. The agents get strictly less than root-developers, which already holds the built-in view cluster-wide. Credential material in a ConfigMap or pod env is a separate, pre-existing exposure of that group.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r8-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r8 -->
+### p1-r8-resolved · finding [fixed] · resolves p1-r8: SA allowlist wildcards and six tekton entries (phase 1)
+
+The wildcard entries are replaced by the four named session ServiceAccounts; runs-fr needs none. The tekton entries stay, each with a reason and a ClusterRoleBinding in this repo.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r9-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r9 -->
+### p1-r9-resolved · finding [fixed] · resolves p1-r9: docs state the gap closed before the cutover has run (phase 1)
+
+The briefs, the blog and the cutover wording now say the second half closes when the cutover has run.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r10-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=fixed resolves=p1-r10 -->
+### p1-r10-resolved · finding [fixed] · resolves p1-r10: live namespace-exists check is prose only (phase 1)
+
+scripts/root-agents-cutover.sh namespaces compares the generated set to the live cluster; premerge-namespaces op and Test Plan line added.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r11-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=open resolves=p1-r11 out_of_scope=true -->
+### p1-r11-resolved · finding [out-of-scope] · resolves p1-r11: vendored Tekton controllers read Secrets cluster-wide: a platform fact (phase 1)
+
+Platform fact, not caused by this change.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r12-resolved created=2026-11-14T20:43:42+00:00 phase=1 state=open resolves=p1-r12 out_of_scope=true -->
+### p1-r12-resolved · finding [out-of-scope] · resolves p1-r12: Helm-rendered RBAC is invisible to a repo-static guard (phase 1)
+
+Limit of any repo-static guard, not caused by this change.
