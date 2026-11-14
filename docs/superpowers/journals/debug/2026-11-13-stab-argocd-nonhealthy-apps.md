@@ -35,3 +35,8 @@ No review findings; full suite 2284 pass. Remaining failure test_every_rendered_
 ### 06e57f84517a · finding [fixed] · Paperclip fresh start executed (ops 1-5)
 
 Operator-ordered 2026-11-14. Pause hook already inactive; DB volume backed up (Longhorn backup pre-paperclip-fresh-start-20261114, R2); stale manager dropped; sync Succeeded; Deployment sha-d554c47 single container; operator approved wipe (paperclip-data had no backup); sweep removed 8 prune:false orphans + paperclip-shell-ssh-keys; app Synced/Healthy. Bootstrap-admin left to the operator's browser; resume-companies-mirror deferred.
+
+<!-- fr:journal kind=finding scope=debug id=4fb542dade94 created=2026-11-14T09:16:14+00:00 state=open -->
+### 4fb542dade94 · finding [open] · paperclip-lb .212 refuses direct LAN connections (eTP Local, wrong L2 announcer)
+
+Plan R4 assumed Cilium L2 announces .212 only from the pod's node (gpu-1). Live: lease cilium-l2announce-paperclip-system-paperclip-lb is held by raspi-1 while the pod runs on gpu-1, and default-l2-policy has no nodeSelector, so with externalTrafficPolicy: Local the announcer rejects (curl: connection refused in 8ms). Traefik path is fine (https://paperclip.cluster.derio.net -> 302 Authentik). R4's negative proof cannot pass until the announcer is the pod's node. Not changed.
