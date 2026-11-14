@@ -119,7 +119,7 @@ gate: devops
 - root-agents-no-secrets: live — the claim is a property of the running API server's RBAC, provable only by SubjectAccessReview, and the live matrix is the issue's own done-when.
 - root-agents-read-only-triage: live — needs the live bindings and namespaces.
 - no-ai-agent-cluster-admin: live — Authentik membership exists only in the running Authentik database.
-- root-agents-rbac-guarded: none — the static guard under `scripts/tests/` runs in the required `tripwires` CI check on every PR.
+The static guard (R7) is covered by the required `tripwires` CI check on every PR; it is not an acceptance row.
 
 ## Test Plan
 
