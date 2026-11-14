@@ -40,3 +40,8 @@ Operator-ordered 2026-11-14. Pause hook already inactive; DB volume backed up (L
 ### 4fb542dade94 · finding [open] · paperclip-lb .212 refuses direct LAN connections (eTP Local, wrong L2 announcer)
 
 Plan R4 assumed Cilium L2 announces .212 only from the pod's node (gpu-1). Live: lease cilium-l2announce-paperclip-system-paperclip-lb is held by raspi-1 while the pod runs on gpu-1, and default-l2-policy has no nodeSelector, so with externalTrafficPolicy: Local the announcer rejects (curl: connection refused in 8ms). Traefik path is fine (https://paperclip.cluster.derio.net -> 302 Authentik). R4's negative proof cannot pass until the announcer is the pod's node. Not changed.
+
+<!-- fr:journal kind=finding scope=debug id=b0f56fe393c0 created=2026-11-14T18:35:51+00:00 state=fixed resolves=4fb542dade94 -->
+### b0f56fe393c0 · finding [fixed] · paperclip-lb .212: announcer pinned to gpu-1
+
+Live-applied pre-merge (field manager l2-pin-premerge): new pinned-gpu-1-l2-policy, label l2.derio.net/pinned=gpu-1 on paperclip-lb, DoesNotExist exclusion on default-l2-policy. Lease holder raspi-1 -> gpu-1 in ~5s; direct .212:3100 -> 200; forged X-Forwarded-For/Host request -> 403 with remoteAddress=the client's real LAN IP (not 203.0.113.9, not 10.244.x). 20 L2 leases remain for 20 LoadBalancer Services. cilium+paperclip apps Synced/Healthy after the edit (SSA does not count added fields as drift). Git change in this PR; ArgoCD adopts identical values on merge.
