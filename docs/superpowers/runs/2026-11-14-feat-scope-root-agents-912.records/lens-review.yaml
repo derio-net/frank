@@ -1,0 +1,151 @@
+{
+ "schema_version": 12,
+ "run": "2026-11-14-feat-scope-root-agents-912",
+ "step": "lens-review",
+ "outcome": "done",
+ "journal": [
+  {
+   "kind": "finding",
+   "id": "l-security-r1",
+   "review_scope": "in",
+   "global": true,
+   "title": "root-agents-ns-read grants pods/log, configmaps and pod specs in credential-store namespaces; the matrix tests only secrets",
+   "body": "root-agents-ns-read grants pods/log, configmaps and pod specs in credential-store namespaces; the matrix tests only secrets"
+  },
+  {
+   "kind": "finding",
+   "id": "l-security-r2",
+   "review_scope": "in",
+   "global": true,
+   "title": "ops.yaml cutover-token-review check re-runs the apply and mints a second token",
+   "body": "ops.yaml cutover-token-review check re-runs the apply and mints a second token"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r1",
+   "review_scope": "in",
+   "global": true,
+   "title": "freshness test restates the generator; no independent namespace pin",
+   "body": "freshness test restates the generator; no independent namespace pin"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r2",
+   "review_scope": "in",
+   "global": true,
+   "title": "hop/ prefix assertion can never fail",
+   "body": "hop/ prefix assertion can never fail"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r3",
+   "review_scope": "in",
+   "global": true,
+   "title": "namespaces and move-membership subcommands untested",
+   "body": "namespaces and move-membership subcommands untested"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r4",
+   "review_scope": "in",
+   "global": true,
+   "title": "verify tested against only one broken cell",
+   "body": "verify tested against only one broken cell"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r5",
+   "review_scope": "in",
+   "global": true,
+   "title": "matrix test substring-only; generated-file precheck untested",
+   "body": "matrix test substring-only; generated-file precheck untested"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r6",
+   "review_scope": "in",
+   "global": true,
+   "title": "fake curl discards stdin and args; secret handling unverified",
+   "body": "fake curl discards stdin and args; secret handling unverified"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r7",
+   "review_scope": "in",
+   "global": true,
+   "title": "guard seen>=2 is loose and the cluster-read binding is not required",
+   "body": "guard seen>=2 is loose and the cluster-read binding is not required"
+  },
+  {
+   "kind": "finding",
+   "id": "l-tests-r8",
+   "review_scope": "out",
+   "global": true,
+   "title": "guard scans only apps/*.yaml; pre-existing scope",
+   "body": "guard scans only apps/*.yaml; pre-existing scope"
+  },
+  {
+   "kind": "review",
+   "id": "lens-review-1",
+   "global": true,
+   "title": "lens review: security (2 findings), tests (8 findings)",
+   "body": "One dispatched reviewer per lens over the diff from the merge base. Security found no injection, token leak or ordering defect in the cutover script; tests found the generator, deny cells, move-membership and secret handling under-tested."
+  }
+ ],
+ "resolves": [
+  {
+   "id": "l-security-r1",
+   "state": "refuted",
+   "body": "Same exposure as p1-r7: the spec's Design states the choice (pods, ConfigMaps and logs in those namespaces, never Secrets) and the operator confirmed it as one design. Agents get strictly less than the built-in view that root-developers already holds cluster-wide. Narrowing pods/log or ConfigMaps in credential-store namespaces is the operator's call and is listed in the PR for that."
+  },
+  {
+   "id": "l-security-r2",
+   "state": "fixed",
+   "body": "The op's check now reads membership back instead of minting again."
+  },
+  {
+   "id": "l-tests-r1",
+   "state": "fixed",
+   "body": "Guard pins argocd, monitoring, authentik, infisical, kube-system and longhorn-system and a floor of 30 namespaces, and ties PROTECTED across generator, guard and script."
+  },
+  {
+   "id": "l-tests-r2",
+   "state": "fixed",
+   "body": "The impossible hop/ assertion is replaced with a check that Hop-only namespaces never appear."
+  },
+  {
+   "id": "l-tests-r3",
+   "state": "fixed",
+   "body": "namespaces and move-membership have behavioural tests (ACTION=move reaches the pod, add precedes remove, read does not mutate)."
+  },
+  {
+   "id": "l-tests-r4",
+   "state": "fixed",
+   "body": "verify is tested once per deny cell leaking and per trusted-admin lockout, with a parametrised fake."
+  },
+  {
+   "id": "l-tests-r5",
+   "state": "fixed",
+   "body": "The matrix test checks cell count, control markers and the generated-file precheck with bad files."
+  },
+  {
+   "id": "l-tests-r6",
+   "state": "fixed",
+   "body": "The fake curl records args and stdin; tests prove secrets reach curl on stdin only and username mode sends the form fields."
+  },
+  {
+   "id": "l-tests-r7",
+   "state": "fixed",
+   "body": "The guard requires 31+ root-agents bindings, the cluster-read binding by name and roleRef, and every generated binding's roleRef and subject."
+  },
+  {
+   "id": "l-tests-r8",
+   "state": "out-of-scope",
+   "body": "Pre-existing scope of any repo-static guard."
+  }
+ ],
+ "evidence": {
+  "review": "lens-review-1",
+  "reviewer": "security=a17620546061703a4,tests=a56cbc13742b62b66"
+ }
+}
