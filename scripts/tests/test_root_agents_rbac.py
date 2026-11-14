@@ -109,7 +109,32 @@ def test_no_generated_binding_in_protected_or_hop_namespaces():
     for d in gen:
         ns = d["metadata"]["namespace"]
         assert ns not in PROTECTED, ns
-        assert not ns.startswith("hop/"), ns
+    got = {d["metadata"]["namespace"] for d in gen}
+    # Namespaces that exist only on Hop (its root chart is a different cluster) must never leak in through
+    # life_sessions._destinations(), which yields hop/* keys too.
+    assert not got & {"caddy-system", "headscale-system", "crowdsec-system", "falco-system"}, got
+    # An independent pin, so a generator regression that drops namespaces cannot regenerate itself green.
+    assert {"argocd", "monitoring", "authentik", "infisical", "kube-system", "longhorn-system"} <= got, got
+    assert len(got) >= 30, len(got)
+    for d in gen:
+        assert d["roleRef"] == {"kind": "ClusterRole", "name": "root-agents-ns-read",
+                                "apiGroup": "rbac.authorization.k8s.io"}, d["metadata"]["namespace"]
+        assert d["subjects"] == [{"kind": "Group", "name": "root-agents", "apiGroup": "rbac.authorization.k8s.io"}]
+
+
+def test_protected_set_is_the_same_everywhere():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import root_agents_rbac
+    assert set(root_agents_rbac.PROTECTED) == PROTECTED
+    script = (ROOT / "scripts/root-agents-cutover.sh").read_text()
+    assert f'PROTECTED="{" ".join(sorted(PROTECTED, key=script.index))}"' in script
+
+
+def test_the_cluster_scoped_read_binding_exists_and_names_the_cluster_role():
+    crb = [b for _, b in BINDINGS if b["kind"] == "ClusterRoleBinding"
+           and any(sub.get("name") == "root-agents" for sub in b.get("subjects") or [])]
+    assert [b["metadata"]["name"] for b in crb] == ["authentik-root-agents-read"]
+    assert crb[0]["roleRef"]["name"] == "root-agents-cluster-read"
 
 
 def test_every_root_agents_subject_is_read_only_and_secretless():
@@ -129,7 +154,7 @@ def test_every_root_agents_subject_is_read_only_and_secretless():
             assert not (FORBIDDEN_VERBS & set(r.get("verbs") or [])), (f, r)
         if b["kind"] == "RoleBinding":
             assert b["metadata"]["namespace"] not in PROTECTED
-    assert seen >= 2, "root-agents has no cluster-read binding and no namespace bindings"
+    assert seen >= 31, f"root-agents bindings found: {seen} (1 cluster-read + one per namespace expected)"
 
 
 def test_root_agents_has_no_cluster_admin_binding():

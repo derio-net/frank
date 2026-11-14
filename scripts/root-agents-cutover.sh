@@ -22,7 +22,7 @@ if [ -z "${KUBECONFIG:-}" ] && [ -f .env ]; then
   set +a
 fi
 
-GEN=apps/authentik-extras/manifests/root-agents-rbac.yaml
+GEN="${ROOT_AGENTS_GEN:-apps/authentik-extras/manifests/root-agents-rbac.yaml}"
 PROTECTED="upgrade-sessions cluster-update-fr runs-fr"
 SECRET_NS="argocd infisical authentik kube-system longhorn-system upgrade-sessions cluster-update-fr runs-fr"
 AGENT_USER="claude-agent"
@@ -121,7 +121,7 @@ print("GROUPS=" + ",".join(sorted(g.name for g in u.ak_groups.all())))
 # Every namespace the generated RoleBindings name must exist on the live cluster, or that RoleBinding fails the sync.
 namespaces() {
   local want have missing
-  want=$(sed -n 's/^  namespace: //p' "$(dirname "$0")/../apps/authentik-extras/manifests/root-agents-rbac.yaml" | sort -u)
+  want=$(generated_namespaces | sort -u)
   have=$(kubectl get ns -o name | sed 's#^namespace/##' | sort -u)
   missing=$(comm -23 <(printf '%s\n' "$want") <(printf '%s\n' "$have"))
   if [ -n "$missing" ]; then
