@@ -3,7 +3,7 @@ run: 2026-11-14-feat-scope-root-agents-912
 workflow: fr-goal@1
 branch: feat/scope-root-agents-912
 started: '2026-11-14T19:44:38+00:00'
-cursor: spec-review
+cursor: plan
 steps:
   brainstorm:
     state: done
@@ -12,17 +12,25 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-11-14--auth--root-agents-least-privilege-design.md
   spec-review:
-    state: running
-    at: '2026-11-14T20:15:45+00:00'
+    state: done
+    at: '2026-11-14T20:18:13+00:00'
     units:
       step/spec-review:
         attempts:
         - dispatched: '2026-11-14T20:15:45+00:00'
+          agent: aafeaac7037446d38
           agent_type: super-fr:fr-spec-reviewer
           harness: claude-code
+          model: claude-sonnet-5-5
           tier: hard
           bound: opus
           session: 5584ed30-0ab5-42f1-8375-e8b1598dbf68
+          returned: '2026-11-14T20:18:12+00:00'
+          outcome: done
+        evidence:
+          review: spec-review
+          reviewer: aafeaac7037446d38
+          findings: s1,s2,s3,s4,s5,s6,s7
   plan:
     state: pending
   plan-review:
