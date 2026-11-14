@@ -54,7 +54,7 @@ verify:
   - ~/Archives/secure-agent-pod-2026-11 is mode 0700 and its tarball lists repos/willikins/scripts/chorebot/config.yaml.
   - The tarball lists .claude/projects/ (session transcripts) and no credential file; EXCLUDED.txt names what was left out of ~/.claude.
   - The operator has opened the archive and is satisfied nothing else on the pod is worth keeping.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -79,7 +79,7 @@ verify:
   - key-fingerprint reports the Tekton copy equal to both SOPS files.
   - root reports prune true.
   - The silence is active.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -109,7 +109,7 @@ verify:
   - The pushgateway serves no exercise_reminder, session_manager or audit_digest group.
   - kubectl -n monitoring get configmap grafana-secure-agent-pod-dashboard is NotFound.
   - At least an hour after the silence was deleted, no alert has fired because of the removal and frank-gitops-push is still SecretSynced with a token refreshed within that hour.
-status: pending
+status: done
 ```
 
 ```yaml
@@ -129,5 +129,5 @@ commands:
 verify:
   - Every remaining ExternalSecret in the cluster is SecretSynced after the Infisical cleanup.
   - The first agent-images bump run created after both the Frank merge and the agent-images kali removal completes with its coverage check green.
-status: pending
+status: done
 ```
