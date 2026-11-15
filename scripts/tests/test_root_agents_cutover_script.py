@@ -226,3 +226,16 @@ def test_token_review_hands_the_secrets_to_curl_on_stdin_never_argv(env, tmp_pat
     log.write_text("")
     run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, FAKE_CURL_LOG=str(log))
     assert "username=" not in log.read_text()
+
+
+def test_token_review_reads_the_client_secret_from_stdin_not_the_environment(env, tmp_path):
+    """`fr ops secret --from <cmd> -- bash ... token-review` hands the secret over on stdin."""
+    log = tmp_path / "curl.log"
+    secret = "stdin-s3cr3t-abc"
+    base = {**env, "FAKE_CURL_LOG": str(log), "FAKE_TOKEN_GROUPS": '["system:authenticated"]'}
+    base.pop("K8S_AGENT_CLIENT_SECRET", None)
+    r = subprocess.run(["bash", str(SCRIPT), "token-review"], input=secret + "\n", capture_output=True, text=True, env=base)
+    assert r.returncode == 0, r.stderr
+    assert f"client_secret={secret}" in log.read_text() and secret not in r.stdout + r.stderr
+    empty = subprocess.run(["bash", str(SCRIPT), "token-review"], input="", capture_output=True, text=True, env=base)
+    assert empty.returncode != 0

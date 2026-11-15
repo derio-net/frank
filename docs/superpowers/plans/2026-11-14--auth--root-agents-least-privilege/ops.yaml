@@ -24,14 +24,6 @@ ops:
   mutating: true
   check: |-
     bash scripts/root-agents-cutover.sh membership
-- id: cutover-token-review
-  summary: A freshly minted k8s-agent token reviews as root-agents or no group, never root-admins
-  phase: post-merge
-  apply: |-
-    bash scripts/root-agents-cutover.sh token-review
-  mutating: false
-  check: |-
-    bash scripts/root-agents-cutover.sh membership >/dev/null
 - id: cutover-delete-binding
   summary: Delete the old authentik-root-agents cluster-admin binding (prune is false, so git alone leaves it live)
   phase: post-merge
@@ -40,9 +32,19 @@ ops:
   mutating: true
   check: |-
     ! kubectl get clusterrolebinding authentik-root-agents
+- id: cutover-exclude-credential-namespaces
+  summary: Delete the five root-agents-ns-read RoleBindings in the credential-store namespaces (PR 991 dropped them from git; prune is false)
+  phase: post-merge
+  needs: [cutover-delete-binding]
+  apply: |-
+    for ns in authentik infisical argocd kube-system longhorn-system; do kubectl -n "$ns" delete rolebinding root-agents-ns-read --ignore-not-found; done
+  mutating: true
+  check: |-
+    for ns in authentik infisical argocd kube-system longhorn-system; do ! kubectl -n "$ns" get rolebinding root-agents-ns-read >/dev/null 2>&1 || exit 1; done
 - id: cutover-matrix-after
   summary: SubjectAccessReview matrix AFTER the cutover meets every expectation
   phase: post-merge
+  needs: [cutover-delete-binding, cutover-exclude-credential-namespaces]
   apply: |-
     bash scripts/root-agents-cutover.sh matrix
   mutating: false
