@@ -40,11 +40,11 @@ spec:
         - name: paperclip
           # Pure upstream public image, pinned by sha tag (upstream only
           # publishes `latest`, `canary` and `sha-<short>`; no semver tags).
-          # sha-d554c47 == v2026.916.1 (d554c4789ed3930f8a53ac9fdf6503b3187097da,
-          # released 2026-09-21). The claude-code / codex / opencode / gemini /
+          # sha-1b4c803 == git tag v2026.1023.0 (released 2026-10-23).
+          # The claude-code / codex / opencode / gemini /
           # kimi CLIs are bundled upstream; nothing is layered on top. Fresh
           # start per the 2026-10-04 spec (instance wiped, no Frank shims).
-          image: ghcr.io/paperclipai/paperclip:sha-d554c47
+          image: ghcr.io/paperclipai/paperclip:sha-1b4c803
           ports:
             - name: http
               containerPort: 3100
