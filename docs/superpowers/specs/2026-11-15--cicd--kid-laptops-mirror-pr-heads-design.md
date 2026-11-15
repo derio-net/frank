@@ -47,9 +47,20 @@ design (operator decision q3), so the signal catches a recurring per-repo loss, 
 single drop.
 
 **The repo side of #952 is not on kid-laptops `main` yet.** The `push: sync-pr-**` trigger
-exists only on draft derio-homelab/kid-laptops#139. Until #139 merges, a mirrored
-`sync-pr-<N>` starts no molecule. `ci-delivery-check` treats an absent status as healthy
-(path-filtered CI), so merging this change first is harmless. The weekly molecule run on
+exists only on draft derio-homelab/kid-laptops#139. Gitea Actions reads `on.push` from the
+PUSHED commit's own tree, so a mirrored `sync-pr-<N>` starts molecule exactly when that PR's
+head carries the trigger. #139's head does, so `sync-pr-139` runs molecule as soon as it is
+mirrored. #104 and #105 carry main's older workflow and start nothing. `ci-delivery-check`
+treats an absent status as healthy (path-filtered CI). (Corrected at phase review, p1a-r2:
+the first draft said nothing would run until #139 merged.)
+
+**The first reconcile after merge is a burst, by construction (p1a-r1).** Gitea holds no
+`sync-pr-*` ref for kid-laptops, and its three open same-repo PRs (#104, #105, #139) are far
+older than `GRACE_MINUTES`. Within about 15 minutes of ArgoCD syncing, `mirror-reconcile`
+repairs all three, `layer-25-mirror-repair-recurring` fires once (warning,
+`repo=derio-homelab/kid-laptops`, value 3), and `sync-pr-139`'s molecule run starts on pc-1.
+That first firing is the rule's live positive control, which proves the per-repo series
+shape. The pc-1 `/var` and DinD watch belongs in that window, immediately after merge. The weekly molecule run on
 Gitea already failed on 2026-11-09 with an unexpanded `${{ matrix.role }}` job, which is
 the dynamic-matrix limitation #139 removes.
 
@@ -149,8 +160,9 @@ The structural guards (R8) run in the required CI tripwires on every PR; they ar
 
 ## Test Plan
 
-- (op: webhook-pull-request) post-merge — operator-driven: after the manual op, push to a same-repo kid-laptops PR. `sync-pr-<N>` appears on the Gitea mirror at the PR head SHA, and no Tekton `kid-laptops-ci` PipelineRun is created for it.
-- (op: molecule-on-pr-head) post-merge — operator-driven: once kid-laptops#139 has merged, the PR head on GitHub shows `gitea-actions/molecule / molecule (push)`. Watch pc-1 `/var` and the DinD sidecar during the first full run (systemd containers have not run in this DinD before).
+- (op: first-reconcile-backfill) post-merge — operator-driven: within ~15 minutes of the tekton sync, `mirror-reconcile` logs three `mirror-reconcile repaired derio-homelab/kid-laptops refs/heads/sync-pr-{104,105,139}` lines, and `layer-25-mirror-repair-recurring` fires once with `repo=derio-homelab/kid-laptops` and value 3. This is the expected one-off, and the rule's positive control; it resolves through NoData after 6h.
+- (op: webhook-pull-request) post-merge — operator-driven: with the pre-merge webhook op applied, push to a same-repo kid-laptops PR. `sync-pr-<N>` appears on the Gitea mirror at the PR head SHA, and no Tekton `kid-laptops-ci` PipelineRun is created for it.
+- (op: molecule-on-pr-head) post-merge — operator-driven: immediately after merge, the backfilled `sync-pr-139` (kid-laptops#139's head carries the `sync-pr-**` trigger) starts molecule, and the PR head on GitHub shows `gitea-actions/molecule / molecule (push)`. Watch pc-1 `/var` and the DinD sidecar during this first full run (systemd containers have not run in this DinD before).
 - post-merge — operator-driven: `mirror-reconcile` and `ci-delivery-check` logs list the kid-laptops `sync-pr-<N>` ref.
 - post-merge — operator-driven: positive control for the repair rule. Run its exact LogsQL in Grafana Explore against VictoriaLogs over a window that contains real `mirror-reconcile repaired` lines (e.g. 2026-10-19T15:00Z–16:00Z, when homelab and omada-controller each had two). It must return one series per repo, carrying a `repo` label and the expected count. Only then is "loaded and Normal, no series" today meaningful.
 - post-merge — operator-driven: positive control for R4. The next kid-laptops `main` push (or a repair of `main`) still creates a `kid-laptops-ci` PipelineRun in namespace `kid-laptops-ci`.

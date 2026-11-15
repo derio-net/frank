@@ -1,18 +1,26 @@
 schema_version: 2
 ops:
 - id: webhook-pull-request
-  summary: Add pull_request to the live derio-homelab/kid-laptops GitHub webhook (manual-op cicd-kid-laptops-github-webhook-pull-request)
-  phase: post-merge
+  summary: Add pull_request to the live derio-homelab/kid-laptops GitHub webhook (manual-op cicd-kid-laptops-github-webhook-pull-request). Pre-merge is safe because the live derio-homelab-pr-sync CEL drops kid-laptops events until this PR syncs, and it shortens the window in which kid-laptops PR pushes reach Gitea only by repair.
+  phase: pre-merge
   apply: |-
     env -u GITHUB_TOKEN gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'
   mutating: true
   check: |-
     env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq '.events | index("pull_request") != null' | grep -qx true
-- id: molecule-on-pr-head
-  summary: After kid-laptops#139 merges, an open same-repo kid-laptops PR head carries the gitea-actions molecule status
+- id: first-reconcile-backfill
+  summary: The first mirror-reconcile run after the tekton sync backfills kid-laptops sync-pr-104/105/139 and fires layer-25-mirror-repair-recurring once (expected one-off, the rule's positive control)
   phase: post-merge
   apply: |-
-    echo "Push to a same-repo derio-homelab/kid-laptops PR (after kid-laptops#139 has merged); watch pc-1 /var and the DinD sidecar during the first full molecule run."
+    echo "Expect: within ~15 min of the tekton sync, 3 kid-laptops sync-pr repairs and one warning page for repo=derio-homelab/kid-laptops; sync-pr-139 starts molecule, so watch pc-1 /var and DinD now."
   mutating: false
   check: |-
-    sha=$(env -u GITHUB_TOKEN gh api 'repos/derio-homelab/kid-laptops/pulls?state=open' --jq '[.[]|select(.head.repo.full_name=="derio-homelab/kid-laptops")][0].head.sha') && test -n "$sha" && env -u GITHUB_TOKEN gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'
+    curl -s http://192.168.55.225:9428/select/logsql/stats_query --data-urlencode 'query=_time:6h kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value' | grep -q 'derio-homelab/kid-laptops'
+- id: molecule-on-pr-head
+  summary: The backfilled sync-pr-139 (kid-laptops#139's head carries the sync-pr-** trigger) runs molecule, and #139's head on GitHub carries the gitea-actions molecule status
+  phase: post-merge
+  apply: |-
+    echo "Immediately after merge: watch pc-1 /var and the DinD sidecar during the first full molecule run on sync-pr-139."
+  mutating: false
+  check: |-
+    sha=$(env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/pulls/139 --jq .head.sha) && test -n "$sha" && env -u GITHUB_TOKEN gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'

@@ -23,8 +23,11 @@ The only work beyond it is the post-merge GitHub webhook change, carried as a de
 
 ## Ordering with kid-laptops#139
 
-This PR can merge before derio-homelab/kid-laptops#139. Until #139 lands, a mirrored
-`sync-pr-<N>` starts no molecule, and `ci-delivery-check` treats an absent status as healthy.
+This PR can merge before derio-homelab/kid-laptops#139, but be clear about what merging does.
+Gitea reads `on.push` from the pushed commit, so the backfilled `sync-pr-139` runs molecule at
+once, while #104 and #105 start nothing. The first reconcile repairs all three sync-pr refs and
+fires `layer-25-mirror-repair-recurring` once: an expected one-off, and the rule's positive
+control (ops `first-reconcile-backfill`). Apply the webhook op before merging.
 
 ## Manual operations
 
@@ -34,7 +37,7 @@ id: cicd-kid-laptops-github-webhook-pull-request
 layer: cicd
 app: tekton
 plan: docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads
-when: After the frank PR merges and ArgoCD has synced tekton (derio-homelab-pr-sync lists kid-laptops)
+when: Before (or right after) the frank PR merges. Before is safe, because the live derio-homelab-pr-sync CEL drops kid-laptops pull_request events until the merge syncs.
 why_manual: The GitHub repo webhook is configured on GitHub with org-owner credentials the cluster does not hold; it is not reconciled from git (webhooks.yaml is a declaration, checked offline only).
 commands:
   - "GITHUB_TOKEN must be UNSET so gh uses the account that owns derio-homelab."
