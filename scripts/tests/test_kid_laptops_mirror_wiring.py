@@ -166,7 +166,10 @@ def _trigger_filter(path: Path, trigger_name: str) -> str:
 def test_kid_laptops_push_trigger_is_main_only() -> None:
     """R4: PR heads mirror as sync-pr-N, but only main may start kid-laptops-ci."""
     cel_filter = _trigger_filter(EL_GITEA, "kid-laptops-push")
-    assert "body.ref == 'refs/heads/main'" in cel_filter, cel_filter
+    # Conjunctive and last: `... || body.ref == 'refs/heads/main'` would admit
+    # every sync-pr push and must fail here (p1a-r8).
+    assert cel_filter.strip().endswith("&& body.ref == 'refs/heads/main'"), cel_filter
+    assert "||" not in cel_filter, cel_filter
 
 
 def test_homelab_pr_sync_lists_kid_laptops_with_same_repo_guard() -> None:

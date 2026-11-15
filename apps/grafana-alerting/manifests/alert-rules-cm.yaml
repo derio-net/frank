@@ -2411,8 +2411,14 @@ data:
           # (frank#798/#850). mirror-reconcile logs one `mirror-reconcile
           # repaired <repo> ...` line per ref it re-pushes, so a repo needing
           # repair more than once in 6h is that repo's webhook/sync path
-          # failing. One isolated repair is tolerated by design (a single
-          # dropped delivery is exactly what the reconciler exists for).
+          # failing. The count is repaired REFS, not reconcile runs: one stranded
+          # ref is tolerated by design (a single dropped delivery is exactly what
+          # the reconciler exists for), but one outage that strands two refs of
+          # the same repo (main + a sync-pr, or two PRs) fires at once. Accepted.
+          # Scoped to container `push`: only mirror-reconcile Jobs (cron and
+          # mr-manual-*) run one; Tekton PipelineRun containers are always
+          # step-*/sidecar-*, so repo code in a PipelineRun cannot mint a page.
+          # Pod name is deliberately NOT pinned, so hand-triggered runs count.
           - uid: layer-25-mirror-repair-recurring
             title: Layer 25 Mirror Repair Recurring
             condition: C
@@ -2423,7 +2429,7 @@ data:
                 model:
                   refId: A
                   queryType: stats
-                  expr: 'kubernetes.namespace_name:tekton-pipelines AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value'
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value'
               - refId: B
                 relativeTimeRange: { from: 21600, to: 0 }
                 datasourceUid: __expr__
@@ -2445,7 +2451,7 @@ data:
               ci_outcome: "true"
               github_issue: "frank-ops#25"
             annotations:
-              summary: "L25 mirror-reconcile repaired {{ $labels.repo }} {{ $values.B }} times in 6h — its GitHub->Gitea webhook/sync path keeps dropping refs; a shared pull-sync pipeline hides this from layer-25-pipeline-failing"
+              summary: "L25 mirror-reconcile repaired {{ $labels.repo }} {{ $values.B.Value | printf \"%.0f\" }} times in 6h — its GitHub->Gitea webhook/sync path keeps dropping refs; a shared pull-sync pipeline hides this from layer-25-pipeline-failing"
               runbook: "kubectl get pipelinerun -A --sort-by=.metadata.creationTimestamp | grep pull-sync | tail ; read the failed run's log for {{ $labels.repo }}; then check the repo's GitHub hook recent deliveries (Settings > Webhooks) for 4xx/5xx or missing events. See docs/runbooks/frank-gotchas/tekton.md."
 
       # =====================================================================

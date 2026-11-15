@@ -49,10 +49,18 @@ def test_query_shape() -> None:
     for part in (
         '_msg:"mirror-reconcile repaired"',
         "kubernetes.namespace_name:tekton-pipelines",
+        # p1a-r3: only mirror-reconcile Jobs run a container named push;
+        # Tekton step containers are step-*, so PipelineRun code cannot spoof.
+        "kubernetes.container_name:push",
         'extract "mirror-reconcile repaired <repo> "',
         "stats by (repo) count()",
     ):
         assert part in expr, part
+
+
+def test_summary_renders_the_count_not_the_value_struct() -> None:
+    summary = _rule()["annotations"]["summary"]
+    assert "$values.B.Value" in summary, summary
 
 
 def test_threshold_and_states() -> None:
