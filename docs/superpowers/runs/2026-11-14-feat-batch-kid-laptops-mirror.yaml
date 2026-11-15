@@ -39,3 +39,4 @@ steps:
   deliver:
     state: pending
 fr_version: 7.0.0rc2
+pr: https://github.com/derio-net/frank/pull/992
