@@ -1,0 +1,4 @@
+# Settings for `fr ops` probes (apply, status, gate). The default bound is 60 s per probe, and a timeout reads
+# CANNOT-VERIFY. The root-agents SubjectAccessReview matrix makes ~50 round-trips through the Omni kube proxy,
+# which takes a few minutes from inside the ops container.
+timeout_seconds: 300
