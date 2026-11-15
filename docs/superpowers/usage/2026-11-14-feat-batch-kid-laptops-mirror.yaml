@@ -1,0 +1,61 @@
+schema_version: 2
+run: 2026-11-14-feat-batch-kid-laptops-mirror
+captures:
+- host: h-37a22c52
+  harness: claude-code
+  mode: devcontainer
+  captured_at: '2026-11-15T06:04:04+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: e96881ac-6e9d-4be9-be2e-d516f532d507
+    role: main
+    models:
+      claude-opus-5-5:
+        input: 82
+        cache_write: 407003
+        cache_read: 7621042
+        output: 28973
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 1
+      other:
+        usd: null
+        turns: 32
+      paperwork:
+        usd: null
+        turns: 7
+    steps:
+      (outside run):
+        usd: null
+        turns: 8
+        input: 16
+        cache_write: 145833
+        cache_read: 1202416
+        output: 2222
+      brainstorm:
+        usd: null
+        turns: 32
+        input: 66
+        cache_write: 261170
+        cache_read: 6418626
+        output: 26751
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 8
+          input: 16
+          cache_write: 145833
+          cache_read: 1202416
+          output: 2222
+        brainstorm:
+          usd: null
+          turns: 32
+          input: 66
+          cache_write: 261170
+          cache_read: 6418626
+          output: 26751

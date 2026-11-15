@@ -1,0 +1,43 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 1
+feature: 2026-11-15--cicd--kid-laptops-mirror-pr-heads
+repo: derio-net/frank
+rows:
+  - id: kid-laptops-pr-heads-mirrored
+    capability: cicd-mirror
+    acceptance: A push to a same-repo derio-homelab/kid-laptops pull request appears
+      on the Gitea mirror as sync-pr-<N> at the PR head, is kept in sync by mirror-reconcile,
+      and starts no Tekton kid-laptops-ci run.
+    origin:
+    - spec:2026-11-15--cicd--kid-laptops-mirror-pr-heads#R1
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: mirror-repair-alert
+    capability: cicd-mirror
+    acceptance: When mirror-reconcile repairs two or more refs of the same repository
+      within 6 hours, a warning alert naming that repository fires; isolated repairs
+      stay quiet.
+    origin:
+    - spec:2026-11-15--cicd--kid-laptops-mirror-pr-heads#R5
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: kid-laptops-main-sync-healthy
+    capability: cicd-mirror
+    acceptance: Every derio-homelab/kid-laptops main commit reaches the Gitea mirror
+      through the webhook pull-sync path, and a sync failure for that repository alone
+      is visible as a per-repo alert even while the other repositories sharing the pipeline
+      succeed.
+    origin:
+    - spec:2026-11-15--cicd--kid-laptops-mirror-pr-heads#R6
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
