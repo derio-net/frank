@@ -183,7 +183,13 @@ spec:
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'push') &&
-                body.repository.full_name == 'derio-homelab/kid-laptops'
+                body.repository.full_name == 'derio-homelab/kid-laptops' &&
+                body.ref == 'refs/heads/main'
+            # main only (frank#952, R4): kid-laptops PR heads now mirror as
+            # sync-pr-<N>, and their push webhooks reach this trigger too. PR
+            # evidence comes from Gitea Actions molecule; this keeps PR load to
+            # what #952 budgeted, and a deleted sync-pr ref (body.after all
+            # zeros) can never start a run.
             - name: "overlays"
               value:
                 # The VMI name is derived from run-id, so it must stay a short

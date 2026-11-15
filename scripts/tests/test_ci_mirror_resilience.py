@@ -202,7 +202,7 @@ def test_reconciler_covers_exactly_the_repos_the_triggers_serve() -> None:
         [f"agentic-stoa/{r}" for r in ("cnc-fr", "cnc-frd", "cnc-fru", "content-factory",
                                        "hermes-brain", "hum", "second-brain", "stoa-blog")]
         + [f"derio-homelab/{r}" for r in ("proxmox-cluster", "omada-controller", "homelab",
-                                          "ansible-pihole")]
+                                          "ansible-pihole", "kid-laptops")]
         + [f"derio-net/{r}" for r in ("willikins", "presentation-craft",
                                       "runs-fr", "cluster-update-fr")]
     )

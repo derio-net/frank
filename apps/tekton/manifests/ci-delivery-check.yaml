@@ -353,6 +353,7 @@ spec:
                     agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
+                    derio-homelab/kid-laptops
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
                     derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/willikins

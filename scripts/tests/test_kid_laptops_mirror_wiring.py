@@ -147,3 +147,32 @@ def test_github_eventlistener_has_a_kid_laptops_main_sync_trigger() -> None:
 
     bound = {b["name"] for b in trigger["bindings"]}
     assert {"github-repo", "gitea-repo", "sha", "ref-to"} <= bound, bound
+
+
+EL_GITEA = REPO / "apps/tekton/triggers/eventlistener.yaml"
+
+
+def _trigger_filter(path: Path, trigger_name: str) -> str:
+    els = [d for d in _docs(path) if d.get("kind") == "EventListener"]
+    for el in els:
+        for t in el["spec"]["triggers"]:
+            if t.get("name") == trigger_name:
+                for i in t["interceptors"]:
+                    if i.get("ref", {}).get("name") == "cel":
+                        return next(p["value"] for p in i["params"] if p["name"] == "filter")
+    raise AssertionError(f"no cel filter on trigger {trigger_name}")
+
+
+def test_kid_laptops_push_trigger_is_main_only() -> None:
+    """R4: PR heads mirror as sync-pr-N, but only main may start kid-laptops-ci."""
+    cel_filter = _trigger_filter(EL_GITEA, "kid-laptops-push")
+    assert "body.ref == 'refs/heads/main'" in cel_filter, cel_filter
+
+
+def test_homelab_pr_sync_lists_kid_laptops_with_same_repo_guard() -> None:
+    """R1: kid-laptops PR heads mirror, same-repo PRs only (no fork writes)."""
+    cel_filter = _trigger_filter(EL_GITHUB, "derio-homelab-pr-sync")
+    assert REPO_FULL_NAME in cel_filter
+    assert (
+        "body.pull_request.head.repo.full_name == body.repository.full_name" in cel_filter
+    ), cel_filter
