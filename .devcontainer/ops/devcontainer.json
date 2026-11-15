@@ -1,5 +1,5 @@
 {
-  "name": "frank — ops",
+  "name": "frank \u2014 ops",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
     "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
@@ -7,7 +7,7 @@
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
     "ghcr.io/devcontainers/features/python:1": {}
   },
-  "postCreateCommand": "git config --global --add safe.directory \"$PWD\" || true; uv tool install --with 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr-claude-cloud' --with 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr-cncd' --with 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr-herdr' --with 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr-vk' 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr'",
+  "postCreateCommand": "git config --global --add safe.directory \"$PWD\" || true; uv tool install --python 3.13 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr'",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
