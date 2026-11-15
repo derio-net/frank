@@ -229,3 +229,13 @@ run_kind: live
 ### pr-sync-ref-create-race-resolved · finding [out-of-scope] · resolves pr-sync-ref-create-race: derio-homelab-pr-sync can fail 'cannot lock ref … reference already exists' when two writers create the same new sync-pr ref
 
 Pre-existing concurrent-writer race on proxmox-cluster; not caused by this change.
+
+<!-- fr:journal kind=finding scope=spec id=sr-11-resolved-2 created=2026-11-15T07:15:58+00:00 state=open resolves=sr-11 tracked_by=https://github.com/derio-net/frank/issues/995 -->
+### sr-11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/995] · resolves sr-11: webhooks.yaml:164-165 claims all mirrored repos deliver push + pull_request (pre-existing stale header)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/995.
+
+<!-- fr:journal kind=finding scope=spec id=pr-sync-ref-create-race-resolved-2 created=2026-11-15T07:15:58+00:00 state=open resolves=pr-sync-ref-create-race tracked_by=https://github.com/derio-net/frank/issues/996 -->
+### pr-sync-ref-create-race-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/996] · resolves pr-sync-ref-create-race: derio-homelab-pr-sync can fail 'cannot lock ref … reference already exists' when two writers create the same new sync-pr ref
+
+Filed at deliver as https://github.com/derio-net/frank/issues/996.
