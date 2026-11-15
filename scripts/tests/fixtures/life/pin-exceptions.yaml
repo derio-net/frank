@@ -22,7 +22,7 @@ exceptions:
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
   - image: ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
-  - image: ghcr.io/paperclipai/paperclip:sha-d554c47
+  - image: ghcr.io/paperclipai/paperclip:sha-1b4c803
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.
   - image: gitea/act_runner:0.2.13
     reason: Stateful workload (PVC) on an exact, unchanged tag or commit; bytes only change when git changes it, and stateful updates go through a snapshot session. Digest pinning is not needed to keep bytes fixed this phase.

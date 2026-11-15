@@ -63,7 +63,7 @@ ghcr.io/goauthentik/server:2026.2.1
 ghcr.io/gohugoio/hugo:v0.157.0
 ghcr.io/loft-sh/kubernetes:v1.35.0
 ghcr.io/loft-sh/vcluster-pro:0.32.1
-ghcr.io/paperclipai/paperclip:sha-d554c47
+ghcr.io/paperclipai/paperclip:sha-1b4c803
 ghcr.io/project-zot/zot-linux-amd64:v2.1.1
 ghcr.io/tale/headplane:0.5.5
 ghcr.io/tektoncd/dashboard/dashboard-9623576a202fe86c8b7d1bc489905f86:v0.63.1@sha256:16eca97b649f6f27dfbab2be167be0afc34bab43af9d3304f64bf7f04d44e606

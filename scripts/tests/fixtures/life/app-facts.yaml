@@ -864,7 +864,7 @@ apps:
   frank/paperclip:
     charts: []
     images:
-    - ghcr.io/paperclipai/paperclip:sha-d554c47
+    - ghcr.io/paperclipai/paperclip:sha-1b4c803
     paths:
     - apps/paperclip/manifests/**
     - apps/root/templates/paperclip.yaml
