@@ -155,3 +155,9 @@ The structural guards (R8) run in the required CI tripwires on every PR; they ar
 - post-merge — operator-driven: positive control for the repair rule. Run its exact LogsQL in Grafana Explore against VictoriaLogs over a window that contains real `mirror-reconcile repaired` lines (e.g. 2026-10-19T15:00Z–16:00Z, when homelab and omada-controller each had two). It must return one series per repo, carrying a `repo` label and the expected count. Only then is "loaded and Normal, no series" today meaningful.
 - post-merge — operator-driven: positive control for R4. The next kid-laptops `main` push (or a repair of `main`) still creates a `kid-laptops-ci` PipelineRun in namespace `kid-laptops-ci`.
 - post-merge — operator-driven: main-sync health. For each kid-laptops `main` commit since merge, VictoriaLogs shows a pull-sync pod pushing it and ending `OK`, and Gitea `main` equals GitHub `main`.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-11-15--cicd--kid-laptops-mirror-pr-heads | `derio-net/frank` | `2026-11-15--cicd--kid-laptops-mirror-pr-heads` | — |
