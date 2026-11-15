@@ -111,6 +111,14 @@ steps:
           findings: l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
           lenses: tests=12:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
   deliver:
-    state: pending
+    state: running
+    at: '2026-11-15T07:12:55+00:00'
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-15T07:12:55+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
 fr_version: 7.0.0rc2
 pr: https://github.com/derio-net/frank/pull/992
