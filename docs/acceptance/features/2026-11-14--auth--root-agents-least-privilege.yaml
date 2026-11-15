@@ -3,7 +3,7 @@
 # (`fr acceptance status`); it is never stored. Write rows with
 # `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
 # `amendments:`.
-schema_version: 1
+schema_version: 2
 feature: 2026-11-14--auth--root-agents-least-privilege
 repo: derio-net/frank
 rows:
@@ -38,3 +38,13 @@ rows:
     status: not-implemented
     notes: ''
     verify: live
+amendments:
+  - row: root-agents-read-only-triage
+    op: reword
+    base: 0
+    acceptance: A member of root-agents can still read cluster state (nodes, workloads,
+      ConfigMaps, logs) in every app namespace except the three update-pipeline namespaces
+      and the five credential stores (authentik, infisical, argocd, kube-system, longhorn-system),
+      and can change nothing.
+    why: 'Operator decision 2026-11-14: logs, pod env and ConfigMaps in the credential-store
+      namespaces can carry credentials, so root-agents reads none of them'

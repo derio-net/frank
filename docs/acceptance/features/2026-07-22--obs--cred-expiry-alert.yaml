@@ -3,7 +3,7 @@
 # (`fr acceptance status`); it is never stored. Write rows with
 # `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
 # `amendments:`.
-schema_version: 1
+schema_version: 2
 feature: 2026-07-22--obs--cred-expiry-alert
 repo: derio-net/frank
 rows:

@@ -24,6 +24,7 @@ fi
 
 GEN="${ROOT_AGENTS_GEN:-apps/authentik-extras/manifests/root-agents-rbac.yaml}"
 PROTECTED="upgrade-sessions cluster-update-fr runs-fr"
+EXCLUDED_NS="authentik infisical argocd kube-system longhorn-system"
 SECRET_NS="argocd infisical authentik kube-system longhorn-system upgrade-sessions cluster-update-fr runs-fr"
 AGENT_USER="claude-agent"
 ISSUER_TOKEN_URL="${K8S_AGENT_TOKEN_URL:-https://auth.cluster.derio.net/application/o/token/}"
@@ -66,14 +67,14 @@ cell() {
 matrix() {
   local ns
   FAILS=0
-  generated_namespaces | grep -qx argocd || { echo "argocd missing from $GEN" >&2; FAILS=$((FAILS + 1)); }
   generated_namespaces | grep -qx monitoring || { echo "monitoring missing from $GEN" >&2; FAILS=$((FAILS + 1)); }
-  for ns in $PROTECTED; do
-    if generated_namespaces | grep -qx "$ns"; then echo "protected namespace $ns is bound in $GEN" >&2; FAILS=$((FAILS + 1)); fi
+  for ns in $PROTECTED $EXCLUDED_NS; do
+    if generated_namespaces | grep -qx "$ns"; then echo "protected or credential-store namespace $ns is bound in $GEN" >&2; FAILS=$((FAILS + 1)); fi
   done
 
   echo "== group root-agents: allow =="
-  cell root-agents root-agents allow get pods argocd
+  cell root-agents root-agents allow get pods monitoring
+  cell root-agents root-agents allow get pods monitoring log
   cell root-agents root-agents allow get configmaps monitoring
   cell root-agents root-agents allow list nodes -
   echo "== group root-agents: deny =="
@@ -81,6 +82,11 @@ matrix() {
     cell root-agents root-agents deny get secrets "$ns"
   done
   cell root-agents root-agents deny list pods upgrade-sessions
+  for ns in $EXCLUDED_NS; do
+    cell root-agents root-agents deny get pods "$ns"
+    cell root-agents root-agents deny get pods "$ns" log
+    cell root-agents root-agents deny get configmaps "$ns"
+  done
   cell root-agents root-agents deny create pods argocd
   cell root-agents root-agents deny impersonate users -
   cell root-agents root-agents deny create serviceaccounts argocd token
@@ -157,7 +163,13 @@ membership() {
 # second mode for the cutover proof. Source the values into the environment by hand (do NOT `source
 # .env_agent`: it repoints KUBECONFIG at the agent identity and would run this review as that agent).
 token_review() {
-  : "${K8S_AGENT_CLIENT_SECRET:?set K8S_AGENT_CLIENT_SECRET (the k8s-agent client secret, kubeconfig-agent.yaml --oidc-client-secret) in the environment}"
+  if [ -z "${K8S_AGENT_CLIENT_SECRET:-}" ]; then
+    # Never required in the environment: read it from stdin (`fr ops secret --from <cmd> -- bash ... token-review`)
+    # or, at a terminal, from a silent prompt. Where the secret lives: kubeconfig-agent.yaml (--oidc-client-secret),
+    # secrets/authentik/k8s-agent-secret.yaml (sops), or the provider's edit page in Authentik.
+    if [ -t 0 ]; then read -r -s -p "k8s-agent client secret: " K8S_AGENT_CLIENT_SECRET; echo >&2; else read -r K8S_AGENT_CLIENT_SECRET || true; fi
+  fi
+  : "${K8S_AGENT_CLIENT_SECRET:?no k8s-agent client secret given (stdin or prompt)}"
   local client_id="${K8S_AGENT_CLIENT_ID:-k8s-agent}" out authenticated user groups cfg
   cfg=$(printf 'data = "grant_type=client_credentials&scope=openid+profile+email"\ndata-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' \
         "$client_id" "$K8S_AGENT_CLIENT_SECRET")

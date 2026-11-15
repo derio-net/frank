@@ -52,7 +52,7 @@ if a[:1] == ["create"]:
         print("true"); sys.exit(0)
     if pol == "broken" and res == "secrets" and ns == "argocd":
         print("true"); sys.exit(0)
-    protected = {"upgrade-sessions", "cluster-update-fr", "runs-fr"}
+    protected = {"upgrade-sessions", "cluster-update-fr", "runs-fr", "authentik", "infisical", "argocd", "kube-system", "longhorn-system"}
     ok = verb in ("get", "list") and res in ("pods", "configmaps", "nodes") and ns not in protected
     print("true" if ok else "false"); sys.exit(0)
 sys.exit(0)
@@ -146,7 +146,9 @@ def test_token_review_refuses_root_admins_and_prints_no_token(env):
     assert run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, K8S_AGENT_USERNAME="claude-agent").returncode != 0
 
 
-DENY_CELLS = ["list:pods:upgrade-sessions", "create:pods:argocd", "impersonate:users:", "bind:clusterroles:",
+DENY_CELLS = ["get:pods/log:authentik", "get:pods/log:infisical", "get:pods/log:argocd", "get:pods/log:kube-system",
+              "get:pods/log:longhorn-system", "get:configmaps:argocd", "get:configmaps:authentik", "get:pods:infisical",
+              "get:configmaps:kube-system", "get:configmaps:longhorn-system", "list:pods:upgrade-sessions", "create:pods:argocd", "impersonate:users:", "bind:clusterroles:",
               "escalate:clusterroles:", "create:serviceaccounts/token:argocd", "get:secrets:infisical",
               "get:secrets:upgrade-sessions", "get:secrets:runs-fr"]
 
@@ -164,7 +166,7 @@ def test_verify_fails_when_a_trusted_admin_is_locked_out(env, cell):
 
 
 def test_verify_fails_when_a_read_cell_is_denied(env):
-    assert run("verify", env, FAKE_LOCKOUT="get:pods:argocd").returncode != 0
+    assert run("verify", env, FAKE_LOCKOUT="get:pods:monitoring").returncode != 0
 
 
 def test_matrix_reports_every_cell_and_the_control(env):
@@ -181,11 +183,11 @@ def test_matrix_prechecks_the_generated_file(env, tmp_path):
         f = tmp_path / "gen.yaml"
         f.write_text("".join(f"---\nmetadata:\n  name: x\n  namespace: {n}\n" for n in nss))
         return str(f)
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd", "monitoring")).returncode == 0
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring")).returncode != 0  # argocd missing
-    assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd")).returncode != 0  # monitoring missing
-    for ns in ("upgrade-sessions", "cluster-update-fr", "runs-fr"):
-        assert run("verify", env, ROOT_AGENTS_GEN=gen("argocd", "monitoring", ns)).returncode != 0, ns
+    assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring")).returncode == 0
+    assert run("verify", env, ROOT_AGENTS_GEN=gen("tekton-pipelines")).returncode != 0  # monitoring missing
+    for ns in ("upgrade-sessions", "cluster-update-fr", "runs-fr", "authentik", "infisical", "argocd",
+               "kube-system", "longhorn-system"):
+        assert run("verify", env, ROOT_AGENTS_GEN=gen("monitoring", ns)).returncode != 0, ns
 
 
 def test_namespaces_subcommand_names_the_missing_namespace(env, tmp_path):
@@ -224,3 +226,16 @@ def test_token_review_hands_the_secrets_to_curl_on_stdin_never_argv(env, tmp_pat
     log.write_text("")
     run("token-review", env, K8S_AGENT_CLIENT_SECRET=secret, FAKE_CURL_LOG=str(log))
     assert "username=" not in log.read_text()
+
+
+def test_token_review_reads_the_client_secret_from_stdin_not_the_environment(env, tmp_path):
+    """`fr ops secret --from <cmd> -- bash ... token-review` hands the secret over on stdin."""
+    log = tmp_path / "curl.log"
+    secret = "stdin-s3cr3t-abc"
+    base = {**env, "FAKE_CURL_LOG": str(log), "FAKE_TOKEN_GROUPS": '["system:authenticated"]'}
+    base.pop("K8S_AGENT_CLIENT_SECRET", None)
+    r = subprocess.run(["bash", str(SCRIPT), "token-review"], input=secret + "\n", capture_output=True, text=True, env=base)
+    assert r.returncode == 0, r.stderr
+    assert f"client_secret={secret}" in log.read_text() and secret not in r.stdout + r.stderr
+    empty = subprocess.run(["bash", str(SCRIPT), "token-review"], input="", capture_output=True, text=True, env=base)
+    assert empty.returncode != 0

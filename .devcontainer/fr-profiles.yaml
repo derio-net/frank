@@ -19,6 +19,14 @@ profiles:
     - GH_TOKEN
     - KUBECONFIG_B64
     - TALOSCONFIG_B64
+  ops:
+    purpose: 'DevOps stage (fr ops gate): the manual operations of a gated PR. Credentials:
+      GH_TOKEN (merge, gate labels) and KUBECONFIG_B64 (SubjectAccessReviews, RoleBinding
+      deletes, Authentik exec) only; add more per run, never preemptively'
+    secrets:
+    - GH_TOKEN
+    - KUBECONFIG_B64
+    ops: true
 default: dev
 forge:
   type: github

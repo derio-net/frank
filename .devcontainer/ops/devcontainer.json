@@ -1,0 +1,30 @@
+{
+  "name": "frank \u2014 ops",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+    "ghcr.io/devcontainers/features/python:1": {}
+  },
+  "postCreateCommand": "git config --global --add safe.directory \"$PWD\" || true; uv tool install --python 3.13 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr'",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "runArgs": [
+    "--env-file",
+    "${localEnv:HOME}/.config/fr/secrets/frank/ops.env"
+  ],
+  "customizations": {
+    "fr": {
+      "profile": "ops",
+      "purpose": "DevOps stage (fr ops gate): the manual operations of a gated PR. Credentials: GH_TOKEN (merge, gate labels) and KUBECONFIG_B64 (SubjectAccessReviews, RoleBinding deletes, Authentik exec) only; add more per run, never preemptively"
+    }
+  },
+  "containerEnv": {
+    "FR_PROFILE": "ops",
+    "FR_OPS_TRUST_DIR": "/run/fr-ops-trust"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.local/state/fr/ops-trust,target=/run/fr-ops-trust,type=bind,readonly"
+  ]
+}

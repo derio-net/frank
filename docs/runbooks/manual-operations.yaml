@@ -280,7 +280,7 @@ operations:
   - 'Check what claude-agent uses its Authentik superuser status for (API calls with its token): leaving root-admins drops is_superuser, not only the kube binding'
   - 'bash scripts/root-agents-cutover.sh matrix   # BEFORE: server-side SubjectAccessReview matrix for groups root-agents and root-admins, each beside a system:masters control that must answer allowed (never kubectl auth can-i --as: the Omni proxy ignores it, frank#963)'
   - 'bash scripts/root-agents-cutover.sh move-membership   # Authentik ORM: add claude-agent to root-agents, then remove it from root-admins'
-  - 'K8S_AGENT_CLIENT_SECRET=<client secret from kubeconfig-agent.yaml --oidc-client-secret> K8S_AGENT_USERNAME=claude-agent K8S_AGENT_PASSWORD=<its app-password token> bash scripts/root-agents-cutover.sh token-review   # export these by hand; do NOT source .env_agent (it repoints KUBECONFIG at the agent). With client id+secret only the token belongs to the synthetic client-credentials user, not claude-agent. Prints authenticated, username and groups, never the token; fails unless authenticated and root-admins is absent'
+  - 'bash scripts/root-agents-cutover.sh token-review   # operator-walked: type the k8s-agent client secret at the silent prompt (or pipe it on stdin). Where it lives: kubeconfig-agent.yaml (--oidc-client-secret), secrets/authentik/k8s-agent-secret.yaml (sops), or the provider edit page in Authentik. claude-agent has no token (never logged in), so this exercises the provider synthetic client-credentials user; it prints authenticated, username and groups, never the token, and fails unless authenticated and root-admins is absent'
   - 'kubectl delete clusterrolebinding authentik-root-agents --ignore-not-found   # prune is false, so git alone leaves it live'
   - 'bash scripts/root-agents-cutover.sh matrix   # AFTER'
   - 'REVERT (any step failing): kubectl apply the old binding from `git show <merge>~1:apps/authentik-extras/manifests/k8s-rbac.yaml` (the authentik-root-agents document), and re-add claude-agent to root-admins in Authentik'
@@ -288,6 +288,20 @@ operations:
   - 'bash scripts/root-agents-cutover.sh verify exits 0: every allow cell allowed, every deny cell denied (Secrets in argocd, infisical, authentik, kube-system, longhorn-system, upgrade-sessions, cluster-update-fr, runs-fr), and the system:masters control allowed'
   - 'bash scripts/root-agents-cutover.sh membership exits 0: claude-agent is only in root-agents'
   - kubectl get clusterrolebinding authentik-root-agents is NotFound
+  status: pending
+- id: auth-root-agents-exclude-credential-namespaces
+  layer: auth
+  app: authentik-extras
+  plan: 2026-11-14--auth--root-agents-least-privilege
+  when: After the exclusion PR (#991, merged) is applied (the generated root-agents-rbac.yaml no longer binds five namespaces)
+  why_manual: prune is false, so the five RoleBindings the first PR created stay live after git drops them
+  commands:
+  - 'source .env   # from the repo root, so KUBECONFIG resolves'
+  - 'for ns in authentik infisical argocd kube-system longhorn-system; do kubectl -n $ns delete rolebinding root-agents-ns-read --ignore-not-found; done'
+  - 'bash scripts/root-agents-cutover.sh verify   # AFTER: pods, pods/log and configmaps denied in the five, every control answered allowed'
+  verify:
+  - 'for ns in authentik infisical argocd kube-system longhorn-system; do kubectl -n $ns get rolebinding root-agents-ns-read; done   # all NotFound'
+  - bash scripts/root-agents-cutover.sh verify exits 0
   status: pending
 - id: auth-talos-oidc-patch
   layer: auth
