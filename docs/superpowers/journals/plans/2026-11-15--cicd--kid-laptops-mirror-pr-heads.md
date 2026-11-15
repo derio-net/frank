@@ -139,3 +139,66 @@ The test asserts the filter ends with `&& body.ref == 'refs/heads/main'` and con
 ### p1a-r9-resolved · finding [fixed] · resolves p1a-r9: One dropped event stranding two refs fires at once, despite 'one repair tolerated' wording (phase 1)
 
 Accepted as designed and documented in the rule comment, operating/22 and tekton.md (counts refs, not runs).
+
+<!-- fr:journal kind=review scope=plan id=lens-review-r1 created=2026-11-15T07:12:52+00:00 -->
+### lens-review-r1 · review · Lens review (tests): 5 findings, all in scope, all fixed
+
+One dispatched reviewer for the `tests` lens over d9eca14d..HEAD. It mutation-checked the
+guards on a scratch copy. Caught: repo-clause, guard and action weakenings, PR_REPOS and event
+removals. Survived: the repair rule's condition/expression chain, `for`, window and an
+appended OR. It also found that `kubernetes.container_name:push` is a LogsQL WORD filter. The
+orchestrator verified that live: it also matched Tekton's step-pull-from-github-push-to-gitea
+(3038 lines over 30d), while `:="push"` matches only the reconciler and returns the same
+per-repo series. All five were fixed, and the orchestrator re-ran the mutations against the
+new tests: condition B, the word filter, an appended OR, an OR'd same-repo guard and a
+removed main-only clause each now fail the suite.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1 created=2026-11-15T07:12:52+00:00 state=open review_scope=in -->
+### l-tests-r1 · finding [open] (reviewer: in scope) · repair-rule tests never pin condition C, the A->B->C chain, for: 0s or the B/C windows
+
+scripts/tests/test_mirror_repair_alert.py test_threshold_and_states. condition: B would page on a single repair, reversing q3.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2 created=2026-11-15T07:12:52+00:00 state=open review_scope=in -->
+### l-tests-r2 · finding [open] (reviewer: in scope) · kubernetes.container_name:push is a LogsQL word filter that also matches step-pull-and-push etc.; the anti-spoof claim is false
+
+alert-rules-cm.yaml:2432; test_query_shape checks the substring only. Use :="push" and assert it.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3 created=2026-11-15T07:12:52+00:00 state=open review_scope=in -->
+### l-tests-r3 · finding [open] (reviewer: in scope) · test_query_shape checks substrings only, so an appended OR clause survives
+
+Assert the whole filter prefix by equality.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4 created=2026-11-15T07:12:52+00:00 state=open review_scope=in -->
+### l-tests-r4 · finding [open] (reviewer: in scope) · extract test never shows the push container emits the repair line
+
+It reads the echo from anywhere in mirror-reconcile.yaml. Follow container -> command -> ConfigMap script.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5 created=2026-11-15T07:12:52+00:00 state=open review_scope=in -->
+### l-tests-r5 · finding [open] (reviewer: in scope) · pr-sync guard test is substring-only and redundant; no test evaluates the CEL against payloads
+
+test_kid_laptops_mirror_wiring.py:175-181.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1-resolved created=2026-11-15T07:12:52+00:00 state=fixed resolves=l-tests-r1 -->
+### l-tests-r1-resolved · finding [fixed] · resolves l-tests-r1: repair-rule tests never pin condition C, the A->B->C chain, for: 0s or the B/C windows
+
+test_expression_chain_windows_and_pending_period pins condition C, reduce(A)/threshold(B), reducer last, all three windows at 21600 and for 0s. Mutation condition:B now fails.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2-resolved created=2026-11-15T07:12:52+00:00 state=fixed resolves=l-tests-r2 -->
+### l-tests-r2-resolved · finding [fixed] · resolves l-tests-r2: kubernetes.container_name:push is a LogsQL word filter that also matches step-pull-and-push etc.; the anti-spoof claim is false
+
+Rule, operating post, tekton.md and ops.yaml use kubernetes.container_name:="push". Live-verified that the word form matched step-pull-from-github-push-to-gitea and the exact form returns only the reconciler's per-repo series. The rule comment explains the trap. Mutation back to the word form now fails.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3-resolved created=2026-11-15T07:12:52+00:00 state=fixed resolves=l-tests-r3 -->
+### l-tests-r3-resolved · finding [fixed] · resolves l-tests-r3: test_query_shape checks substrings only, so an appended OR clause survives
+
+test_query_shape splits the expr on | and asserts the filter stage and both pipes by equality. Mutation OR _msg:"repaired" now fails.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4-resolved created=2026-11-15T07:12:52+00:00 state=fixed resolves=l-tests-r4 -->
+### l-tests-r4-resolved · finding [fixed] · resolves l-tests-r4: extract test never shows the push container emits the repair line
+
+test_the_filtered_container_runs_the_script_that_echoes_the_repair_line walks the CronJob container named in the filter, then its command, the /scripts volume, the ConfigMap and the script, asserts the echo is there, and checks no initContainer script emits it. The extract test now also proves the result summary line is not counted.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5-resolved created=2026-11-15T07:12:52+00:00 state=fixed resolves=l-tests-r5 -->
+### l-tests-r5-resolved · finding [fixed] · resolves l-tests-r5: pr-sync guard test is substring-only and redundant; no test evaluates the CEL against payloads
+
+Replaced the substring test with a narrow CEL-subset evaluator (fails loudly on syntax outside the subset) and payload fixtures. R1 covers same-repo opened/synchronize/reopened admitted; fork, null head.repo, closed, labeled and another repo refused. R4 covers main admitted; sync-pr, sync-rerun, ref deletion, another repo and a non-push event refused. Mutations OR-ing the guard (5 fail) and removing the main-only clause (4 fail) are caught.

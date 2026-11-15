@@ -3,7 +3,7 @@ run: 2026-11-14-feat-batch-kid-laptops-mirror
 workflow: fr-goal@1
 branch: feat/batch-kid-laptops-mirror
 started: '2026-11-14T22:07:35+00:00'
-cursor: lens-review
+cursor: deliver
 steps:
   brainstorm:
     state: done
@@ -94,8 +94,8 @@ steps:
     exit: 0
     stdout: ''
   lens-review:
-    state: running
-    at: '2026-11-15T06:58:44+00:00'
+    state: done
+    at: '2026-11-15T07:12:53+00:00'
     units:
       step/lens-review:
         attempts:
@@ -103,6 +103,13 @@ steps:
           harness: claude-code
           model: claude-opus-5-5
           session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T07:12:53+00:00'
+          outcome: done
+        evidence:
+          review: lens-review-r1
+          reviewer: tests=a7f33cb06c43e74f4
+          findings: l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
+          lenses: tests=12:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
   deliver:
     state: pending
 fr_version: 7.0.0rc2
