@@ -369,8 +369,9 @@ have 30 minutes from the source commit time to match; eligible Gitea statuses
 have ten minutes to match GitHub on the exact mirrored SHA. It applies the
 bridge's `tekton` prefix exclusion and skipped/warning normalization, accepting
 exact descriptions or legitimate 140-character caps. Path-filtered CI may emit no
-statuses. kid-laptops refs are covered with that org's token; its statuses are
-not bridged. Complete Pushgateway PUT snapshots remove closed-PR findings.
+statuses. kid-laptops main and PR-head refs (`sync-pr-<N>`, since frank#952) are
+covered with that org's token; its statuses are not bridged, and only its main
+pushes start the Tekton `kid-laptops-ci` run. Complete Pushgateway PUT snapshots remove closed-PR findings.
 Grafana warns on overdue work, read errors, and absent/stale snapshots, each
 held ten minutes. Both old inactivity rules have deletion tombstones; quiet
 CI is healthy, not proof of a lost webhook. Production provisioning and

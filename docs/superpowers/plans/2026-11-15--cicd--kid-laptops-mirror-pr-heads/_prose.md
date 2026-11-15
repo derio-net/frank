@@ -42,6 +42,7 @@ commands:
   - "env -u GITHUB_TOKEN gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'"
 verify:
   - "env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq .events   # [\"pull_request\",\"push\"]"
+  - "env -u GITHUB_TOKEN gh api -X POST repos/derio-homelab/kid-laptops/hooks/657693217/pings ; kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=20   # ping/delivery shows"
   - "After the next push to a same-repo kid-laptops PR: git ls-remote http://192.168.55.209:3000/derio-homelab/kid-laptops.git 'refs/heads/sync-pr-*'"
 status: pending
 ```
