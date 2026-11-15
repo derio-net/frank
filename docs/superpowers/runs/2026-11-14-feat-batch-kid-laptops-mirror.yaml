@@ -111,8 +111,10 @@ steps:
           findings: l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
           lenses: tests=12:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
   deliver:
-    state: running
-    at: '2026-11-15T07:12:55+00:00'
+    state: done
+    at: '2026-11-15T07:52:01+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/992
     units:
       step/deliver:
         attempts:
@@ -120,5 +122,13 @@ steps:
           harness: claude-code
           model: claude-opus-5-5
           session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T07:51:46+00:00'
+          outcome: done
+        evidence:
+          tests: deliver-full-suite.log@158dedbf2676
+          walk: none
+          proportionality: d9eca14d204e428a040ea1b7a5fcb23b35926313:b7cd018f642f81eec468c0562ba684448585ad48008fd09c1f90bf7d7781074f
+          docs: none
+          visual: none
 fr_version: 7.0.0rc2
 pr: https://github.com/derio-net/frank/pull/992
