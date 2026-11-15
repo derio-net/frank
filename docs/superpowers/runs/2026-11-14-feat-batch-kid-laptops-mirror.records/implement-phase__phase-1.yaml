@@ -1,0 +1,16 @@
+schema_version: 12
+run: 2026-11-14-feat-batch-kid-laptops-mirror
+step: implement-phase
+item: phase/1
+outcome: done
+ticks: [P1.T1.S1, P1.T1.S2, P1.T1.S3, P1.T1.S4, P1.T2.S1, P1.T2.S2, P1.T2.S3, P1.T2.S4, P1.T3.S1, P1.T3.S2, P1.T3.S3, P1.T4.S1, P1.T4.S2]
+refactor:
+  P1.T1: "the kid-laptops-push filter test parses its own trigger via a small _trigger_filter helper; test_site_promotion_pipeline uses a text window, so there was no shared helper worth extracting"
+  P1.T2: "test_mirror_repair_alert.py already imports _rules from test_ci_outcome_alert_repeat.py, so there was no duplicated rule loader left to share"
+  P1.T3: "docs and manual-op edits only, nothing to clean"
+  P1.T4: "gate steps only, no production code touched"
+journal:
+  - {kind: discovery, id: p1-kubectl-dryrun-needs-cluster, title: "kubectl create --dry-run=client cannot validate EventListener files offline", body: "With no reachable API server it fails fetching openapi and the Tekton CRDs are absent, so P1.T4.S2 was met by parsing every touched apps/ YAML with yaml.safe_load_all (all ok) plus the offline guard tests. System python3 has no yaml; use the repo .venv python.", phase: 1}
+  - {kind: discovery, id: p1-handoff-empty, title: "journal handoff file held only a usage error", body: "handoff-p1.md contained the fr journal handoff usage error (missing --slug), so the phase ran from the dispatch brief, pickup and spec alone.", phase: 1}
+resolves: []
+evidence: {tests: /Users/derio/.claude-tmp/claude-501/-Users-derio-Docs-projects-DERIO-NET-frank/e96881ac-6e9d-4be9-be2e-d516f532d507/scratchpad/p1-full-suite.log}
