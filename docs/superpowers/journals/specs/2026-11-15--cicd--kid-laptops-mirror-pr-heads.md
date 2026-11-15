@@ -224,3 +224,8 @@ run_kind: live
 ### pr-sync-ref-create-race · finding [open] (reviewer: out of scope) · derio-homelab-pr-sync can fail 'cannot lock ref … reference already exists' when two writers create the same new sync-pr ref
 
 2026-11-01 derio-homelab-pr-sync-jsd5j (proxmox-cluster sync-pr-122): remote rejected, 'cannot lock ref refs/heads/sync-pr-122: reference already exists'. Two concurrent writers (two pr-sync runs for one PR, or a run racing mirror-reconcile) created the same new ref. The push is fire-and-forget, so the run fails; mirror-reconcile later repairs the ref. Pre-existing and not caused by this change (found while reading pull-sync logs for #798). Possible fixes: retry once on 'cannot lock ref', or serialise pr-sync per PR.
+
+<!-- fr:journal kind=finding scope=spec id=pr-sync-ref-create-race-resolved created=2026-11-15T07:15:34+00:00 state=open resolves=pr-sync-ref-create-race out_of_scope=true -->
+### pr-sync-ref-create-race-resolved · finding [out-of-scope] · resolves pr-sync-ref-create-race: derio-homelab-pr-sync can fail 'cannot lock ref … reference already exists' when two writers create the same new sync-pr ref
+
+Pre-existing concurrent-writer race on proxmox-cluster; not caused by this change.
