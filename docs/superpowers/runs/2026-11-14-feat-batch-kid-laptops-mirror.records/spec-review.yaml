@@ -1,0 +1,42 @@
+schema_version: 12
+run: 2026-11-14-feat-batch-kid-laptops-mirror
+step: spec-review
+outcome: done
+journal:
+  - kind: review
+    id: spec-review-r1
+    title: "independent spec review: 11 findings (10 in scope, 1 out)"
+    body: |
+      Dispatched fr-spec-reviewer (read-only). The spec honours all five operator decisions
+      (q1–q5), and the Test Plan heading is exact. Mixed-datasource groups and `extract` already
+      exist in alert-rules-cm.yaml. The R4 ref filter does not break webhooks.yaml or
+      test_webhook_delivery_paths.py. Missed guards: test_github_preferred_mirrors.py:92 and the
+      `serves:` coverage. Positive controls were missing for the LogsQL rule and for main-push CI
+      after R4. Suggested lens: tests (already added at brainstorm).
+  - {kind: finding, id: sr-1, review_scope: in, title: "R8 misses test_github_preferred_mirrors.py:92, which pins kid-laptops out of derio-homelab-pr-sync", body: "scripts/tests/test_github_preferred_mirrors.py:89-92 asserts pr-sync repos == tiers.yaml preferred repos, and R1 turns it red. R8 must name all three pinning sites (plus test_ci_mirror_resilience.py:201-208 and test_ci_delivery_check.py:143-144)."}
+  - {kind: finding, id: sr-2, review_scope: in, title: "R2 changes only `events`, but the webhooks.yaml guard also requires `serves:` to include derio-homelab-pr-sync", body: "test_webhook_delivery_paths.py:143-166 requires a github-listener declaration for derio-homelab/kid-laptops whose serves contains derio-homelab-pr-sync (webhooks.yaml:171)."}
+  - {kind: finding, id: sr-3, review_scope: in, title: "mirror-reconcile's repo-list stages are `heads` and `plan`, not plan and push; the PR_REPOS order is pinned", body: "mirror-reconcile.yaml:393,412,432,448. The push container has no lists. test_ci_mirror_resilience.py:195-196 compares a sorted list."}
+  - {kind: finding, id: sr-4, review_scope: in, title: "R7 lists ci-delivery-check.yaml as carrying a push-only comment; it has none", body: "The only kid-laptops reference in ci-delivery-check.yaml is the MAIN_REPOS value at :345. The stale comment that remains is webhooks.yaml:173-175."}
+  - {kind: finding, id: sr-5, review_scope: in, title: "Rule-group placement is left to the plan, but mixed-datasource groups already exist", body: "ci-runner-health (alert-rules-cm.yaml:2980-3090) mixes VictoriaLogs and Prometheus rules. Place the rule in layer-25-pipeline-outcomes. It is the first multi-series VictoriaLogs rule."}
+  - {kind: finding, id: sr-6, review_scope: in, title: "Repair-alert Test Plan row is vacuous: Normal/no-series also passes for a broken query", body: "Under noDataState OK a misspelled extract or field returns NoData, which reads as Normal. A positive control is needed over a window that contains real repair lines."}
+  - {kind: finding, id: sr-7, review_scope: in, title: "Row kid-laptops-main-sync-healthy has no Test Plan row, and its stated evidence source cannot exist", body: "The Verification row cites PipelineRun outcomes, but they do not survive the 7-day TTL; the evidence is VictoriaLogs pod logs."}
+  - {kind: finding, id: sr-8, review_scope: in, title: "No positive control that a kid-laptops main push still starts kid-laptops-ci after the R4 filter", body: "A typo in the ref clause would silently stop main CI. Add a post-merge positive row and an offline assertion on the clause, as test_site_promotion_pipeline.py:142 does."}
+  - {kind: finding, id: sr-9, review_scope: in, title: "R5 says two or more refs but the query counts repair events; Findings overstate what a single repair fires", body: "count() counts repairs. Under gt 1 a single dropped commit fires nothing; say that is tolerated by design."}
+  - {kind: finding, id: sr-10, review_scope: in, title: "test_ci_outcome_alert_repeat.py not named; joining CI_OUTCOME_RULES constrains the runbook text", body: "test_ci_outcome_alert_repeat.py:71-76 requires `get pipelinerun -A ` and forbids `-n tekton-pipelines` in ci_outcome runbooks."}
+  - {kind: finding, id: sr-11, review_scope: out, title: "webhooks.yaml:164-165 claims all mirrored repos deliver push + pull_request (pre-existing stale header)", body: "The header count and claim are stale since 2026-10-18. This predates the change."}
+resolves:
+  - {id: sr-1, state: fixed, body: "R8 now names all three pinning sites."}
+  - {id: sr-2, state: fixed, body: "R2 and the Design now require serves: [derio-homelab-main-sync, derio-homelab-pr-sync]."}
+  - {id: sr-3, state: fixed, body: "R3 and the Design name the heads and plan initContainers, sorted position between homelab and omada-controller."}
+  - {id: sr-4, state: fixed, body: "R7 now lists the three real comment sites: eventlistener-github.yaml:226-228, webhooks.yaml:173-175 and mirror-reconcile.yaml:11."}
+  - {id: sr-5, state: fixed, body: "The Design places the rule in layer-25-pipeline-outcomes and drops the conditional; it notes this is the first multi-series VictoriaLogs rule."}
+  - {id: sr-6, state: fixed, body: "Test Plan has a positive-control row: the exact LogsQL over the 2026-10-19 15:00Z window must return per-repo series."}
+  - {id: sr-7, state: fixed, body: "The Verification row names VictoriaLogs plus a Gitea/GitHub main comparison, and a Test Plan row was added."}
+  - {id: sr-8, state: fixed, body: "Post-merge positive-control row added, and R8 requires an offline assertion on the refs/heads/main clause."}
+  - {id: sr-9, state: fixed, body: "R5 now says repairs, and the Findings state that one isolated repair is tolerated by design (q3)."}
+  - {id: sr-10, state: fixed, body: "R5 and the Design require a `get pipelinerun -A` runbook; R8 joins the uid to CI_OUTCOME_RULES."}
+  - {id: sr-11, state: out-of-scope, body: "Pre-existing stale header in webhooks.yaml (count and claim stale since the 2026-10-18 widening); not caused by this change, which only edits the kid-laptops entry."}
+acceptance: []
+evidence:
+  review: spec-review-r1
+  reviewer: acf12fd01f4bc4487
