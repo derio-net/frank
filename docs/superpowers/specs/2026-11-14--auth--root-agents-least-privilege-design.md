@@ -165,8 +165,9 @@ The static guard (R7) is covered by the required `tripwires` CI check on every P
 - [ ] (op: premerge-namespaces) Before merging, confirm every generated namespace exists live.
 - [ ] (op: cutover-matrix-before) Record the SubjectAccessReview matrix before the cutover, with the `system:masters` control.
 - [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
-- [ ] (op: cutover-token-review) TokenReview a freshly minted `k8s-agent` token: groups never include `root-admins`.
+- [ ] Token review (operator-walked, no op: it needs the `k8s-agent` client secret, which the ops profile must not hold): `TOKEN_REVIEW=1 bash walk-912-gate.sh`, or `bash scripts/root-agents-cutover.sh token-review` with the secret on stdin or typed at the silent prompt. A fresh token's groups never include `root-admins`.
 - [ ] (op: cutover-delete-binding) Delete the old `authentik-root-agents` binding.
+- [ ] (op: cutover-exclude-credential-namespaces) Delete the five `root-agents-ns-read` RoleBindings in `authentik`, `infisical`, `argocd`, `kube-system` and `longhorn-system` (PR 991 removed them from git; prune is false).
 - [ ] (op: cutover-matrix-after) Record the matrix after the cutover: every allow cell allowed, every deny cell denied, the control allowed.
 - [ ] Close #912 on that passing matrix; this unblocks P7.T1.S1 of the update-security-lifecycle plan.
 

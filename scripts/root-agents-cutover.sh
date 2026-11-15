@@ -163,7 +163,13 @@ membership() {
 # second mode for the cutover proof. Source the values into the environment by hand (do NOT `source
 # .env_agent`: it repoints KUBECONFIG at the agent identity and would run this review as that agent).
 token_review() {
-  : "${K8S_AGENT_CLIENT_SECRET:?set K8S_AGENT_CLIENT_SECRET (the k8s-agent client secret, kubeconfig-agent.yaml --oidc-client-secret) in the environment}"
+  if [ -z "${K8S_AGENT_CLIENT_SECRET:-}" ]; then
+    # Never required in the environment: read it from stdin (`fr ops secret --from <cmd> -- bash ... token-review`)
+    # or, at a terminal, from a silent prompt. Where the secret lives: kubeconfig-agent.yaml (--oidc-client-secret),
+    # secrets/authentik/k8s-agent-secret.yaml (sops), or the provider's edit page in Authentik.
+    if [ -t 0 ]; then read -r -s -p "k8s-agent client secret: " K8S_AGENT_CLIENT_SECRET; echo >&2; else read -r K8S_AGENT_CLIENT_SECRET || true; fi
+  fi
+  : "${K8S_AGENT_CLIENT_SECRET:?no k8s-agent client secret given (stdin or prompt)}"
   local client_id="${K8S_AGENT_CLIENT_ID:-k8s-agent}" out authenticated user groups cfg
   cfg=$(printf 'data = "grant_type=client_credentials&scope=openid+profile+email"\ndata-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' \
         "$client_id" "$K8S_AGENT_CLIENT_SECRET")
