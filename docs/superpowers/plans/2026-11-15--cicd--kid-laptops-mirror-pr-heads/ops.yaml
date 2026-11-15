@@ -1,0 +1,18 @@
+schema_version: 2
+ops:
+- id: webhook-pull-request
+  summary: Add pull_request to the live derio-homelab/kid-laptops GitHub webhook (manual-op cicd-kid-laptops-github-webhook-pull-request)
+  phase: post-merge
+  apply: |-
+    env -u GITHUB_TOKEN gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'
+  mutating: true
+  check: |-
+    env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq '.events | index("pull_request") != null' | grep -qx true
+- id: molecule-on-pr-head
+  summary: After kid-laptops#139 merges, an open same-repo kid-laptops PR head carries the gitea-actions molecule status
+  phase: post-merge
+  apply: |-
+    echo "Push to a same-repo derio-homelab/kid-laptops PR (after kid-laptops#139 has merged); watch pc-1 /var and the DinD sidecar during the first full molecule run."
+  mutating: false
+  check: |-
+    sha=$(env -u GITHUB_TOKEN gh api 'repos/derio-homelab/kid-laptops/pulls?state=open' --jq '[.[]|select(.head.repo.full_name=="derio-homelab/kid-laptops")][0].head.sha') && test -n "$sha" && env -u GITHUB_TOKEN gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'

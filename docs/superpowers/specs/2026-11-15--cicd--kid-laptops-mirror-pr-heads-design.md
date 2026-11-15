@@ -149,8 +149,8 @@ The structural guards (R8) run in the required CI tripwires on every PR; they ar
 
 ## Test Plan
 
-- post-merge — operator-driven: after the manual op, push to a same-repo kid-laptops PR. `sync-pr-<N>` appears on the Gitea mirror at the PR head SHA, and no Tekton `kid-laptops-ci` PipelineRun is created for it.
-- post-merge — operator-driven: once kid-laptops#139 has merged, the PR head on GitHub shows `gitea-actions/molecule / molecule (push)`. Watch pc-1 `/var` and the DinD sidecar during the first full run (systemd containers have not run in this DinD before).
+- (op: webhook-pull-request) post-merge — operator-driven: after the manual op, push to a same-repo kid-laptops PR. `sync-pr-<N>` appears on the Gitea mirror at the PR head SHA, and no Tekton `kid-laptops-ci` PipelineRun is created for it.
+- (op: molecule-on-pr-head) post-merge — operator-driven: once kid-laptops#139 has merged, the PR head on GitHub shows `gitea-actions/molecule / molecule (push)`. Watch pc-1 `/var` and the DinD sidecar during the first full run (systemd containers have not run in this DinD before).
 - post-merge — operator-driven: `mirror-reconcile` and `ci-delivery-check` logs list the kid-laptops `sync-pr-<N>` ref.
 - post-merge — operator-driven: positive control for the repair rule. Run its exact LogsQL in Grafana Explore against VictoriaLogs over a window that contains real `mirror-reconcile repaired` lines (e.g. 2026-10-19T15:00Z–16:00Z, when homelab and omada-controller each had two). It must return one series per repo, carrying a `repo` label and the expected count. Only then is "loaded and Normal, no series" today meaningful.
 - post-merge — operator-driven: positive control for R4. The next kid-laptops `main` push (or a repair of `main`) still creates a `kid-laptops-ci` PipelineRun in namespace `kid-laptops-ci`.
