@@ -2360,7 +2360,7 @@ data:
               github_issue: "frank-ops#25"
             annotations:
               summary: "L25 mirror sync failing fast: {{ $labels.pipeline }} — most runs in the last 2h failed within minutes; commits are not reaching Gitea"
-              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail ; then read the failed run's log — a push 'remote rejected (unpacker error)' with 'object file ... is empty' is Gitea repo corruption (frank#849), 'Permission denied (publickey)' is the stoa-bot key. mirror-reconcile re-pushes agentic-stoa refs once the cause is fixed; derio-homelab-pull-sync (kid-laptops) is not reconciled — redeliver its webhook."
+              runbook: "kubectl -n tekton-pipelines get pipelinerun -l tekton.dev/pipeline={{ $labels.pipeline }} --sort-by=.metadata.creationTimestamp | tail ; then read the failed run's log — a push 'remote rejected (unpacker error)' with 'object file ... is empty' is Gitea repo corruption (frank#849), 'Permission denied (publickey)' is the stoa-bot key. once the cause is fixed, mirror-reconcile re-pushes every mirrored repo's refs; layer-25-mirror-repair-recurring is the per-repo signal for one repo failing on a shared pull-sync pipeline."
 
           # (d) The repair path's own dead-man. mirror-reconcile runs every
           # 15m and fails its Job when a ref can't be read or pushed. 30m since
@@ -2404,6 +2404,49 @@ data:
             annotations:
               summary: "L25 mirror-reconcile has not succeeded for about an hour — dropped mirror refs are no longer being repaired"
               runbook: "kubectl -n tekton-pipelines get jobs --sort-by=.status.startTime | grep mirror-reconcile | tail -3 ; kubectl -n tekton-pipelines logs job/<latest> --all-containers | grep mirror-reconcile"
+
+          # (e) The per-repo signal. derio-homelab-pull-sync serves five repos,
+          # so one repo failing on it is hidden from layer-25-pipeline-failing:
+          # another repo's success satisfies its `unless success > 0`
+          # (frank#798/#850). mirror-reconcile logs one `mirror-reconcile
+          # repaired <repo> ...` line per ref it re-pushes, so a repo needing
+          # repair more than once in 6h is that repo's webhook/sync path
+          # failing. One isolated repair is tolerated by design (a single
+          # dropped delivery is exactly what the reconciler exists for).
+          - uid: layer-25-mirror-repair-recurring
+            title: Layer 25 Mirror Repair Recurring
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value'
+              - refId: B
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 21600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: warning
+              ci_outcome: "true"
+              github_issue: "frank-ops#25"
+            annotations:
+              summary: "L25 mirror-reconcile repaired {{ $labels.repo }} {{ $values.B }} times in 6h — its GitHub->Gitea webhook/sync path keeps dropping refs; a shared pull-sync pipeline hides this from layer-25-pipeline-failing"
+              runbook: "kubectl get pipelinerun -A --sort-by=.metadata.creationTimestamp | grep pull-sync | tail ; read the failed run's log for {{ $labels.repo }}; then check the repo's GitHub hook recent deliveries (Settings > Webhooks) for 4xx/5xx or missing events. See docs/runbooks/frank-gotchas/tekton.md."
 
       # =====================================================================
       # GLOBAL TLS CERT-EXPIRY
