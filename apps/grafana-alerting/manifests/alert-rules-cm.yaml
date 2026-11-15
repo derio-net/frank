@@ -2415,10 +2415,13 @@ data:
           # ref is tolerated by design (a single dropped delivery is exactly what
           # the reconciler exists for), but one outage that strands two refs of
           # the same repo (main + a sync-pr, or two PRs) fires at once. Accepted.
-          # Scoped to container `push`: only mirror-reconcile Jobs (cron and
-          # mr-manual-*) run one; Tekton PipelineRun containers are always
-          # step-*/sidecar-*, so repo code in a PipelineRun cannot mint a page.
-          # Pod name is deliberately NOT pinned, so hand-triggered runs count.
+          # Scoped to the container named EXACTLY `push` (`:="push"`): only
+          # mirror-reconcile Jobs (cron and mr-manual-*) run one. It must be
+          # the exact-match form: LogsQL `container_name:push` is a WORD filter,
+          # and `-` splits words, so it also matches Tekton's
+          # step-pull-from-github-push-to-gitea (measured live, 3038 lines/30d),
+          # whose repo-driven output could then mint a page. Pod name is
+          # deliberately NOT pinned, so hand-triggered runs still count.
           - uid: layer-25-mirror-repair-recurring
             title: Layer 25 Mirror Repair Recurring
             condition: C
@@ -2429,7 +2432,7 @@ data:
                 model:
                   refId: A
                   queryType: stats
-                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value'
+                  expr: 'kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:="push" AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value'
               - refId: B
                 relativeTimeRange: { from: 21600, to: 0 }
                 datasourceUid: __expr__
