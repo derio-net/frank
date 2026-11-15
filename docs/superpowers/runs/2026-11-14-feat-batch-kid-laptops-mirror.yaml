@@ -59,7 +59,7 @@ steps:
     - review-phase
     units:
       phase/1/implement-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-15T06:14:12+00:00'
           agent: a6e4308c32a3d9309
@@ -69,6 +69,11 @@ steps:
           tier: standard
           bound: sonnet
           session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T06:49:00+00:00'
+          outcome: done
+        evidence:
+          tests: p1-full-suite.log@aba554f937a9;tree=3edbb7a7305cdb382583087bc5758f8ce473bc89297d577ffc147e5fb9d396b8
+          visual: none
   journal-check:
     state: pending
   lens-review:
