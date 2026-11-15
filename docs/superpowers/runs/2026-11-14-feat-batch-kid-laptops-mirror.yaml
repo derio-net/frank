@@ -94,7 +94,15 @@ steps:
     exit: 0
     stdout: ''
   lens-review:
-    state: pending
+    state: running
+    at: '2026-11-15T06:58:44+00:00'
+    units:
+      step/lens-review:
+        attempts:
+        - dispatched: '2026-11-15T06:58:44+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
   deliver:
     state: pending
 fr_version: 7.0.0rc2
