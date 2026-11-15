@@ -247,11 +247,11 @@ kid-laptops mirrors like the rest: its PR heads land on Gitea as `sync-pr-<N>` (
 
 ### A repo keeps needing repair
 
-`mirror-reconcile` is a safety net, and one repair is the net doing its job: a single dropped webhook delivery looks exactly like that. Alert `layer-25-mirror-repair-recurring` fires when the same repo needed more than one repair in 6 hours, which means its GitHub-to-Gitea path is failing repeatedly. The shared `derio-homelab-pull-sync` pipeline serves five repos, so another repo's success hides this from `layer-25-pipeline-failing`.
+`mirror-reconcile` is a safety net, and one repair is the net doing its job: a single dropped webhook delivery looks exactly like that. Alert `layer-25-mirror-repair-recurring` fires when the same repo needed more than one repair in 6 hours (it counts repaired refs, so one outage that strands two refs of a repo fires at once), which means its GitHub-to-Gitea path is failing repeatedly. The shared `derio-homelab-pull-sync` pipeline serves five repos, so another repo's success hides this from `layer-25-pipeline-failing`.
 
 ```bash
 # VictoriaLogs (LogsQL), which repos were repaired and how often
-kubernetes.namespace_name:tekton-pipelines AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count()
+kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count()
 # the failing sync runs, any namespace
 kubectl get pipelinerun -A --sort-by=.metadata.creationTimestamp | grep pull-sync | tail
 # did GitHub deliver at all? 4xx/5xx or missing events show here
