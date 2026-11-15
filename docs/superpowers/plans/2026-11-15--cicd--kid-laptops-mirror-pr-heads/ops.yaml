@@ -15,7 +15,7 @@ ops:
     echo "Expect: within ~15 min of the tekton sync, 3 kid-laptops sync-pr repairs and one warning page for repo=derio-homelab/kid-laptops; sync-pr-139 starts molecule, so watch pc-1 /var and DinD now."
   mutating: false
   check: |-
-    curl -s http://192.168.55.225:9428/select/logsql/stats_query --data-urlencode 'query=_time:6h kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value' | grep -q 'derio-homelab/kid-laptops'
+    curl -s http://192.168.55.225:9428/select/logsql/stats_query --data-urlencode 'query=_time:6h kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:="push" AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value' | grep -q 'derio-homelab/kid-laptops'
 - id: molecule-on-pr-head
   summary: The backfilled sync-pr-139 (kid-laptops#139's head carries the sync-pr-** trigger) runs molecule, and #139's head on GitHub carries the gitea-actions molecule status
   phase: post-merge

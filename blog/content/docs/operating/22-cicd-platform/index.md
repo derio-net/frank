@@ -251,7 +251,7 @@ kid-laptops mirrors like the rest: its PR heads land on Gitea as `sync-pr-<N>` (
 
 ```bash
 # VictoriaLogs (LogsQL), which repos were repaired and how often
-kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:push AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count()
+kubernetes.namespace_name:tekton-pipelines AND kubernetes.container_name:="push" AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count()
 # the failing sync runs, any namespace
 kubectl get pipelinerun -A --sort-by=.metadata.creationTimestamp | grep pull-sync | tail
 # did GitHub deliver at all? 4xx/5xx or missing events show here
