@@ -290,3 +290,14 @@ Filed at deliver as https://github.com/derio-net/frank/issues/988.
 ### l-tests-r8-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/989] · resolves l-tests-r8: guard scans only apps/*.yaml; pre-existing scope
 
 Filed at deliver as https://github.com/derio-net/frank/issues/989.
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-1 created=2026-11-16T11:38:34+00:00 decided_by=operator -->
+### op-trust-1 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 8add3f4ce41b071955ea6d5650b60ca0ec5d5de507440befcae9d43d4caf2ee7
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-1 created=2026-11-16T11:38:47+00:00 -->
+### gate-stage-1 · decision · DevOps stage 1 done: pre-merge ops
+
+head: 2475fcc0aec5da27f8381e2c2d1e14d45418970c
+pre-merge ops closed on chore/ops-2026-11-14--auth--root-agents-least-privilege
