@@ -21,3 +21,13 @@ hostPaths:
 cdi:
   enabled: false
   default: false
+
+# GPU time-slicing: gpu-1 advertises nvidia.com/gpu x2 so Ollama and the speech
+# service can both hold a GPU request. This is NOT isolation (no VRAM or
+# fault separation); gpu-switcher keeps ComfyUI away and the VRAM budget guard
+# (apps/speech/manifests/files/vram-budget.yaml) bounds the pair. Config lives
+# in apps/gpu-operator-extras/manifests/time-slicing-config.yaml.
+devicePlugin:
+  config:
+    name: time-slicing-config
+    default: any

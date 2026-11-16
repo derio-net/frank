@@ -98,3 +98,86 @@ func TestDeactivateAll(t *testing.T) {
 		}
 	}
 }
+
+func newGroupWorkloads() (*fake.Clientset, []Workload) {
+	mk := func(name string, r int32) *appsv1.Deployment {
+		return &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: name},
+			Spec:       appsv1.DeploymentSpec{Replicas: int32Ptr(r)},
+		}
+	}
+	client := fake.NewSimpleClientset(mk("ollama", 0), mk("speech", 0), mk("comfyui", 1))
+	return client, []Workload{
+		{Name: "ollama", Namespace: "ollama", DeploymentName: "ollama"},
+		{Name: "speech", Namespace: "speech", DeploymentName: "speech", Group: "ollama"},
+		{Name: "comfyui", Namespace: "comfyui", DeploymentName: "comfyui"},
+	}
+}
+
+func replicasOf(t *testing.T, c *fake.Clientset, name string) int32 {
+	t.Helper()
+	dep, err := c.AppsV1().Deployments(name).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get %s: %v", name, err)
+	}
+	return *dep.Spec.Replicas
+}
+
+func TestActivateGroupFromMember(t *testing.T) {
+	client, workloads := newGroupWorkloads()
+	if err := ActivateWorkload(context.Background(), client, workloads, "speech"); err != nil {
+		t.Fatal(err)
+	}
+	if replicasOf(t, client, "ollama") != 1 || replicasOf(t, client, "speech") != 1 || replicasOf(t, client, "comfyui") != 0 {
+		t.Errorf("speech activation should scale ollama+speech=1, comfyui=0")
+	}
+}
+
+func TestActivateGroupFromLeader(t *testing.T) {
+	client, workloads := newGroupWorkloads()
+	if err := ActivateWorkload(context.Background(), client, workloads, "ollama"); err != nil {
+		t.Fatal(err)
+	}
+	if replicasOf(t, client, "speech") != 1 || replicasOf(t, client, "comfyui") != 0 {
+		t.Errorf("ollama activation should also scale speech=1, comfyui=0")
+	}
+}
+
+func TestActivateComfyUIScalesGroupDown(t *testing.T) {
+	client, workloads := newGroupWorkloads()
+	_ = ActivateWorkload(context.Background(), client, workloads, "speech")
+	if err := ActivateWorkload(context.Background(), client, workloads, "comfyui"); err != nil {
+		t.Fatal(err)
+	}
+	if replicasOf(t, client, "ollama") != 0 || replicasOf(t, client, "speech") != 0 || replicasOf(t, client, "comfyui") != 1 {
+		t.Errorf("comfyui activation should scale ollama and speech to 0")
+	}
+}
+
+func TestDeactivateAllWithGroups(t *testing.T) {
+	client, workloads := newGroupWorkloads()
+	_ = ActivateWorkload(context.Background(), client, workloads, "speech")
+	if err := DeactivateAll(context.Background(), client, workloads); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"ollama", "speech", "comfyui"} {
+		if replicasOf(t, client, n) != 0 {
+			t.Errorf("%s should be 0", n)
+		}
+	}
+}
+
+func TestParseWorkloadsGrammar(t *testing.T) {
+	ws, err := ParseWorkloads("ollama:ollama:ollama,speech:speech:speech@ollama")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ws) != 2 || ws[0].Group != "" || ws[1].Group != "ollama" || ws[1].DeploymentName != "speech" {
+		t.Errorf("unexpected parse: %+v", ws)
+	}
+	for _, bad := range []string{"a:b", "a:b:c@", "a:b:@g", "a:b:c:d", ":b:c", "a:b:c@g@h"} {
+		if _, err := ParseWorkloads(bad); err == nil {
+			t.Errorf("expected error for %q", bad)
+		}
+	}
+}

@@ -1,0 +1,13 @@
+# VRAM budget for gpu-1's RTX 5070 Ti (16 GB), shared by Ollama and speech.
+# Sizes are conservative placeholders (estimate: true) until the benchmark
+# replaces them with measured values. Guard: scripts/tests/test_speech_vram_budget.py
+total_gb: 16
+headroom_gb: 1.5
+ollama:
+  # Only one model is loaded at a time (OLLAMA_MAX_LOADED_MODELS=1).
+  allowlist:
+    - {name: "gemma4:12b-64k", num_ctx: 65536, vram_gb: 9.7, estimate: false}
+speech:
+  models:
+    - {name: stt, vram_gb: 2.5, estimate: true}
+    - {name: tts, vram_gb: 2.0, estimate: true}

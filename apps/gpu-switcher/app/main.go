@@ -23,6 +23,7 @@ var staticFiles embed.FS
 type workloadStatusJSON struct {
 	Name          string `json:"name"`
 	Namespace     string `json:"namespace"`
+	Group         string `json:"group"`
 	Replicas      int32  `json:"replicas"`
 	ReadyReplicas int32  `json:"readyReplicas"`
 	PodPhase      string `json:"podPhase"`
@@ -65,6 +66,7 @@ func main() {
 			resp[i] = workloadStatusJSON{
 				Name:          s.Name,
 				Namespace:     s.Namespace,
+				Group:         groupKey(s.Workload),
 				Replicas:      s.Replicas,
 				ReadyReplicas: s.ReadyReplicas,
 				PodPhase:      s.PodPhase,
@@ -124,25 +126,40 @@ func buildClient() (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-// parseWorkloads reads workload definitions from the WORKLOADS env var.
-// Format: "name:namespace:deployment,name:namespace:deployment,..."
+// parseWorkloads reads workload definitions from the WORKLOADS env var and
+// exits on a malformed value.
 // Default: "ollama:ollama:ollama,comfyui:comfyui:comfyui"
 func parseWorkloads() []Workload {
 	raw := os.Getenv("WORKLOADS")
 	if raw == "" {
 		raw = "ollama:ollama:ollama,comfyui:comfyui:comfyui"
 	}
+	workloads, err := ParseWorkloads(raw)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return workloads
+}
+
+// ParseWorkloads parses "name:namespace:deployment[@group],..." entries.
+// Workloads sharing a group are activated together.
+func ParseWorkloads(raw string) ([]Workload, error) {
 	var workloads []Workload
 	for _, entry := range strings.Split(raw, ",") {
-		parts := strings.SplitN(entry, ":", 3)
-		if len(parts) != 3 {
-			log.Fatalf("invalid workload entry: %s (expected name:namespace:deployment)", entry)
+		parts := strings.Split(entry, ":")
+		if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("invalid workload entry: %q (expected name:namespace:deployment[@group])", entry)
+		}
+		dep, group, hasGroup := strings.Cut(parts[2], "@")
+		if dep == "" || (hasGroup && (group == "" || strings.Contains(group, "@"))) {
+			return nil, fmt.Errorf("invalid workload entry: %q (expected name:namespace:deployment[@group])", entry)
 		}
 		workloads = append(workloads, Workload{
 			Name:           parts[0],
 			Namespace:      parts[1],
-			DeploymentName: parts[2],
+			DeploymentName: dep,
+			Group:          group,
 		})
 	}
-	return workloads
+	return workloads, nil
 }

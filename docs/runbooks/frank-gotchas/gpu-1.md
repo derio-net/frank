@@ -131,3 +131,7 @@ test assets). Anything ComfyUI writes elsewhere in `/app` is still ephemeral.
 ## Intel GPU Resource Driver (separate from gpu-1)
 
 Uses a vendored chart with K8s 1.35 DRA patches. Lives in `patches/phase05-mini-config/` for the iGPUs on the mini-* nodes — distinct from gpu-1's NVIDIA stack.
+
+## Time-slicing is capacity, not isolation — exclusivity comes from gpu-switcher
+
+gpu-1 advertises `nvidia.com/gpu` x2 (`apps/gpu-operator-extras/manifests/time-slicing-config.yaml`, referenced from `apps/gpu-operator/values.yaml` `devicePlugin.config`) so Ollama and the speech service can both hold a GPU request. The replicas value equals the LARGEST gpu-switcher sharing group (`ollama` + `speech@ollama` = 2), and gpu-switcher keeps ComfyUI away: activating `comfyui` scales the whole ollama group to 0, activating either group member scales the group to 1 and ComfyUI to 0. Time-slicing gives NO memory or fault isolation: any process can allocate the whole 16 GB, and one OOM takes the card's tenants with it. The only bound on the pair is the VRAM budget in `apps/speech/manifests/files/vram-budget.yaml` (guard: `scripts/tests/test_speech_vram_budget.py`; sizes marked `estimate: true` are placeholders until benchmarked). Raising `replicas` without growing a switcher group lets ComfyUI schedule alongside them.
