@@ -1,0 +1,1 @@
+Plan for the speech service (#1006). Phase 1: sharing config, VRAM budget guard and gpu-switcher groups. Phase 2: the speech app, private exposure, alerts and benchmark harness. Phase 3 (manual): live rollout, benchmark run and follow-up issues. # manual-operation blocks are authored in phase 2 task 5.

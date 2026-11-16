@@ -1,0 +1,127 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Speech app, private exposure, alerts and benchmark script
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - infer-speech-stt-api
+  - infer-speech-tts-api
+  - infer-speech-quiet-alerts
+  - infer-speech-benchmark
+  tier: standard
+  files:
+  - apps/speech/**
+  - apps/root/templates/speech.yaml
+  - apps/traefik/manifests/ingressroutes.yaml
+  - apps/homepage/manifests/files/services.yaml
+  - apps/blackbox-exporter/manifests/vmprobe.yaml
+  - apps/grafana-alerting/**
+  - scripts/speech-benchmark/**
+  - scripts/tests/test_speech_*.py
+  - docs/runbooks/manual-operations.yaml
+  - docs/superpowers/plans/**
+  - docs/runbooks/frank-gotchas/**
+  - agents/rules/frank-gotchas.md
+  estimate_lines: 700
+tasks:
+- number: 1
+  title: Choose and pin the upstream speech image
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Gather evidence for an upstream OpenAI-compatible speech server image (speaches-class) that runs on Blackwell sm_120 (CUDA 12.8+): read its upstream Dockerfile/tags, resolve the image digest through the registry API (curl the manifest endpoint), and record image, digest, CUDA version and supported TTS models in the plan journal. If no upstream image supports sm_120, stop and record a blocked finding rather than building a custom image.
+- number: 2
+  title: Speech app manifests (red -> green -> refactor)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Red: write scripts/tests/test_speech_manifests.py asserting apps/speech renders: Deployment pinned by digest (image@sha256:), strategy Recreate, nodeSelector kubernetes.io/hostname gpu-1, nvidia.com/gpu toleration, nvidia.com/gpu request 1, label app.kubernetes.io/name: speech, a Longhorn PVC for the model cache, ClusterIP Service, no Service type LoadBalancer, and that apps/root/templates/speech.yaml exists with ServerSideApply, prune false, selfHeal and ignoreDifferences for spec.replicas. Expect failure.
+  - id: P2.T2.S2
+    text: |-
+      Green: create apps/speech/manifests/ (deployment, pvc, service, kustomization if the repo pattern uses one), values where needed, and apps/root/templates/speech.yaml copied from the ollama or comfyui template; default models: STT faster-whisper large-v3-turbo, TTS a conservative default from the pinned image's supported set. Run the test and expect pass.
+  - id: P2.T2.S3
+    text: |-
+      Refactor: update vram-budget.yaml speech sizes from the pinned image's documented model sizes (still estimate: true), re-run test_speech_vram_budget.py and test_speech_manifests.py.
+- number: 3
+  title: Private exposure (red -> green)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Red: add to the manifests test: an IngressRoute for speech.cluster.derio.net in apps/traefik/manifests/ingressroutes.yaml using ip-allowlist and security-headers and NOT authentik-forwardauth, with explicit upload size and read/write timeouts large enough for a 2.5 h recording, no entryPoint exposed publicly, and a tile in apps/homepage/manifests/files/services.yaml. Expect failure.
+  - id: P2.T3.S2
+    text: |-
+      Green: add the IngressRoute beside the comfyui route (ingressroutes.yaml:258-280), add the ip-allowlist reuse, any serversTransport or middleware needed for the timeouts and body limit, and the homepage tile. Run the test and expect pass.
+- number: 4
+  title: Alerts and probes (red -> green -> refactor)
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Red: update apps/grafana-alerting/tests/assert-gpu-timeshare-rules.sh and scripts/tests/test_feature_health_workload_metrics.py to expect: namespace speech excluded in the scale-to-zero rule (alert-rules-cm.yaml:381 area), a probe_group gpu_timeshare_speech probe for speech in apps/blackbox-exporter/manifests/vmprobe.yaml (existing gpu_timeshare entries at :107,:131), gpu-node-both-down (alert-rules-cm.yaml:1781) summing only the ollama and comfyui probes, and a non-paging speech health rule with noDataState OK. Run both and expect failure.
+  - id: P2.T4.S2
+    text: |-
+      Green: make those edits to vmprobe.yaml and alert-rules-cm.yaml (keep rule uid length under 40 characters). Run the updated guards and the repo's alert-rule tests (.venv/bin/pytest scripts/tests -k 'alert or feature_health or grafana' -q) and expect pass.
+  - id: P2.T4.S3
+    text: |-
+      Refactor: add the gotcha one-liner (speech on the card changes gpu-node-both-down semantics, #554) to agents/rules/frank-gotchas.md with full prose in docs/runbooks/frank-gotchas/gpu-1.md.
+- number: 5
+  title: Benchmark harness and manual-operation blocks
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Write scripts/speech-benchmark/run.py (stdlib only) that, against a base URL, posts fixed EN/DE/EL audio samples to /v1/audio/transcriptions and fixed EN/DE/EL text to /v1/audio/speech, records real-time factor, time-to-first-audio and (via a supplied nvidia-smi log) peak VRAM, and writes a markdown table; add scripts/tests/test_speech_benchmark.py testing the table rendering and timing maths with a fake server.
+  - id: P2.T5.S2
+    text: |-
+      Write the # manual-operation blocks in the plan prose for infer-speech-device-plugin-roll (ordering, verification, rollback) and infer-speech-benchmark-run, then run /sync-runbook equivalent (fr-free: python scripts per the sync-runbook skill) so docs/runbooks/manual-operations.yaml contains both ids.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

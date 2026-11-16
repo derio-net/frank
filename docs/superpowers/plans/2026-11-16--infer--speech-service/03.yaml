@@ -1,0 +1,41 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Live rollout, benchmark run and follow-up issues [manual]
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - infer-speech-benchmark
+tasks:
+- number: 1
+  title: Operator rollout
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Run the infer-speech-device-plugin-roll manual operation: after merge, roll the device plugin on gpu-1, confirm allocatable nvidia.com/gpu shows the time-sliced count and Ollama re-acquires the GPU; rollback by reverting the values commit if not.
+  - id: P3.T1.S2
+    text: |-
+      Run the infer-speech-benchmark-run manual operation with Ollama loaded, commit docs/investigations/2026-11-16--infer--speech-benchmark.md with the Greek/German TTS decision and replace the estimate: true sizes in vram-budget.yaml with measured ones.
+  - id: P3.T1.S3
+    text: |-
+      File follow-up issues for the streaming endpoint, priority/queue batch API, transcription UI and retirement of the whisper-gpu script, citing #1006.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
