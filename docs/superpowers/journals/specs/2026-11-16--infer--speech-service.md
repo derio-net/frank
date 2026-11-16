@@ -226,3 +226,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-11-16--infer--speech-service-p2 created=2026-11-16T20:12:57+00:00 -->
 ### phase-split-2026-11-16--infer--speech-service-p2 · decision · ask: the speech app, exposure and alerts are a separate reviewable ask from GPU sharing and the switcher
+
+<!-- fr:journal kind=decision scope=spec id=phase-split-2026-11-16--infer--speech-service-p3 created=2026-11-16T20:13:00+00:00 -->
+### phase-split-2026-11-16--infer--speech-service-p3 · decision · ask: live rollout, benchmark run and follow-up filing are operator-only work
