@@ -206,3 +206,10 @@ Evidence: deleted by hand on 2026-11-14 and re-checked live today, authentik-roo
 Step: [ ] (op: cutover-exclude-credential-namespaces) Delete the five `root-agents-ns-read` RoleBindings in `authentik`, `infisical`, `argocd`, `kube-system` and `longhorn-system` (PR 991 removed them from git; prune is false).
 
 Evidence: the five root-agents-ns-read RoleBindings are NotFound in authentik infisical argocd kube-system and longhorn-system on a live read-only check today, 30 of them remain matching the 30 generated namespaces, deleted by the gate stage 4 apply
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7 created=2026-11-16T12:42:49+00:00 -->
+### test-plan-step-7 · discovery · Test Plan step 7: ran
+
+Step: [ ] (op: cutover-matrix-after) Record the matrix after the cutover: every allow cell allowed, every deny cell denied, the control allowed.
+
+Evidence: full matrix verify passed on 2026-11-16 with all 36 cells as intended and every system:masters control allowed, root-agents reads pods logs and configmaps in monitoring and nodes and is denied secrets in 8 namespaces and pods logs and configmaps in the five credential stores and impersonate bind escalate and serviceaccounts token, root-admins still reads secrets
