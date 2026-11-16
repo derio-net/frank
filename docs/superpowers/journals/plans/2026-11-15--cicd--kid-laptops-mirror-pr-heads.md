@@ -235,3 +235,8 @@ phase: pre-merge
 
 head: a432079e0a465b4da539f0a2a5ded2810376e529
 pre-merge ops closed on chore/ops-2026-11-15--cicd--kid-laptops-mirror-pr-heads
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-2 created=2026-11-16T20:10:54+00:00 -->
+### gate-stage-2 · decision · DevOps stage 2 done: merge
+
+merged PR #992 at a432079e0a465b4da539f0a2a5ded2810376e529
