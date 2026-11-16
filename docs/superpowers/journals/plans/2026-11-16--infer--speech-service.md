@@ -598,3 +598,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/1013.
 ### p1-r12-resolved-2 · finding [refuted] · resolves p1-r12: speech ignoreDifferences rule belongs to phase 2
 
 Not a defect: the replicas ignoreDifferences rule shipped in phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r19-resolved-2 created=2026-11-16T21:56:32+00:00 state=refuted resolves=p2-r19 -->
+### p2-r19-resolved-2 · finding [refuted] · resolves p2-r19: Phase 1 items
+
+Not a defect: the phase 1 items were reviewed and closed in phase 1.
