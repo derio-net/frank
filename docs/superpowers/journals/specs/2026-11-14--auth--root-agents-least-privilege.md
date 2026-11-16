@@ -192,3 +192,10 @@ Evidence: moved on 2026-11-14 adding root-agents before removing root-admins and
 Step: [ ] Token review (operator-walked, no op: it needs the `k8s-agent` client secret, which the ops profile must not hold): `TOKEN_REVIEW=1 bash walk-912-gate.sh`, or `bash scripts/root-agents-cutover.sh token-review` with the secret on stdin or typed at the silent prompt. A fresh token's groups never include `root-admins`.
 
 Evidence: fresh k8s-agent token reviewed on 2026-11-15 as authenticated and its groups did not include root-admins, run through walk-912-gate with the client secret only so it exercised the provider synthetic user
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-16T12:13:03+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: [ ] (op: cutover-delete-binding) Delete the old `authentik-root-agents` binding.
+
+Evidence: deleted by hand on 2026-11-14 and re-checked live today, authentik-root-agents is NotFound, authentik-root-agents-read is bound to root-agents-cluster-read, and no cluster-admin binding names root-agents
