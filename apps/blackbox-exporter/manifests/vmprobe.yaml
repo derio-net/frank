@@ -138,3 +138,26 @@ spec:
   scrapeTimeout: 15s
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115
+---
+# Speech (#1006): STT/TTS shares gpu-1 with Ollama and is down by design while
+# ComfyUI holds the card. Own probe_group (NOT gpu_timeshare) and no `layer`
+# label, so gpu-node-both-down keeps summing only the ollama + comfyui probes
+# and the L11/L16 rules are unaffected. Read by speech-health-degraded.
+# scrapeTimeout < interval, same NoData-vs-0 reasoning as the probes above.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: speech-probe
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - http://speech.speech.svc.cluster.local:8000/health
+      labels:
+        probe_group: gpu_timeshare_speech
+  module: http_2xx_no_redirect
+  interval: 60s
+  scrapeTimeout: 15s
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
