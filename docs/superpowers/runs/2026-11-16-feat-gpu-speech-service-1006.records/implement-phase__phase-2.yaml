@@ -16,7 +16,7 @@ ticks:
   - P2.T5.S1
   - P2.T5.S2
 refactor:
-  P2.T1.S1: "Image test plus Dockerfile and workflow were written together as one small unit; nothing to clean."
+  P2.T1: "Image test plus Dockerfile and workflow were written together as one small unit; nothing to clean."
   P2.T3: "The route reuses the existing ip-allowlist/security-headers middlewares; the only new objects are the buffering middleware and ServersTransport, already minimal."
   P2.T5: "Benchmark script is a single stdlib module built to its test; nothing to clean."
 journal:
