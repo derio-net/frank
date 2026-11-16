@@ -95,3 +95,23 @@ amendments:
       serviceaccounts/token, bind and escalate. The cluster holds 30 root-agents-ns-read
       RoleBindings matching the 30 generated namespaces, none in the five credential
       stores.'
+  - row: no-ai-agent-cluster-admin
+    op: set-status
+    base: 0
+    status: walked
+    notes: 'Walked live: authentik-root-agents is NotFound, authentik-root-agents-read
+      is bound to root-agents-cluster-read, no cluster-admin binding names root-agents,
+      and claude-agent is only in root-agents with zero tokens, zero events and no login.
+      The k8s-agent token review is not recorded in this walk.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: kubectl get clusterrolebinding and an Authentik group read, read-only,
+        2026-11-15 and 2026-11-16
+    why: 'Walked live: authentik-root-agents is NotFound, authentik-root-agents-read
+      is bound to root-agents-cluster-read, no cluster-admin binding names root-agents,
+      and claude-agent is only in root-agents with zero tokens, zero events and no login.
+      The k8s-agent token review is not recorded in this walk.'
