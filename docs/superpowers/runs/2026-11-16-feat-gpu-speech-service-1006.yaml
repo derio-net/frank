@@ -100,6 +100,8 @@ steps:
           tier: standard
           bound: sonnet
           session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:30:14+00:00'
+          outcome: abandoned
   journal-check:
     state: pending
   lens-review:
