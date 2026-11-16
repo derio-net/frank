@@ -588,3 +588,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/1011.
 ### p2-r18-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1012] · resolves p2-r18: Time-slicing overlap during switch (phase 2)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/1012.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r7-resolved-2 created=2026-11-16T21:56:13+00:00 state=open resolves=l-security-r7 tracked_by=https://github.com/derio-net/frank/issues/1013 -->
+### l-security-r7-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1013] · resolves l-security-r7: gpu-switcher ClusterRole is cluster-wide (pre-existing)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/1013.
