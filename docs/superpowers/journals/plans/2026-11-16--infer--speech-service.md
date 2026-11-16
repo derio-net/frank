@@ -153,3 +153,43 @@ By design and documented in gpu-1.md.
 ### p1-r12-resolved · finding [out-of-scope] · resolves p1-r12: speech ignoreDifferences rule belongs to phase 2 (phase 1)
 
 Belongs to phase 2, not this phase's change.
+
+<!-- fr:journal kind=decision scope=plan id=derived-speech-image created=2026-11-16T20:46:54+00:00 phase=2 -->
+### derived-speech-image · decision · Build a derived speaches image with CTranslate2 4.6.3 instead of using an upstream tag (phase 2)
+
+Operator decision (2026-11-16): no upstream speaches image proves Blackwell sm_120 support (0.9.0-rc.3-cuda, digest sha256:f4eb14d1c53b19c5bd1f76d10ea9fc10288ceaf82dca09506d3f0ef92ee943de, ships CTranslate2 4.5.0 on CUDA 12.2). apps/speech/docker/Dockerfile is FROM that digest and `uv pip install`s ctranslate2==4.6.3 into the image venv, with a build-time version assertion. CI (.github/workflows/build-speech.yml, SPEECH_REV tag, copy of build-comfyui.yml's shape) builds it; the Deployment pins ghcr.io/derio-net/speech:<SPEECH_REV>, equality guarded by test_speech_image_build.py. The derived image is pinned by tag only; no digest is invented.
+
+<!-- fr:journal kind=discovery scope=plan id=ctranslate2-version-compat created=2026-11-16T20:46:54+00:00 phase=2 -->
+### ctranslate2-version-compat · discovery · ctranslate2 4.6.3 exists on PyPI with cp312 manylinux wheels and is compatible with faster-whisper 1.1.1 (phase 2)
+
+curl against pypi.org (2026-11-16): ctranslate2 4.6.2, 4.6.3, 4.7.0 and 4.7.1 all exist (latest 4.9.0); 4.6.3 has cp310/311/312 manylinux_2_27 x86_64 wheels and requires_python >=3.9, requires setuptools/numpy/pyyaml. The upstream venv is Python 3.12 (speaches pyproject requires-python ==3.12.*) and pins ctranslate2>=4.5.0. faster-whisper 1.1.1 requires ctranslate2<5,>=4.0, so the bump stays within its declared range. The 4.6.3 manylinux_2_27 wheel needs glibc >= 2.27; the Ubuntu 24.04 base is fine. NOT verified on-card: sm_120 STT behaviour is proven only by the ops-gated live benchmark (infer-speech-benchmark-run), and the CUDA 12.8 CT2 build is run against the image's CUDA 12.9 runtime.
+
+<!-- fr:journal kind=discovery scope=plan id=speech-model-ids created=2026-11-16T20:46:54+00:00 phase=2 -->
+### speech-model-ids · discovery · Default model repos verified on Hugging Face (phase 2)
+
+HF API (2026-11-16): deepdml/faster-whisper-large-v3-turbo-ct2 and speaches-ai/Kokoro-82M-v1.0-ONNX return 200 (mobiuslabsgmbh/faster-whisper-large-v3-turbo redirects, 307, so not used). Preloaded through speaches' PRELOAD_MODELS; vram-budget.yaml names the same two repos (guarded). Sizes remain estimate: true. Kokoro's Greek/German quality is unproven: the TTS engine for EL/DE is chosen by the benchmark.
+
+<!-- fr:journal kind=discovery scope=plan id=speech-route-limits created=2026-11-16T20:46:54+00:00 phase=2 -->
+### speech-route-limits · discovery · Long-recording limits are per-route (buffering middleware + ServersTransport), not entrypoint timeouts (phase 2)
+
+The Traefik chart sets no explicit respondingTimeouts; changing the websecure entrypoint would affect every route. The speech route instead gets a `speech-upload-limit` buffering middleware (2 GiB request cap, 32 MiB in-memory before spilling to temp) and a `speech-long-requests` ServersTransport (responseHeaderTimeout 3h, since transcription returns headers only when the whole file is done). Buffering spills to the Traefik pod's temp dir; if the live run shows the pod's filesystem is read-only/too small for a large upload, the fallback is to drop the middleware and accept the uvicorn default (no cap).
+
+<!-- fr:journal kind=discovery scope=plan id=shell-guard-offline created=2026-11-16T20:46:54+00:00 phase=2 -->
+### shell-guard-offline · discovery · assert-gpu-timeshare-rules.sh cannot run via `uv run` here; its embedded Python was run with the repo venv (phase 2)
+
+`uv run --with pyyaml` in the worktree resolves the project's frank-cluster-scripts deps and fails building pydantic-core on this Mac's default Python 3.15. The script body is pure PyYAML, so the embedded heredoc was extracted and run with the repo .venv python: OK (L11/L16, both-down, route ordering, speech probe/rule/exclusion). The scale-to-zero and both-down guarantees are also covered by pytest in test_feature_health_workload_metrics.py.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t1 created=2026-11-16T20:46:54+00:00 phase=2 -->
+### no-refactor-p2-t1 · discovery · no-refactor-because P2.T1 (phase 2)
+
+Image test plus Dockerfile and workflow were written together as one small unit; nothing to clean.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t3 created=2026-11-16T20:46:54+00:00 phase=2 -->
+### no-refactor-p2-t3 · discovery · no-refactor-because P2.T3 (phase 2)
+
+The route reuses the existing ip-allowlist/security-headers middlewares; the only new objects are the buffering middleware and ServersTransport, already minimal.
+
+<!-- fr:journal kind=discovery scope=plan id=no-refactor-p2-t5 created=2026-11-16T20:46:54+00:00 phase=2 -->
+### no-refactor-p2-t5 · discovery · no-refactor-because P2.T5 (phase 2)
+
+Benchmark script is a single stdlib module built to its test; nothing to clean.
