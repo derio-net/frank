@@ -40,12 +40,12 @@ plan: docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads
 when: Before (or right after) the frank PR merges. Before is safe, because the live derio-homelab-pr-sync CEL drops kid-laptops pull_request events until the merge syncs.
 why_manual: The GitHub repo webhook is configured on GitHub with org-owner credentials the cluster does not hold; it is not reconciled from git (webhooks.yaml is a declaration, checked offline only).
 commands:
-  - "GITHUB_TOKEN must be UNSET so gh uses the account that owns derio-homelab."
-  - "env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks --jq '.[]|select(.config.url==\"https://webhooks.hop.derio.net\")|{id,events}'   # expect id 657693217, events [push]"
-  - "env -u GITHUB_TOKEN gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'"
+  - "Run as fr ops identity homelab-kid-laptops-hooks: GH_TOKEN is a ~1h homelab App installation token narrowed to kid-laptops + repository_hooks:write, minted by scripts/github_app_token.py (needs op app-webhooks-permission first)."
+  - "gh api repos/derio-homelab/kid-laptops/hooks --jq '.[]|select(.config.url==\"https://webhooks.hop.derio.net\")|{id,events}'   # expect id 657693217, events [push]"
+  - "gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'"
 verify:
-  - "env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq .events   # [\"pull_request\",\"push\"]"
-  - "env -u GITHUB_TOKEN gh api -X POST repos/derio-homelab/kid-laptops/hooks/657693217/pings ; kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=20   # ping/delivery shows"
+  - "gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq .events   # [\"pull_request\",\"push\"]"
+  - "gh api -X POST repos/derio-homelab/kid-laptops/hooks/657693217/pings ; kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=20   # ping/delivery shows"
   - "After the next push to a same-repo kid-laptops PR: git ls-remote http://192.168.55.209:3000/derio-homelab/kid-laptops.git 'refs/heads/sync-pr-*'"
 status: pending
 ```

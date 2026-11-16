@@ -1,13 +1,26 @@
 schema_version: 2
 ops:
+- id: app-webhooks-permission
+  summary: Grant the homelab GitHub App (homelab-fr-automation, 4403773) the Webhooks read/write repository permission, then accept the changed permissions on its derio-homelab installation. A GitHub UI step; the check proves it by minting a hooks-scoped token.
+  phase: pre-merge
+  interactive: true
+  apply: |-
+    echo "GitHub > derio-homelab org settings > Developer settings > GitHub Apps > homelab-fr-automation > Permissions > Repository > Webhooks: Read and write > Save; then org Settings > GitHub Apps > homelab-fr-automation > Review request > Accept."
+  mutating: true
+  undo:
+    none: a UI permission grant; revert it in the App settings if no longer needed
+  check: |-
+    python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm repository_hooks=write --perm metadata=read >/dev/null
 - id: webhook-pull-request
   summary: Add pull_request to the live derio-homelab/kid-laptops GitHub webhook (manual-op cicd-kid-laptops-github-webhook-pull-request). Pre-merge is safe because the live derio-homelab-pr-sync CEL drops kid-laptops events until this PR syncs, and it shortens the window in which kid-laptops PR pushes reach Gitea only by repair.
   phase: pre-merge
+  needs: [app-webhooks-permission]
+  identities: [homelab-kid-laptops-hooks]
   apply: |-
-    env -u GITHUB_TOKEN gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'
+    gh api -X PATCH repos/derio-homelab/kid-laptops/hooks/657693217 -f 'events[]=push' -f 'events[]=pull_request'
   mutating: true
   check: |-
-    env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq '.events | index("pull_request") != null' | grep -qx true
+    gh api repos/derio-homelab/kid-laptops/hooks/657693217 --jq '.events | index("pull_request") != null' | grep -qx true
 - id: first-reconcile-backfill
   summary: The first mirror-reconcile run after the tekton sync backfills kid-laptops sync-pr-104/105/139 and fires layer-25-mirror-repair-recurring once (expected one-off, the rule's positive control)
   phase: post-merge
@@ -19,8 +32,9 @@ ops:
 - id: molecule-on-pr-head
   summary: The backfilled sync-pr-139 (kid-laptops#139's head carries the sync-pr-** trigger) runs molecule, and #139's head on GitHub carries the gitea-actions molecule status
   phase: post-merge
+  identities: [homelab-kid-laptops-statuses]
   apply: |-
     echo "Immediately after merge: watch pc-1 /var and the DinD sidecar during the first full molecule run on sync-pr-139."
   mutating: false
   check: |-
-    sha=$(env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/pulls/139 --jq .head.sha) && test -n "$sha" && env -u GITHUB_TOKEN gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'
+    sha=$(gh api repos/derio-homelab/kid-laptops/pulls/139 --jq .head.sha) && test -n "$sha" && gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'
