@@ -29,6 +29,8 @@ targets:
   - 11434
   paperclip-lb.paperclip-system.svc.cluster.local:3100:
   - 3100
+  speech.speech.svc.cluster.local:8000:
+  - 8000
   staging.vcluster-staging.svc.cluster.local:443:
   - 8443
   traefik.traefik-system.svc.cluster.local:80:

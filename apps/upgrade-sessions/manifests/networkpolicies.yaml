@@ -215,6 +215,7 @@ spec:
         - matchName: n8n-01.n8n-01.svc.cluster.local
         - matchName: ollama.ollama.svc.cluster.local
         - matchName: paperclip-lb.paperclip-system.svc.cluster.local
+        - matchName: speech.speech.svc.cluster.local
         - matchName: staging.vcluster-staging.svc.cluster.local
         - matchName: traefik.traefik-system.svc.cluster.local
         - matchName: trivy-service.trivy-system.svc.cluster.local
@@ -405,6 +406,17 @@ spec:
     - ports:
       - port: '3100'
         protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: speech
+    toPorts:
+    - ports:
+      - port: '8000'
+        protocol: TCP
+      rules:
+        http:
+        - method: GET
+          path: /v1/models
   - toEndpoints:
     - matchLabels:
         k8s:io.kubernetes.pod.namespace: traefik-system

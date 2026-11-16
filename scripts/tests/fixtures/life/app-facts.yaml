@@ -942,6 +942,20 @@ apps:
     rollout: false
     services: []
     stateful: false
+  frank/speech:
+    charts: []
+    images:
+    - ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r1
+    paths:
+    - apps/root/templates/speech.yaml
+    - apps/speech/manifests/**
+    rollout: false
+    services:
+    - name: speech
+      namespace: speech
+      ports:
+      - 8000
+    stateful: true
   frank/staging-gate:
     charts: []
     images:
@@ -1325,7 +1339,7 @@ apps:
   hop/blog:
     charts: []
     images:
-    - ghcr.io/derio-net/blog:c23a34d8c81d6aab925b12502902e4081d6178f3
+    - ghcr.io/derio-net/blog:d9eca14d204e428a040ea1b7a5fcb23b35926313
     paths:
     - clusters/hop/apps/blog/manifests/**
     - clusters/hop/apps/root/templates/blog.yaml
