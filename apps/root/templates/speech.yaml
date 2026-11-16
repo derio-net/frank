@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: speech
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/speech/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: speech
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # gpu-switcher owns the replica count of the switched speech Deployment.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: speech
+      jsonPointers:
+        - /spec/replicas

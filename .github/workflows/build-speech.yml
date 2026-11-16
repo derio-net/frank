@@ -1,0 +1,51 @@
+name: Build Speech Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/speech/docker/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/speech
+  # Image tag. Bump together with the Deployment pin in
+  # apps/speech/manifests/deployment.yaml (guarded by
+  # scripts/tests/test_speech_image_build.py) so a rebuild redeploys.
+  # Format: <speaches base>-ct2-<ctranslate2>-r<rev>
+  SPEECH_REV: "0.9.0-rc.3-ct2-4.6.3-r1"
+  CTRANSLATE2_VERSION: "4.6.3"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/speech/docker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.SPEECH_REV }}
+          build-args: |
+            CTRANSLATE2_VERSION=${{ env.CTRANSLATE2_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

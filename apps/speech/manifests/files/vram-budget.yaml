@@ -12,6 +12,13 @@ ollama:
   excluded_while_speech_up:
     - {name: "qwen3.6:35b-a3b-64k", reason: "24 GB total, 61% on GPU; does not fit beside speech"}
 speech:
+  # Names are the model repos the Deployment preloads (PRELOAD_MODELS); a guard
+  # in scripts/tests/test_speech_manifests.py keeps the two in step.
+  # Sizes are still estimates (estimate: true) from the models' documented sizes
+  # plus runtime workspace; the benchmark (infer-speech-benchmark-run) replaces
+  # them with measured values.
   models:
-    - {name: stt, vram_gb: 2.5, estimate: true}
-    - {name: tts, vram_gb: 2.0, estimate: true}
+    # large-v3-turbo CT2 float16: ~1.6 GB weights + CTranslate2 workspace.
+    - {name: "deepdml/faster-whisper-large-v3-turbo-ct2", vram_gb: 2.5, estimate: true}
+    # Kokoro-82M ONNX (~0.3 GB weights) + onnxruntime CUDA arena.
+    - {name: "speaches-ai/Kokoro-82M-v1.0-ONNX", vram_gb: 1.5, estimate: true}
