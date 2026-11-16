@@ -56,10 +56,14 @@ spec:
       - X-authentik-meta-app
       - X-authentik-meta-version
 ---
-# Speech API source allowlist: narrower than the shared ip-allowlist (which also
-# admits 172.16.0.0/12). LAN = 192.168.0.0/16 (Frank's nodes/clients are
-# 192.168.55.0/24), mesh = 100.64.0.0/10 (Headscale prefix, see
+# Speech API source allowlist. This is the ONLY access control on the API (no
+# auth, no NetworkPolicy), and it is broad: LAN = 192.168.0.0/16 (Frank's
+# nodes/clients are 192.168.55.0/24), mesh = 100.64.0.0/10 (Headscale prefix, see
 # clusters/hop/apps/headscale/manifests/configmap.yaml), pods = 10.0.0.0/8.
+# In-cluster pods can also reach the Service directly, bypassing Traefik and
+# this list entirely. A NetworkPolicy and a narrowing of the LAN range to
+# 192.168.55.0/24 are a tracked follow-up (spec: "What this deliberately does
+# not do").
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -71,6 +75,20 @@ spec:
       - "192.168.0.0/16"
       - "100.64.0.0/10"
       - "10.0.0.0/8"
+---
+# Caps concurrent requests per source IP so one client cannot queue unbounded
+# multi-hour jobs on the single shared GPU.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: speech-inflight
+  namespace: traefik-system
+spec:
+  inFlightReq:
+    amount: 4
+    sourceCriterion:
+      ipStrategy:
+        depth: 0
 ---
 # Transcription is not streamed: response headers arrive only when the whole
 # recording is done, so the backend response timeout must cover a 2.5 h file.

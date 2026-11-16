@@ -1,4 +1,5 @@
 """Guards for the speech app: manifests, Application, private exposure."""
+import re
 from pathlib import Path
 
 import yaml
@@ -127,24 +128,41 @@ def _by_name():
     return out
 
 
-def test_ingressroute_streams_with_explicit_timeouts_and_no_buffering():
+def test_route_middlewares_exist_and_do_not_buffer():
     r = _route()["spec"]["routes"][0]
     by_name = _by_name()
     for m in r["middlewares"]:
         mw = by_name.get(("Middleware", m["name"]))
-        if mw:
-            # buffering a multi-GiB upload on the Pi edge exhausts its disk
-            assert "buffering" not in mw["spec"], m["name"]
+        if mw is None:
+            # shared middlewares (security-headers) live outside this file's
+            # speech-specific set; every speech-* reference must resolve here.
+            assert not m["name"].startswith("speech-"), f"{m['name']} missing from middlewares.yaml"
+            continue
+        # buffering a multi-GiB upload on the Pi edge exhausts its disk
+        assert "buffering" not in mw["spec"], m["name"]
     assert not [k for k in by_name if k[1] == "speech-upload-limit"]
+
+
+def test_route_caps_concurrent_requests_per_source_ip():
+    r = _route()["spec"]["routes"][0]
+    assert "speech-inflight" in [m["name"] for m in r["middlewares"]]
+    spec = _by_name()[("Middleware", "speech-inflight")]["spec"]["inFlightReq"]
+    assert spec["amount"] == 4
+    assert "ipStrategy" in spec["sourceCriterion"]
+
+
+def test_servers_transport_sets_long_response_timeout():
+    """Only checks the ServersTransport (backend response timeout). The
+    websecure entrypoint's own read timeout is NOT covered: long recordings use
+    the in-cluster Service URL, so this does not assert 2.5 h end-to-end."""
+    r = _route()["spec"]["routes"][0]
     transport = r["services"][0]["serversTransport"]
-    st = by_name[("ServersTransport", transport)]["spec"]["forwardingTimeouts"]
+    st = _by_name()[("ServersTransport", transport)]["spec"]["forwardingTimeouts"]
 
     def secs(v):
         v = str(v)
         return int(v[:-1]) * {"s": 1, "m": 60, "h": 3600}[v[-1]]
 
-    # a 2.5 h recording transcribes in well under that, but the response header
-    # only arrives when the whole file is done (non-streaming)
     assert secs(st["responseHeaderTimeout"]) >= 3600
     assert "dialTimeout" in st
 
@@ -172,17 +190,49 @@ def test_probes_use_real_endpoints_and_tolerate_long_jobs():
     assert lv["periodSeconds"] * lv["failureThreshold"] >= 300
 
 
-def test_pod_runs_non_root():
+DOCKERFILE = REPO / "apps/speech/docker/Dockerfile"
+# The upstream image's USER is `ubuntu`, which is uid/gid 1000 (no numeric uid in
+# the Dockerfile to compare against); its HOME is /home/ubuntu.
+IMAGE_USER_UID = 1000
+
+
+def test_pod_runs_non_root_as_the_image_user():
     sc = _pod()["securityContext"]
     assert sc["runAsNonRoot"] is True
-    assert sc["runAsUser"] == 1000 and sc["fsGroup"] == 1000
+    assert re.search(r"^USER\s+ubuntu\s*$", DOCKERFILE.read_text(), re.M)
+    assert sc["runAsUser"] == IMAGE_USER_UID and sc["runAsGroup"] == IMAGE_USER_UID
+    assert sc["fsGroup"] == IMAGE_USER_UID
+
+
+def test_container_drops_privileges():
+    c = _pod()["containers"][0]
+    sc = c["securityContext"]
+    assert sc["allowPrivilegeEscalation"] is False
+    assert sc["capabilities"]["drop"] == ["ALL"]
+    assert sc["seccompProfile"]["type"] == "RuntimeDefault"
+    # deliberately writable root fs (model/cache writes) — see the deployment
+    assert not sc.get("readOnlyRootFilesystem")
+
+
+def test_model_cache_mounted_at_the_image_users_hf_cache():
+    c = _pod()["containers"][0]
+    mounts = {m["name"]: m["mountPath"] for m in c["volumeMounts"]}
+    assert mounts.get("model-cache") == "/home/ubuntu/.cache/huggingface"
+    claims = {
+        v["name"]: v["persistentVolumeClaim"]["claimName"]
+        for v in _pod()["volumes"]
+        if "persistentVolumeClaim" in v
+    }
+    assert claims["model-cache"] == "speech-models"
 
 
 def test_namespace_declares_pod_security_labels():
     ns = yaml.safe_load(NS_TEMPLATE.read_text())
     labels = ns["metadata"]["labels"]
-    assert labels["pod-security.kubernetes.io/enforce"] in {"baseline", "privileged"}
-    assert "pod-security.kubernetes.io/warn" in labels
+    # the pod needs no privileges (GPU comes from the device plugin), so the
+    # namespace is held to baseline on all three modes
+    for mode in ("enforce", "audit", "warn"):
+        assert labels[f"pod-security.kubernetes.io/{mode}"] == "baseline"
 
 
 def test_homepage_tile_exists():

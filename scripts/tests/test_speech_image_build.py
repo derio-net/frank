@@ -38,7 +38,8 @@ def test_dockerfile_installs_blackwell_capable_ctranslate2():
     assert versions, "Dockerfile does not pin ctranslate2"
     for v in versions:
         assert _version(v) >= MIN_CT2, f"ctranslate2 {v} predates sm_120 support (>= 4.6.3 needed)"
-    assert "ctranslate2" in text
+    # the RUN install must use the build arg (not a stale literal)
+    assert re.search(r'"ctranslate2==\$\{CTRANSLATE2_VERSION\}"', text)
 
 
 def _workflow():
@@ -87,3 +88,10 @@ def test_dockerfile_blocks_reresync_and_checks_ctranslate2_at_build():
     text = DOCKERFILE.read_text()
     assert "UV_NO_SYNC=1" in text
     assert "import ctranslate2" in text
+
+
+def test_workflow_actions_are_pinned_to_commit_shas():
+    uses = re.findall(r"^\s*(?:-\s*)?uses:\s*(\S+)", WORKFLOW.read_text(), re.M)
+    assert uses
+    for ref in uses:
+        assert re.search(r"@[0-9a-f]{40}$", ref), f"{ref} is not pinned to a commit SHA"

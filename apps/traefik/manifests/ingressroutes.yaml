@@ -299,6 +299,7 @@ spec:
       kind: Rule
       middlewares:
         - name: speech-ip-allowlist
+        - name: speech-inflight
         - name: security-headers
       services:
         - name: speech

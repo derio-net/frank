@@ -1,15 +1,16 @@
 """gpu-switcher manifest carries the speech group and a bumped image tag.
 
-Mirrors the Go grammar (ParseWorkloads): name:namespace:deployment[@group].
+Grammar validity is enforced by the Go test TestShippedWorkloadsValueParses
+(which feeds this very manifest to ParseWorkloads); this file only does a
+minimal split to assert the speech/ollama membership. No CI builds the
+gpu-switcher image, so the tag-equals-declared check below is the only guard.
 """
-import re
 from pathlib import Path
 
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 DEPLOY = REPO / "apps/gpu-switcher/manifests/deployment.yaml"
-ENTRY = re.compile(r"^([^:@,]+):([^:@,]+):([^:@,]+)(?:@([^:@,]+))?$")
 DECLARED_VERSION = "v0.1.2"
 
 
@@ -22,9 +23,9 @@ def _workloads():
     env = {e["name"]: e["value"] for e in _container()["env"]}
     out = []
     for entry in env["WORKLOADS"].split(","):
-        m = ENTRY.match(entry)
-        assert m, f"malformed WORKLOADS entry: {entry!r}"
-        out.append(m.groups())
+        name, namespace, rest = entry.split(":")
+        deployment, _, group = rest.partition("@")
+        out.append((name, namespace, deployment, group or None))
     return out
 
 

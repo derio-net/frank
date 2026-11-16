@@ -34,6 +34,8 @@ import json
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import wave
@@ -76,10 +78,33 @@ def peak_vram_mib(log_path):
     return None if peak is None else int(peak)
 
 
+def _field_name(name):
+    """A multipart field name must not be able to break out of its quotes."""
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+", str(name)):
+        raise ValueError(f"unsafe multipart field name: {name!r}")
+    return name
+
+
+def _filename(name):
+    """Escape a filename for Content-Disposition (quotes and CR/LF)."""
+    return str(name).replace("\r", "%0D").replace("\n", "%0A").replace('"', "%22")
+
+
+def check_base_url(url):
+    """Only http(s): urllib would also open file:// and ftp:// URLs."""
+    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
+        raise ValueError(f"--base-url must start with http:// or https://, got {url!r}")
+    return url
+
+
 def _multipart(fields, file_field, file_path):
     boundary = uuid.uuid4().hex
     parts = []
+    file_field = _field_name(file_field)
     for k, v in fields.items():
+        k = _field_name(k)
+        if "\r" in str(v) or "\n" in str(v):
+            raise ValueError(f"multipart value for {k!r} contains a line break")
         parts.append(
             f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
         )
@@ -87,7 +112,7 @@ def _multipart(fields, file_field, file_path):
     parts.append(
         (
             f'--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; '
-            f'filename="{Path(file_path).name}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+            f'filename="{_filename(Path(file_path).name)}"\r\nContent-Type: application/octet-stream\r\n\r\n'
         ).encode()
         + data
         + b"\r\n"
@@ -151,6 +176,8 @@ def bench_tts(base_url, model, voice, lang, text, timeout=600, out_path=None):
         if sink:
             sink.close()
     elapsed = time.monotonic() - t0
+    if not total:
+        raise RuntimeError(f"TTS ({model}, {lang}) returned an empty body")
     return {
         "kind": "tts", "lang": lang, "model": model, "seconds": elapsed,
         "metric": "ttfa_s", "value": first, "bytes": total,
@@ -174,6 +201,11 @@ def render_table(rows, peak_vram_mib=None, baseline_mib=None):
         return "n/a" if v is None else f"{v} MiB"
 
     only = None if peak_vram_mib is None or baseline_mib is None else peak_vram_mib - baseline_mib
+    if only is not None and only < 0:
+        # a baseline above the run's peak means swapped logs or a model unloaded
+        # mid-run; a negative "speech-only" figure would be wrong, not a result
+        lines += ["", f"WARNING: baseline ({baseline_mib} MiB) exceeds peak ({peak_vram_mib} MiB); check the logs."]
+        only = None
     lines += [
         "",
         f"Baseline VRAM (Ollama loaded, speech idle): {mib(baseline_mib)}",
@@ -204,19 +236,26 @@ def main(argv=None):
     if missing:
         sys.exit("missing audio samples (operator-supplied): " + ", ".join(missing))
     try:
+        check_base_url(args.base_url)
         tts_cfg = parse_tts_specs(args.tts)
     except ValueError as e:
         sys.exit(str(e))
+    unknown = sorted(set(tts_cfg) - set(TTS_TEXTS))
+    if unknown:
+        sys.exit(f"--tts language(s) {unknown} not benchmarked; known: {sorted(TTS_TEXTS)}")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
-    for lang in TTS_TEXTS:
-        rows.append(bench_stt(args.base_url, args.stt_model, lang, samples / f"{lang}.wav"))
-    for lang, text in TTS_TEXTS.items():
-        model, voice = tts_cfg.get(lang, (args.tts_model, args.voice))
-        rows.append(bench_tts(args.base_url, model, voice, lang, text,
-                              out_path=out_dir / f"tts-{lang}.mp3"))
+    try:
+        for lang in TTS_TEXTS:
+            rows.append(bench_stt(args.base_url, args.stt_model, lang, samples / f"{lang}.wav"))
+        for lang, text in TTS_TEXTS.items():
+            model, voice = tts_cfg.get(lang, (args.tts_model, args.voice))
+            rows.append(bench_tts(args.base_url, model, voice, lang, text,
+                                  out_path=out_dir / f"tts-{lang}.mp3"))
+    except (urllib.error.URLError, RuntimeError, ValueError) as e:
+        sys.exit(f"benchmark failed: {e}")
     table = render_table(rows, peak_vram_mib(args.nvidia_smi_log), peak_vram_mib(args.baseline_smi_log))
     Path(args.out).write_text(table)
     print(table)

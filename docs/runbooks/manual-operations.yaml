@@ -2569,21 +2569,22 @@ operations:
   why_manual: "Needs the live GPU, the loaded Ollama model, operator-supplied audio and listening judgement on Greek/German TTS quality; results decide the Greek/German TTS engine and replace the estimate: true VRAM sizes."
   commands: |
     source .env
+    W=$(mktemp -d)   # private scratch dir for the logs and audio (no fixed /tmp paths)
     # Start the group: gpu-switcher activates ollama + speech together.
     kubectl -n speech rollout status deploy/speech --timeout=600s
     SMI_POD=$(kubectl -n gpu-operator get pod -l app=nvidia-device-plugin-daemonset --field-selector spec.nodeName=gpu-1 -o jsonpath='{.items[0].metadata.name}')
     SMI="nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -l 1"
     # 1. Baseline (whole card): Ollama loaded, speech idle. Wait > 300 s after the last speech request so STT/TTS models have unloaded.
-    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 60 $SMI > /tmp/speech-smi-base.csv
+    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 60 $SMI > "$W/smi-base.csv"
     # 2. Run: the in-pod `timeout` ends the sampler, so there is nothing to kill.
-    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 1800 $SMI > /tmp/speech-smi-run.csv &
+    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 1800 $SMI > "$W/smi-run.csv" &
     SAMPLER=$!
     python3 scripts/speech-benchmark/run.py --base-url https://speech.cluster.derio.net \
-      --stt-model deepdml/faster-whisper-large-v3-turbo-ct2 --samples-dir samples --out-dir /tmp/speech-tts-audio \
+      --stt-model deepdml/faster-whisper-large-v3-turbo-ct2 --samples-dir samples --out-dir "$W/tts-audio" \
       --tts EN=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart --tts DE=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart --tts EL=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart \
-      --baseline-smi-log /tmp/speech-smi-base.csv --nvidia-smi-log /tmp/speech-smi-run.csv --out docs/investigations/2026-11-16--infer--speech-benchmark.md
+      --baseline-smi-log "$W/smi-base.csv" --nvidia-smi-log "$W/smi-run.csv" --out docs/investigations/2026-11-16--infer--speech-benchmark.md
     kubectl -n gpu-operator exec "$SMI_POD" -- pkill -f 'nvidia-smi --query-gpu' ; wait $SAMPLER || true
-    # Listen to /tmp/speech-tts-audio/tts-{en,de,el}.mp3, pick the Greek/German TTS engine, re-run with other --tts if needed.
+    # Listen to "$W"/tts-audio/tts-{en,de,el}.mp3, pick the Greek/German TTS engine, re-run with other --tts if needed.
     # Then edit apps/speech/manifests/files/vram-budget.yaml with the SPEECH-ONLY figure (peak - baseline, estimate: false) and record
     # the Greek/German TTS engine decision in the spec/journal.
   verify: |

@@ -35,7 +35,7 @@ R6. gpu-switcher knows the speech service: activating ComfyUI drains both Ollama
 R7. The API is reachable in-cluster and at `speech.cluster.derio.net` over LAN/mesh only (Traefik IngressRoute, homepage tile); there is no public ingress.
 R8. Health checks and alerts do not fire during the normal batch lifecycle; no transient job runs in a namespace a workload-liveness alert watches; the gpu-timeshare probes and `gpu-node-both-down` account for speech on the card.
 R9. A repeatable benchmark (manual operation) measures VRAM and latency of candidate STT/TTS models on gpu-1 with Ollama loaded — real-time factor for batch, time-to-first-audio — including Greek and German TTS quality, and its results are recorded in the repo.
-R10. The deferred issue items (streaming endpoint, priority/queue, transcription UI, retirement of the temporary script) are filed as follow-up issues.
+R10. The deferred issue items (streaming endpoint, priority/queue, transcription UI, retirement of the temporary script, a NetworkPolicy on the speech namespace with a narrowed 192.168.55.0/24 allowlist) are filed as follow-up issues.
 
 ## Design
 
@@ -88,6 +88,7 @@ candidates with Ollama loaded and writes results to `docs/investigations/`.
 ## What this deliberately does not do
 
 - No streaming/WebRTC endpoint, priority queue, batch job API or transcription UI (R10).
+- No NetworkPolicy and no narrowing of the pod CIDR (10.0.0.0/8) / LAN (192.168.0.0/16) allowlist: in-cluster callers are not yet inventoried and a policy could break litellm/hermes. The IP allowlist is the only access control, and in-cluster pods reach the Service directly, bypassing Traefik. A NetworkPolicy plus narrowing the LAN range to 192.168.55.0/24 is a tracked follow-up.
 - No commercial book/audiobook rendering.
 - ComfyUI stays exclusive under gpu-switcher.
 - The `whisper-gpu` script is not retired here; that waits for the batch path.
