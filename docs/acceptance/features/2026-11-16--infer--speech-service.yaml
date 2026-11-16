@@ -1,0 +1,72 @@
+# Acceptance rows owned by one feature (spec 2026-11-04-repo-feature-settings R16).
+# The effective matrix is a fold over every fragment in this directory
+# (`fr acceptance status`); it is never stored. Write rows with
+# `fr acceptance add` / `set-status`, never by hand. Keep `rows:` before
+# `amendments:`.
+schema_version: 2
+feature: 2026-11-16--infer--speech-service
+repo: derio-net/frank
+rows:
+  - id: infer-speech-gpu-sharing
+    capability: Ollama and speech share gpu-1
+    acceptance: Ollama and the speech service run on gpu-1 at the same time within a
+      declared VRAM budget without OOM.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R1
+    - spec:2026-11-16--infer--speech-service#R2
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: infer-speech-stt-api
+    capability: OpenAI-compatible speech-to-text
+    acceptance: A client can transcribe English, German and Greek audio through /v1/audio/transcriptions
+      on the private network with language auto-detect.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R3
+    - spec:2026-11-16--infer--speech-service#R4
+    - spec:2026-11-16--infer--speech-service#R7
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: infer-speech-tts-api
+    capability: OpenAI-compatible text-to-speech
+    acceptance: A client can synthesize speech through /v1/audio/speech, with the Greek
+      and German engine chosen from measured quality.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R5
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: infer-speech-switcher-handover
+    capability: ComfyUI hand-over drains and restores speech
+    acceptance: Activating ComfyUI drains both Ollama and speech, and returning to Ollama
+      restores both.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R6
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: infer-speech-quiet-alerts
+    capability: Batch lifecycle raises no false alerts
+    acceptance: Normal batch transcription and GPU hand-over fire no workload-liveness
+      alert, and a real speech outage is still detected.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R8
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live
+  - id: infer-speech-benchmark
+    capability: Recorded speech benchmark
+    acceptance: VRAM, real-time factor and time-to-first-audio of candidate models with
+      Ollama loaded, including Greek and German TTS quality, are recorded in the repo.
+    origin:
+    - spec:2026-11-16--infer--speech-service#R9
+    levels: {}
+    status: not-implemented
+    notes: ''
+    verify: live

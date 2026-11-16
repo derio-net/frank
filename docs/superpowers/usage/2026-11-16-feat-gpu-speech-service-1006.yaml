@@ -1,0 +1,61 @@
+schema_version: 2
+run: 2026-11-16-feat-gpu-speech-service-1006
+captures:
+- host: h-6e45ab4b
+  harness: claude-code
+  mode: devcontainer
+  captured_at: '2026-11-16T20:10:00+00:00'
+  at:
+  - resolve:brainstorm
+  sessions:
+  - session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+    role: main
+    models:
+      claude-sonnet-5-5:
+        input: 32
+        cache_write: 170109
+        cache_read: 2584366
+        output: 14742
+        usd: null
+        usd_source: none
+    activity:
+      implementation:
+        usd: null
+        turns: 1
+      other:
+        usd: null
+        turns: 7
+      paperwork:
+        usd: null
+        turns: 7
+    steps:
+      (outside run):
+        usd: null
+        turns: 2
+        input: 4
+        cache_write: 142680
+        cache_read: 197116
+        output: 545
+      brainstorm:
+        usd: null
+        turns: 13
+        input: 28
+        cache_write: 27429
+        cache_read: 2387250
+        output: 14197
+    steps_by_role:
+      main:
+        (outside run):
+          usd: null
+          turns: 2
+          input: 4
+          cache_write: 142680
+          cache_read: 197116
+          output: 545
+        brainstorm:
+          usd: null
+          turns: 13
+          input: 28
+          cache_write: 27429
+          cache_read: 2387250
+          output: 14197
