@@ -337,3 +337,22 @@ post-merge ops closed
 ### gate-stage-5 · decision · DevOps stage 5 done: devops steps
 
 devops Test Plan steps recorded
+
+<!-- fr:journal kind=op scope=plan id=op-premerge-namespaces-1 created=2026-11-16T12:46:47+00:00 -->
+### op-premerge-namespaces-1 · op · op premerge-namespaces: done
+
+op: premerge-namespaces
+result: done
+phase: pre-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-move-membership-1 created=2026-11-16T12:46:55+00:00 -->
+### op-cutover-move-membership-1 · op · op cutover-move-membership: done
+
+op: cutover-move-membership
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-6 created=2026-11-16T12:47:33+00:00 -->
+### gate-stage-6 · decision · DevOps stage 6 done: gate pass
+
+gate:devops passed
