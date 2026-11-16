@@ -3,7 +3,7 @@ run: 2026-11-16-feat-gpu-speech-service-1006
 workflow: fr-goal@1
 branch: feat/gpu-speech-service-1006
 started: '2026-11-16T19:56:34+00:00'
-cursor: implement
+cursor: journal-check
 steps:
   brainstorm:
     state: done
@@ -52,8 +52,8 @@ steps:
     stdout: "[warn] orphan phase-split decision \nphase-split-2026-11-16--infer--speech-service-p3\
       \ names no agentic phase; it \nwaives nothing.\n"
   implement:
-    state: running
-    at: '2026-11-16T20:47:05+00:00'
+    state: done
+    at: '2026-11-16T20:55:57+00:00'
     members:
     - implement-phase
     - review-phase
@@ -116,12 +116,19 @@ steps:
           tests: final-tests.log@7289427d46c1;tree=9bc265a5b73b592d140b13057f156c3f5b2915e40537c62c3fe94791ca70702e
           visual: none
       phase/2/review-phase:
-        state: running
+        state: done
         attempts:
         - dispatched: '2026-11-16T20:47:05+00:00'
           harness: claude-code
           model: claude-sonnet-5-5
           session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:55:57+00:00'
+          outcome: done
+        evidence:
+          review: p2-review
+          reviewer: a1da39f1e24c1aec6
+          visual: none
+          findings: p2-r1,p2-r2,p2-r3,p2-r4,p2-r5,p2-r6,p2-r7,p2-r8,p2-r9,p2-r10,p2-r11,p2-r12,p2-r13,p2-r14,p2-r15,p2-r16,p2-r17,p2-r18,p2-r19,p2-r20,p2-r21
   journal-check:
     state: pending
   lens-review:

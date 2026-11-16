@@ -193,3 +193,218 @@ The route reuses the existing ip-allowlist/security-headers middlewares; the onl
 ### no-refactor-p2-t5 · discovery · no-refactor-because P2.T5 (phase 2)
 
 Benchmark script is a single stdlib module built to its test; nothing to clean.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r1 · finding [open] (reviewer: in scope) · Buffering middleware exhausts edge disk and buffers TTS (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=out -->
+### p2-r2 · finding [open] (reviewer: out of scope) · No per-request auth on route (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r3 · finding [open] (reviewer: in scope) · Allowlist covers all RFC1918 (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r4 · finding [open] (reviewer: in scope) · Pre-merge image build via workflow_dispatch not runnable (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r5 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r5 · finding [open] (reviewer: in scope) · Workflow paths filter ignores rev bump (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r6 · finding [open] (reviewer: in scope) · Probes hit shallow /health (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r7 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r7 · finding [open] (reviewer: in scope) · Liveness margin thin during long jobs (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r8 · finding [open] (reviewer: in scope) · Entrypoint timeouts untouched (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r9 · finding [open] (reviewer: in scope) · Benchmark uses one TTS voice for all languages (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r10 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r10 · finding [open] (reviewer: in scope) · VRAM figure is whole card (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r11 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r11 · finding [open] (reviewer: in scope) · Benchmark op filename and inputs wrong (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r12 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r12 · finding [open] (reviewer: in scope) · Device-plugin roll ordering and restart claim (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r13 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r13 · finding [open] (reviewer: in scope) · Dockerfile upstream details unverified (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r14 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r14 · finding [open] (reviewer: in scope) · Image build test weak (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r15 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r15 · finding [open] (reviewer: in scope) · Smoke and manifest tests vacuous (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r16 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r16 · finding [open] (reviewer: in scope) · Gotcha entry too long (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r17 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=out -->
+### p2-r17 · finding [open] (reviewer: out of scope) · pod-security privileged (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r18 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=out -->
+### p2-r18 · finding [open] (reviewer: out of scope) · Time-slicing overlap during switch (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r19 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=out -->
+### p2-r19 · finding [open] (reviewer: out of scope) · Phase 1 items (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r20 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=in -->
+### p2-r20 · finding [open] (reviewer: in scope) · Health rule lacks startup grace (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r21 created=2026-11-16T20:55:56+00:00 phase=2 state=open review_scope=out -->
+### p2-r21 · finding [open] (reviewer: out of scope) · Verified-OK note (phase 2)
+
+Reviewer a1da39f1e24c1aec6, phase 2.
+
+<!-- fr:journal kind=review scope=plan id=p2-review created=2026-11-16T20:55:56+00:00 phase=2 -->
+### p2-review · review · phase 2 review: 21 findings (phase 2)
+
+Independent read-only review; in-scope findings fixed in commit b3fe5def; the automated security review's two findings are covered by r1 and r3/r2.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r1-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r1 -->
+### p2-r1-resolved · finding [fixed] · resolves p2-r1: Buffering middleware exhausts edge disk and buffers TTS (phase 2)
+
+Buffering middleware removed from middlewares.yaml and the route; tests assert none.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=open resolves=p2-r2 out_of_scope=true -->
+### p2-r2-resolved · finding [out-of-scope] · resolves p2-r2: No per-request auth on route (phase 2)
+
+No per-request auth is the spec-accepted trade-off (litellm/comfyui precedent); the route is now additionally narrowed to LAN and mesh CIDRs (r3).
+
+<!-- fr:journal kind=finding scope=plan id=p2-r3-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r3 -->
+### p2-r3-resolved · finding [fixed] · resolves p2-r3: Allowlist covers all RFC1918 (phase 2)
+
+speech-ip-allowlist (LAN, mesh 100.64.0.0/10) used on the route.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r4-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r4 -->
+### p2-r4-resolved · finding [fixed] · resolves p2-r4: Pre-merge image build via workflow_dispatch not runnable (phase 2)
+
+Op and ops.yaml now do a local buildx build and push.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r5-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r5 -->
+### p2-r5-resolved · finding [fixed] · resolves p2-r5: Workflow paths filter ignores rev bump (phase 2)
+
+Workflow file added to on.push.paths, test added.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r6-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r6 -->
+### p2-r6-resolved · finding [fixed] · resolves p2-r6: Probes hit shallow /health (phase 2)
+
+Readiness /v1/models, startup and liveness tuned, vmprobe /v1/models.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r7-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r7 -->
+### p2-r7-resolved · finding [fixed] · resolves p2-r7: Liveness margin thin during long jobs (phase 2)
+
+Liveness tolerates 10 minutes of a blocked loop.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r8-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r8 -->
+### p2-r8-resolved · finding [fixed] · resolves p2-r8: Entrypoint timeouts untouched (phase 2)
+
+Documented: long recordings use the in-cluster Service URL; entrypoint left untouched on purpose.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r9-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r9 -->
+### p2-r9-resolved · finding [fixed] · resolves p2-r9: Benchmark uses one TTS voice for all languages (phase 2)
+
+Per-language --tts LANG=MODEL:VOICE and saved audio.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r10-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r10 -->
+### p2-r10-resolved · finding [fixed] · resolves p2-r10: VRAM figure is whole card (phase 2)
+
+Speech-only VRAM = peak - baseline.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r11-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r11 -->
+### p2-r11-resolved · finding [fixed] · resolves p2-r11: Benchmark op filename and inputs wrong (phase 2)
+
+Filename fixed, samples-dir documented, robust commands.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r12-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r12 -->
+### p2-r12-resolved · finding [fixed] · resolves p2-r12: Device-plugin roll ordering and restart claim (phase 2)
+
+Ordering stated and restart claim corrected.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r13-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r13 -->
+### p2-r13-resolved · finding [fixed] · resolves p2-r13: Dockerfile upstream details unverified (phase 2)
+
+Verified upstream at the pinned tag; UV_NO_SYNC and a stronger build assert.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r14-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r14 -->
+### p2-r14-resolved · finding [fixed] · resolves p2-r14: Image build test weak (phase 2)
+
+Workflow arg compared to Dockerfile ARG, vacuous assert dropped.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r15-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r15 -->
+### p2-r15-resolved · finding [fixed] · resolves p2-r15: Smoke and manifest tests vacuous (phase 2)
+
+Smoke and manifest tests made meaningful, non-root context added.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r16-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r16 -->
+### p2-r16-resolved · finding [fixed] · resolves p2-r16: Gotcha entry too long (phase 2)
+
+One-liner pointing to gpu-1.md.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r17-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=open resolves=p2-r17 out_of_scope=true -->
+### p2-r17-resolved · finding [out-of-scope] · resolves p2-r17: pod-security privileged (phase 2)
+
+pod-security privileged matches the comfyui/ollama precedent; not caused by this change.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r18-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=open resolves=p2-r18 out_of_scope=true -->
+### p2-r18-resolved · finding [out-of-scope] · resolves p2-r18: Time-slicing overlap during switch (phase 2)
+
+Overlap during a switch is a phase 1/spec design point of time-slicing, documented in gpu-1.md.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r19-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=open resolves=p2-r19 out_of_scope=true -->
+### p2-r19-resolved · finding [out-of-scope] · resolves p2-r19: Phase 1 items (phase 2)
+
+Phase 1 matters, already reviewed.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r20-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=fixed resolves=p2-r20 -->
+### p2-r20-resolved · finding [fixed] · resolves p2-r20: Health rule lacks startup grace (phase 2)
+
+speech-health-degraded now has a 30m for.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r21-resolved created=2026-11-16T20:55:56+00:00 phase=2 state=open resolves=p2-r21 out_of_scope=true -->
+### p2-r21-resolved · finding [out-of-scope] · resolves p2-r21: Verified-OK note (phase 2)
+
+Reviewer verified-OK note, no defect.
