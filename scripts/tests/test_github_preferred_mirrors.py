@@ -89,7 +89,11 @@ def test_pr_sync_triggers_serve_the_tier_repos_only_and_write_sync_pr_refs() -> 
     trig = _triggers(EL_GITHUB, "github-listener")
     for org in ("derio-net", "derio-homelab"):
         t = trig[f"{org}-pr-sync"]
-        assert _named_repos(t) == _preferred(org), "kid-laptops has no PR mirror (main-sync only)"
+        expected = _preferred(org)
+        if org == "derio-homelab":
+            # frank#952: kid-laptops PR heads mirror too (same-repo PRs only).
+            expected = sorted(expected + ["derio-homelab/kid-laptops"])
+        assert _named_repos(t) == expected
         cel = _cel(t)
         for action in ("opened", "synchronize", "reopened"):
             assert f"'{action}'" in cel["filter"]

@@ -8,8 +8,8 @@
 # is pushed with the one stoa-bot SSH identity, which can write both orgs.
 # kid-laptops was NOT covered when this job first shipped (#851 read only the
 # agentic-stoa trigger), so a dropped kid-laptops webhook was a lost commit.
-# kid-laptops has a push trigger only, so it is in MAIN_REPOS and not PR_REPOS;
-# the nine github-preferred repos have both triggers and are in both.
+# kid-laptops mirrors PR heads too since frank#952, so it is in MAIN_REPOS and
+# PR_REPOS alike, as are the nine github-preferred repos (both triggers each).
 #
 # The mirror is webhook-driven: GitHub push/pull_request -> github-listener ->
 # github-pull-sync PipelineRun -> force-push into the Gitea replica, whose push
@@ -415,6 +415,7 @@ spec:
                     agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
+                    derio-homelab/kid-laptops
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
                     derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/willikins
@@ -451,6 +452,7 @@ spec:
                     agentic-stoa/content-factory agentic-stoa/hermes-brain agentic-stoa/hum
                     agentic-stoa/second-brain agentic-stoa/stoa-blog
                     derio-homelab/ansible-pihole derio-homelab/homelab
+                    derio-homelab/kid-laptops
                     derio-homelab/omada-controller derio-homelab/proxmox-cluster
                     derio-net/cluster-update-fr derio-net/presentation-craft
                     derio-net/runs-fr derio-net/willikins

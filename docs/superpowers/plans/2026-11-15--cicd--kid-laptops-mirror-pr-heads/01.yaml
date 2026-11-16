@@ -1,0 +1,169 @@
+schema_version: 2
+phase:
+  number: 1
+  title: kid-laptops PR-head mirroring, main-only second hop, repair alert, and coupled
+    docs
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - kid-laptops-pr-heads-mirrored
+  - mirror-repair-alert
+  - kid-laptops-main-sync-healthy
+  tier: standard
+  files:
+  - apps/tekton/triggers/eventlistener-github.yaml
+  - apps/tekton/triggers/eventlistener.yaml
+  - apps/tekton/webhooks.yaml
+  - apps/tekton/manifests/mirror-reconcile.yaml
+  - apps/tekton/manifests/ci-delivery-check.yaml
+  - apps/grafana-alerting/manifests/alert-rules-cm.yaml
+  - scripts/tests/test_github_preferred_mirrors.py
+  - scripts/tests/test_ci_mirror_resilience.py
+  - scripts/tests/test_ci_delivery_check.py
+  - scripts/tests/test_ci_outcome_alert_repeat.py
+  - scripts/tests/test_kid_laptops_mirror_wiring.py
+  - scripts/tests/test_mirror_repair_alert.py
+  - blog/content/docs/operating/22-cicd-platform/index.md
+  - blog/content/docs/building/35-gitea-actions-ci/index.md
+  - agents/rules/frank-gotchas.md
+  - docs/runbooks/frank-gotchas/tekton.md
+  - docs/runbooks/manual-operations.yaml
+  - docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads/*
+  - docs/acceptance/*
+  estimate_lines: 420
+tasks:
+- number: 1
+  title: '#952 + R4: mirror kid-laptops PR heads, keep the Tekton second hop main-only
+    (TDD)'
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      RED. Update the three guards that pin kid-laptops out of the PR path so they expect the new state (R8):
+      scripts/tests/test_github_preferred_mirrors.py:89-92, where derio-homelab-pr-sync's named repos == _preferred("derio-homelab") + ["derio-homelab/kid-laptops"], mirroring lines 79-81;
+      scripts/tests/test_ci_mirror_resilience.py:201-208, where the hard-coded PR repo set includes kid-laptops in sorted position;
+      scripts/tests/test_ci_delivery_check.py:143-144, where kid-laptops IS in PR_REPOS.
+      Add to scripts/tests/test_kid_laptops_mirror_wiring.py:
+      (a) a test that the kid-laptops-push trigger's CEL filter in apps/tekton/triggers/eventlistener.yaml contains `body.ref == 'refs/heads/main'`, parsed from the trigger's own filter value rather than a text window (R4);
+      (b) a test that derio-homelab-pr-sync keeps the same-repo guard `body.pull_request.head.repo.full_name == body.repository.full_name` while listing kid-laptops (R1).
+      Run `.venv/bin/pytest scripts/tests/test_github_preferred_mirrors.py scripts/tests/test_ci_mirror_resilience.py scripts/tests/test_ci_delivery_check.py scripts/tests/test_kid_laptops_mirror_wiring.py scripts/tests/test_webhook_delivery_paths.py -q` and expect red.
+  - id: P1.T1.S2
+    text: |-
+      GREEN. In apps/tekton/triggers/eventlistener-github.yaml, add 'derio-homelab/kid-laptops' to the derio-homelab-pr-sync CEL list and rewrite the "kid-laptops is main-sync only" comment block (lines ~226-228) to say kid-laptops now mirrors PR heads (frank#952), same-repo only.
+      In apps/tekton/triggers/eventlistener.yaml, add `&& body.ref == 'refs/heads/main'` to kid-laptops-push, with a comment: PR evidence comes from Gitea Actions molecule; this keeps PR load to what #952 budgeted; a deleted sync-pr ref can never start a run.
+  - id: P1.T1.S3
+    text: |-
+      GREEN. In apps/tekton/webhooks.yaml, set the kid-laptops github-listener entry (lines ~166-178) to `events: [push, pull_request]` and `serves: [derio-homelab-main-sync, derio-homelab-pr-sync]`, like the proxmox-cluster entry, and rewrite its note (lines ~173-175). Name manual-op cicd-kid-laptops-github-webhook-pull-request.
+      In apps/tekton/manifests/mirror-reconcile.yaml, add kid-laptops to PR_REPOS on BOTH the `heads` and `plan` initContainers, between homelab and omada-controller, and rewrite header line 11.
+      In apps/tekton/manifests/ci-delivery-check.yaml, add it to PR_REPOS in sorted position.
+      Re-run the S1 command and expect green.
+  - id: P1.T1.S4
+    text: |-
+      REFACTOR: if the new kid-laptops-push filter test and test_site_promotion_pipeline's main-only check now duplicate a "trigger filter contains ref clause" helper, extract it into the test module's helpers; otherwise record a `refactor` reason in the phase record.
+- number: 2
+  title: '#850 + #798: per-repo mirror repair alert and the stale runbook (TDD)'
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      RED. Write scripts/tests/test_mirror_repair_alert.py. Load apps/grafana-alerting/manifests/alert-rules-cm.yaml the way test_ci_outcome_alert_repeat.py does. Assert that rule uid layer-25-mirror-repair-recurring:
+      - is in group layer-25-pipeline-outcomes;
+      - has refId A with datasourceUid affdoo4s9258gc, queryType stats and relativeTimeRange from 21600;
+      - has an expr containing `_msg:"mirror-reconcile repaired"`, `kubernetes.namespace_name:tekton-pipelines`, `extract "mirror-reconcile repaired <repo> "` and `stats by (repo) count()`;
+      - has a threshold evaluator `gt` with params [1];
+      - has noDataState OK, execErrState Error, labels severity warning and ci_outcome "true";
+      - has a uid of at most 40 chars.
+      Also add an offline behaviour check: the extract pattern, applied as a regex translation (`mirror-reconcile repaired (?P<repo>\S+) `) to the literal line format echoed at mirror-reconcile.yaml:345, captures the repo. Add the uid to CI_OUTCOME_RULES in scripts/tests/test_ci_outcome_alert_repeat.py. Add an assertion that layer-25-mirror-sync-failing's runbook no longer contains "not reconciled" (R6). Run those two test files and expect red.
+  - id: P1.T2.S2
+    text: |-
+      GREEN. Add rule layer-25-mirror-repair-recurring to group layer-25-pipeline-outcomes in alert-rules-cm.yaml, right after layer-25-mirror-reconcile-stale, using the A/B/C shape of ovms-pool-watchdog-restart-loop:
+      - A: VictoriaLogs stats, 6h window, expr `kubernetes.namespace_name:tekton-pipelines AND _msg:"mirror-reconcile repaired" | extract "mirror-reconcile repaired <repo> " | stats by (repo) count() as value`;
+      - B: reduce last, dropNN;
+      - C: threshold gt 1;
+      - noDataState OK, execErrState Error, for 0s;
+      - labels severity warning, ci_outcome "true", github_issue "frank-ops#25".
+      The summary names {{ $labels.repo }} and the count. The runbook uses `kubectl get pipelinerun -A --sort-by=.metadata.creationTimestamp | grep pull-sync` and the GitHub hook deliveries, and never `-n tekton-pipelines`. A comment above it records that this is the per-repo signal the shared derio-homelab-pull-sync pipeline hides from layer-25-pipeline-failing (frank#798/#850), and that one isolated repair is tolerated by design.
+  - id: P1.T2.S3
+    text: |-
+      GREEN. Rewrite the layer-25-mirror-sync-failing runbook annotation: drop "derio-homelab-pull-sync (kid-laptops) is not reconciled — redeliver its webhook", say mirror-reconcile re-pushes every mirrored repo's refs once the cause is fixed, and name layer-25-mirror-repair-recurring as the per-repo signal. Re-run the full scripts/tests/test_ci_*.py set plus test_mirror_repair_alert.py and test_grafana*.py, and expect green.
+  - id: P1.T2.S4
+    text: |-
+      REFACTOR: if test_mirror_repair_alert.py duplicates the rule-loading helper of test_ci_outcome_alert_repeat.py, import or share it; otherwise record a `refactor` reason.
+- number: 3
+  title: Coupled docs, gotchas, manual op
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Update blog/content/docs/operating/22-cicd-platform/index.md. In the mirror section, say kid-laptops PR heads now mirror as sync-pr-<N> and only main pushes start Tekton kid-laptops-ci. Add an operating block for the layer-25-mirror-repair-recurring alert: what a repair means, the VictoriaLogs query, and the GitHub hook-delivery check. Update blog/content/docs/building/35-gitea-actions-ci/index.md where it describes kid-laptops as main-only. Run `fr docs check`, if the repo has .fr/docs.yaml, and fix its findings.
+  - id: P1.T3.S2
+    text: |-
+      Add a one-liner to the Tekton section of agents/rules/frank-gotchas.md and full prose to docs/runbooks/frank-gotchas/tekton.md: a per-PIPELINE outcome rule cannot see one repo failing on a pipeline shared by several repos (derio-homelab-pull-sync serves 5), because another repo's success satisfies `unless success > 0`. The per-repo signal is mirror-reconcile's repair line (layer-25-mirror-repair-recurring). Record #798's resolution (#859 zero-byte objects; 9/9 OK since 2026-10-18).
+  - id: P1.T3.S3
+    text: |-
+      Add the manual-operation block `cicd-kid-laptops-github-webhook-pull-request` (`# manual-operation`, layer cicd, app tekton, status pending, when: after merge) to this plan's _prose.md. It PATCHes GitHub hook 657693217 on derio-homelab/kid-laptops (config.url https://webhooks.hop.derio.net) to events [push, pull_request] via `env -u GITHUB_TOKEN gh api -X PATCH …`, and verifies through the hook's events plus a ping/delivery in el-github-listener logs. Sync it into docs/runbooks/manual-operations.yaml (the /sync-runbook procedure).
+- number: 4
+  title: Quality gate
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Run the full local suite: `.venv/bin/pytest scripts/tests -q`, excluding the hugo-building test files, writing to a log OUTSIDE the repo after the last code commit; exit code 0. Run `scripts/validate-plans.sh` and `fr plan self-review docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads`.
+  - id: P1.T4.S2
+    text: |-
+      Validate the touched manifests parse: `python3 -c 'import yaml,sys;[list(yaml.safe_load_all(open(f))) for f in sys.argv[1:]]'` over every touched apps/ yaml, and `kubectl create --dry-run=client -f` on the two EventListener files. Record the results in the phase record.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-11-15T06:48:59+00:00'
+      note: null
+  completion:
+    at: '2026-11-15T06:48:59+00:00'
+    note: null
+    observed_prs: []

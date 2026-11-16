@@ -19,7 +19,11 @@ REPO = Path(__file__).resolve().parents[2]
 RULES_CM = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
 POLICY_CM = REPO / "apps/grafana-alerting/manifests/notification-policy-cm.yaml"
 
-CI_OUTCOME_RULES = ["layer-25-pipeline-failing", "layer-25-pipelinerun-timeout"]
+CI_OUTCOME_RULES = [
+    "layer-25-pipeline-failing",
+    "layer-25-pipelinerun-timeout",
+    "layer-25-mirror-repair-recurring",
+]
 MATCHER = 'ci_outcome="true"'
 
 

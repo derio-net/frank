@@ -2,3 +2,19 @@
 # CANNOT-VERIFY. The root-agents SubjectAccessReview matrix makes ~50 round-trips through the Omni kube proxy,
 # which takes a few minutes from inside the ops container.
 timeout_seconds: 300
+
+# Identities an op runs as. Each `from:` runs at check/apply time with the minimal
+# probe env and prints a credential that only that op's check/apply receives.
+# GitHub-side ops never get a passed-through PAT: they get a ~1h installation token
+# of the homelab App (homelab-fr-automation, 4403773), minted on demand and
+# narrowed to ONE repo and the permissions that op needs. The App PEM is read live
+# from the cluster with the ops kubeconfig (batch kid-laptops-mirror, 2026-11-16).
+identities:
+  homelab-kid-laptops-hooks:
+    env:
+      GH_TOKEN:
+        from: python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm repository_hooks=write --perm metadata=read
+  homelab-kid-laptops-statuses:
+    env:
+      GH_TOKEN:
+        from: python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm statuses=read --perm pull_requests=read --perm metadata=read

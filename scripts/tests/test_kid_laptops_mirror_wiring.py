@@ -24,8 +24,10 @@ Three traps are locked down here, each of which fails silently:
     asserts the shared pipeline was left alone.
 """
 
+import re
 from pathlib import Path
 
+import pytest
 import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
 
 REPO = Path(__file__).resolve().parents[2]
@@ -147,3 +149,115 @@ def test_github_eventlistener_has_a_kid_laptops_main_sync_trigger() -> None:
 
     bound = {b["name"] for b in trigger["bindings"]}
     assert {"github-repo", "gitea-repo", "sha", "ref-to"} <= bound, bound
+
+
+EL_GITEA = REPO / "apps/tekton/triggers/eventlistener.yaml"
+
+
+def _trigger_filter(path: Path, trigger_name: str) -> str:
+    els = [d for d in _docs(path) if d.get("kind") == "EventListener"]
+    for el in els:
+        for t in el["spec"]["triggers"]:
+            if t.get("name") == trigger_name:
+                for i in t["interceptors"]:
+                    if i.get("ref", {}).get("name") == "cel":
+                        return next(p["value"] for p in i["params"] if p["name"] == "filter")
+    raise AssertionError(f"no cel filter on trigger {trigger_name}")
+
+
+def test_kid_laptops_push_trigger_is_main_only() -> None:
+    """R4: PR heads mirror as sync-pr-N, but only main may start kid-laptops-ci."""
+    cel_filter = _trigger_filter(EL_GITEA, "kid-laptops-push")
+    # Conjunctive and last: `... || body.ref == 'refs/heads/main'` would admit
+    # every sync-pr push and must fail here (p1a-r8).
+    assert cel_filter.strip().endswith("&& body.ref == 'refs/heads/main'"), cel_filter
+    assert "||" not in cel_filter, cel_filter
+
+
+class _Obj(dict):
+    """Attribute access over a payload, as CEL's `body.a.b` reads it."""
+
+    def __getattr__(self, name):
+        try:
+            v = self[name]
+        except KeyError as exc:  # a missing field is a CEL evaluation error
+            raise AttributeError(name) from exc
+        return _Obj(v) if isinstance(v, dict) else v
+
+
+class _Headers:
+    def __init__(self, headers: dict):
+        self._h = {k.lower(): v for k, v in headers.items()}
+
+    def match(self, name: str, value: str) -> bool:
+        return self._h.get(name.lower()) == value
+
+
+def _eval_cel(expr: str, body: dict, headers: dict | None = None) -> bool:
+    """Evaluate the SUBSET of CEL these trigger filters use (l-tests-r5):
+    `&&`, `||`, `==`, `!=`, `in [...]`, `has(x.y)`, `header.match(n, v)` and
+    single-quoted strings. Anything outside that subset fails loudly rather than
+    being guessed at, so a filter that grows new syntax breaks this test first."""
+    if re.search(r"[?:]|\bmatches\(|\bsize\(|\bstartsWith|\bendsWith|\bexists", expr):
+        raise AssertionError(f"filter uses CEL outside the evaluated subset: {expr}")
+    py = re.sub(r"\bhas\(([\w.]+)\)", r"_has(lambda: \1)", expr)
+    py = py.replace("&&", " and ").replace("||", " or ")
+    py = re.sub(r"!(?!=)", " not ", py)
+
+    def _has(fn):
+        try:
+            fn()
+            return True
+        except AttributeError:
+            return False
+
+    # Names go in GLOBALS: the lambdas `has()` becomes resolve free names there.
+    scope = {"__builtins__": {}, "body": _Obj(body), "header": _Headers(headers or {}), "_has": _has}
+    return bool(eval(py, scope))  # noqa: S307 - repo-owned filter text
+
+
+def _pr_event(action: str, head_repo: str | None, repo: str = REPO_FULL_NAME, number: int = 4) -> dict:
+    pr = {"number": number, "head": {"sha": "c" * 40}}
+    if head_repo is not None:
+        pr["head"]["repo"] = {"full_name": head_repo}
+    return {"action": action, "repository": {"full_name": repo}, "pull_request": pr}
+
+
+@pytest.mark.parametrize(
+    "event, admitted",
+    [
+        (_pr_event("opened", REPO_FULL_NAME), True),
+        (_pr_event("synchronize", REPO_FULL_NAME), True),
+        (_pr_event("reopened", REPO_FULL_NAME), True),
+        (_pr_event("synchronize", "someone/kid-laptops-fork"), False),  # fork: never writes sync-pr
+        (_pr_event("opened", None), False),  # deleted fork repo: head.repo is null
+        (_pr_event("closed", REPO_FULL_NAME), False),
+        (_pr_event("labeled", REPO_FULL_NAME), False),
+        (_pr_event("synchronize", "derio-homelab/other", repo="derio-homelab/other"), False),
+    ],
+)
+def test_homelab_pr_sync_admits_only_same_repo_kid_laptops_pr_heads(event: dict, admitted: bool) -> None:
+    """R1, evaluated against payloads rather than grepped."""
+    cel_filter = _trigger_filter(EL_GITHUB, "derio-homelab-pr-sync")
+    assert _eval_cel(cel_filter, event) is admitted
+
+
+def _gitea_push(ref: str, repo: str = REPO_FULL_NAME, after: str = "a" * 40) -> dict:
+    return {"ref": ref, "after": after, "repository": {"full_name": repo}}
+
+
+@pytest.mark.parametrize(
+    "event, admitted",
+    [
+        (_gitea_push("refs/heads/main"), True),
+        (_gitea_push("refs/heads/sync-pr-4"), False),
+        (_gitea_push("refs/heads/sync-rerun-4"), False),
+        (_gitea_push("refs/heads/sync-pr-4", after="0" * 40), False),  # ref deletion
+        (_gitea_push("refs/heads/main", repo="derio-homelab/homelab"), False),
+    ],
+)
+def test_kid_laptops_push_starts_ci_only_for_main(event: dict, admitted: bool) -> None:
+    """R4, evaluated against payloads: only a main push starts kid-laptops-ci."""
+    cel_filter = _trigger_filter(EL_GITEA, "kid-laptops-push")
+    assert _eval_cel(cel_filter, event, {"X-Gitea-Event": "push"}) is admitted
+    assert _eval_cel(cel_filter, event, {"X-Gitea-Event": "issues"}) is False

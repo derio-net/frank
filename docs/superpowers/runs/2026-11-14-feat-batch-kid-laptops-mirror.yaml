@@ -1,0 +1,134 @@
+schema_version: 11
+run: 2026-11-14-feat-batch-kid-laptops-mirror
+workflow: fr-goal@1
+branch: feat/batch-kid-laptops-mirror
+started: '2026-11-14T22:07:35+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-11-15T06:04:02+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-11-15--cicd--kid-laptops-mirror-pr-heads-design.md
+  spec-review:
+    state: done
+    at: '2026-11-15T06:11:19+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-15T06:04:06+00:00'
+          agent: acf12fd01f4bc4487
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          model: claude-opus-5-5
+          tier: hard
+          bound: opus
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T06:11:18+00:00'
+          outcome: done
+        evidence:
+          review: spec-review-r1
+          reviewer: acf12fd01f4bc4487
+          findings: sr-1,sr-2,sr-3,sr-4,sr-5,sr-6,sr-7,sr-8,sr-9,sr-10,sr-11
+  plan:
+    state: done
+    at: '2026-11-15T06:14:04+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-11-15T06:11:31+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T06:14:04+00:00'
+          outcome: done
+  plan-review:
+    state: done
+    at: '2026-11-15T06:14:11+00:00'
+    exit: 0
+    stdout: |
+      self-review passed
+  implement:
+    state: done
+    at: '2026-11-15T06:58:38+00:00'
+    members:
+    - implement-phase
+    - review-phase
+    units:
+      phase/1/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-15T06:14:12+00:00'
+          agent: a6e4308c32a3d9309
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T06:49:00+00:00'
+          outcome: done
+        evidence:
+          tests: p1-full-suite.log@aba554f937a9;tree=3edbb7a7305cdb382583087bc5758f8ce473bc89297d577ffc147e5fb9d396b8
+          visual: none
+      phase/1/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-15T06:49:02+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T06:58:38+00:00'
+          outcome: done
+        evidence:
+          review: p1-review-r1
+          reviewer: aae84efaa4cb70d0d
+          visual: none
+          findings: p1a-r1,p1a-r2,p1a-r3,p1a-r4,p1a-r5,p1a-r6,p1a-r7,p1a-r8,p1a-r9
+  journal-check:
+    state: done
+    at: '2026-11-15T06:58:41+00:00'
+    exit: 0
+    stdout: ''
+  lens-review:
+    state: done
+    at: '2026-11-15T07:12:53+00:00'
+    units:
+      step/lens-review:
+        attempts:
+        - dispatched: '2026-11-15T06:58:44+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T07:12:53+00:00'
+          outcome: done
+        evidence:
+          review: lens-review-r1
+          reviewer: tests=a7f33cb06c43e74f4
+          findings: l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
+          lenses: tests=12:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5
+  deliver:
+    state: done
+    at: '2026-11-15T07:52:01+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/992
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-15T07:12:55+00:00'
+          harness: claude-code
+          model: claude-opus-5-5
+          session: e96881ac-6e9d-4be9-be2e-d516f532d507
+          returned: '2026-11-15T07:51:46+00:00'
+          outcome: done
+        evidence:
+          tests: deliver-full-suite.log@158dedbf2676
+          walk: none
+          proportionality: d9eca14d204e428a040ea1b7a5fcb23b35926313:b7cd018f642f81eec468c0562ba684448585ad48008fd09c1f90bf7d7781074f
+          docs: none
+          visual: none
+fr_version: 7.0.0rc2
+pr: https://github.com/derio-net/frank/pull/992

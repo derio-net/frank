@@ -167,15 +167,16 @@ webhooks:
     scope: repo
     target: derio-homelab/kid-laptops
     listener: github-listener
-    events: [push]
-    serves: [derio-homelab-main-sync]
+    events: [push, pull_request]
+    serves: [derio-homelab-main-sync, derio-homelab-pr-sync]
     note: >-
-      push only, not pull_request: kid-laptops runs no PR-time CI on Frank yet
-      (the molecule stage is gated off until KubeVirt lands, so a PR mirror
-      would test only lint). Uses its OWN HMAC secret
+      push + pull_request (frank#952): PR heads mirror to Gitea as sync-pr-<N>,
+      same-repo PRs only, so Gitea Actions can run on them. Tekton's
+      kid-laptops-ci still starts on main pushes only. Uses its OWN HMAC secret
       (derio-homelab-github-webhook-secret), not the agentic-stoa one — sharing
       it would couple two unrelated orgs' webhook authenticity to one value.
-      Created post-merge by manual-op cicd-kid-laptops-github-webhook.
+      Created post-merge by manual-op cicd-kid-laptops-github-webhook; the
+      pull_request event is added by cicd-kid-laptops-github-webhook-pull-request.
 
   # github-preferred repos (2026-10-18, frank#875): mirrored so CI can fall back
   # to Gitea Actions. Repo-scoped, never org-scoped, so the org's public repos

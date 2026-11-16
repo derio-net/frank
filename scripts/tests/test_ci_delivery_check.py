@@ -141,7 +141,7 @@ def test_manifest_lists_and_derio_net_token_mount():
     for repo in ('derio-net/willikins', 'derio-net/runs-fr', 'derio-homelab/homelab', 'derio-homelab/ansible-pihole'):
         assert repo in env['MAIN_REPOS'].split() and repo in env['PR_REPOS'].split()
     assert 'derio-homelab/kid-laptops' in env['MAIN_REPOS'].split()
-    assert 'derio-homelab/kid-laptops' not in env['PR_REPOS'].split()
+    assert 'derio-homelab/kid-laptops' in env['PR_REPOS'].split()
     net = next(v for v in pod['volumes'] if v['name'] == 'net')
     assert net['secret']['secretName'] == 'derio-net-github-mirror' and net['secret']['optional'] is True
     mounts = {m['name']: m['mountPath'] for m in pod['containers'][0]['volumeMounts']}
