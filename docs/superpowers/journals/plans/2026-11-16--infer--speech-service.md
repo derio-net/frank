@@ -578,3 +578,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/1009.
 ### p2-r2-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1010] · resolves p2-r2: No per-request auth on route (phase 2)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/1010.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r17-resolved-2 created=2026-11-16T21:55:56+00:00 phase=2 state=open resolves=p2-r17 tracked_by=https://github.com/derio-net/frank/issues/1011 -->
+### p2-r17-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1011] · resolves p2-r17: pod-security privileged (phase 2)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/1011.
