@@ -137,11 +137,17 @@ steps:
       \ \np2-r19, p2-r21\n"
   lens-review:
     state: running
-    at: '2026-11-16T20:56:03+00:00'
+    at: '2026-11-16T20:56:27+00:00'
     units:
       step/lens-review:
         attempts:
         - dispatched: '2026-11-16T20:56:03+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:56:27+00:00'
+          outcome: abandoned
+        - dispatched: '2026-11-16T20:56:27+00:00'
           harness: claude-code
           model: claude-sonnet-5-5
           session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
