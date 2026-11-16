@@ -71,3 +71,27 @@ amendments:
       allowed. root-agents is denied get secrets in argocd, infisical, authentik, kube-system,
       longhorn-system, upgrade-sessions, cluster-update-fr and runs-fr, and denied list
       pods in upgrade-sessions.'
+  - row: root-agents-read-only-triage
+    op: set-status
+    base: 1
+    status: walked
+    notes: 'Walked live after the cutover: root-agents is allowed get pods, pods/log
+      and configmaps in monitoring and list nodes, denied pods, pods/log and configmaps
+      in the five credential-store namespaces, and denied create pods, impersonate,
+      serviceaccounts/token, bind and escalate. The cluster holds 30 root-agents-ns-read
+      RoleBindings matching the 30 generated namespaces, none in the five credential
+      stores.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: SubjectAccessReview matrix, 36 cells (operator, 2026-11-16), plus a
+        read-only RoleBinding listing (session)
+    why: 'Walked live after the cutover: root-agents is allowed get pods, pods/log and
+      configmaps in monitoring and list nodes, denied pods, pods/log and configmaps
+      in the five credential-store namespaces, and denied create pods, impersonate,
+      serviceaccounts/token, bind and escalate. The cluster holds 30 root-agents-ns-read
+      RoleBindings matching the 30 generated namespaces, none in the five credential
+      stores.'
