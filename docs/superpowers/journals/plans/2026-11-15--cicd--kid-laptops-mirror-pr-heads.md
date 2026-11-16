@@ -202,3 +202,36 @@ test_the_filtered_container_runs_the_script_that_echoes_the_repair_line walks th
 ### l-tests-r5-resolved · finding [fixed] · resolves l-tests-r5: pr-sync guard test is substring-only and redundant; no test evaluates the CEL against payloads
 
 Replaced the substring test with a narrow CEL-subset evaluator (fails loudly on syntax outside the subset) and payload fixtures. R1 covers same-repo opened/synchronize/reopened admitted; fork, null head.repo, closed, labeled and another repo refused. R4 covers main admitted; sync-pr, sync-rerun, ref deletion, another repo and a non-push event refused. Mutations OR-ing the guard (5 fail) and removing the main-only clause (4 fail) are caught.
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-1 created=2026-11-16T19:59:32+00:00 decided_by=operator -->
+### op-trust-1 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 981f71bf55681419aadf39d2a9097aaaca5628f4b27cb2dd98a0ed855f3921fe
+
+<!-- fr:journal kind=op scope=plan id=op-app-webhooks-permission-1 created=2026-11-16T19:59:48+00:00 -->
+### op-app-webhooks-permission-1 · op · op app-webhooks-permission: open
+
+op: app-webhooks-permission
+result: open
+reason: exit 1
+phase: pre-merge
+
+<!-- fr:journal kind=op scope=plan id=op-app-webhooks-permission-2 created=2026-11-16T20:01:01+00:00 -->
+### op-app-webhooks-permission-2 · op · op app-webhooks-permission: done
+
+op: app-webhooks-permission
+result: done
+phase: pre-merge
+
+<!-- fr:journal kind=op scope=plan id=op-webhook-pull-request-1 created=2026-11-16T20:01:03+00:00 -->
+### op-webhook-pull-request-1 · op · op webhook-pull-request: done
+
+op: webhook-pull-request
+result: done
+phase: pre-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-1 created=2026-11-16T20:01:10+00:00 -->
+### gate-stage-1 · decision · DevOps stage 1 done: pre-merge ops
+
+head: a432079e0a465b4da539f0a2a5ded2810376e529
+pre-merge ops closed on chore/ops-2026-11-15--cicd--kid-laptops-mirror-pr-heads
