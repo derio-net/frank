@@ -178,3 +178,10 @@ Evidence: checked after the merge by hand not before, all 30 generated namespace
 Step: [x] BEFORE matrix (recorded 2026-11-14, before the cutover, not an op: it can only be taken before the old binding is deleted): all 14 `root-agents` deny cells leaked through the live `cluster-admin` binding and every `system:masters` control answered allowed.
 
 Evidence: taken live on 2026-11-14 before the old binding was deleted, all 14 root-agents deny cells leaked through the cluster-admin binding and every system:masters control answered allowed, raw output was in the delivering session and not committed
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-16T12:11:49+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
+
+Evidence: moved on 2026-11-14 adding root-agents before removing root-admins and re-read live today as only root-agents, the superuser pre-check found the account has no token and no events and never logged in so nothing relies on its superuser status
