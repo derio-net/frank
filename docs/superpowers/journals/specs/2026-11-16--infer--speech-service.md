@@ -124,3 +124,102 @@ decider: operator
 
 <!-- fr:journal kind=lens scope=spec id=lens-security-1 created=2026-11-16T20:09:57+00:00 lens=security step=brainstorm -->
 ### lens-security-1 · lens · Private-only exposure and no-auth machine API on the LAN
+
+<!-- fr:journal kind=finding scope=spec id=s1 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s1 · finding [open] (reviewer: in scope) · gpu-switcher change is Go code plus an image bump
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s2 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s2 · finding [open] (reviewer: in scope) · Alert changes name wrong or no files
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s3 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s3 · finding [open] (reviewer: in scope) · Auth model for the LAN API unspecified
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s4 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s4 · finding [open] (reviewer: in scope) · Time-slicing isolation gap and no VRAM guard location
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s5 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s5 · finding [open] (reviewer: in scope) · Device-plugin roll has no manual-op or rollback
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s6 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s6 · finding [open] (reviewer: in scope) · Test Plan does not cover several design promises
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=finding scope=spec id=s7 created=2026-11-16T20:11:56+00:00 state=open review_scope=in -->
+### s7 · finding [open] (reviewer: in scope) · App wiring and exposure files incompletely named
+
+check: spec review; see reviewer return.
+
+<!-- fr:journal kind=review scope=spec id=spec-review created=2026-11-16T20:11:56+00:00 -->
+### spec-review · review · independent spec review: 7 findings
+
+verified against codebase; all findings in scope and fixed in the spec.
+
+<!-- fr:journal kind=finding scope=spec id=s1-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s1 -->
+### s1-resolved · finding [fixed] · resolves s1: gpu-switcher change is Go code plus an image bump
+
+Spec now names parseWorkloads/Workload/ActivateWorkload edits, group syntax, Go tests, image bump and pod label.
+
+<!-- fr:journal kind=finding scope=spec id=s2-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s2 -->
+### s2-resolved · finding [fixed] · resolves s2: Alert changes name wrong or no files
+
+Spec names vmprobe.yaml, alert-rules-cm.yaml:381 and :1781, the guard scripts, and defines both-down semantics.
+
+<!-- fr:journal kind=finding scope=spec id=s3-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s3 -->
+### s3-resolved · finding [fixed] · resolves s3: Auth model for the LAN API unspecified
+
+Spec decides ip-allowlist + security-headers without forwardauth and sets upload limits.
+
+<!-- fr:journal kind=finding scope=spec id=s4-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s4 -->
+### s4-resolved · finding [fixed] · resolves s4: Time-slicing isolation gap and no VRAM guard location
+
+Spec sets N to group size, names the budget file and guard test.
+
+<!-- fr:journal kind=finding scope=spec id=s5-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s5 -->
+### s5-resolved · finding [fixed] · resolves s5: Device-plugin roll has no manual-op or rollback
+
+Spec adds the manual-op block with ordering and rollback.
+
+<!-- fr:journal kind=finding scope=spec id=s6-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s6 -->
+### s6-resolved · finding [fixed] · resolves s6: Test Plan does not cover several design promises
+
+Test Plan gains rows for batch/alerts, no public ingress, benchmark; decision/benchmark file named.
+
+<!-- fr:journal kind=finding scope=spec id=s7-resolved created=2026-11-16T20:11:56+00:00 state=fixed resolves=s7 -->
+### s7-resolved · finding [fixed] · resolves s7: App wiring and exposure files incompletely named
+
+Spec names ingressroutes.yaml, services.yaml, ArgoCD conventions and defers blog/README to close-out.
+
+<!-- fr:journal kind=decision scope=spec id=exit-baseline created=2026-11-16T20:11:58+00:00 -->
+### exit-baseline · decision · exit when spec-review resolved
+
+The exit when spec-review resolved; `fr verification set` and `deliver` compare against it.
+
+```yaml
+row_gates:
+  infer-speech-benchmark: devops
+  infer-speech-gpu-sharing: devops
+  infer-speech-quiet-alerts: devops
+  infer-speech-stt-api: devops
+  infer-speech-switcher-handover: devops
+  infer-speech-tts-api: devops
+row_kinds:
+  infer-speech-benchmark: live
+  infer-speech-gpu-sharing: live
+  infer-speech-quiet-alerts: live
+  infer-speech-stt-api: live
+  infer-speech-switcher-handover: live
+  infer-speech-tts-api: live
+run_gate: devops
+run_kind: live
+```
