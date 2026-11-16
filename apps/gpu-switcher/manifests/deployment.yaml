@@ -19,14 +19,14 @@ spec:
       serviceAccountName: gpu-switcher
       containers:
         - name: gpu-switcher
-          image: ghcr.io/derio-net/gpu-switcher:v0.1.1
+          image: ghcr.io/derio-net/gpu-switcher:v0.1.2
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
           env:
             - name: WORKLOADS
-              value: "ollama:ollama:ollama,comfyui:comfyui:comfyui"
+              value: "ollama:ollama:ollama,speech:speech:speech@ollama,comfyui:comfyui:comfyui"
           resources:
             requests:
               cpu: 50m

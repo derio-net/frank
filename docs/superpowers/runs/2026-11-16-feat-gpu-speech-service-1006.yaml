@@ -1,0 +1,181 @@
+schema_version: 11
+run: 2026-11-16-feat-gpu-speech-service-1006
+workflow: fr-goal@1
+branch: feat/gpu-speech-service-1006
+started: '2026-11-16T19:56:34+00:00'
+cursor: deliver
+steps:
+  brainstorm:
+    state: done
+    at: '2026-11-16T20:09:58+00:00'
+    answered_by: operator
+    emitted:
+      spec: docs/superpowers/specs/2026-11-16--infer--speech-service-design.md
+  spec-review:
+    state: done
+    at: '2026-11-16T20:11:58+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-16T20:10:02+00:00'
+          agent: aca35365c2e2a3967
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: hard
+          bound: opus
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:11:56+00:00'
+          outcome: done
+        evidence:
+          review: spec-review
+          reviewer: aca35365c2e2a3967
+          findings: s1,s2,s3,s4,s5,s6,s7
+  plan:
+    state: done
+    at: '2026-11-16T20:13:48+00:00'
+    emitted:
+      plan: docs/superpowers/plans/2026-11-16--infer--speech-service
+    units:
+      step/plan:
+        attempts:
+        - dispatched: '2026-11-16T20:12:03+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:13:48+00:00'
+          outcome: done
+  plan-review:
+    state: done
+    at: '2026-11-16T20:13:53+00:00'
+    exit: 0
+    stdout: "[warn] orphan phase-split decision \nphase-split-2026-11-16--infer--speech-service-p3\
+      \ names no agentic phase; it \nwaives nothing.\n"
+  implement:
+    state: done
+    at: '2026-11-16T20:55:57+00:00'
+    members:
+    - implement-phase
+    - review-phase
+    units:
+      phase/3:
+        state: manual
+      phase/1/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-16T20:13:54+00:00'
+          agent: ab59c6b59bf544a67
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:18:36+00:00'
+          outcome: done
+        evidence:
+          tests: p1-tests.log@c20839fc1990;tree=4f925136fce8aecd56278cd1f70f03bd170e5a97277059f231522805ef2f4b75
+          visual: none
+      phase/1/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-16T20:18:39+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:23:37+00:00'
+          outcome: done
+        evidence:
+          review: p1-review
+          reviewer: a6b08dc69666a4275
+          visual: none
+          findings: p1-r1,p1-r2,p1-r3,p1-r4,p1-r5,p1-r6,p1-r7,p1-r8,p1-r9,p1-r10,p1-r11,p1-r12
+      phase/2/implement-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-16T20:23:39+00:00'
+          agent: acc21e6a7f27596ce
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          tier: standard
+          bound: sonnet
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:30:14+00:00'
+          outcome: abandoned
+        - dispatched: '2026-11-16T20:30:16+00:00'
+          agent: ad06050a9c9969c6e
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          model: claude-sonnet-5-5
+          tier: standard
+          bound: sonnet
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:47:00+00:00'
+          outcome: done
+        evidence:
+          tests: final-tests.log@7289427d46c1;tree=9bc265a5b73b592d140b13057f156c3f5b2915e40537c62c3fe94791ca70702e
+          visual: none
+      phase/2/review-phase:
+        state: done
+        attempts:
+        - dispatched: '2026-11-16T20:47:05+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:55:57+00:00'
+          outcome: done
+        evidence:
+          review: p2-review
+          reviewer: a1da39f1e24c1aec6
+          visual: none
+          findings: p2-r1,p2-r2,p2-r3,p2-r4,p2-r5,p2-r6,p2-r7,p2-r8,p2-r9,p2-r10,p2-r11,p2-r12,p2-r13,p2-r14,p2-r15,p2-r16,p2-r17,p2-r18,p2-r19,p2-r20,p2-r21
+  journal-check:
+    state: done
+    at: '2026-11-16T20:56:01+00:00'
+    exit: 0
+    stdout: "8 out-of-scope finding(s): p1-r10, p1-r11, p1-r12, p2-r2, p2-r17, p2-r18,\
+      \ \np2-r19, p2-r21\n"
+  lens-review:
+    state: done
+    at: '2026-11-16T21:03:59+00:00'
+    units:
+      step/lens-review:
+        attempts:
+        - dispatched: '2026-11-16T20:56:03+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T20:56:27+00:00'
+          outcome: abandoned
+        - dispatched: '2026-11-16T20:56:27+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T21:03:59+00:00'
+          outcome: done
+        evidence:
+          review: lens-review
+          reviewer: security=a4066f6dda8924342,tests=afa2eed31e90ab66a
+          findings: l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7,l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
+          lenses: security=19:l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7;tests=24:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
+  deliver:
+    state: done
+    at: '2026-11-16T22:15:58+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/1007
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-16T21:04:01+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T22:15:37+00:00'
+          outcome: done
+        evidence:
+          tests: ci:3ea9d308fd8fe1d7b31d0d745822224c45582ab4+32d7282ce47cbf0b0c984e2a2ff75d242ff4725c;tree=c8c4992b1e6dc3a9ad9c944eb6f8ab05f7c1f23a1204a417de739ca37addb12b
+          proportionality: 47a5073cd4d5ca0a23980f14f051feca6fbbff2e:a6c1170faf0b5fecc1c5423925fea8186c47594fbe132824e6a790ff403f505b
+          docs: none
+          visual: none
+fr_version: 8.0.0
+pr: https://github.com/derio-net/frank/pull/1007

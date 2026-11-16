@@ -83,9 +83,29 @@ if si is None:
 if both and "gpu_timeshare" in both.get("labels", {}):
     errs.append("gpu-node-both-down carries gpu_timeshare — would be routed quiet and never page")
 
+# speech (#1006): shares the card with Ollama, so it is excluded from the
+# scale-to-zero rule, probed in its OWN group (never summed by both-down), and
+# has a quiet, non-paging health rule.
+stz = rules.get("Workload Unexpectedly Scaled To Zero")
+if not stz: errs.append("scale-to-zero rule missing")
+elif 'namespace!~"' not in expr_of(stz) or "speech" not in expr_of(stz).split('namespace!~"')[1].split('"')[0].split("|"):
+    errs.append("scale-to-zero rule must exclude namespace speech")
+if both and "speech" in expr_of(both):
+    errs.append("gpu-node-both-down must sum only the ollama/comfyui probes, not speech")
+sp = rules.get("Speech Service Degraded")
+if not sp: errs.append("speech health rule missing")
+else:
+    if sp.get("noDataState") != "OK": errs.append("speech rule noDataState!=OK")
+    if sp.get("labels", {}).get("severity") == "critical": errs.append("speech rule must not page")
+    if sp.get("labels", {}).get("gpu_timeshare") != "true": errs.append("speech rule missing gpu_timeshare=true")
+    if len(sp["uid"]) >= 40: errs.append("speech rule uid too long")
+vm = [d for d in yaml.safe_load_all(open("apps/blackbox-exporter/manifests/vmprobe.yaml")) if d]
+groups_seen = {d["spec"]["targets"]["staticConfig"]["labels"].get("probe_group") for d in vm}
+if "gpu_timeshare_speech" not in groups_seen: errs.append("vmprobe probe_group gpu_timeshare_speech missing")
+
 if errs:
     print("FAIL:")
     for e in errs: print("  -", e)
     sys.exit(1)
-print("OK: L11/L16 probe_success + quiet labels; gpu-node-both-down paging; route ordering")
+print("OK: L11/L16 probe_success + quiet labels; gpu-node-both-down paging; route ordering; speech probe/rule/exclusion")
 PY

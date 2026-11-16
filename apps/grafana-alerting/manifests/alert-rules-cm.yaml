@@ -319,7 +319,7 @@ data:
       # third timeshared workload, or flipping a second Rollout to
       # `scaleDown: onsuccess`, fails CI instead of paging at 03:00:
       #
-      #   namespace!~"ollama|comfyui"
+      #   namespace!~"ollama|comfyui|speech"
       #     gpu-switcher's WORKLOADS env var
       #     (apps/gpu-switcher/manifests/deployment.yaml), which parks whichever
       #     GPU workload is not currently holding gpu-1. NOT clusterrole.yaml —
@@ -336,9 +336,10 @@ data:
       #     namespace on purpose, so an unrelated Deployment scaled to 0 in the
       #     litellm namespace is still caught.
       #
-      # Coverage is not lost for the excluded three: ollama/comfyui are probed
+      # Coverage is not lost for the excluded four: ollama/comfyui are probed
       # end-to-end by the L11 litellm_chat and L16 comfyui_object_info blackbox
-      # probes with gpu-node-both-down as the real pager, and litellm's actual
+      # probes with gpu-node-both-down as the real pager, speech by its own
+      # speech-probe + speech-health-degraded rule, and litellm's actual
       # health is the Rollout's, which layer-11-inference-down probes.
       #
       # THRESHOLD IS `lt 1`, NOT `gt 0`, and that is not an oversight. In PromQL
@@ -378,7 +379,7 @@ data:
                 model:
                   refId: A
                   expr: |
-                    kube_deployment_spec_replicas{namespace!~"ollama|comfyui",deployment!~"litellm"} == 0
+                    kube_deployment_spec_replicas{namespace!~"ollama|comfyui|speech",deployment!~"litellm"} == 0
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1761,6 +1762,10 @@ data:
       # probes are down: gpu-1/driver dead, both scaled to 0, or switcher stuck.
       # severity=critical + NO gpu_timeshare label => routes normally => Telegram
       # + health-bridge bug. for:10m rides out the brief both-down switch-over gap.
+      # speech (#1006) is deliberately NOT summed: its probe has its own
+      # probe_group (gpu_timeshare_speech). It shares the card with Ollama, so
+      # counting it would let a speech-only card read as "serving" — and the
+      # sum is of the ollama and comfyui probes only, as before.
       # noDataState:OK — both series absent = blackbox/VMProbe scrape gap
       # (monitoring blindness, not a confirmed GPU death); the per-layer rules'
       # noDataState:Alerting already surfaces that as visible degraded tiles.
@@ -1804,6 +1809,60 @@ data:
             annotations:
               summary: "GPU node serving NEITHER inference nor media — gpu-1 down, both scaled to 0, or switcher stuck"
               runbook: "kubectl get nodes gpu-1; kubectl -n ollama get deploy ollama; kubectl -n comfyui get deploy comfyui; probe_success{probe_group=gpu_timeshare} in VMUI"
+
+      # --- Speech service (#1006) — STT/TTS on the shared gpu-1 card ---
+      # speech runs in a gpu-switcher group with Ollama and is scaled to 0 by
+      # design whenever ComfyUI holds the card, so a bare probe_success==0 would
+      # fire constantly. The `and on()` clause keeps the rule meaningful only
+      # while the Deployment is DESIRED up (spec replicas > 0); when it is
+      # scaled to 0 the query returns nothing and the rule resolves through
+      # NoData, which is why noDataState: OK is load-bearing here. Same
+      # `== 0`/`lt 1` pairing as workload-unexpectedly-scaled-to-zero (the
+      # filtered value is the 0 itself). gpu_timeshare="true" routes to
+      # health-bridge ONLY (tile, no Telegram); gpu-node-both-down stays the
+      # only pager for the card.
+      # for: 45m > the pod's 30m startup budget (startupProbe 10s x 180), so a
+      # cold start that downloads models cannot page before it can be Ready.
+      - orgId: 1
+        name: speech-health
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: speech-health-degraded
+            title: Speech Service Degraded
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'probe_success{probe_group="gpu_timeshare_speech"} == 0 and on() (sum(kube_deployment_spec_replicas{namespace="speech",deployment="speech"}) > 0)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 45m
+            labels:
+              severity: warning
+              gpu_timeshare: "true"
+            annotations:
+              summary: "Speech: /v1/models probe failing while the speech Deployment is scaled up (server down or models not loaded)"
+              runbook: "kubectl -n speech get deploy,pods; kubectl -n speech logs deploy/speech; probe_success{probe_group=gpu_timeshare_speech} in VMUI; check gpu-switcher group state"
 
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---
       # Blackbox probes on blog.derio.net and www.derio.net (both in VMProbe).

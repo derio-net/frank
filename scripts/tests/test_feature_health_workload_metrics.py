@@ -1164,6 +1164,7 @@ def _gpu_timeshared_workloads() -> set[tuple[str, str]]:
             "triple; gpu-switcher's parser and this one have diverged"
         )
         _name, namespace, deployment = parts
+        deployment = deployment.split("@", 1)[0]  # optional `@group` suffix
         workloads.add((namespace, deployment))
     assert workloads, f"{GPU_SWITCHER_DEPLOYMENT} declares an empty WORKLOADS list"
     return workloads
@@ -1709,3 +1710,106 @@ def test_no_rule_uid_exceeds_grafanas_forty_character_limit():
         "container CrashLoops, taking all alerting down with it. Shorten the "
         "uid; it is an identifier, not a description."
     )
+
+
+# ---------------------------------------------------------------------------
+# Speech on the shared card (#1006).
+#
+# speech joins Ollama in a gpu-switcher group, so it is down by design whenever
+# ComfyUI holds the card. Three consequences, each asserted:
+#   1. its namespace is excluded from scale-to-zero (derived from WORKLOADS in
+#      test_the_scale_to_zero_exclusions_are_derived_from_both_declarative_sources);
+#   2. its probe lives in its OWN probe_group, so `gpu-node-both-down` keeps
+#      summing exactly the ollama and comfyui probes and speech being up can
+#      never mask a dead inference+media card;
+#   3. a speech health rule exists, off Telegram, and quiet while speech is
+#      scaled to 0.
+# ---------------------------------------------------------------------------
+
+VMPROBE = REPO / "apps" / "blackbox-exporter" / "manifests" / "vmprobe.yaml"
+SPEECH_RULE = "speech-health-degraded"
+SPEECH_PROBE_GROUP = "gpu_timeshare_speech"
+
+
+def _vmprobes() -> dict[str, dict[str, Any]]:
+    return {
+        d["metadata"]["name"]: d
+        for d in yaml.safe_load_all(VMPROBE.read_text(encoding="utf-8"))
+        if d and d.get("kind") == "VMProbe"
+    }
+
+
+def test_speech_has_its_own_probe_group():
+    probe = _vmprobes().get("speech-probe")
+    assert probe is not None, "apps/blackbox-exporter/manifests/vmprobe.yaml has no speech-probe"
+    static = probe["spec"]["targets"]["staticConfig"]
+    assert static["labels"]["probe_group"] == SPEECH_PROBE_GROUP
+    assert any("speech.speech" in t for t in static["targets"])
+    assert "layer" not in static["labels"], (
+        "a `layer` label would be swept up by the L11/L16 `probe_success{layer=...}` rules"
+    )
+    # same NoData-vs-0 reasoning as the other time-share probes
+    assert int(probe["spec"]["scrapeTimeout"].rstrip("s")) <= int(probe["spec"]["interval"].rstrip("s"))
+    others = {
+        name: p["spec"]["targets"]["staticConfig"]["labels"].get("probe_group")
+        for name, p in _vmprobes().items()
+        if name != "speech-probe"
+    }
+    assert SPEECH_PROBE_GROUP not in others.values()
+
+
+def test_gpu_node_both_down_sums_only_the_ollama_and_comfyui_probes():
+    by_uid = {r["uid"]: r for r in _feature_health_rules()}
+    expr = _query_expr(by_uid["gpu-node-both-down"]).replace(" ", "")
+    assert 'probe_group="gpu_timeshare"' in expr
+    assert "speech" not in expr, "speech must not count toward gpu-node-both-down"
+    members = {
+        n: p["spec"]["targets"]["staticConfig"]["labels"]["probe_group"]
+        for n, p in _vmprobes().items()
+        if p["spec"]["targets"]["staticConfig"]["labels"].get("probe_group") == "gpu_timeshare"
+    }
+    assert set(members) == {"inference-probe", "media-probe"}, members
+
+
+def test_speech_health_rule_is_quiet_and_off_telegram():
+    by_uid = {r["uid"]: r for r in _feature_health_rules()}
+    rule = by_uid.get(SPEECH_RULE)
+    assert rule is not None, f"{SPEECH_RULE} missing from the feature-health folder"
+    assert len(rule["uid"]) < GRAFANA_MAX_UID_LENGTH
+    assert rule["noDataState"] == "OK"
+    labels = rule.get("labels", {})
+    assert labels.get("severity") == "warning"
+    assert labels.get("severity") != "critical"
+    assert any(labels.get(h) == "true" for h in _TELEGRAM_ESCAPE_HATCHES), labels
+    expr = _query_expr(rule)
+    assert SPEECH_PROBE_GROUP in expr
+    # Only meaningful while speech is meant to be up: filter on the Deployment's
+    # desired replicas so a by-design scale-to-0 resolves through NoData.
+    assert "kube_deployment_spec_replicas" in expr and 'namespace="speech"' in expr
+    assert _threshold_evaluator(rule)["type"] == "lt"
+    # shape, not just substrings: the probe must be compared `== 0` and guarded
+    # by an `and on()` clause on the Deployment's desired replicas being > 0.
+    flat = " ".join(expr.split())
+    assert re.search(
+        r'probe_success\{[^}]*probe_group="gpu_timeshare_speech"[^}]*\}\s*==\s*0\s+and\s+on\(\)\s*'
+        r'\(\s*sum\(kube_deployment_spec_replicas\{[^}]*namespace="speech"[^}]*\}\)\s*>\s*0\s*\)$',
+        flat,
+    ), flat
+
+
+def test_speech_rule_has_a_grace_window_and_probes_a_real_endpoint():
+    by_uid = {r["uid"]: r for r in _feature_health_rules()}
+    rule = by_uid[SPEECH_RULE]
+    # a cold start downloads models; a switch-in must not page inside that window
+    def _secs(v):
+        return int(v[:-1]) * {"s": 1, "m": 60, "h": 3600}[v[-1]]
+
+    startup = yaml.safe_load(
+        (REPO / "apps/speech/manifests/deployment.yaml").read_text(encoding="utf-8")
+    )["spec"]["template"]["spec"]["containers"][0]["startupProbe"]
+    startup_budget = startup["failureThreshold"] * startup["periodSeconds"]
+    assert _secs(rule["for"]) > startup_budget, (
+        "the alert window must outlast the startup budget or a slow cold start pages"
+    )
+    static = _vmprobes()["speech-probe"]["spec"]["targets"]["staticConfig"]
+    assert any(t.endswith("/v1/models") for t in static["targets"])

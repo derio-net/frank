@@ -1,0 +1,11 @@
+# Smoke declaration for frank/speech (spec R16/R17). The verifier runs these after every rollout.
+app: speech
+cluster: frank
+checks:
+- kind: functional
+  name: models endpoint lists served models
+  target: http://speech.speech.svc.cluster.local:8000/v1/models
+  expect:
+    status: 200
+    json_min_keys: 1
+  note: in-cluster only; the speech service has no public route

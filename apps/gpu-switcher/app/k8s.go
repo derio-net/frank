@@ -13,6 +13,7 @@ type Workload struct {
 	Name           string // Display name (e.g., "ollama", "comfyui")
 	Namespace      string // Kubernetes namespace
 	DeploymentName string // Deployment to scale
+	Group          string // Optional sharing group (defaults to Name); members run together
 }
 
 // WorkloadStatus is the current state of a workload.
@@ -53,21 +54,36 @@ func GetStatus(ctx context.Context, client kubernetes.Interface, workloads []Wor
 	return statuses, nil
 }
 
-// ActivateWorkload scales the target workload to 1 and all others to 0.
-func ActivateWorkload(ctx context.Context, client kubernetes.Interface, workloads []Workload, name string) error {
-	found := false
+// groupKey returns the sharing group of a workload: its explicit Group, or
+// its own Name when none is declared. "speech@ollama" joins group "ollama",
+// which is also the implicit group of the workload named "ollama".
+func groupKey(w Workload) string {
+	if w.Group != "" {
+		return w.Group
+	}
+	return w.Name
+}
+
+// groupOf returns the sharing group of the named workload.
+func groupOf(workloads []Workload, name string) (string, bool) {
 	for _, w := range workloads {
 		if w.Name == name {
-			found = true
-			break
+			return groupKey(w), true
 		}
 	}
+	return "", false
+}
+
+// ActivateWorkload scales the target and every workload sharing its group to 1
+// and all others to 0.
+func ActivateWorkload(ctx context.Context, client kubernetes.Interface, workloads []Workload, name string) error {
+	group, found := groupOf(workloads, name)
 	if !found {
 		return fmt.Errorf("unknown workload: %s", name)
 	}
 	for _, w := range workloads {
 		var target int32
-		if w.Name == name {
+		if groupKey(w) == group {
 			target = 1
 		}
 		if err := scaleDeployment(ctx, client, w.Namespace, w.DeploymentName, target); err != nil {

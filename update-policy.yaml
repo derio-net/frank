@@ -146,6 +146,10 @@ rules:
   path: session
   reason: 'stateful: owns persistent data; a Longhorn snapshot is taken inside the session before the upgrade'
 - match:
+    app: frank/speech
+  path: session
+  reason: 'stateful: owns persistent data; a Longhorn snapshot is taken inside the session before the upgrade'
+- match:
     app: frank/vcluster-staging
   path: session
   reason: 'stateful: owns persistent data; a Longhorn snapshot is taken inside the session before the upgrade'

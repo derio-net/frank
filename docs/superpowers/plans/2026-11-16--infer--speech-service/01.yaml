@@ -1,0 +1,95 @@
+schema_version: 2
+phase:
+  number: 1
+  title: GPU sharing config, VRAM budget guard and gpu-switcher groups
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - infer-speech-gpu-sharing
+  - infer-speech-switcher-handover
+  skeleton: true
+  tier: standard
+  files:
+  - apps/gpu-operator/values.yaml
+  - apps/gpu-operator-extras/manifests/**
+  - apps/gpu-switcher/**
+  - apps/speech/manifests/files/vram-budget.yaml
+  - scripts/tests/test_speech_*.py
+  - docs/runbooks/frank-gotchas/gpu-1.md
+  estimate_lines: 450
+tasks:
+- number: 1
+  title: Smoke - trivial speech guard goes green
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create scripts/tests/test_speech_smoke.py asserting docs/superpowers/specs/2026-11-16--infer--speech-service-design.md exists. Run it with .venv/bin/pytest scripts/tests/test_speech_smoke.py -q (not uv run) and expect 1 passed; confirm the repo CI invokes scripts/tests so the smoke is exercised on a PR.
+- number: 2
+  title: gpu-switcher groups (red -> green -> refactor)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Red: in apps/gpu-switcher/app/k8s_test.go add tests for group activation (speech@ollama scales ollama and speech to 1 and comfyui to 0; comfyui scales ollama and speech to 0; DeactivateAll scales all to 0) and for parseWorkloads accepting both 'name:ns:dep' and 'name:ns:dep@group' and rejecting malformed entries. Run 'cd apps/gpu-switcher/app && go test ./...' and expect failures.
+  - id: P1.T2.S2
+    text: |-
+      Green: add Group to the Workload struct (k8s.go), extend parseWorkloads (main.go:127-148) to read the optional @group suffix, and make ActivateWorkload scale the target plus every workload sharing its group to 1 and all others to 0. Run go test ./... and expect pass.
+  - id: P1.T2.S3
+    text: |-
+      Refactor: factor the group lookup into one helper used by ActivateWorkload and the status output; keep three-field entries behaviour identical. Re-run go test ./...
+- number: 3
+  title: Switcher manifest and image bump
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Extend WORKLOADS in apps/gpu-switcher/manifests/deployment.yaml:29 to include speech:speech:speech@ollama and bump the image tag at :22 from v0.1.1 to the next patch version; find how the gpu-switcher image is built (workflow under .github/ or apps/gpu-switcher/app/Dockerfile) and note the tag-push step needed in the plan journal. Write scripts/tests/test_speech_switcher_manifest.py asserting the WORKLOADS string parses into the expected group (reuse the Go-side grammar by regex) and that the image tag matches the declared version.
+- number: 4
+  title: Time-slicing config and VRAM budget guard (red -> green -> refactor)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Red: write scripts/tests/test_speech_vram_budget.py: load apps/speech/manifests/files/vram-budget.yaml (Ollama allowlist of tags with num_ctx, speech model sizes in GB, total 16, headroom); assert the sum of the largest allowed Ollama tag plus speech models plus headroom is under 16 GB, every Ollama tag exists in apps/ollama/values.yaml, and the time-slicing replicas value in apps/gpu-operator-extras/manifests equals the largest switcher group size. Expect failure (files missing).
+  - id: P1.T4.S2
+    text: |-
+      Green: create the time-slicing ConfigMap in apps/gpu-operator-extras/manifests/ (version: v1, sharing.timeSlicing.resources nvidia.com/gpu replicas: 2, renameByDefault: false), reference it from apps/gpu-operator/values.yaml via devicePlugin.config (name and default), and write vram-budget.yaml with measured-or-conservative placeholder sizes marked 'estimate: true' until the benchmark replaces them. Run the guard and expect pass.
+  - id: P1.T4.S3
+    text: |-
+      Refactor: document the exclusivity model (replicas == largest group, switcher keeps ComfyUI away) and the time-slicing no-isolation caveat in docs/runbooks/frank-gotchas/gpu-1.md and a one-line pointer in agents/rules/frank-gotchas.md.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: '2026-11-16T20:18:32+00:00'
+      note: null
+  completion:
+    at: '2026-11-16T20:18:32+00:00'
+    note: null
+    observed_prs: []

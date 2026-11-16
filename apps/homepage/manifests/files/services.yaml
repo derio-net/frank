@@ -71,6 +71,11 @@
         href: https://comfyui.cluster.derio.net
         description: Visual editor for diffusion model pipelines
         siteMonitor: http://comfyui.comfyui:8188
+    - Speech:
+        icon: mdi-microphone-message
+        href: https://speech.cluster.derio.net
+        description: Speech-to-text and text-to-speech API (LAN only)
+        siteMonitor: http://speech.speech:8000
     - GPU Switcher:
         icon: mdi-expansion-card
         href: https://gpu.cluster.derio.net
