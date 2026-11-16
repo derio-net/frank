@@ -48,3 +48,26 @@ amendments:
       and can change nothing.
     why: 'Operator decision 2026-11-14: logs, pod env and ConfigMaps in the credential-store
       namespaces can carry credentials, so root-agents reads none of them'
+  - row: root-agents-no-secrets
+    op: set-status
+    base: 0
+    status: walked
+    notes: 'Walked live after the cutover (frank#912): the full verify run on 2026-11-16
+      answered all 36 SubjectAccessReview cells as intended, every system:masters control
+      allowed. root-agents is denied get secrets in argocd, infisical, authentik, kube-system,
+      longhorn-system, upgrade-sessions, cluster-update-fr and runs-fr, and denied list
+      pods in upgrade-sessions.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: SubjectAccessReview matrix (scripts/root-agents-cutover.sh verify),
+        36 cells, run by the operator on 2026-11-16, bindings read back by the session
+        the same day
+    why: 'Walked live after the cutover (frank#912): the full verify run on 2026-11-16
+      answered all 36 SubjectAccessReview cells as intended, every system:masters control
+      allowed. root-agents is denied get secrets in argocd, infisical, authentik, kube-system,
+      longhorn-system, upgrade-sessions, cluster-update-fr and runs-fr, and denied list
+      pods in upgrade-sessions.'
