@@ -1,0 +1,27 @@
+schema_version: 11
+run: 2026-11-16-feat-gpu-speech-service-1006
+workflow: fr-goal@1
+branch: feat/gpu-speech-service-1006
+started: '2026-11-16T19:56:34+00:00'
+cursor: brainstorm
+steps:
+  brainstorm:
+    state: pending
+  spec-review:
+    state: pending
+  plan:
+    state: pending
+  plan-review:
+    state: pending
+  implement:
+    state: pending
+    members:
+    - implement-phase
+    - review-phase
+  journal-check:
+    state: pending
+  lens-review:
+    state: pending
+  deliver:
+    state: pending
+fr_version: 8.0.0
