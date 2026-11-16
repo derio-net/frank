@@ -3,7 +3,7 @@ run: 2026-11-16-feat-gpu-speech-service-1006
 workflow: fr-goal@1
 branch: feat/gpu-speech-service-1006
 started: '2026-11-16T19:56:34+00:00'
-cursor: plan-review
+cursor: implement
 steps:
   brainstorm:
     state: done
@@ -46,7 +46,11 @@ steps:
           returned: '2026-11-16T20:13:48+00:00'
           outcome: done
   plan-review:
-    state: pending
+    state: done
+    at: '2026-11-16T20:13:53+00:00'
+    exit: 0
+    stdout: "[warn] orphan phase-split decision \nphase-split-2026-11-16--infer--speech-service-p3\
+      \ names no agentic phase; it \nwaives nothing.\n"
   implement:
     state: pending
     members:
