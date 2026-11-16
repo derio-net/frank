@@ -563,3 +563,8 @@ Multipart parsed; error paths and bad --tts keys tested.
 ### l-tests-r8-resolved · finding [fixed] · resolves l-tests-r8: Tests restate manifests, grace window unrelated to startup budget
 
 for raised to 45m and asserted above the startup budget; other points accepted as live-only limits.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r10-resolved-2 created=2026-11-16T21:55:32+00:00 phase=1 state=open resolves=p1-r10 tracked_by=https://github.com/derio-net/frank/issues/1008 -->
+### p1-r10-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1008] · resolves p1-r10: Activation ordering follows WORKLOADS list (pre-existing) (phase 1)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/1008.
