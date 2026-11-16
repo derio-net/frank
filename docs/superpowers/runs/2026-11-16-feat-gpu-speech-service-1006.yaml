@@ -159,8 +159,10 @@ steps:
           findings: l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7,l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
           lenses: security=19:l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7;tests=24:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
   deliver:
-    state: running
-    at: '2026-11-16T21:04:01+00:00'
+    state: done
+    at: '2026-11-16T22:15:58+00:00'
+    emitted:
+      pr: https://github.com/derio-net/frank/pull/1007
     units:
       step/deliver:
         attempts:
@@ -168,5 +170,12 @@ steps:
           harness: claude-code
           model: claude-sonnet-5-5
           session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
+          returned: '2026-11-16T22:15:37+00:00'
+          outcome: done
+        evidence:
+          tests: ci:3ea9d308fd8fe1d7b31d0d745822224c45582ab4+32d7282ce47cbf0b0c984e2a2ff75d242ff4725c;tree=c8c4992b1e6dc3a9ad9c944eb6f8ab05f7c1f23a1204a417de739ca37addb12b
+          proportionality: 47a5073cd4d5ca0a23980f14f051feca6fbbff2e:a6c1170faf0b5fecc1c5423925fea8186c47594fbe132824e6a790ff403f505b
+          docs: none
+          visual: none
 fr_version: 8.0.0
 pr: https://github.com/derio-net/frank/pull/1007
