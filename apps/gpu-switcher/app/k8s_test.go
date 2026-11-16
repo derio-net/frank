@@ -175,9 +175,51 @@ func TestParseWorkloadsGrammar(t *testing.T) {
 	if len(ws) != 2 || ws[0].Group != "" || ws[1].Group != "ollama" || ws[1].DeploymentName != "speech" {
 		t.Errorf("unexpected parse: %+v", ws)
 	}
-	for _, bad := range []string{"a:b", "a:b:c@", "a:b:@g", "a:b:c:d", ":b:c", "a:b:c@g@h"} {
+	for _, bad := range []string{"a:b", "a:b:c@", "a:b:@g", "a:b:c:d", ":b:c", "a:b:c@g@h",
+		"ollama:ollama:ollama,speech:speech:speech@olama", // group names no workload
+		"ollama:ollama:ollama,",                            // trailing comma / empty entry
+		"",                                                 // empty list
+		"a:b:c,a:b:d",                                      // duplicate name
+	} {
 		if _, err := ParseWorkloads(bad); err == nil {
 			t.Errorf("expected error for %q", bad)
 		}
+	}
+}
+
+// The real gpu-switcher Deployment's WORKLOADS value must parse and place
+// speech in the ollama group (this is the contract the manifest ships).
+func TestShippedWorkloadsValueParses(t *testing.T) {
+	data, err := os.ReadFile("../manifests/deployment.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(data), "\n")
+	val := ""
+	for i, l := range lines {
+		if strings.Contains(l, "name: WORKLOADS") && i+1 < len(lines) {
+			v := strings.TrimSpace(lines[i+1])
+			v = strings.TrimPrefix(v, "value:")
+			val = strings.Trim(strings.TrimSpace(v), "\"")
+		}
+	}
+	if val == "" {
+		t.Fatal("WORKLOADS value not found in deployment.yaml")
+	}
+	ws, err := ParseWorkloads(val)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, w := range ws {
+		if w.Name == "speech" {
+			found = true
+			if w.Namespace != "speech" || w.DeploymentName != "speech" || w.Group != "ollama" {
+				t.Errorf("unexpected speech workload: %+v", w)
+			}
+		}
+	}
+	if !found {
+		t.Error("speech workload missing from shipped WORKLOADS")
 	}
 }

@@ -142,9 +142,11 @@ func parseWorkloads() []Workload {
 }
 
 // ParseWorkloads parses "name:namespace:deployment[@group],..." entries.
-// Workloads sharing a group are activated together.
+// Workloads sharing a group are activated together. A group must name a
+// workload in the same list; empty entries and duplicate names are rejected.
 func ParseWorkloads(raw string) ([]Workload, error) {
 	var workloads []Workload
+	seen := map[string]bool{}
 	for _, entry := range strings.Split(raw, ",") {
 		parts := strings.Split(entry, ":")
 		if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
@@ -154,12 +156,21 @@ func ParseWorkloads(raw string) ([]Workload, error) {
 		if dep == "" || (hasGroup && (group == "" || strings.Contains(group, "@"))) {
 			return nil, fmt.Errorf("invalid workload entry: %q (expected name:namespace:deployment[@group])", entry)
 		}
+		if seen[parts[0]] {
+			return nil, fmt.Errorf("duplicate workload name: %q", parts[0])
+		}
+		seen[parts[0]] = true
 		workloads = append(workloads, Workload{
 			Name:           parts[0],
 			Namespace:      parts[1],
 			DeploymentName: dep,
 			Group:          group,
 		})
+	}
+	for _, w := range workloads {
+		if w.Group != "" && !seen[w.Group] {
+			return nil, fmt.Errorf("workload %q: group %q names no workload in the list", w.Name, w.Group)
+		}
 	}
 	return workloads, nil
 }
