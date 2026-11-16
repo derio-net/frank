@@ -52,10 +52,23 @@ steps:
     stdout: "[warn] orphan phase-split decision \nphase-split-2026-11-16--infer--speech-service-p3\
       \ names no agentic phase; it \nwaives nothing.\n"
   implement:
-    state: pending
+    state: running
+    at: '2026-11-16T20:13:54+00:00'
     members:
     - implement-phase
     - review-phase
+    units:
+      phase/3:
+        state: manual
+      phase/1/implement-phase:
+        state: running
+        attempts:
+        - dispatched: '2026-11-16T20:13:54+00:00'
+          agent_type: super-fr:fr-phase-executor
+          harness: claude-code
+          tier: standard
+          bound: sonnet
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
   journal-check:
     state: pending
   lens-review:
