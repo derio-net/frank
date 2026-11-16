@@ -159,5 +159,13 @@ steps:
           findings: l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7,l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
           lenses: security=19:l-security-r1,l-security-r2,l-security-r3,l-security-r4,l-security-r5,l-security-r6,l-security-r7;tests=24:l-tests-r1,l-tests-r2,l-tests-r3,l-tests-r4,l-tests-r5,l-tests-r6,l-tests-r7,l-tests-r8
   deliver:
-    state: pending
+    state: running
+    at: '2026-11-16T21:04:01+00:00'
+    units:
+      step/deliver:
+        attempts:
+        - dispatched: '2026-11-16T21:04:01+00:00'
+          harness: claude-code
+          model: claude-sonnet-5-5
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
 fr_version: 8.0.0
