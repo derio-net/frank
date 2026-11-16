@@ -1,0 +1,27 @@
+schema_version: 12
+run: 2026-11-16-feat-gpu-speech-service-1006
+step: implement-phase
+item: phase/2
+outcome: blocked
+ticks: []
+refactor: {}
+journal:
+  - kind: discovery
+    id: speaches-image-evidence
+    phase: 2
+    title: speaches upstream images ship CUDA 12.9 base but a ctranslate2 4.5.0 STT engine with no Blackwell support
+    body: |
+      Evidence (curl, 2026-11-16) for ghcr.io/speaches-ai/speaches (MIT, OpenAI-compatible STT/TTS):
+      - Tags: `-cuda` suffix = base nvidia/cuda:12.9.0 (master workflow; v0.9.0-rc.3 uses 12.9.0-cudnn-runtime), also `-cuda-12.6.3`, `-cuda-12.4.1`. Candidates resolved: `0.9.0-rc.3-cuda` = sha256:f4eb14d1c53b19c5bd1f76d10ea9fc10288ceaf82dca09506d3f0ef92ee943de; `0.8.3-cuda` = sha256:9abc6968a883e77ead9286c38a6ccf3139dcad518b783deeebb7be2ced50e972.
+      - TTS: kokoro-onnx 0.4.5 (onnxruntime-gpu 1.22.0 at rc.3, 1.24.4 on master), piper-tts 1.3.0. STT: faster-whisper 1.1.1 on ctranslate2 4.5.0 (uv.lock at v0.9.0-rc.3 and master); master pyproject also lists onnx-asr>=0.7.0.
+      - CTranslate2 CHANGELOG: sm120 handling arrives in v4.6.2 (disable INT8 on Blackwell) and CUDA 12.8 support in v4.6.3 (2026-01-06). The ctranslate2 4.5.0 wheel is built on CUDA 12.2 (prepare_build_environment_linux.sh). The CUDA 12.9 base image therefore does not give the faster-whisper engine Blackwell kernels.
+      - No upstream tag or lock was found that combines ctranslate2 >= 4.6.3 with a published image digest, so sm_120 capability of the STT path (the 2.5 h transcription use case) is NOT established.
+  - kind: finding
+    id: speaches-no-sm120-image
+    phase: 2
+    title: No upstream speech image with established sm_120 (RTX 5070 Ti) STT support; P2 blocked at P2.T1.S1
+    review_scope: in
+    body: |
+      Per the phase contract no custom image is built and no digest invented. Options for the operator: (a) accept speaches `0.9.0-rc.3-cuda` and verify on-card first (CT2 4.5.0 may JIT from PTX if present, unproven; ops-gated live test); (b) approve a derived image bumping ctranslate2 to >=4.6.3 (new manual-op); (c) a different upstream server. Phase 2 tasks T2-T5 not started (T2 depends on the pinned digest; T3-T5 are separable and can proceed once the operator decides).
+resolves: []
+evidence: {}
