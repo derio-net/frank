@@ -240,3 +240,13 @@ pre-merge ops closed on chore/ops-2026-11-15--cicd--kid-laptops-mirror-pr-heads
 ### gate-stage-2 · decision · DevOps stage 2 done: merge
 
 merged PR #992 at a432079e0a465b4da539f0a2a5ded2810376e529
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-2 created=2026-11-16T20:11:04+00:00 decided_by=operator -->
+### op-trust-2 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 9aa820fe4ec0ba7bd2a90241f96b663fcf4b0332548f54d175297430d68fb3d7
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-3 created=2026-11-16T20:11:09+00:00 -->
+### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
+
+merge verified; chore/ops-2026-11-15--cicd--kid-laptops-mirror-pr-heads rebased onto main; ready
