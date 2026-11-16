@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/speech/docker/**"
+      - ".github/workflows/build-speech.yml"
   workflow_dispatch:
 
 env:

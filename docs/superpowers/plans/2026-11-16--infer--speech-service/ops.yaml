@@ -4,7 +4,7 @@ ops:
   summary: The derived speech image exists in GHCR (public) before the Deployment that pins it merges
   phase: pre-merge
   apply: |-
-    gh workflow run build-speech.yml --ref feat/gpu-speech-service-1006 && echo "wait for the run, then set the ghcr.io/derio-net/speech package public"
+    REV=$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2); CT2=$(grep -o 'CTRANSLATE2_VERSION: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2); echo "On the Intel MacBook, logged in to ghcr.io: docker buildx build --platform linux/amd64 --build-arg CTRANSLATE2_VERSION=$CT2 -t ghcr.io/derio-net/speech:$REV --push apps/speech/docker, then make the package public"
   mutating: true
   check: |-
     docker manifest inspect ghcr.io/derio-net/speech:$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2) >/dev/null

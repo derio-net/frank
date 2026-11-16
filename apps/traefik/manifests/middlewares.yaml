@@ -56,18 +56,21 @@ spec:
       - X-authentik-meta-app
       - X-authentik-meta-version
 ---
-# Upload cap for the speech API: 2.5 h of 16 kHz mono 16-bit WAV is ~290 MB;
-# 2 GiB leaves headroom for stereo/higher-rate sources. Bodies above 32 MiB
-# spill to the proxy's temp dir while buffering.
+# Speech API source allowlist: narrower than the shared ip-allowlist (which also
+# admits 172.16.0.0/12). LAN = 192.168.0.0/16 (Frank's nodes/clients are
+# 192.168.55.0/24), mesh = 100.64.0.0/10 (Headscale prefix, see
+# clusters/hop/apps/headscale/manifests/configmap.yaml), pods = 10.0.0.0/8.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: speech-upload-limit
+  name: speech-ip-allowlist
   namespace: traefik-system
 spec:
-  buffering:
-    maxRequestBodyBytes: 2147483648
-    memRequestBodyBytes: 33554432
+  ipAllowList:
+    sourceRange:
+      - "192.168.0.0/16"
+      - "100.64.0.0/10"
+      - "10.0.0.0/8"
 ---
 # Transcription is not streamed: response headers arrive only when the whole
 # recording is done, so the backend response timeout must cover a 2.5 h file.

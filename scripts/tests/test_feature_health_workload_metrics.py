@@ -1786,3 +1786,12 @@ def test_speech_health_rule_is_quiet_and_off_telegram():
     # desired replicas so a by-design scale-to-0 resolves through NoData.
     assert "kube_deployment_spec_replicas" in expr and 'namespace="speech"' in expr
     assert _threshold_evaluator(rule)["type"] == "lt"
+
+
+def test_speech_rule_has_a_grace_window_and_probes_a_real_endpoint():
+    by_uid = {r["uid"]: r for r in _feature_health_rules()}
+    rule = by_uid[SPEECH_RULE]
+    # a cold start downloads models; a switch-in must not page inside that window
+    assert rule["for"] == "30m"
+    static = _vmprobes()["speech-probe"]["spec"]["targets"]["staticConfig"]
+    assert any(t.endswith("/v1/models") for t in static["targets"])

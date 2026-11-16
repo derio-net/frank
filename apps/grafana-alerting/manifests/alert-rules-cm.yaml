@@ -1854,12 +1854,12 @@ data:
                     - evaluator: { type: lt, params: [1] }
             noDataState: OK
             execErrState: Error
-            for: 10m
+            for: 30m
             labels:
               severity: warning
               gpu_timeshare: "true"
             annotations:
-              summary: "Speech: /health probe failing while the speech Deployment is scaled up (server down or models not loaded)"
+              summary: "Speech: /v1/models probe failing while the speech Deployment is scaled up (server down or models not loaded)"
               runbook: "kubectl -n speech get deploy,pods; kubectl -n speech logs deploy/speech; probe_success{probe_group=gpu_timeshare_speech} in VMUI; check gpu-switcher group state"
 
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---

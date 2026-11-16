@@ -105,6 +105,20 @@ def test_table_rendering():
     assert "0.100" in lines[2] and "0.310" in lines[3]
     assert "Peak VRAM: 12100 MiB" in table
     assert "n/a" in bench.render_table(rows, peak_vram_mib=None)
+    both = bench.render_table(rows, peak_vram_mib=12100, baseline_mib=9800)
+    assert "Baseline VRAM (Ollama loaded, speech idle): 9800 MiB" in both
+    assert "Speech-only VRAM (peak - baseline): 2300 MiB" in both
+
+
+def test_parse_tts_specs():
+    got = bench.parse_tts_specs(["EN=org/m:af_heart", "el=a/b:c:voice-x"])
+    assert got == {"en": ("org/m", "af_heart"), "el": ("a/b:c", "voice-x")}
+    try:
+        bench.parse_tts_specs(["EN=nocolon"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError")
 
 
 def test_end_to_end_against_fake_server(tmp_path):
@@ -124,19 +138,49 @@ def test_end_to_end_against_fake_server(tmp_path):
         srv.shutdown()
 
 
-def test_main_writes_markdown(tmp_path):
+def _samples(tmp_path, langs=("en", "de", "el")):
+    d = tmp_path / "samples"
+    d.mkdir()
+    for lang in langs:
+        _wav(d / f"{lang}.wav", 1.0)
+    return d
+
+
+def test_main_writes_markdown_and_audio(tmp_path):
     srv, base = _server()
     try:
         out = tmp_path / "res.md"
-        wav = tmp_path / "en.wav"
-        _wav(wav, 1.0)
+        smi = tmp_path / "run.csv"
+        smi.write_text("memory.used [MiB]\n12000 MiB\n")
+        base_log = tmp_path / "base.csv"
+        base_log.write_text("memory.used [MiB]\n10000 MiB\n")
         rc = bench.main([
-            "--base-url", base, "--stt-model", "s", "--tts-model", "t", "--voice", "v",
-            "--audio", f"en={wav}", "--out", str(out),
+            "--base-url", base, "--stt-model", "s",
+            "--tts", "EN=m-en:v1", "--tts", "DE=m-de:v2",
+            "--samples-dir", str(_samples(tmp_path)), "--out-dir", str(tmp_path / "audio"),
+            "--baseline-smi-log", str(base_log), "--nvidia-smi-log", str(smi),
+            "--out", str(out),
         ])
         assert rc == 0
         text = out.read_text()
-        assert "| stt | en | s |" in text
+        assert "| stt | en | s |" in text and "| stt | el | s |" in text
         assert text.count("| tts |") == 3  # EN, DE, EL fixed texts
+        assert "| tts | en | m-en |" in text and "| tts | de | m-de |" in text
+        assert "| tts | el | speaches-ai/Kokoro-82M-v1.0-ONNX |" in text  # default fallback
+        assert "Speech-only VRAM (peak - baseline): 2000 MiB" in text
+        for lang in ("en", "de", "el"):
+            assert (tmp_path / "audio" / f"tts-{lang}.mp3").stat().st_size == 200
     finally:
         srv.shutdown()
+
+
+def test_main_exits_clearly_when_samples_are_missing(tmp_path):
+    import pytest
+
+    with pytest.raises(SystemExit) as e:
+        bench.main([
+            "--base-url", "http://127.0.0.1:1", "--stt-model", "s",
+            "--samples-dir", str(_samples(tmp_path, ("en",))), "--out-dir", str(tmp_path / "a"),
+            "--out", str(tmp_path / "r.md"),
+        ])
+    assert "de.wav" in str(e.value) and "el.wav" in str(e.value)

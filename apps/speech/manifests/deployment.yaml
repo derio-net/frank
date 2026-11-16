@@ -34,6 +34,9 @@ spec:
           operator: Exists
           effect: NoSchedule
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
       terminationGracePeriodSeconds: 30
       containers:
@@ -77,26 +80,32 @@ spec:
           volumeMounts:
             - name: model-cache
               mountPath: /home/ubuntu/.cache/huggingface
+          # Probes. Startup: /health, up to 30 min (cold PVC downloads the
+          # preloaded models from the Hub). Readiness: /v1/models, which reads
+          # the model registry (a real API path, not just "the process is up").
+          # Liveness: /health, but tolerant (10 x 60 s timeouts+periods = >= 10
+          # min) because a multi-hour transcription can block the event loop
+          # and a restart would discard the whole job.
           startupProbe:
             httpGet:
               path: /health
               port: http
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 60
+            failureThreshold: 180
           livenessProbe:
             httpGet:
               path: /health
               port: http
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /v1/models
               port: http
-            periodSeconds: 5
-            timeoutSeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
       volumes:
         - name: model-cache

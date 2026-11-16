@@ -153,7 +153,7 @@ spec:
   targets:
     staticConfig:
       targets:
-        - http://speech.speech.svc.cluster.local:8000/health
+        - http://speech.speech.svc.cluster.local:8000/v1/models
       labels:
         probe_group: gpu_timeshare_speech
   module: http_2xx_no_redirect

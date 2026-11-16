@@ -2528,11 +2528,13 @@ operations:
   layer: infer
   app: speech
   plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-  when: "BEFORE the PR merges — the speech Deployment pins ghcr.io/derio-net/speech:<SPEECH_REV> (the derived speaches image with CTranslate2 >= 4.6.3), which CI only builds on a push to main touching apps/speech/docker/**."
-  why_manual: "The first build must run from the feature branch before merge, or the merge would roll out an ImagePullBackOff; and a first GHCR push creates the package PRIVATE, so making it public is a manual UI step (Frank pulls anonymously)."
+  when: "BEFORE the PR merges — the speech Deployment pins ghcr.io/derio-net/speech:<SPEECH_REV> (the derived speaches image with CTranslate2 >= 4.6.3). CI builds it only on a push to main, and workflow_dispatch needs the workflow on the default branch, so the first image is built locally."
+  why_manual: "workflow_dispatch cannot run a workflow that is not yet on the default branch, so the pre-merge image is built and pushed from the Intel MacBook (Frank has no build host); a first GHCR push creates the package PRIVATE, so making it public is a manual UI step (Frank pulls anonymously)."
   commands: |
-    gh workflow run build-speech.yml --ref <feature-branch>
-    gh run watch "$(gh run list --workflow build-speech.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+    REV=$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
+    CT2=$(grep -o 'CTRANSLATE2_VERSION: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
+    echo "$GITHUB_TOKEN_OR_PAT" | docker login ghcr.io -u <github-user> --password-stdin   # a PAT with write:packages
+    docker buildx build --platform linux/amd64 --build-arg CTRANSLATE2_VERSION=$CT2 -t ghcr.io/derio-net/speech:$REV --push apps/speech/docker
     # GitHub -> derio-net -> Packages -> speech -> Package settings -> Change visibility -> Public
   verify: |
     REV=$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
@@ -2542,43 +2544,51 @@ operations:
   layer: infer
   app: gpu-operator
   plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-  when: "After the PR merges and ArgoCD has synced gpu-operator-extras (time-slicing-config ConfigMap) and gpu-operator (devicePlugin.config) — BEFORE scaling the speech Deployment up."
-  why_manual: "The NVIDIA device plugin reads its sharing config at start-up and is not restarted by a ConfigMap change; until it rolls, gpu-1 still advertises 1 nvidia.com/gpu and a speech pod beside Ollama stays Pending. The roll briefly re-registers the node's GPU resource, so do it while no GPU workload is mid-job."
+  when: "After the PR merges — BEFORE scaling the speech Deployment up. Order matters: sync gpu-operator-extras first (it creates the time-slicing-config ConfigMap), confirm the ConfigMap exists, and only then sync gpu-operator (whose devicePlugin.config references it)."
+  why_manual: "The device plugin must start with the sharing config, and gpu-1 only advertises 2 nvidia.com/gpu after it does. A ClusterPolicy change makes the gpu-operator ROLL the plugin pods (a restart, not a live reload), which briefly drops the node's GPU resource and can disturb running GPU pods — do it while no GPU workload is mid-job. Syncing gpu-operator before the ConfigMap exists would roll the plugin onto a missing config."
   commands: |
     source .env
-    # Ordering: the ConfigMap must exist before the plugin that references it restarts.
-    kubectl -n gpu-operator get configmap time-slicing-config
-    kubectl -n gpu-operator rollout restart daemonset/nvidia-device-plugin-daemonset
+    argocd app sync gpu-operator-extras --port-forward --port-forward-namespace argocd
+    kubectl -n gpu-operator get configmap time-slicing-config   # must exist BEFORE the next step
+    argocd app sync gpu-operator --port-forward --port-forward-namespace argocd
     kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s
+    # If the plugin pod's start time predates the ConfigMap/ClusterPolicy change, roll it by hand:
+    #   kubectl -n gpu-operator rollout restart daemonset/nvidia-device-plugin-daemonset
     # Rollback: revert the devicePlugin.config reference in apps/gpu-operator/values.yaml (or set replicas: 1 in the ConfigMap),
-    # let ArgoCD sync, then repeat the rollout restart above. Scale speech to 0 first so nothing holds the second slot.
+    # let ArgoCD sync and the plugin roll again. Scale speech to 0 first so nothing holds the second slot.
   verify: |
     kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'   # 2
     kubectl -n gpu-operator logs daemonset/nvidia-device-plugin-daemonset --tail=20 | grep -i "replicas\|sharing"
-    kubectl -n ollama get pods   # the running holder was not disturbed
+    kubectl -n ollama get pods   # check whether the running holder restarted during the roll"
   status: pending
 - id: infer-speech-benchmark-run
   layer: infer
   app: speech
   plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-  when: "After infer-speech-device-plugin-roll, with speech scaled up beside the allowlisted Ollama model (activate the group through gpu-switcher)."
-  why_manual: "Needs the live GPU, the loaded Ollama model and listening judgement on Greek/German TTS quality; results decide the Greek/German TTS engine and replace the estimate: true VRAM sizes."
+  when: "After infer-speech-device-plugin-roll, with speech scaled up beside the allowlisted Ollama model (activate the group through gpu-switcher). Needs operator-supplied samples/en.wav, samples/de.wav, samples/el.wav (16-bit PCM WAV, a minute or two each; keep them short because speech.cluster.derio.net is subject to the edge's default read timeout)."
+  why_manual: "Needs the live GPU, the loaded Ollama model, operator-supplied audio and listening judgement on Greek/German TTS quality; results decide the Greek/German TTS engine and replace the estimate: true VRAM sizes."
   commands: |
     source .env
     # Start the group: gpu-switcher activates ollama + speech together.
     kubectl -n speech rollout status deploy/speech --timeout=600s
-    # Sample VRAM on gpu-1 while the benchmark runs (second shell / background):
-    kubectl -n gpu-operator exec ds/nvidia-device-plugin-daemonset -- nvidia-smi --query-gpu=memory.used --format=csv -l 1 > /tmp/speech-smi.csv &
+    SMI_POD=$(kubectl -n gpu-operator get pod -l app=nvidia-device-plugin-daemonset --field-selector spec.nodeName=gpu-1 -o jsonpath='{.items[0].metadata.name}')
+    SMI="nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -l 1"
+    # 1. Baseline (whole card): Ollama loaded, speech idle. Wait > 300 s after the last speech request so STT/TTS models have unloaded.
+    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 60 $SMI > /tmp/speech-smi-base.csv
+    # 2. Run: the in-pod `timeout` ends the sampler, so there is nothing to kill.
+    kubectl -n gpu-operator exec "$SMI_POD" -- timeout 1800 $SMI > /tmp/speech-smi-run.csv &
+    SAMPLER=$!
     python3 scripts/speech-benchmark/run.py --base-url https://speech.cluster.derio.net \
-      --stt-model deepdml/faster-whisper-large-v3-turbo-ct2 --tts-model speaches-ai/Kokoro-82M-v1.0-ONNX --voice af_heart \
-      --audio en=samples/en.wav de=samples/de.wav el=samples/el.wav \
-      --nvidia-smi-log /tmp/speech-smi.csv --out docs/investigations/2026-11--infer--speech-benchmark.md
-    kill %1
-    # Then: edit apps/speech/manifests/files/vram-budget.yaml with the measured peak (estimate: false) and record the
-    # Greek/German TTS engine decision in the spec/journal.
+      --stt-model deepdml/faster-whisper-large-v3-turbo-ct2 --samples-dir samples --out-dir /tmp/speech-tts-audio \
+      --tts EN=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart --tts DE=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart --tts EL=speaches-ai/Kokoro-82M-v1.0-ONNX:af_heart \
+      --baseline-smi-log /tmp/speech-smi-base.csv --nvidia-smi-log /tmp/speech-smi-run.csv --out docs/investigations/2026-11-16--infer--speech-benchmark.md
+    kubectl -n gpu-operator exec "$SMI_POD" -- pkill -f 'nvidia-smi --query-gpu' ; wait $SAMPLER || true
+    # Listen to /tmp/speech-tts-audio/tts-{en,de,el}.mp3, pick the Greek/German TTS engine, re-run with other --tts if needed.
+    # Then edit apps/speech/manifests/files/vram-budget.yaml with the SPEECH-ONLY figure (peak - baseline, estimate: false) and record
+    # the Greek/German TTS engine decision in the spec/journal.
   verify: |
-    test -s docs/investigations/2026-11--infer--speech-benchmark.md && grep -c '^| \(stt\|tts\) ' docs/investigations/2026-11--infer--speech-benchmark.md
-    grep 'Peak VRAM' docs/investigations/2026-11--infer--speech-benchmark.md   # a number, not n/a
+    test -s docs/investigations/2026-11-16--infer--speech-benchmark.md && grep -c '^| \(stt\|tts\) ' docs/investigations/2026-11-16--infer--speech-benchmark.md
+    grep 'Speech-only VRAM' docs/investigations/2026-11-16--infer--speech-benchmark.md   # a number, not n/a
   status: pending
 - id: agents-retire-sympozium-ruflo-sweep
   layer: agents

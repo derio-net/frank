@@ -38,7 +38,7 @@ def test_dockerfile_installs_blackwell_capable_ctranslate2():
     assert versions, "Dockerfile does not pin ctranslate2"
     for v in versions:
         assert _version(v) >= MIN_CT2, f"ctranslate2 {v} predates sm_120 support (>= 4.6.3 needed)"
-    assert "ctranslate2" in text and "pip install" in text
+    assert "ctranslate2" in text
 
 
 def _workflow():
@@ -67,3 +67,23 @@ def test_deployment_pin_equals_workflow_revision():
     dep = yaml.safe_load(DEPLOYMENT.read_text())
     image = dep["spec"]["template"]["spec"]["containers"][0]["image"]
     assert image == f"ghcr.io/derio-net/speech:{_rev()}"
+
+
+def test_workflow_build_arg_matches_dockerfile_default_and_minimum():
+    wf_ver = str(_workflow()["env"]["CTRANSLATE2_VERSION"])
+    arg = re.search(r"^ARG\s+CTRANSLATE2_VERSION=([0-9.]+)", DOCKERFILE.read_text(), re.M).group(1)
+    assert wf_ver == arg
+    assert _version(wf_ver) >= MIN_CT2
+    assert "CTRANSLATE2_VERSION=${{ env.CTRANSLATE2_VERSION }}" in WORKFLOW.read_text()
+
+
+def test_workflow_rebuilds_when_it_changes():
+    # a SPEECH_REV bump lives in the workflow file itself
+    on = _workflow().get("on", _workflow().get(True))
+    assert ".github/workflows/build-speech.yml" in on["push"]["paths"]
+
+
+def test_dockerfile_blocks_reresync_and_checks_ctranslate2_at_build():
+    text = DOCKERFILE.read_text()
+    assert "UV_NO_SYNC=1" in text
+    assert "import ctranslate2" in text

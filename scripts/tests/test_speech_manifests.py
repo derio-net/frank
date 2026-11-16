@@ -113,24 +113,29 @@ def test_ingressroute_is_private_and_unauthenticated_by_forwardauth():
     r = d["spec"]["routes"][0]
     assert r["match"] == "Host(`speech.cluster.derio.net`)"
     mws = [m["name"] for m in r["middlewares"]]
-    assert "ip-allowlist" in mws and "security-headers" in mws
+    assert "speech-ip-allowlist" in mws and "security-headers" in mws
     assert "authentik-forwardauth" not in mws
     assert r["services"][0]["name"] == "speech"
     assert r["services"][0]["namespace"] == "speech"
     assert r["services"][0]["port"] == 8000
 
 
-def test_ingressroute_has_explicit_upload_limit_and_timeouts():
-    r = _route()["spec"]["routes"][0]
-    mws = [m["name"] for m in r["middlewares"]]
-    by_name = {}
+def _by_name():
+    out = {}
     for d in _docs(REPO / "apps/traefik/manifests/middlewares.yaml"):
-        by_name[(d["kind"], d["metadata"]["name"])] = d
-    assert "speech-upload-limit" in mws
-    buf = by_name[("Middleware", "speech-upload-limit")]["spec"]["buffering"]
-    # 2.5 h of 16 kHz mono 16-bit WAV is ~290 MB; allow headroom
-    assert buf["maxRequestBodyBytes"] >= 1024 * 1024 * 1024
-    assert buf["memRequestBodyBytes"] <= 64 * 1024 * 1024
+        out[(d["kind"], d["metadata"]["name"])] = d
+    return out
+
+
+def test_ingressroute_streams_with_explicit_timeouts_and_no_buffering():
+    r = _route()["spec"]["routes"][0]
+    by_name = _by_name()
+    for m in r["middlewares"]:
+        mw = by_name.get(("Middleware", m["name"]))
+        if mw:
+            # buffering a multi-GiB upload on the Pi edge exhausts its disk
+            assert "buffering" not in mw["spec"], m["name"]
+    assert not [k for k in by_name if k[1] == "speech-upload-limit"]
     transport = r["services"][0]["serversTransport"]
     st = by_name[("ServersTransport", transport)]["spec"]["forwardingTimeouts"]
 
@@ -142,6 +147,42 @@ def test_ingressroute_has_explicit_upload_limit_and_timeouts():
     # only arrives when the whole file is done (non-streaming)
     assert secs(st["responseHeaderTimeout"]) >= 3600
     assert "dialTimeout" in st
+
+
+def test_speech_route_has_its_own_narrow_allowlist():
+    r = _route()["spec"]["routes"][0]
+    mws = [m["name"] for m in r["middlewares"]]
+    assert "speech-ip-allowlist" in mws and "ip-allowlist" not in mws
+    ranges = _by_name()[("Middleware", "speech-ip-allowlist")]["spec"]["ipAllowList"]["sourceRange"]
+    assert set(ranges) == {"192.168.0.0/16", "100.64.0.0/10", "10.0.0.0/8"}
+
+
+def test_probes_use_real_endpoints_and_tolerate_long_jobs():
+    c = _pod()["containers"][0]
+    assert c["ports"][0]["containerPort"] == 8000
+    assert c["readinessProbe"]["httpGet"]["path"] == "/v1/models"
+    assert c["livenessProbe"]["httpGet"]["path"] == "/health"
+    assert c["startupProbe"]["httpGet"]["path"] == "/health"
+    for k in ("startupProbe", "livenessProbe", "readinessProbe"):
+        assert c[k]["httpGet"]["port"] == "http"
+    st = c["startupProbe"]
+    assert st["periodSeconds"] * st["failureThreshold"] >= 1200  # cold model download
+    lv = c["livenessProbe"]
+    # survive a blocked event loop during a multi-hour transcription
+    assert lv["periodSeconds"] * lv["failureThreshold"] >= 300
+
+
+def test_pod_runs_non_root():
+    sc = _pod()["securityContext"]
+    assert sc["runAsNonRoot"] is True
+    assert sc["runAsUser"] == 1000 and sc["fsGroup"] == 1000
+
+
+def test_namespace_declares_pod_security_labels():
+    ns = yaml.safe_load(NS_TEMPLATE.read_text())
+    labels = ns["metadata"]["labels"]
+    assert labels["pod-security.kubernetes.io/enforce"] in {"baseline", "privileged"}
+    assert "pod-security.kubernetes.io/warn" in labels
 
 
 def test_homepage_tile_exists():
