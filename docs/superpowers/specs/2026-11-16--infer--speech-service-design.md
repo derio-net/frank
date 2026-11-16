@@ -69,6 +69,22 @@ so no transient pod appears in a watched namespace.
 **Benchmark (R9).** A script under `scripts/` plus a `# manual-operation` block runs the
 candidates with Ollama loaded and writes results to `docs/investigations/`.
 
+**gpu-switcher change is code, not env (R6).** `parseWorkloads` (`apps/gpu-switcher/app/main.go:127-148`) splits on exactly three fields; the `Workload` struct (`k8s.go:11-16`) gains an optional `Group`, written `speech:speech:speech@ollama` (fourth part after `@`, three-field entries unchanged). `ActivateWorkload` (`k8s.go:57-78`) scales the target and every workload sharing its group to 1 and all others to 0; `DeactivateAll` is unchanged. `GetStatus` finds pods by label `app.kubernetes.io/name=<Name>` (`k8s.go:39-41`), so the speech pod carries `app.kubernetes.io/name: speech`. Go unit tests in `k8s_test.go` cover group activation and the legacy syntax. The image is rebuilt by CI and the tag in `apps/gpu-switcher/manifests/deployment.yaml:22` (now `v0.1.1`) is bumped, with `WORKLOADS` at `:29` extended.
+
+**Exclusivity after time-slicing (R1).** Today exclusivity comes from the single `nvidia.com/gpu` unit. With `replicas: N`, only gpu-switcher's scaling keeps ComfyUI away from Ollama and speech, so N is set to exactly the number of workloads that may coexist (Ollama + speech = 2) and the guard asserts N equals the size of the largest switcher group. ComfyUI is therefore unable to schedule alongside a full group; selfHeal does not fight the switcher because replica counts are already `ignoreDifferences` for the switched Deployments (the new speech Deployment gets the same rule).
+
+**VRAM budget location (R2).** Declared in `apps/speech/manifests/files/vram-budget.yaml`: the Ollama model allowlist while speech is up (named tags with their `num_ctx`, from the Modelfile variants in `apps/ollama/values.yaml:34,46`), each speech model's measured size, the 16 GB total and a headroom figure. `scripts/tests/test_speech_vram_budget.py` reads it, checks the sum is under the limit, that every allowlisted Ollama tag exists in `apps/ollama/values.yaml`, and that N matches the switcher group.
+
+**Exposure and auth (R7).** The route goes in `apps/traefik/manifests/ingressroutes.yaml` beside comfyui (`:258-280`) with `ip-allowlist` and `security-headers` but **not** `authentik-forwardauth`, which would break API clients (litellm-api precedent); callers are LAN/mesh hosts and in-cluster services, with no per-request key in this run. A permissive-in-the-LAN API is the accepted trade-off and the security lens reviews it. Long recordings need explicit limits: the route and the server set upload size and read/write timeouts sized for a 2.5 h recording. The tile goes in `apps/homepage/manifests/files/services.yaml`. The Application follows `frank-argocd.md` (`ServerSideApply`, `prune: false`, `selfHeal`).
+
+**Alert wiring (R8).** The speech probe is added to `apps/blackbox-exporter/manifests/vmprobe.yaml` with `probe_group: gpu_timeshare` (existing entries `:107,:131`). `alert-rules-cm.yaml:381` (`namespace!~"ollama|comfyui"`) gains `speech`. `gpu-node-both-down` (`:1781`, `sum(probe_success{probe_group="gpu_timeshare"})`) keeps its meaning "no GPU inference up": speech is counted but speech-only-up must not mask a dead Ollama and ComfyUI, so the rule is changed to sum only the Ollama and ComfyUI probes (speech probe labelled `probe_group: gpu_timeshare_speech`, with its own non-paging health rule). The #554 flip semantics are documented in `gpu-1.md`. `apps/grafana-alerting/tests/assert-gpu-timeshare-rules.sh` and `scripts/tests/test_feature_health_workload_metrics.py` are updated to the new set.
+
+**Device-plugin roll (R1).** A `# manual-operation` block (`infer-speech-device-plugin-roll`) rolls the plugin after merge: confirm the allocatable count, then check Ollama re-acquires the GPU; rollback is reverting the values commit and restarting the plugin, then `fr`/gpu-switcher re-activation of Ollama. It is ordered before the speech Deployment is scaled up.
+
+**Record locations (R5, R9).** Benchmark results and the Greek/German TTS decision are written to `docs/investigations/2026-11-16--infer--speech-benchmark.md`.
+
+**Layer-workflow close-out.** The building and operating blog posts and README update are deferred to the post-deploy checklist after the live rows pass, recorded in the plan's last phase as manual.
+
 ## What this deliberately does not do
 
 - No streaming/WebRTC endpoint, priority queue, batch job API or transcription UI (R10).
@@ -94,4 +110,6 @@ gate: devops
 - [ ] POST a Greek, an English and a German sample to `/v1/audio/transcriptions` and check the language auto-detect and text.
 - [ ] POST text in each language to `/v1/audio/speech` and listen to the result.
 - [ ] Activate ComfyUI through gpu-switcher, confirm Ollama and speech are both at 0, then activate Ollama and confirm both are back.
-- [ ] Run a batch transcription and confirm no alert fires; run the benchmark and commit its results.
+- [ ] Run a batch transcription of a long recording and confirm no alert fires, including while ComfyUI is activated and released.
+- [ ] Confirm `speech.cluster.derio.net` answers on LAN/mesh and does not resolve or route from the public edge.
+- [ ] Run the benchmark and commit `docs/investigations/2026-11-16--infer--speech-benchmark.md`.
