@@ -306,3 +306,29 @@ pre-merge ops closed on chore/ops-2026-11-14--auth--root-agents-least-privilege
 ### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
 
 merge verified; chore/ops-2026-11-14--auth--root-agents-least-privilege rebased onto main; ready
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-delete-binding-1 created=2026-11-16T11:57:11+00:00 -->
+### op-cutover-delete-binding-1 · op · op cutover-delete-binding: done
+
+op: cutover-delete-binding
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-exclude-credential-namespaces-1 created=2026-11-16T11:57:12+00:00 -->
+### op-cutover-exclude-credential-namespaces-1 · op · op cutover-exclude-credential-namespaces: done
+
+op: cutover-exclude-credential-namespaces
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-matrix-after-1 created=2026-11-16T11:59:27+00:00 -->
+### op-cutover-matrix-after-1 · op · op cutover-matrix-after: done
+
+op: cutover-matrix-after
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-4 created=2026-11-16T12:00:46+00:00 -->
+### gate-stage-4 · decision · DevOps stage 4 done: post-merge ops
+
+post-merge ops closed
