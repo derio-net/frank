@@ -573,3 +573,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/1008.
 ### p1-r11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1009] · resolves p1-r11: Time-slicing has no VRAM isolation (by design, documented) (phase 1)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/1009.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r2-resolved-2 created=2026-11-16T21:55:49+00:00 phase=2 state=open resolves=p2-r2 tracked_by=https://github.com/derio-net/frank/issues/1010 -->
+### p2-r2-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1010] · resolves p2-r2: No per-request auth on route (phase 2)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/1010.
