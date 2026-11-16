@@ -164,3 +164,10 @@ run_kind: live
 ### s7-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/986] · resolves s7: Matrix cells assumed, not cited
 
 Filed at deliver as https://github.com/derio-net/frank/issues/986.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-16T12:09:53+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: [ ] (op: premerge-namespaces) Before merging, confirm every generated namespace exists live.
+
+Evidence: checked after the merge by hand not before, all 30 generated namespaces exist on the live cluster, read-only run from main at 1002
