@@ -1,5 +1,13 @@
 schema_version: 2
 ops:
+- id: premerge-speech-image
+  summary: The derived speech image exists in GHCR (public) before the Deployment that pins it merges
+  phase: pre-merge
+  apply: |-
+    gh workflow run build-speech.yml --ref feat/gpu-speech-service-1006 && echo "wait for the run, then set the ghcr.io/derio-net/speech package public"
+  mutating: true
+  check: |-
+    docker manifest inspect ghcr.io/derio-net/speech:$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2) >/dev/null
 - id: premerge-gpu-switcher-image
   summary: The gpu-switcher v0.1.2 image (group support) exists in GHCR before the manifest that pins it merges
   phase: pre-merge

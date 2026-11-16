@@ -28,7 +28,7 @@ priority queue / batch job API, transcription UI and retirement of the
 
 R1. The gpu-operator device plugin advertises `nvidia.com/gpu` with time-slicing replicas (declared in git) so Ollama and the speech service can both be scheduled onto gpu-1 at once.
 R2. The VRAM budget is explicit and enforced by configuration: the Ollama model and `num_ctx` allowed while speech is up, plus fixed speech model sizes, with an offline guard test that fails when the declared budget exceeds 16 GB.
-R3. The speech service is an ArgoCD Application running an upstream OpenAI-compatible speech server pinned by image digest on gpu-1, with models cached on a PVC and no toolchain build per job.
+R3. The speech service is an ArgoCD Application running a derived image of an upstream OpenAI-compatible speech server (speaches) with CTranslate2 >= 4.6.3 for Blackwell sm_120, built by CI from `apps/speech/docker/` on a digest-pinned upstream base and pinned in the Deployment by version tag, on gpu-1, with models cached on a PVC and no toolchain build per job.
 R4. `/v1/audio/transcriptions` serves faster-whisper `large-v3-turbo` (or `large-v3`) by default and handles English, German and Greek with language auto-detect.
 R5. `/v1/audio/speech` is served with a conservative default TTS model; the Greek and German TTS engine is chosen from the benchmark and recorded as a decision, not assumed.
 R6. gpu-switcher knows the speech service: activating ComfyUI drains both Ollama and speech, and returning to Ollama restores both.
@@ -48,7 +48,7 @@ fixed sizes, must sum under 16 GB minus headroom. `OLLAMA_MAX_LOADED_MODELS=1` s
 
 **Service (R3–R5, R7).** New `apps/speech/` (values/manifests) and
 `apps/root/templates/speech.yaml`: an upstream OpenAI-compatible server (speaches-class)
-pinned by digest, `nodeSelector: gpu-1` with the defensive `nvidia.com/gpu` toleration,
+pinned by version tag (`ghcr.io/derio-net/speech:<rev>`, derived image, see below), `nodeSelector: gpu-1` with the defensive `nvidia.com/gpu` toleration,
 `strategy: Recreate`, a Longhorn PVC for model cache, ClusterIP Service, IngressRoute
 and homepage tile. STT default is faster-whisper large-v3-turbo; TTS ships a conservative
 default and the Greek/German engine is a benchmark-driven configuration change. The image's

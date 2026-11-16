@@ -14,6 +14,7 @@ phase:
   tier: standard
   files:
   - apps/speech/**
+  - .github/workflows/build-speech.yml
   - apps/root/templates/speech.yaml
   - apps/traefik/manifests/ingressroutes.yaml
   - apps/homepage/manifests/files/services.yaml
@@ -28,17 +29,17 @@ phase:
   estimate_lines: 700
 tasks:
 - number: 1
-  title: Choose and pin the upstream speech image
+  title: Derived speech image with a Blackwell-capable CTranslate2
   steps:
   - id: P2.T1.S1
     text: |-
-      Gather evidence for an upstream OpenAI-compatible speech server image (speaches-class) that runs on Blackwell sm_120 (CUDA 12.8+): read its upstream Dockerfile/tags, resolve the image digest through the registry API (curl the manifest endpoint), and record image, digest, CUDA version and supported TTS models in the plan journal. If no upstream image supports sm_120, stop and record a blocked finding rather than building a custom image.
+      Operator decision (journal it): build a derived image because no upstream image supports sm_120 (speaches 0.9.0-rc.3-cuda, digest sha256:f4eb14d1c53b19c5bd1f76d10ea9fc10288ceaf82dca09506d3f0ef92ee943de, ships CTranslate2 4.5.0 on CUDA 12.2; sm_120 needs CT2 >= 4.6.2, CUDA 12.8 >= 4.6.3; TTS is kokoro-onnx 0.4.5 and piper-tts 1.3.0). Write a test first (scripts/tests/test_speech_image_build.py) asserting apps/speech/docker/Dockerfile has FROM pinned by @sha256, installs ctranslate2 >= 4.6.3, and that .github/workflows/build-speech.yml exists, builds on apps/speech/docker/** and pushes ghcr.io/<owner>/speech tagged from an image-revision env var that the Deployment pin in apps/speech/manifests must equal. Then create apps/speech/docker/Dockerfile and .github/workflows/build-speech.yml (copy the shape of .github/workflows/build-comfyui.yml). No digest invention: the base digest above is the one measured; the derived image is pinned by tag.
 - number: 2
   title: Speech app manifests (red -> green -> refactor)
   steps:
   - id: P2.T2.S1
     text: |-
-      Red: write scripts/tests/test_speech_manifests.py asserting apps/speech renders: Deployment pinned by digest (image@sha256:), strategy Recreate, nodeSelector kubernetes.io/hostname gpu-1, nvidia.com/gpu toleration, nvidia.com/gpu request 1, label app.kubernetes.io/name: speech, a Longhorn PVC for the model cache, ClusterIP Service, no Service type LoadBalancer, and that apps/root/templates/speech.yaml exists with ServerSideApply, prune false, selfHeal and ignoreDifferences for spec.replicas. Expect failure.
+      Red: write scripts/tests/test_speech_manifests.py asserting apps/speech renders: Deployment image pinned by version tag ghcr.io/derio-net/speech:<rev> equal to the build workflow's revision, strategy Recreate, nodeSelector kubernetes.io/hostname gpu-1, nvidia.com/gpu toleration, nvidia.com/gpu request 1, label app.kubernetes.io/name: speech, a Longhorn PVC for the model cache, ClusterIP Service, no Service type LoadBalancer, and that apps/root/templates/speech.yaml exists with ServerSideApply, prune false, selfHeal and ignoreDifferences for spec.replicas. Expect failure.
   - id: P2.T2.S2
     text: |-
       Green: create apps/speech/manifests/ (deployment, pvc, service, kustomization if the repo pattern uses one), values where needed, and apps/root/templates/speech.yaml copied from the ollama or comfyui template; default models: STT faster-whisper large-v3-turbo, TTS a conservative default from the pinned image's supported set. Run the test and expect pass.
