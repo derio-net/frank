@@ -213,3 +213,10 @@ Evidence: the five root-agents-ns-read RoleBindings are NotFound in authentik in
 Step: [ ] (op: cutover-matrix-after) Record the matrix after the cutover: every allow cell allowed, every deny cell denied, the control allowed.
 
 Evidence: full matrix verify passed on 2026-11-16 with all 36 cells as intended and every system:masters control allowed, root-agents reads pods logs and configmaps in monitoring and nodes and is denied secrets in 8 namespaces and pods logs and configmaps in the five credential stores and impersonate bind escalate and serviceaccounts token, root-admins still reads secrets
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-8 created=2026-11-16T12:44:10+00:00 -->
+### test-plan-step-8 · discovery · Test Plan step 8: ran
+
+Step: [ ] Close #912 on that passing matrix; this unblocks P7.T1.S1 of the update-security-lifecycle plan.
+
+Evidence: issue 912 was closed as completed on 2026-11-14 at the merge of 985, before the after matrix existed, and the full matrix verify passed on 2026-11-16 confirming the close was right, the update-security-lifecycle phase 7 issue 973 is still open and is now unblocked
