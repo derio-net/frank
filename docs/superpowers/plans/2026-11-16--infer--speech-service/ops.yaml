@@ -1,0 +1,10 @@
+schema_version: 2
+ops:
+- id: postmerge-timeslice-allocatable
+  summary: gpu-1 advertises the time-sliced nvidia.com/gpu count after the device plugin rolls
+  phase: post-merge
+  apply: |-
+    kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+  mutating: false
+  check: |-
+    test "$(kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')" = 2

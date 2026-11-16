@@ -106,7 +106,7 @@ gate: devops
 
 ## Test Plan
 
-- [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
+- (op: postmerge-timeslice-allocatable) [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
 - [ ] POST a Greek, an English and a German sample to `/v1/audio/transcriptions` and check the language auto-detect and text.
 - [ ] POST text in each language to `/v1/audio/speech` and listen to the result.
 - [ ] Activate ComfyUI through gpu-switcher, confirm Ollama and speech are both at 0, then activate Ollama and confirm both are back.
