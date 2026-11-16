@@ -2,3 +2,10 @@
 # CANNOT-VERIFY. The root-agents SubjectAccessReview matrix makes ~50 round-trips through the Omni kube proxy,
 # which takes a few minutes from inside the ops container.
 timeout_seconds: 300
+# Probes run with a minimal, allow-listed environment. GH_TOKEN (from the ops
+# profile's env-file) is passed through so GitHub-side ops can run: the
+# kid-laptops webhook op and its PR-status check (2026-11-15 batch
+# kid-laptops-mirror). Operator decision: widen the ops credential rather than
+# run those steps by hand. Every trusted probe in this repo can now read it.
+env_passthrough:
+  - GH_TOKEN
