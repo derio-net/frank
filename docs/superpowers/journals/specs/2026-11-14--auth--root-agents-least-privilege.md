@@ -171,3 +171,10 @@ Filed at deliver as https://github.com/derio-net/frank/issues/986.
 Step: [ ] (op: premerge-namespaces) Before merging, confirm every generated namespace exists live.
 
 Evidence: checked after the merge by hand not before, all 30 generated namespaces exist on the live cluster, read-only run from main at 1002
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-11-16T12:11:00+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: [x] BEFORE matrix (recorded 2026-11-14, before the cutover, not an op: it can only be taken before the old binding is deleted): all 14 `root-agents` deny cells leaked through the live `cluster-admin` binding and every `system:masters` control answered allowed.
+
+Evidence: taken live on 2026-11-14 before the old binding was deleted, all 14 root-agents deny cells leaked through the cluster-admin binding and every system:masters control answered allowed, raw output was in the delivering session and not committed
