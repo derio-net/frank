@@ -199,3 +199,10 @@ Evidence: fresh k8s-agent token reviewed on 2026-11-15 as authenticated and its 
 Step: [ ] (op: cutover-delete-binding) Delete the old `authentik-root-agents` binding.
 
 Evidence: deleted by hand on 2026-11-14 and re-checked live today, authentik-root-agents is NotFound, authentik-root-agents-read is bound to root-agents-cluster-read, and no cluster-admin binding names root-agents
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6 created=2026-11-16T12:16:02+00:00 -->
+### test-plan-step-6 · discovery · Test Plan step 6: ran
+
+Step: [ ] (op: cutover-exclude-credential-namespaces) Delete the five `root-agents-ns-read` RoleBindings in `authentik`, `infisical`, `argocd`, `kube-system` and `longhorn-system` (PR 991 removed them from git; prune is false).
+
+Evidence: the five root-agents-ns-read RoleBindings are NotFound in authentik infisical argocd kube-system and longhorn-system on a live read-only check today, 30 of them remain matching the 30 generated namespaces, deleted by the gate stage 4 apply
