@@ -244,3 +244,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/996.
 ### ops-gh-token-passthrough · decision · GitHub-side ops run in the ops container: GH_TOKEN passed through to probes, ops token widened to derio-homelab/kid-laptops
 
 fr ops probes get only an allow-listed env, so GH_TOKEN never reached the webhook op (gate stage 1 failed: gh unauthenticated). Operator chose to widen the ops credential over running the GitHub steps by hand: .fr/ops.yaml env_passthrough [GH_TOKEN] (repo-wide for every trusted probe), and the ops GH_TOKEN gains webhook admin + commit-status read on derio-homelab/kid-laptops.
+
+<!-- fr:journal kind=decision scope=spec id=ops-gh-token-passthrough-2 created=2026-11-16T14:19:54+00:00 -->
+### ops-gh-token-passthrough-2 · decision · GitHub-side ops run as narrowed App identities, not a passed-through PAT (supersedes ops-gh-token-passthrough)
+
+Operator replied 'yes' in chat (2026-11-16) to switching to the App route. .fr/ops.yaml drops env_passthrough GH_TOKEN and declares identities homelab-kid-laptops-hooks (repository_hooks:write) and homelab-kid-laptops-statuses (statuses/pull_requests read). Each mints a ~1h homelab App (4403773) installation token narrowed to kid-laptops via scripts/github_app_token.py, reading the PEM live from tekton-pipelines/github-app-homelab-key with the ops kubeconfig. New pre-merge op app-webhooks-permission: grant the App Webhooks read/write and accept it on the installation (UI). No long-lived token widened.
