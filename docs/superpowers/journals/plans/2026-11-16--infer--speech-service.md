@@ -603,3 +603,8 @@ Not a defect: the replicas ignoreDifferences rule shipped in phase 2.
 ### p2-r19-resolved-2 · finding [refuted] · resolves p2-r19: Phase 1 items
 
 Not a defect: the phase 1 items were reviewed and closed in phase 1.
+
+<!-- fr:journal kind=finding scope=plan id=p2-r21-resolved-2 created=2026-11-16T21:56:34+00:00 state=refuted resolves=p2-r21 -->
+### p2-r21-resolved-2 · finding [refuted] · resolves p2-r21: Verified-OK note
+
+Not a defect: the reviewer's verified-OK note, nothing to fix.
