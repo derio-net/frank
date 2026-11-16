@@ -12,7 +12,17 @@ steps:
     emitted:
       spec: docs/superpowers/specs/2026-11-16--infer--speech-service-design.md
   spec-review:
-    state: pending
+    state: running
+    at: '2026-11-16T20:10:02+00:00'
+    units:
+      step/spec-review:
+        attempts:
+        - dispatched: '2026-11-16T20:10:02+00:00'
+          agent_type: super-fr:fr-spec-reviewer
+          harness: claude-code
+          tier: hard
+          bound: opus
+          session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
   plan:
     state: pending
   plan-review:
