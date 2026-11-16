@@ -568,3 +568,8 @@ for raised to 45m and asserted above the startup budget; other points accepted a
 ### p1-r10-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1008] · resolves p1-r10: Activation ordering follows WORKLOADS list (pre-existing) (phase 1)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/1008.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r11-resolved-2 created=2026-11-16T21:55:39+00:00 phase=1 state=open resolves=p1-r11 tracked_by=https://github.com/derio-net/frank/issues/1009 -->
+### p1-r11-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1009] · resolves p1-r11: Time-slicing has no VRAM isolation (by design, documented) (phase 1)
+
+Filed at deliver as https://github.com/derio-net/frank/issues/1009.
