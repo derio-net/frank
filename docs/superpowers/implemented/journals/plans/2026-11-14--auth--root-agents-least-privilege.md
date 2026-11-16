@@ -361,3 +361,8 @@ gate:devops passed
 ### gate-stage-7 · decision · DevOps stage 7 done: tester hand-off
 
 no tester step remains
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-8 created=2026-11-16T12:47:56+00:00 -->
+### gate-stage-8 · decision · DevOps stage 8 done: archive and housekeeping PR
+
+archived; housekeeping PR from chore/ops-2026-11-14--auth--root-agents-least-privilege
