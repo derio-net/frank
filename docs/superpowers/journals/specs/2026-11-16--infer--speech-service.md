@@ -229,3 +229,6 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=phase-split-2026-11-16--infer--speech-service-p3 created=2026-11-16T20:13:00+00:00 -->
 ### phase-split-2026-11-16--infer--speech-service-p3 · decision · ask: live rollout, benchmark run and follow-up filing are operator-only work
+
+<!-- fr:journal kind=decision scope=spec id=derived-speech-image created=2026-11-16T20:30:11+00:00 -->
+### derived-speech-image · decision · Operator chose a derived image with CTranslate2 >= 4.6.3 over pinning the upstream rc.3-cuda image; no upstream image has proven sm_120 support
