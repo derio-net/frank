@@ -408,3 +408,158 @@ speech-health-degraded now has a 30m for.
 ### p2-r21-resolved · finding [out-of-scope] · resolves p2-r21: Verified-OK note (phase 2)
 
 Reviewer verified-OK note, no defect.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r1 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r1 · finding [open] (reviewer: in scope) · Speech namespace at PodSecurity privileged
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r2 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r2 · finding [open] (reviewer: in scope) · No container hardening securityContext
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r3 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r3 · finding [open] (reviewer: in scope) · Allowlist is the only control, in-cluster pods bypass it
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r4 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r4 · finding [open] (reviewer: in scope) · No concurrency/size limit on unauthenticated route
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r5 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r5 · finding [open] (reviewer: in scope) · Mutable action and model references
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r6 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-security-r6 · finding [open] (reviewer: in scope) · Benchmark script and op use predictable tmp paths and raw multipart
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r7 created=2026-11-16T21:03:58+00:00 state=open review_scope=out -->
+### l-security-r7 · finding [open] (reviewer: out of scope) · gpu-switcher ClusterRole is cluster-wide (pre-existing)
+
+security lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r1 · finding [open] (reviewer: in scope) · ParseWorkloads accepts dangling group
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r2 · finding [open] (reviewer: in scope) · Switcher manifest test restates the grammar
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r3 · finding [open] (reviewer: in scope) · Ingress timeout test overclaims, silently skips middlewares
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r4 · finding [open] (reviewer: in scope) · Degraded rule test checks substrings
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r5 · finding [open] (reviewer: in scope) · PVC test misses the mount
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r6 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r6 · finding [open] (reviewer: in scope) · Dockerfile ctranslate2 guard vacuous
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r7 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r7 · finding [open] (reviewer: in scope) · Benchmark fake server and error paths weak
+
+tests lens reviewer.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r8 created=2026-11-16T21:03:58+00:00 state=open review_scope=in -->
+### l-tests-r8 · finding [open] (reviewer: in scope) · Tests restate manifests, grace window unrelated to startup budget
+
+tests lens reviewer.
+
+<!-- fr:journal kind=review scope=plan id=lens-review created=2026-11-16T21:03:58+00:00 -->
+### lens-review · review · security and tests lens reviews: 15 findings
+
+One dispatched reviewer per lens; in-scope findings fixed in the lens fix commits.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r1-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r1 -->
+### l-security-r1-resolved · finding [fixed] · resolves l-security-r1: Speech namespace at PodSecurity privileged
+
+Namespace now baseline.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r2-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r2 -->
+### l-security-r2-resolved · finding [fixed] · resolves l-security-r2: No container hardening securityContext
+
+Container securityContext hardened; readOnlyRootFilesystem left off with a reason.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r3-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r3 -->
+### l-security-r3-resolved · finding [fixed] · resolves l-security-r3: Allowlist is the only control, in-cluster pods bypass it
+
+Comment made honest; NetworkPolicy and CIDR narrowing recorded as follow-up in the spec (R10 and not-done list).
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r4-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r4 -->
+### l-security-r4-resolved · finding [fixed] · resolves l-security-r4: No concurrency/size limit on unauthenticated route
+
+speech-inflight inFlightReq (4 per source IP) added.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r5-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r5 -->
+### l-security-r5-resolved · finding [fixed] · resolves l-security-r5: Mutable action and model references
+
+Actions pinned to SHAs already used in repo workflows; image hash and model revision pinning accepted as low risk, noted in comments.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r6-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-security-r6 -->
+### l-security-r6-resolved · finding [fixed] · resolves l-security-r6: Benchmark script and op use predictable tmp paths and raw multipart
+
+Scheme and field validation, mktemp in the manual op.
+
+<!-- fr:journal kind=finding scope=plan id=l-security-r7-resolved created=2026-11-16T21:03:58+00:00 state=open resolves=l-security-r7 out_of_scope=true -->
+### l-security-r7-resolved · finding [out-of-scope] · resolves l-security-r7: gpu-switcher ClusterRole is cluster-wide (pre-existing)
+
+Pre-existing, unchanged by this diff.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r1-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r1 -->
+### l-tests-r1-resolved · finding [fixed] · resolves l-tests-r1: ParseWorkloads accepts dangling group
+
+Dangling group rejected; Go test reads the shipped WORKLOADS value.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r2-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r2 -->
+### l-tests-r2-resolved · finding [fixed] · resolves l-tests-r2: Switcher manifest test restates the grammar
+
+Grammar copy removed; WORKLOADS split strips @group.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r3-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r3 -->
+### l-tests-r3-resolved · finding [fixed] · resolves l-tests-r3: Ingress timeout test overclaims, silently skips middlewares
+
+Test split and renamed, missing middleware now fails.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r4-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r4 -->
+### l-tests-r4-resolved · finding [fixed] · resolves l-tests-r4: Degraded rule test checks substrings
+
+Regex assertions on the rule shape.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r5-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r5 -->
+### l-tests-r5-resolved · finding [fixed] · resolves l-tests-r5: PVC test misses the mount
+
+Mount, mount path and uid asserted.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r6-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r6 -->
+### l-tests-r6-resolved · finding [fixed] · resolves l-tests-r6: Dockerfile ctranslate2 guard vacuous
+
+Asserts the install line uses the version arg.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r7-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r7 -->
+### l-tests-r7-resolved · finding [fixed] · resolves l-tests-r7: Benchmark fake server and error paths weak
+
+Multipart parsed; error paths and bad --tts keys tested.
+
+<!-- fr:journal kind=finding scope=plan id=l-tests-r8-resolved created=2026-11-16T21:03:58+00:00 state=fixed resolves=l-tests-r8 -->
+### l-tests-r8-resolved · finding [fixed] · resolves l-tests-r8: Tests restate manifests, grace window unrelated to startup budget
+
+for raised to 45m and asserted above the startup budget; other points accepted as live-only limits.
