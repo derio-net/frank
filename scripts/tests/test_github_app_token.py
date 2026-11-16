@@ -163,3 +163,24 @@ def test_ops_identities_use_the_minting_script_and_ops_need_them() -> None:
     assert ops["webhook-pull-request"]["identities"] == ["homelab-kid-laptops-hooks"]
     assert ops["molecule-on-pr-head"]["identities"] == ["homelab-kid-laptops-statuses"]
     assert "app-webhooks-permission" in ops["webhook-pull-request"]["needs"]
+
+
+def test_the_webhooks_grant_is_temporary_and_its_revocation_is_proven() -> None:
+    """Narrowing to kid-laptops is per mint; the GRANT is installation-wide, so a
+    PEM leak could mint hooks:write on every installed repo while it stands. The
+    webhook PATCH is one-off, so the grant must be revoked after it, and the
+    revoke op must prove revocation positively (a statuses mint still works, so a
+    failing hooks mint is not just an unreadable key)."""
+    import yaml
+
+    repo = SCRIPT.parents[1]
+    ops = {o["id"]: o for o in yaml.safe_load(
+        (repo / "docs/superpowers/plans/2026-11-15--cicd--kid-laptops-mirror-pr-heads/ops.yaml").read_text())["ops"]}
+    grant, revoke = ops["app-webhooks-permission"], ops["app-webhooks-permission-revoke"]
+    assert "app-webhooks-permission-revoke" in str(grant["undo"])
+    assert revoke["phase"] == "post-merge"
+    assert "webhook-pull-request" in revoke["needs"]
+    check = revoke["check"]
+    assert "--perm metadata=read" in check and "! python3" in check and "repository_hooks=write" in check
+    assert check.index("--perm metadata=read") < check.index("! python3"), "positive mint first"
+

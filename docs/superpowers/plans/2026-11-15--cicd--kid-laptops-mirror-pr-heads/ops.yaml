@@ -7,8 +7,8 @@ ops:
   apply: |-
     echo "GitHub > derio-homelab org settings > Developer settings > GitHub Apps > homelab-fr-automation > Permissions > Repository > Webhooks: Read and write > Save; then org Settings > GitHub Apps > homelab-fr-automation > Review request > Accept."
   mutating: true
-  undo:
-    none: a UI permission grant; revert it in the App settings if no longer needed
+  undo: |-
+    echo "Revoke it: the post-merge op app-webhooks-permission-revoke (homelab-fr-automation > Permissions > Repository > Webhooks: No access > Save)."
   check: |-
     python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm repository_hooks=write --perm metadata=read >/dev/null
 - id: webhook-pull-request
@@ -38,3 +38,15 @@ ops:
   mutating: false
   check: |-
     sha=$(gh api repos/derio-homelab/kid-laptops/pulls/139 --jq .head.sha) && test -n "$sha" && gh api "repos/derio-homelab/kid-laptops/commits/$sha/statuses" --jq '.[].context' | grep -q '^gitea-actions/molecule'
+- id: app-webhooks-permission-revoke
+  summary: Revoke the homelab App's Webhooks permission once the one-off webhook PATCH is done. The grant is installation-wide (the per-mint narrowing to kid-laptops is not), so while it stands a leak of the PEM in tekton-pipelines could mint hooks:write on every installed derio-homelab repo. A GitHub UI step; the check proves revocation positively.
+  phase: post-merge
+  needs: [webhook-pull-request]
+  interactive: true
+  apply: |-
+    echo "GitHub > derio-homelab org settings > Developer settings > GitHub Apps > homelab-fr-automation > Permissions > Repository > Webhooks: No access > Save (a reduction needs no org re-approval)."
+  mutating: true
+  undo: |-
+    echo "Re-grant only for another one-off hook change: op app-webhooks-permission."
+  check: |-
+    python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm metadata=read >/dev/null && ! python3 scripts/github_app_token.py --app-id 4403773 --install-id 149345112 --key-secret tekton-pipelines/github-app-homelab-key --repo kid-laptops --perm repository_hooks=write --perm metadata=read >/dev/null 2>&1
