@@ -239,3 +239,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/995.
 ### pr-sync-ref-create-race-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/996] · resolves pr-sync-ref-create-race: derio-homelab-pr-sync can fail 'cannot lock ref … reference already exists' when two writers create the same new sync-pr ref
 
 Filed at deliver as https://github.com/derio-net/frank/issues/996.
+
+<!-- fr:journal kind=decision scope=spec id=ops-gh-token-passthrough created=2026-11-16T14:12:57+00:00 decided_by=operator -->
+### ops-gh-token-passthrough · decision · GitHub-side ops run in the ops container: GH_TOKEN passed through to probes, ops token widened to derio-homelab/kid-laptops
+
+fr ops probes get only an allow-listed env, so GH_TOKEN never reached the webhook op (gate stage 1 failed: gh unauthenticated). Operator chose to widen the ops credential over running the GitHub steps by hand: .fr/ops.yaml env_passthrough [GH_TOKEN] (repo-wide for every trusted probe), and the ops GH_TOKEN gains webhook admin + commit-status read on derio-homelab/kid-laptops.
