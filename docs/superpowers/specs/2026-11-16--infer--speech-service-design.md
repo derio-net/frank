@@ -81,6 +81,13 @@ candidates with Ollama loaded and writes results to `docs/investigations/`.
 strategy: live
 gate: devops
 
+- infer-speech-gpu-sharing: live — needs the real RTX 5070 Ti on gpu-1 and a device-plugin roll; ArgoCD only syncs main, so no pre-merge candidate can exercise it.
+- infer-speech-stt-api: live — needs the GPU-backed model and the Traefik route on the live cluster.
+- infer-speech-tts-api: live — needs the GPU-backed model; Greek/German quality is judged by listening.
+- infer-speech-switcher-handover: live — needs live gpu-switcher scaling of Ollama, speech and ComfyUI.
+- infer-speech-quiet-alerts: live — alert behaviour is observable only against the live Grafana and a real batch lifecycle.
+- infer-speech-benchmark: live — measures VRAM and latency on gpu-1 with Ollama loaded.
+
 ## Test Plan
 
 - [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
