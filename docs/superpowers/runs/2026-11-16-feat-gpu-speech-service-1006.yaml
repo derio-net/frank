@@ -3,7 +3,7 @@ run: 2026-11-16-feat-gpu-speech-service-1006
 workflow: fr-goal@1
 branch: feat/gpu-speech-service-1006
 started: '2026-11-16T19:56:34+00:00'
-cursor: journal-check
+cursor: lens-review
 steps:
   brainstorm:
     state: done
@@ -130,7 +130,11 @@ steps:
           visual: none
           findings: p2-r1,p2-r2,p2-r3,p2-r4,p2-r5,p2-r6,p2-r7,p2-r8,p2-r9,p2-r10,p2-r11,p2-r12,p2-r13,p2-r14,p2-r15,p2-r16,p2-r17,p2-r18,p2-r19,p2-r20,p2-r21
   journal-check:
-    state: pending
+    state: done
+    at: '2026-11-16T20:56:01+00:00'
+    exit: 0
+    stdout: "8 out-of-scope finding(s): p1-r10, p1-r11, p1-r12, p2-r2, p2-r17, p2-r18,\
+      \ \np2-r19, p2-r21\n"
   lens-review:
     state: pending
   deliver:
