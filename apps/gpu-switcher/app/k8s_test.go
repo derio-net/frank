@@ -179,9 +179,9 @@ func TestParseWorkloadsGrammar(t *testing.T) {
 	}
 	for _, bad := range []string{"a:b", "a:b:c@", "a:b:@g", "a:b:c:d", ":b:c", "a:b:c@g@h",
 		"ollama:ollama:ollama,speech:speech:speech@olama", // group names no workload
-		"ollama:ollama:ollama,",                            // trailing comma / empty entry
-		"",                                                 // empty list
-		"a:b:c,a:b:d",                                      // duplicate name
+		"ollama:ollama:ollama,",                           // trailing comma / empty entry
+		"",                                                // empty list
+		"a:b:c,a:b:d",                                     // duplicate name
 	} {
 		if _, err := ParseWorkloads(bad); err == nil {
 			t.Errorf("expected error for %q", bad)
