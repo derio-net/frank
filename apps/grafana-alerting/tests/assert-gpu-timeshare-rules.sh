@@ -88,7 +88,7 @@ if both and "gpu_timeshare" in both.get("labels", {}):
 # has a quiet, non-paging health rule.
 stz = rules.get("Workload Unexpectedly Scaled To Zero")
 if not stz: errs.append("scale-to-zero rule missing")
-elif not any(f'namespace!~"' in expr_of(stz) and "speech" in expr_of(stz).split('namespace!~"')[1].split('"')[0].split("|") for _ in [0]):
+elif 'namespace!~"' not in expr_of(stz) or "speech" not in expr_of(stz).split('namespace!~"')[1].split('"')[0].split("|"):
     errs.append("scale-to-zero rule must exclude namespace speech")
 if both and "speech" in expr_of(both):
     errs.append("gpu-node-both-down must sum only the ollama/comfyui probes, not speech")

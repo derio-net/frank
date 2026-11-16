@@ -1821,6 +1821,8 @@ data:
       # filtered value is the 0 itself). gpu_timeshare="true" routes to
       # health-bridge ONLY (tile, no Telegram); gpu-node-both-down stays the
       # only pager for the card.
+      # for: 45m > the pod's 30m startup budget (startupProbe 10s x 180), so a
+      # cold start that downloads models cannot page before it can be Ready.
       - orgId: 1
         name: speech-health
         folder: feature-health
@@ -1854,7 +1856,7 @@ data:
                     - evaluator: { type: lt, params: [1] }
             noDataState: OK
             execErrState: Error
-            for: 30m
+            for: 45m
             labels:
               severity: warning
               gpu_timeshare: "true"

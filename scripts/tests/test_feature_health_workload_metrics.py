@@ -1164,6 +1164,7 @@ def _gpu_timeshared_workloads() -> set[tuple[str, str]]:
             "triple; gpu-switcher's parser and this one have diverged"
         )
         _name, namespace, deployment = parts
+        deployment = deployment.split("@", 1)[0]  # optional `@group` suffix
         workloads.add((namespace, deployment))
     assert workloads, f"{GPU_SWITCHER_DEPLOYMENT} declares an empty WORKLOADS list"
     return workloads
@@ -1786,12 +1787,29 @@ def test_speech_health_rule_is_quiet_and_off_telegram():
     # desired replicas so a by-design scale-to-0 resolves through NoData.
     assert "kube_deployment_spec_replicas" in expr and 'namespace="speech"' in expr
     assert _threshold_evaluator(rule)["type"] == "lt"
+    # shape, not just substrings: the probe must be compared `== 0` and guarded
+    # by an `and on()` clause on the Deployment's desired replicas being > 0.
+    flat = " ".join(expr.split())
+    assert re.search(
+        r'probe_success\{[^}]*probe_group="gpu_timeshare_speech"[^}]*\}\s*==\s*0\s+and\s+on\(\)\s*'
+        r'\(\s*sum\(kube_deployment_spec_replicas\{[^}]*namespace="speech"[^}]*\}\)\s*>\s*0\s*\)$',
+        flat,
+    ), flat
 
 
 def test_speech_rule_has_a_grace_window_and_probes_a_real_endpoint():
     by_uid = {r["uid"]: r for r in _feature_health_rules()}
     rule = by_uid[SPEECH_RULE]
     # a cold start downloads models; a switch-in must not page inside that window
-    assert rule["for"] == "30m"
+    def _secs(v):
+        return int(v[:-1]) * {"s": 1, "m": 60, "h": 3600}[v[-1]]
+
+    startup = yaml.safe_load(
+        (REPO / "apps/speech/manifests/deployment.yaml").read_text(encoding="utf-8")
+    )["spec"]["template"]["spec"]["containers"][0]["startupProbe"]
+    startup_budget = startup["failureThreshold"] * startup["periodSeconds"]
+    assert _secs(rule["for"]) > startup_budget, (
+        "the alert window must outlast the startup budget or a slow cold start pages"
+    )
     static = _vmprobes()["speech-probe"]["spec"]["targets"]["staticConfig"]
     assert any(t.endswith("/v1/models") for t in static["targets"])
