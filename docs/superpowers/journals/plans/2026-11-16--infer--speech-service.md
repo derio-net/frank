@@ -593,3 +593,8 @@ Filed at deliver as https://github.com/derio-net/frank/issues/1012.
 ### l-security-r7-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/1013] · resolves l-security-r7: gpu-switcher ClusterRole is cluster-wide (pre-existing)
 
 Filed at deliver as https://github.com/derio-net/frank/issues/1013.
+
+<!-- fr:journal kind=finding scope=plan id=p1-r12-resolved-2 created=2026-11-16T21:56:29+00:00 state=refuted resolves=p1-r12 -->
+### p1-r12-resolved-2 · finding [refuted] · resolves p1-r12: speech ignoreDifferences rule belongs to phase 2
+
+Not a defect: the replicas ignoreDifferences rule shipped in phase 2.
