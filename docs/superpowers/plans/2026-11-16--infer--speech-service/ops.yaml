@@ -1,5 +1,13 @@
 schema_version: 2
 ops:
+- id: premerge-gpu-switcher-image
+  summary: The gpu-switcher v0.1.2 image (group support) exists in GHCR before the manifest that pins it merges
+  phase: pre-merge
+  apply: |-
+    echo "Build and push ghcr.io/derio-net/gpu-switcher:v0.1.2 from apps/gpu-switcher/app on the Intel MacBook, then make the package public"
+  mutating: true
+  check: |-
+    docker manifest inspect ghcr.io/derio-net/gpu-switcher:v0.1.2 >/dev/null
 - id: postmerge-timeslice-allocatable
   summary: gpu-1 advertises the time-sliced nvidia.com/gpu count after the device plugin rolls
   phase: post-merge

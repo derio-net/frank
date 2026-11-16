@@ -65,3 +65,33 @@ def test_device_plugin_references_the_configmap():
     plugin = values["devicePlugin"]["config"]
     assert plugin["name"] == cm["metadata"]["name"]
     assert plugin["default"] in cm["data"]
+
+
+def _modelfile_num_ctx(template):
+    for line in template.splitlines():
+        parts = line.split()
+        if parts[:2] == ["PARAMETER", "num_ctx"]:
+            return int(parts[2])
+    return None
+
+
+def test_every_ollama_model_is_classified_and_num_ctx_matches():
+    """Allowlist is two-directional: each chart-created model is allowed or excluded,
+    and the declared num_ctx equals the Modelfile PARAMETER, so the budget cannot
+    drift from what Ollama actually loads."""
+    values = yaml.safe_load(OLLAMA_VALUES.read_text())
+    created = {m["name"]: _modelfile_num_ctx(m["template"]) for m in values["ollama"]["models"]["create"]}
+    assert not (values["ollama"]["models"].get("pull") or []), "pulled models are unclassified; add them to the budget"
+    b = _budget()["ollama"]
+    allowed = {t["name"]: t for t in b["allowlist"]}
+    excluded = {t["name"] for t in b["excluded_while_speech_up"]}
+    assert set(created) == set(allowed) | excluded
+    assert not (set(allowed) & excluded)
+    for name, t in allowed.items():
+        assert created[name] == t["num_ctx"], f"{name}: num_ctx drifted from the Modelfile"
+
+
+def test_ollama_loads_one_model_at_a_time():
+    values = yaml.safe_load(OLLAMA_VALUES.read_text())
+    env = {e["name"]: e["value"] for e in values["extraEnv"]}
+    assert env["OLLAMA_MAX_LOADED_MODELS"] == "1"

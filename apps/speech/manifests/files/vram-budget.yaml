@@ -7,6 +7,10 @@ ollama:
   # Only one model is loaded at a time (OLLAMA_MAX_LOADED_MODELS=1).
   allowlist:
     - {name: "gemma4:12b-64k", num_ctx: 65536, vram_gb: 9.7, estimate: false}
+  # Tags the Ollama chart can load but that must NOT be loaded while speech is up
+  # (hybrid CPU/GPU offload, ~24 GB total: it would take the whole card).
+  excluded_while_speech_up:
+    - {name: "qwen3.6:35b-a3b-64k", reason: "24 GB total, 61% on GPU; does not fit beside speech"}
 speech:
   models:
     - {name: stt, vram_gb: 2.5, estimate: true}
