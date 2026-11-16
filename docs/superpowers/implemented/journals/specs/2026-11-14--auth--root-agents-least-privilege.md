@@ -164,3 +164,59 @@ run_kind: live
 ### s7-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/986] · resolves s7: Matrix cells assumed, not cited
 
 Filed at deliver as https://github.com/derio-net/frank/issues/986.
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-16T12:09:53+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: [ ] (op: premerge-namespaces) Before merging, confirm every generated namespace exists live.
+
+Evidence: checked after the merge by hand not before, all 30 generated namespaces exist on the live cluster, read-only run from main at 1002
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-11-16T12:11:00+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: [x] BEFORE matrix (recorded 2026-11-14, before the cutover, not an op: it can only be taken before the old binding is deleted): all 14 `root-agents` deny cells leaked through the live `cluster-admin` binding and every `system:masters` control answered allowed.
+
+Evidence: taken live on 2026-11-14 before the old binding was deleted, all 14 root-agents deny cells leaked through the cluster-admin binding and every system:masters control answered allowed, raw output was in the delivering session and not committed
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-16T12:11:49+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
+
+Evidence: moved on 2026-11-14 adding root-agents before removing root-admins and re-read live today as only root-agents, the superuser pre-check found the account has no token and no events and never logged in so nothing relies on its superuser status
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-16T12:12:33+00:00 -->
+### test-plan-step-4 · discovery · Test Plan step 4: ran
+
+Step: [ ] Token review (operator-walked, no op: it needs the `k8s-agent` client secret, which the ops profile must not hold): `TOKEN_REVIEW=1 bash walk-912-gate.sh`, or `bash scripts/root-agents-cutover.sh token-review` with the secret on stdin or typed at the silent prompt. A fresh token's groups never include `root-admins`.
+
+Evidence: fresh k8s-agent token reviewed on 2026-11-15 as authenticated and its groups did not include root-admins, run through walk-912-gate with the client secret only so it exercised the provider synthetic user
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-16T12:13:03+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: [ ] (op: cutover-delete-binding) Delete the old `authentik-root-agents` binding.
+
+Evidence: deleted by hand on 2026-11-14 and re-checked live today, authentik-root-agents is NotFound, authentik-root-agents-read is bound to root-agents-cluster-read, and no cluster-admin binding names root-agents
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6 created=2026-11-16T12:16:02+00:00 -->
+### test-plan-step-6 · discovery · Test Plan step 6: ran
+
+Step: [ ] (op: cutover-exclude-credential-namespaces) Delete the five `root-agents-ns-read` RoleBindings in `authentik`, `infisical`, `argocd`, `kube-system` and `longhorn-system` (PR 991 removed them from git; prune is false).
+
+Evidence: the five root-agents-ns-read RoleBindings are NotFound in authentik infisical argocd kube-system and longhorn-system on a live read-only check today, 30 of them remain matching the 30 generated namespaces, deleted by the gate stage 4 apply
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7 created=2026-11-16T12:42:49+00:00 -->
+### test-plan-step-7 · discovery · Test Plan step 7: ran
+
+Step: [ ] (op: cutover-matrix-after) Record the matrix after the cutover: every allow cell allowed, every deny cell denied, the control allowed.
+
+Evidence: full matrix verify passed on 2026-11-16 with all 36 cells as intended and every system:masters control allowed, root-agents reads pods logs and configmaps in monitoring and nodes and is denied secrets in 8 namespaces and pods logs and configmaps in the five credential stores and impersonate bind escalate and serviceaccounts token, root-admins still reads secrets
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-8 created=2026-11-16T12:44:10+00:00 -->
+### test-plan-step-8 · discovery · Test Plan step 8: ran
+
+Step: [ ] Close #912 on that passing matrix; this unblocks P7.T1.S1 of the update-security-lifecycle plan.
+
+Evidence: issue 912 was closed as completed on 2026-11-14 at the merge of 985, before the after matrix existed, and the full matrix verify passed on 2026-11-16 confirming the close was right, the update-security-lifecycle phase 7 issue 973 is still open and is now unblocked

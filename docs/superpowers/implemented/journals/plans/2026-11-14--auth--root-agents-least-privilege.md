@@ -290,3 +290,79 @@ Filed at deliver as https://github.com/derio-net/frank/issues/988.
 ### l-tests-r8-resolved-2 · finding [deferred → https://github.com/derio-net/frank/issues/989] · resolves l-tests-r8: guard scans only apps/*.yaml; pre-existing scope
 
 Filed at deliver as https://github.com/derio-net/frank/issues/989.
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-1 created=2026-11-16T11:38:34+00:00 decided_by=operator -->
+### op-trust-1 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 8add3f4ce41b071955ea6d5650b60ca0ec5d5de507440befcae9d43d4caf2ee7
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-1 created=2026-11-16T11:38:47+00:00 -->
+### gate-stage-1 · decision · DevOps stage 1 done: pre-merge ops
+
+head: 2475fcc0aec5da27f8381e2c2d1e14d45418970c
+pre-merge ops closed on chore/ops-2026-11-14--auth--root-agents-least-privilege
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-3 created=2026-11-16T11:39:02+00:00 -->
+### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
+
+merge verified; chore/ops-2026-11-14--auth--root-agents-least-privilege rebased onto main; ready
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-delete-binding-1 created=2026-11-16T11:57:11+00:00 -->
+### op-cutover-delete-binding-1 · op · op cutover-delete-binding: done
+
+op: cutover-delete-binding
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-exclude-credential-namespaces-1 created=2026-11-16T11:57:12+00:00 -->
+### op-cutover-exclude-credential-namespaces-1 · op · op cutover-exclude-credential-namespaces: done
+
+op: cutover-exclude-credential-namespaces
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-matrix-after-1 created=2026-11-16T11:59:27+00:00 -->
+### op-cutover-matrix-after-1 · op · op cutover-matrix-after: done
+
+op: cutover-matrix-after
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-4 created=2026-11-16T12:00:46+00:00 -->
+### gate-stage-4 · decision · DevOps stage 4 done: post-merge ops
+
+post-merge ops closed
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-5 created=2026-11-16T12:44:12+00:00 -->
+### gate-stage-5 · decision · DevOps stage 5 done: devops steps
+
+devops Test Plan steps recorded
+
+<!-- fr:journal kind=op scope=plan id=op-premerge-namespaces-1 created=2026-11-16T12:46:47+00:00 -->
+### op-premerge-namespaces-1 · op · op premerge-namespaces: done
+
+op: premerge-namespaces
+result: done
+phase: pre-merge
+
+<!-- fr:journal kind=op scope=plan id=op-cutover-move-membership-1 created=2026-11-16T12:46:55+00:00 -->
+### op-cutover-move-membership-1 · op · op cutover-move-membership: done
+
+op: cutover-move-membership
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-6 created=2026-11-16T12:47:33+00:00 -->
+### gate-stage-6 · decision · DevOps stage 6 done: gate pass
+
+gate:devops passed
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-7 created=2026-11-16T12:47:35+00:00 -->
+### gate-stage-7 · decision · DevOps stage 7 done: tester hand-off
+
+no tester step remains
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-8 created=2026-11-16T12:47:56+00:00 -->
+### gate-stage-8 · decision · DevOps stage 8 done: archive and housekeeping PR
+
+archived; housekeeping PR from chore/ops-2026-11-14--auth--root-agents-least-privilege
