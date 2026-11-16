@@ -169,3 +169,4 @@ steps:
           model: claude-sonnet-5-5
           session: 53a4f8a0-666b-428a-bddb-fd1d08f933d4
 fr_version: 8.0.0
+pr: https://github.com/derio-net/frank/pull/1007
