@@ -48,3 +48,70 @@ amendments:
       and can change nothing.
     why: 'Operator decision 2026-11-14: logs, pod env and ConfigMaps in the credential-store
       namespaces can carry credentials, so root-agents reads none of them'
+  - row: root-agents-no-secrets
+    op: set-status
+    base: 0
+    status: walked
+    notes: 'Walked live after the cutover (frank#912): the full verify run on 2026-11-16
+      answered all 36 SubjectAccessReview cells as intended, every system:masters control
+      allowed. root-agents is denied get secrets in argocd, infisical, authentik, kube-system,
+      longhorn-system, upgrade-sessions, cluster-update-fr and runs-fr, and denied list
+      pods in upgrade-sessions.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: SubjectAccessReview matrix (scripts/root-agents-cutover.sh verify),
+        36 cells, run by the operator on 2026-11-16, bindings read back by the session
+        the same day
+    why: 'Walked live after the cutover (frank#912): the full verify run on 2026-11-16
+      answered all 36 SubjectAccessReview cells as intended, every system:masters control
+      allowed. root-agents is denied get secrets in argocd, infisical, authentik, kube-system,
+      longhorn-system, upgrade-sessions, cluster-update-fr and runs-fr, and denied list
+      pods in upgrade-sessions.'
+  - row: root-agents-read-only-triage
+    op: set-status
+    base: 1
+    status: walked
+    notes: 'Walked live after the cutover: root-agents is allowed get pods, pods/log
+      and configmaps in monitoring and list nodes, denied pods, pods/log and configmaps
+      in the five credential-store namespaces, and denied create pods, impersonate,
+      serviceaccounts/token, bind and escalate. The cluster holds 30 root-agents-ns-read
+      RoleBindings matching the 30 generated namespaces, none in the five credential
+      stores.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: SubjectAccessReview matrix, 36 cells (operator, 2026-11-16), plus a
+        read-only RoleBinding listing (session)
+    why: 'Walked live after the cutover: root-agents is allowed get pods, pods/log and
+      configmaps in monitoring and list nodes, denied pods, pods/log and configmaps
+      in the five credential-store namespaces, and denied create pods, impersonate,
+      serviceaccounts/token, bind and escalate. The cluster holds 30 root-agents-ns-read
+      RoleBindings matching the 30 generated namespaces, none in the five credential
+      stores.'
+  - row: no-ai-agent-cluster-admin
+    op: set-status
+    base: 0
+    status: walked
+    notes: 'Walked live: authentik-root-agents is NotFound, authentik-root-agents-read
+      is bound to root-agents-cluster-read, no cluster-admin binding names root-agents,
+      and claude-agent is only in root-agents with zero tokens, zero events and no login.
+      The k8s-agent token review is not recorded in this walk.'
+    walk:
+      strategy: live
+      harness: claude-code
+      model: claude-sonnet-5-5
+      outcome: pass
+      at: '2026-11-16T00:00:00Z'
+      evidence: kubectl get clusterrolebinding and an Authentik group read, read-only,
+        2026-11-15 and 2026-11-16
+    why: 'Walked live: authentik-root-agents is NotFound, authentik-root-agents-read
+      is bound to root-agents-cluster-read, no cluster-admin binding names root-agents,
+      and claude-agent is only in root-agents with zero tokens, zero events and no login.
+      The k8s-agent token review is not recorded in this walk.'
