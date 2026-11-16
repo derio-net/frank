@@ -30,6 +30,11 @@ if a[:1] == ["exec"]:
     print(os.environ.get("FAKE_MEMBERSHIP", "GROUPS=root-agents")); sys.exit(0)
 if a[:2] == ["get", "ns"]:
     print("\n".join("namespace/" + n for n in os.environ.get("FAKE_NS", "").split(",") if n)); sys.exit(0)
+if a[:1] == ["create"] and os.environ.get("FAKE_FLAKY_FILE"):
+    n = int(open(os.environ["FAKE_FLAKY_FILE"]).read() or "0")
+    if n < int(os.environ.get("FAKE_FLAKY_N", "0")):  # a stalled Omni proxy: the call fails, the next one works
+        open(os.environ["FAKE_FLAKY_FILE"], "w").write(str(n + 1))
+        sys.stderr.write("error: read tcp: operation timed out\n"); sys.exit(1)
 if a[:1] == ["create"]:
     sar = json.load(sys.stdin)
     if sar.get("kind") == "TokenReview":
@@ -239,3 +244,23 @@ def test_token_review_reads_the_client_secret_from_stdin_not_the_environment(env
     assert f"client_secret={secret}" in log.read_text() and secret not in r.stdout + r.stderr
     empty = subprocess.run(["bash", str(SCRIPT), "token-review"], input="", capture_output=True, text=True, env=base)
     assert empty.returncode != 0
+
+
+def test_matrix_retries_a_stalled_kubectl_call_and_still_gets_the_right_answer(env, tmp_path):
+    counter = tmp_path / "flaky"
+    counter.write_text("0")
+    r = run("verify", env, FAKE_FLAKY_FILE=str(counter), FAKE_FLAKY_N="3", SAR_RETRY_SLEEP="0")  # < 4 attempts: one stalled call
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert counter.read_text() == "3", "the fake never failed, so the retry was not exercised"
+
+
+def test_matrix_fails_loudly_when_kubectl_never_answers_and_never_guesses(env, tmp_path):
+    counter = tmp_path / "flaky"
+    counter.write_text("0")
+    r = run("verify", env, FAKE_FLAKY_FILE=str(counter), FAKE_FLAKY_N="999", SAR_RETRY_SLEEP="0")
+    assert r.returncode != 0 and "failed 4 times" in r.stderr
+    assert "got=true" not in r.stdout and "got=false" not in r.stdout  # no cell was invented from a failure
+
+
+def test_every_sar_call_has_its_own_timeout():
+    assert "--request-timeout=" in SCRIPT.read_text()

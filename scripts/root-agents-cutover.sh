@@ -33,9 +33,9 @@ FAILS=0
 
 generated_namespaces() { sed -n 's/^  namespace: //p' "$GEN"; }
 
-# sar <groups,comma> <verb> <resource> <namespace|-> [subresource]  -> prints true|false
-sar() {
-  python3 - "$@" <<'PY' | kubectl create -f - -o jsonpath='{.status.allowed}'
+# sar_json <groups,comma> <verb> <resource> <namespace|-> [subresource]  -> the SubjectAccessReview as JSON
+sar_json() {
+  python3 - "$@" <<'PY'
 import json, sys
 groups, verb, resource, ns = sys.argv[1:5]
 sub = sys.argv[5] if len(sys.argv) > 5 else ""
@@ -48,6 +48,23 @@ print(json.dumps({"apiVersion": "authorization.k8s.io/v1", "kind": "SubjectAcces
                   "spec": {"user": "root-agents-probe", "groups": groups.split(",") + ["system:authenticated"],
                            "resourceAttributes": ra}}))
 PY
+}
+
+# sar <groups,comma> <verb> <resource> <namespace|-> [subresource]  -> prints true|false
+# The Omni kube proxy stalls now and then (a read times out after ~60 s), and the matrix makes ~50 calls, so
+# each call has its own short timeout and is retried; a persistent failure is an error, never a guessed answer.
+sar() {
+  local json out i
+  json=$(sar_json "$@")
+  for i in 1 2 3 4; do
+    if out=$(printf '%s' "$json" | kubectl create --request-timeout=20s -f - -o jsonpath='{.status.allowed}' 2>/dev/null); then
+      printf '%s' "$out"
+      return 0
+    fi
+    sleep $((i * ${SAR_RETRY_SLEEP:-2}))
+  done
+  echo "sar: kubectl create failed 4 times for: $*" >&2
+  return 1
 }
 
 # cell <label> <groups> <expect allow|deny> <verb> <resource> <namespace|-> [subresource]
