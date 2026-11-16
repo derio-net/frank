@@ -185,3 +185,10 @@ Evidence: taken live on 2026-11-14 before the old binding was deleted, all 14 ro
 Step: [ ] (op: cutover-move-membership) Move `claude-agent` from `root-admins` to `root-agents` in Authentik (after the superuser-status pre-check in the Cutover section).
 
 Evidence: moved on 2026-11-14 adding root-agents before removing root-admins and re-read live today as only root-agents, the superuser pre-check found the account has no token and no events and never logged in so nothing relies on its superuser status
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-16T12:12:33+00:00 -->
+### test-plan-step-4 · discovery · Test Plan step 4: ran
+
+Step: [ ] Token review (operator-walked, no op: it needs the `k8s-agent` client secret, which the ops profile must not hold): `TOKEN_REVIEW=1 bash walk-912-gate.sh`, or `bash scripts/root-agents-cutover.sh token-review` with the secret on stdin or typed at the silent prompt. A fresh token's groups never include `root-admins`.
+
+Evidence: fresh k8s-agent token reviewed on 2026-11-15 as authenticated and its groups did not include root-admins, run through walk-912-gate with the client secret only so it exercised the provider synthetic user
