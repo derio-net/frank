@@ -301,3 +301,8 @@ sha256: 8add3f4ce41b071955ea6d5650b60ca0ec5d5de507440befcae9d43d4caf2ee7
 
 head: 2475fcc0aec5da27f8381e2c2d1e14d45418970c
 pre-merge ops closed on chore/ops-2026-11-14--auth--root-agents-least-privilege
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-3 created=2026-11-16T11:39:02+00:00 -->
+### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
+
+merge verified; chore/ops-2026-11-14--auth--root-agents-least-privilege rebased onto main; ready
