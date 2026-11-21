@@ -88,3 +88,26 @@ def test_check_script_refuses_bad_arguments_offline():
     for args in ([], ["noslash", "v1"], ["derio-net/x", "v1;rm"]):
         r = subprocess.run(["bash", str(CHECK_SCRIPT), *args], capture_output=True, text=True)
         assert r.returncode == 2, (args, r.stderr)
+
+
+GPU_OPERATOR_VALUES = REPO / "apps/gpu-operator/values.yaml"
+GPU_OPERATOR_APP = REPO / "apps/root/templates/gpu-operator.yaml"
+
+
+def test_timeslice_op_patches_the_clusterpolicy_with_the_declared_config():
+    """ArgoCD never applies the ClusterPolicy spec: the gpu-operator Application
+    ignores /spec (the operator's webhook fills in defaults). The first gate run
+    synced both apps, read OPEN, and the live ClusterPolicy had no
+    devicePlugin.config (2026-11-21). So the op must patch the live object with
+    exactly the block values.yaml declares for a fresh install."""
+    assert "- /spec" in GPU_OPERATOR_APP.read_text(), "ClusterPolicy /spec no longer ignored: revisit this op"
+    op = {o["id"]: o for o in _ops()}["postmerge-timeslice-allocatable"]
+    m = re.search(r"kubectl patch clusterpolicy cluster-policy --type=merge -p '(\{.*?\})'", op["apply"])
+    assert m, "apply must patch the live ClusterPolicy"
+    patched = json.loads(m.group(1))["spec"]["devicePlugin"]["config"]
+    declared = yaml.safe_load(GPU_OPERATOR_VALUES.read_text())["devicePlugin"]["config"]
+    assert patched == declared
+    assert "patch application" not in op["apply"], "syncing ArgoCD apps cannot change an ignored /spec"
+    assert op["mutating"] is True
+    assert op.get("side_effects"), "the plugin roll briefly drops gpu-1's GPU resource: declare it"
+    assert "/spec/devicePlugin/config" in op.get("undo", "")

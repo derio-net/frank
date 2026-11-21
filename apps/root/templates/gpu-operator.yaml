@@ -38,6 +38,9 @@ spec:
   # CDI off — Talos handles the driver stack). Fighting the webhook field
   # by field isn't worth it; ignoring the entire /spec keeps the chart's
   # intended config in place without churning on operator-added defaults.
+  # Consequence: NO ClusterPolicy change in values.yaml ever reaches the live
+  # cluster after install. Apply such a change as a targeted kubectl patch
+  # (an fr op), as the speech plan does for devicePlugin.config.
   ignoreDifferences:
     - group: nvidia.com
       kind: ClusterPolicy

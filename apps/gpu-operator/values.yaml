@@ -27,6 +27,11 @@ cdi:
 # fault separation); gpu-switcher keeps ComfyUI away and the VRAM budget guard
 # (apps/speech/manifests/files/vram-budget.yaml) bounds the pair. Config lives
 # in apps/gpu-operator-extras/manifests/time-slicing-config.yaml.
+# INSTALL-TIME ONLY: the gpu-operator Application ignores the ClusterPolicy
+# /spec (apps/root/templates/gpu-operator.yaml), so ArgoCD never applies a
+# change here to the live cluster. The live value is set by the fr op
+# postmerge-timeslice-allocatable (speech plan ops.yaml), whose patch
+# scripts/tests/test_speech_ops.py pins to this block. Change both together.
 devicePlugin:
   config:
     name: time-slicing-config
