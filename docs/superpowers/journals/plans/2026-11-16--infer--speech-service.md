@@ -608,3 +608,14 @@ Not a defect: the phase 1 items were reviewed and closed in phase 1.
 ### p2-r21-resolved-2 · finding [refuted] · resolves p2-r21: Verified-OK note
 
 Not a defect: the reviewer's verified-OK note, nothing to fix.
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-1 created=2026-11-21T16:26:02+00:00 decided_by=operator -->
+### op-trust-1 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 685cce7a111804173f07d6f73bd30e6c4abbeeb0da91bc62caee01be396a5aca
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-1 created=2026-11-21T16:26:14+00:00 -->
+### gate-stage-1 · decision · DevOps stage 1 done: pre-merge ops
+
+head: f3bed6495890c550b9ec662be40fb36848aea0df
+pre-merge ops closed on chore/ops-2026-11-16--infer--speech-service
