@@ -619,3 +619,8 @@ sha256: 685cce7a111804173f07d6f73bd30e6c4abbeeb0da91bc62caee01be396a5aca
 
 head: f3bed6495890c550b9ec662be40fb36848aea0df
 pre-merge ops closed on chore/ops-2026-11-16--infer--speech-service
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-3 created=2026-11-21T16:26:27+00:00 -->
+### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
+
+merge verified; chore/ops-2026-11-16--infer--speech-service rebased onto main; ready
