@@ -55,3 +55,50 @@ spec:
       - X-authentik-meta-provider
       - X-authentik-meta-app
       - X-authentik-meta-version
+---
+# Speech API source allowlist. This is the ONLY access control on the API (no
+# auth, no NetworkPolicy), and it is broad: LAN = 192.168.0.0/16 (Frank's
+# nodes/clients are 192.168.55.0/24), mesh = 100.64.0.0/10 (Headscale prefix, see
+# clusters/hop/apps/headscale/manifests/configmap.yaml), pods = 10.0.0.0/8.
+# In-cluster pods can also reach the Service directly, bypassing Traefik and
+# this list entirely. A NetworkPolicy and a narrowing of the LAN range to
+# 192.168.55.0/24 are a tracked follow-up (spec: "What this deliberately does
+# not do").
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: speech-ip-allowlist
+  namespace: traefik-system
+spec:
+  ipAllowList:
+    sourceRange:
+      - "192.168.0.0/16"
+      - "100.64.0.0/10"
+      - "10.0.0.0/8"
+---
+# Caps concurrent requests per source IP so one client cannot queue unbounded
+# multi-hour jobs on the single shared GPU.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: speech-inflight
+  namespace: traefik-system
+spec:
+  inFlightReq:
+    amount: 4
+    sourceCriterion:
+      ipStrategy:
+        depth: 0
+---
+# Transcription is not streamed: response headers arrive only when the whole
+# recording is done, so the backend response timeout must cover a 2.5 h file.
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: speech-long-requests
+  namespace: traefik-system
+spec:
+  forwardingTimeouts:
+    dialTimeout: 30s
+    responseHeaderTimeout: 3h
+    idleConnTimeout: 90s

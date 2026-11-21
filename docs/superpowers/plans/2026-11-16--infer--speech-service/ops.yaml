@@ -1,0 +1,35 @@
+schema_version: 2
+ops:
+# Both images are built by GitHub Actions on the merge push to main
+# (build-gpu-switcher.yml, build-speech.yml), following the repo's comfyui
+# convention. The Deployments therefore sit in ImagePullBackOff for the few
+# minutes the builds take after merge; the kubelet retries and pulls once the
+# tag exists. Each apply RE-RUNS the build (fr checks first and skips an op
+# that is already DONE), and each check asks the registry the same anonymous
+# question the kubelet asks, so a private package FAILS the check instead of
+# passing it. Every command here runs in frank's ops devcontainer (gh, curl,
+# python3, kubectl; there is no docker there).
+- id: postmerge-gpu-switcher-image
+  summary: ghcr.io/derio-net/gpu-switcher:v0.1.2 (group support) is built by CI and anonymously pullable
+  phase: post-merge
+  apply: |-
+    gh workflow run build-gpu-switcher.yml --repo derio-net/frank --ref main && sleep 20 && gh run watch --repo derio-net/frank --exit-status "$(gh run list --repo derio-net/frank --workflow build-gpu-switcher.yml --branch main --limit 1 --json databaseId --jq '.[0].databaseId')"
+  mutating: true
+  check: |-
+    bash scripts/ghcr-tag-pullable.sh derio-net/gpu-switcher "$(grep -o 'GPU_SWITCHER_VERSION: "[^"]*"' .github/workflows/build-gpu-switcher.yml | cut -d'"' -f2)"
+- id: postmerge-speech-image
+  summary: The derived speech image is built by CI and anonymously pullable. A FIRST push creates the package private, and making it public is the one step only a human can do (GitHub UI), so a failing check after a green build means exactly that.
+  phase: post-merge
+  apply: |-
+    gh workflow run build-speech.yml --repo derio-net/frank --ref main && sleep 20 && gh run watch --repo derio-net/frank --exit-status "$(gh run list --repo derio-net/frank --workflow build-speech.yml --branch main --limit 1 --json databaseId --jq '.[0].databaseId')"
+  mutating: true
+  check: |-
+    bash scripts/ghcr-tag-pullable.sh derio-net/speech "$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)"
+- id: postmerge-timeslice-allocatable
+  summary: The device plugin is rolled onto the time-slicing config in order (ConfigMap first, then the ClusterPolicy) and gpu-1 advertises 2 nvidia.com/gpu. The roll briefly drops the node's GPU resource, so run it while no GPU workload is mid-job (manual-op infer-speech-device-plugin-roll has the rollback).
+  phase: post-merge
+  apply: |-
+    S='{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'; kubectl -n argocd patch application gpu-operator-extras --type=merge -p "$S" && for i in $(seq 1 30); do kubectl -n gpu-operator get configmap time-slicing-config >/dev/null 2>&1 && break; sleep 10; done && kubectl -n gpu-operator get configmap time-slicing-config >/dev/null && kubectl -n argocd patch application gpu-operator --type=merge -p "$S" && sleep 30 && kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s
+  mutating: true
+  check: |-
+    test "$(kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')" = 2

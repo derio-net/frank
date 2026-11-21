@@ -1,0 +1,18 @@
+# NVIDIA device-plugin time-slicing for gpu-1. replicas must equal the largest
+# gpu-switcher sharing group (ollama + speech = 2) — guarded by
+# scripts/tests/test_speech_vram_budget.py. renameByDefault: false keeps the
+# resource name nvidia.com/gpu so existing GPU workloads need no changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: time-slicing-config
+  namespace: gpu-operator
+data:
+  any: |-
+    version: v1
+    sharing:
+      timeSlicing:
+        renameByDefault: false
+        resources:
+          - name: nvidia.com/gpu
+            replicas: 2

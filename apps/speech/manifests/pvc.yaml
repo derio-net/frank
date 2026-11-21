@@ -1,0 +1,15 @@
+# Model cache (HF hub): STT large-v3-turbo (~1.6 GB) + Kokoro (~0.4 GB) plus
+# room for the Greek/German TTS candidates the benchmark will try.
+# Longhorn online expansion; never shrink.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: speech-models
+  namespace: speech
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi

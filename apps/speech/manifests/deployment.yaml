@@ -1,0 +1,124 @@
+# Speech service (STT + TTS, OpenAI-compatible) on gpu-1.
+# Starts at 0 replicas — gpu-switcher runs it in a group with Ollama
+# (WORKLOADS: speech:speech:speech@ollama); replicas are ignoreDifferences.
+# Image: derived speaches build with CTranslate2 >= 4.6.3 (Blackwell sm_120),
+# see apps/speech/docker/Dockerfile. The tag MUST equal SPEECH_REV in
+# .github/workflows/build-speech.yml (guard: scripts/tests/test_speech_image_build.py).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: speech
+  namespace: speech
+  labels:
+    app.kubernetes.io/name: speech
+    app.kubernetes.io/component: server
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: speech
+      app.kubernetes.io/component: server
+  # RWO model-cache PVC: the old pod must release it first.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: speech
+        app.kubernetes.io/component: server
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpu-1
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: speech
+          image: ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r1
+          # No readOnlyRootFilesystem: the server writes model/cache files
+          # (HF cache on the PVC, plus temp audio and Python caches) beyond one
+          # mount, so a read-only root would break it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          # Tag is unique per image rev; reuse the node cache on every
+          # GPU-time-share switch instead of re-pulling.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: UVICORN_HOST
+              value: "0.0.0.0"
+            - name: UVICORN_PORT
+              value: "8000"
+            # Model repos in PRELOAD_MODELS are not revision-pinned (low risk:
+            # CTranslate2/ONNX weight formats, no pickle code execution).
+            # Default models: STT large-v3-turbo (multilingual incl. EN/DE/EL),
+            # TTS Kokoro-82M (conservative default; the Greek/German TTS engine
+            # is chosen from the benchmark, not assumed).
+            - name: PRELOAD_MODELS
+              value: '["deepdml/faster-whisper-large-v3-turbo-ct2","speaches-ai/Kokoro-82M-v1.0-ONNX"]'
+            - name: WHISPER__INFERENCE_DEVICE
+              value: "cuda"
+            - name: WHISPER__COMPUTE_TYPE
+              value: "float16"
+            # Unload models after use so an idle-but-scheduled pod does not pin
+            # VRAM beside Ollama (budget: apps/speech/manifests/files/vram-budget.yaml).
+            - name: STT_MODEL_TTL
+              value: "300"
+            - name: TTS_MODEL_TTL
+              value: "300"
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /home/ubuntu/.cache/huggingface
+          # Probes. Startup: /health, up to 30 min (cold PVC downloads the
+          # preloaded models from the Hub). Readiness: /v1/models, which reads
+          # the model registry (a real API path, not just "the process is up").
+          # Liveness: /health, but tolerant (10 x 60 s timeouts+periods = >= 10
+          # min) because a multi-hour transcription can block the event loop
+          # and a restart would discard the whole job.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 180
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: speech-models

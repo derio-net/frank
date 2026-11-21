@@ -279,6 +279,38 @@ spec:
     domains:
       - main: "*.cluster.derio.net"
 ---
+# Speech API (STT/TTS, OpenAI-compatible). PRIVATE: ip-allowlist (LAN/mesh/pods)
+# only, and deliberately NO authentik-forwardauth — a forward-auth redirect
+# breaks API clients (litellm-api precedent). Only the websecure entrypoint;
+# nothing is published on the public edge. No buffering middleware: uploads and
+# TTS audio stream straight through. The ServersTransport sets an explicit
+# response timeout; the websecure entrypoint's own read timeout still applies,
+# so long recordings go to the in-cluster Service URL (see the gpu-1 runbook).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: speech
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`speech.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: speech-ip-allowlist
+        - name: speech-inflight
+        - name: security-headers
+      services:
+        - name: speech
+          namespace: speech
+          port: 8000
+          serversTransport: speech-long-requests
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
