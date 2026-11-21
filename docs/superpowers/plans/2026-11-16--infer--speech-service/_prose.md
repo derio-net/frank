@@ -3,7 +3,7 @@ Plan for the speech service (#1006). Phase 1: sharing config, VRAM budget guard 
 
 ## Manual operations
 
-These four operations are the only non-declarative steps of the speech service. `infer-speech-gpu-switcher-image` and `infer-speech-image-build` are PRE-MERGE (the Deployments pin images that must already exist in GHCR); `infer-speech-device-plugin-roll` is POST-MERGE; `infer-speech-benchmark-run` follows it and produces the numbers that replace the `estimate: true` VRAM sizes.
+These four operations are the only non-declarative steps of the speech service. All four are POST-MERGE and the DevOps stage (`fr ops gate`) runs them as fr ops. `infer-speech-gpu-switcher-image` and `infer-speech-image-build` confirm the CI-built images landed and are anonymously pullable (the Deployments ImagePullBackOff for the few minutes the builds take); `infer-speech-device-plugin-roll` follows; `infer-speech-benchmark-run` follows it and produces the numbers that replace the `estimate: true` VRAM sizes.
 
 ```yaml
 # manual-operation
@@ -11,16 +11,14 @@ id: infer-speech-gpu-switcher-image
 layer: infer
 app: gpu-switcher
 plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-when: "BEFORE the PR merges — the gpu-switcher Deployment pins ghcr.io/derio-net/gpu-switcher:v0.1.2 (group support), which must exist in GHCR first."
-why_manual: "The gpu-switcher image has no CI workflow (it is built by hand on the Intel MacBook; Frank has no build host), and a first push to GHCR creates the package private."
+when: "After the PR merges. .github/workflows/build-gpu-switcher.yml builds ghcr.io/derio-net/gpu-switcher:v0.1.2 (group support) on the merge push; gpu-switcher sits in ImagePullBackOff until it lands. Run by the DevOps stage as fr op postmerge-gpu-switcher-image."
+why_manual: "The build itself is CI, but only the DevOps stage can confirm it landed and that the package is anonymously pullable (Frank has no imagePullSecret). The gpu-switcher package already exists publicly (v0.1.1), so no visibility change is expected."
 commands: |
-  cd apps/gpu-switcher/app
-  docker buildx build --platform linux/amd64 -t ghcr.io/derio-net/gpu-switcher:v0.1.2 --push .
-  # If the package is private: GitHub -> derio-net -> Packages -> gpu-switcher -> Package settings -> Change visibility -> Public
+  fr ops apply postmerge-gpu-switcher-image --yes-mutating   # re-runs the build only if the check fails
+  # by hand, from any shell with gh: gh workflow run build-gpu-switcher.yml --repo derio-net/frank --ref main
 verify: |
-  docker manifest inspect ghcr.io/derio-net/gpu-switcher:v0.1.2 >/dev/null && echo present
-  # anonymous pull works (no imagePullSecret on Frank):
-  docker logout ghcr.io; docker pull ghcr.io/derio-net/gpu-switcher:v0.1.2
+  bash scripts/ghcr-tag-pullable.sh derio-net/gpu-switcher v0.1.2
+  kubectl -n gpu-switcher rollout status deploy/gpu-switcher --timeout=300s
 status: pending
 ```
 
@@ -30,17 +28,15 @@ id: infer-speech-image-build
 layer: infer
 app: speech
 plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-when: "BEFORE the PR merges — the speech Deployment pins ghcr.io/derio-net/speech:<SPEECH_REV> (the derived speaches image with CTranslate2 >= 4.6.3). CI builds it only on a push to main, and workflow_dispatch needs the workflow on the default branch, so the first image is built locally."
-why_manual: "workflow_dispatch cannot run a workflow that is not yet on the default branch, so the pre-merge image is built and pushed from the Intel MacBook (Frank has no build host); a first GHCR push creates the package PRIVATE, so making it public is a manual UI step (Frank pulls anonymously)."
+when: "After the PR merges. .github/workflows/build-speech.yml builds ghcr.io/derio-net/speech:<SPEECH_REV> (the derived speaches image with CTranslate2 >= 4.6.3) on the merge push; the speech Deployment sits in ImagePullBackOff until it lands. Run by the DevOps stage as fr op postmerge-speech-image."
+why_manual: "A FIRST push to GHCR creates the package PRIVATE and Frank pulls anonymously, so after the first green build a human must set the package public in the GitHub UI; nothing else is manual. The op's check fails until that is done, so the gate cannot pass with a private package."
 commands: |
-  REV=$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
-  CT2=$(grep -o 'CTRANSLATE2_VERSION: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
-  echo "$GITHUB_TOKEN_OR_PAT" | docker login ghcr.io -u <github-user> --password-stdin   # a PAT with write:packages
-  docker buildx build --platform linux/amd64 --build-arg CTRANSLATE2_VERSION=$CT2 -t ghcr.io/derio-net/speech:$REV --push apps/speech/docker
-  # GitHub -> derio-net -> Packages -> speech -> Package settings -> Change visibility -> Public
+  fr ops apply postmerge-speech-image --yes-mutating   # re-runs the build only if the check fails
+  # If the build is green and the check still fails: GitHub -> derio-net -> Packages -> speech -> Package settings -> Change visibility -> Public
 verify: |
   REV=$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)
-  docker logout ghcr.io; docker manifest inspect ghcr.io/derio-net/speech:$REV >/dev/null && echo "public + present"
+  bash scripts/ghcr-tag-pullable.sh derio-net/speech "$REV"
+  kubectl -n speech get pods
 status: pending
 ```
 
