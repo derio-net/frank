@@ -246,3 +246,10 @@ Evidence: postmerge-timeslice-allocatable: check passed — no output
 Step: [ ] POST a Greek, an English and a German sample to `/v1/audio/transcriptions` and check the language auto-detect and text.
 
 Evidence: scripts/tmp/speech-stt-check.sh on 2026-11-22 against https://speech.cluster.derio.net (model deepdml/faster-whisper-large-v3-turbo-ct2, no language hint, speech pod on image 0.9.0-rc.3-ct2-4.6.3-r2 after frank#1017): live 8 s mic recordings auto-detected en=en, de=de, el=el, all PASS, rtf 0.07-0.09 (11-14x real time incl. network); en "The cluster is called FRANK and it lives in a cupboard."; de "Der Kloster heißt Frank und wohnt in einem Schrank." (loanword misheard as homophone); el "The cluster λέγεται Frank και μένει σε μια δουλάπα." (homophone spelling ντ/δ; code-switched English word kept in Latin script)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-22T11:37:11+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: [ ] POST text in each language to `/v1/audio/speech` and listen to the result.
+
+Evidence: speech-tts-check.sh --try-piper on 2026-11-22 against speech.cluster.derio.net, listened on the Mac - en PASS (Kokoro-82M voice af_heart, ttfb 0.17s, 4.3s audio); de PASS (piper-de_DE-thorsten-high voice thorsten, ttfb 0.16s, 4.0s audio, 3.1s total incl. first load); el PASS (piper-el_GR-rapunzelina-low voice rapunzelina, ttfb 0.12s, 4.2s audio) - deployed Kokoro-82M has no de or el voices (with it, de had an English accent and el was spelled letter by letter), so de and el use Piper; the two Piper models were downloaded into the speech PVC at runtime and are NOT yet in PRELOAD_MODELS (follow-up pins them, spec R5 decision)
