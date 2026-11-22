@@ -239,3 +239,10 @@ run_kind: live
 Step: [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
 
 Evidence: postmerge-timeslice-allocatable: check passed — no output
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-11-22T11:22:57+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: [ ] POST a Greek, an English and a German sample to `/v1/audio/transcriptions` and check the language auto-detect and text.
+
+Evidence: scripts/tmp/speech-stt-check.sh on 2026-11-22 against https://speech.cluster.derio.net (model deepdml/faster-whisper-large-v3-turbo-ct2, no language hint, speech pod on image 0.9.0-rc.3-ct2-4.6.3-r2 after frank#1017): live 8 s mic recordings auto-detected en=en, de=de, el=el, all PASS, rtf 0.07-0.09 (11-14x real time incl. network); en "The cluster is called FRANK and it lives in a cupboard."; de "Der Kloster heißt Frank und wohnt in einem Schrank." (loanword misheard as homophone); el "The cluster λέγεται Frank και μένει σε μια δουλάπα." (homophone spelling ντ/δ; code-switched English word kept in Latin script)
