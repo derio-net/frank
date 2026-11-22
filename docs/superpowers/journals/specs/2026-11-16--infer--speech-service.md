@@ -274,3 +274,10 @@ Evidence: speech-batch-alerts-check.sh on 2026-11-22T15-52-29Z - in-cluster batc
 Step: [ ] Confirm `speech.cluster.derio.net` answers on LAN/mesh and does not resolve or route from the public edge.
 
 Evidence: speech-exposure-check.sh on 2026-11-22 - resolver 192.168.10.11 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 192.168.10.12 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 100.100.100.100 unreachable from here (skipped); speech.cluster.derio.net/v1/models HTTP 200 with speaches model list (whisper, kokoro, piper) from this host; public DNS 1.1.1.1 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public DNS 8.8.8.8 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public edge (https, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (TLS handshake refused, the edge holds no certificate for the name); public edge (http, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (HTTP 308 redirect to https only)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7 created=2026-11-22T16:21:29+00:00 -->
+### test-plan-step-7 · discovery · Test Plan step 7: ran
+
+Step: [ ] Run the benchmark and commit `docs/investigations/2026-11-16--infer--speech-benchmark.md`.
+
+Evidence: speech-benchmark.sh --record 30 on 2026-11-22 with Ollama gemma4-12b-64k loaded (8.5 GB, 100% GPU) - STT warm rtf 0.022 de and 0.026 el (about 40x real time), en 1.486 is the cold first call after the 300s model TTL (about 40s load incl. CUDA init); TTS time to first audio cold 8.4s Kokoro en, 4.0s Piper thorsten de, 1.1s Piper rapunzelina el (warm 0.1-0.2s at step 3); VRAM baseline 8822 MiB, peak 11757 MiB, speech-only 2935 MiB (under the 4.6 GB per-model estimates); operator listening natural and steady for all three; report committed as docs/investigations/2026-11-16--infer--speech-benchmark.md in frank#1018 (lands on merge)
