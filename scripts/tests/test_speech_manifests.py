@@ -156,8 +156,11 @@ def test_servers_transport_sets_long_response_timeout():
     websecure entrypoint's own read timeout is NOT covered: long recordings use
     the in-cluster Service URL, so this does not assert 2.5 h end-to-end."""
     r = _route()["spec"]["routes"][0]
+    # Cross-namespace form "<ns>-<name>@kubernetescrd"; resolution itself is
+    # guarded by test_traefik_servers_transport_refs.py.
     transport = r["services"][0]["serversTransport"]
-    st = _by_name()[("ServersTransport", transport)]["spec"]["forwardingTimeouts"]
+    assert transport == "traefik-system-speech-long-requests@kubernetescrd"
+    st = _by_name()[("ServersTransport", "speech-long-requests")]["spec"]["forwardingTimeouts"]
 
     def secs(v):
         v = str(v)
