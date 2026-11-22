@@ -530,3 +530,14 @@ core infrastructure. Clear them deliberately, one app at a time, not in bulk.
 
 **root's prune.** root runs `prune: true` (leaves are `prune: false`); `apps/root/values.yaml` used to say the opposite, now corrected.
 
+
+
+## A whole-`/spec` ignore makes every later values change to that object inert (gpu-operator ClusterPolicy, #1006)
+
+`apps/root/templates/gpu-operator.yaml` ignores the ClusterPolicy's entire `/spec` and syncs with `RespectIgnoreDifferences=true`. That is deliberate: the GPU Operator's webhook fills in dozens of sub-fields `values.yaml` leaves unset, and fighting it field by field is not worth it. The consequence is easy to miss. After install, **no** ClusterPolicy change in `values.yaml` reaches the live object, and the Application still reads `Synced/Healthy`, because the field it would have applied is exactly the field it ignores.
+
+Found at the speech service's first DevOps gate run (2026-11-21). PR #1007 added `devicePlugin.config` (time-slicing) to `values.yaml`, and the post-merge op synced gpu-operator-extras then gpu-operator. Both read Synced, but `kubectl get clusterpolicy cluster-policy -o jsonpath='{.spec.devicePlugin.config}'` was empty, the device plugin pod was 256 days old, and gpu-1 still advertised one `nvidia.com/gpu`. The op's check (allocatable == 2) caught it; nothing else would have.
+
+Fix used: an fr op patches the live object with exactly the values block (`kubectl patch clusterpolicy cluster-policy --type=merge -p '{"spec":{"devicePlugin":{"config":{...}}}}'`), with a test pinning the two together and an undo that removes the field. `kubectl patch --dry-run=server` validates the patch against the operator's webhook first, with no change.
+
+Second finding from the same sync: the op's `kubectl patch application … -p '{"operation":{"sync":{"revision":"HEAD",…}}}'` on this MULTI-SOURCE Application (chart + `$values` ref) recorded `operationState.operation.sync.revisions: ["v25.10.1","49a0176a…"]`, a May 15 commit for the values source, while `status.sync.revisions` showed main's HEAD. A multi-source sync operation takes `revisions: [<chart>, <git>]`; a single `revision` does not pin the values source. Compare `operationState.operation.sync.revisions` with the merge SHA before trusting such a sync.

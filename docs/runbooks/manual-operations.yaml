@@ -2555,22 +2555,20 @@ operations:
   layer: infer
   app: gpu-operator
   plan: docs/superpowers/plans/2026-11-16--infer--speech-service
-  when: "After the PR merges — BEFORE scaling the speech Deployment up. Order matters: sync gpu-operator-extras first (it creates the time-slicing-config ConfigMap), confirm the ConfigMap exists, and only then sync gpu-operator (whose devicePlugin.config references it)."
-  why_manual: "The device plugin must start with the sharing config, and gpu-1 only advertises 2 nvidia.com/gpu after it does. A ClusterPolicy change makes the gpu-operator ROLL the plugin pods (a restart, not a live reload), which briefly drops the node's GPU resource and can disturb running GPU pods — do it while no GPU workload is mid-job. Syncing gpu-operator before the ConfigMap exists would roll the plugin onto a missing config."
+  when: "After the PR merges, BEFORE scaling the speech Deployment up, while no GPU workload is mid-job. Run by the DevOps stage as fr op postmerge-timeslice-allocatable."
+  why_manual: "ArgoCD cannot apply it. The gpu-operator Application ignores the ClusterPolicy's entire /spec (the operator's webhook fills in dozens of defaults), so the devicePlugin.config in apps/gpu-operator/values.yaml only takes effect on a fresh install; syncing the app changes nothing (measured 2026-11-21: Synced, live ClusterPolicy without devicePlugin.config). The op patches the live ClusterPolicy with exactly that block. A ClusterPolicy change makes the operator ROLL the device plugin, which briefly drops gpu-1's nvidia.com/gpu resource."
   commands: |
-    source .env
-    argocd app sync gpu-operator-extras --port-forward --port-forward-namespace argocd
-    kubectl -n gpu-operator get configmap time-slicing-config   # must exist BEFORE the next step
-    argocd app sync gpu-operator --port-forward --port-forward-namespace argocd
-    kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s
-    # If the plugin pod's start time predates the ConfigMap/ClusterPolicy change, roll it by hand:
-    #   kubectl -n gpu-operator rollout restart daemonset/nvidia-device-plugin-daemonset
-    # Rollback: revert the devicePlugin.config reference in apps/gpu-operator/values.yaml (or set replicas: 1 in the ConfigMap),
-    # let ArgoCD sync and the plugin roll again. Scale speech to 0 first so nothing holds the second slot.
+    kubectl -n gpu-operator get configmap time-slicing-config   # synced by gpu-operator-extras; must exist first
+    fr ops apply postmerge-timeslice-allocatable --yes-mutating
+    # by hand, the same patch the op runs:
+    #   kubectl patch clusterpolicy cluster-policy --type=merge -p '{"spec":{"devicePlugin":{"config":{"name":"time-slicing-config","default":"any"}}}}'
+    #   kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s
+    # Rollback (the op's undo): scale speech to 0 first so nothing holds the second slot, then
+    #   kubectl patch clusterpolicy cluster-policy --type=json -p '[{"op":"remove","path":"/spec/devicePlugin/config"}]'
   verify: |
+    kubectl get clusterpolicy cluster-policy -o jsonpath='{.spec.devicePlugin.config}{"\n"}'   # {"default":"any","name":"time-slicing-config"}
     kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'   # 2
-    kubectl -n gpu-operator logs daemonset/nvidia-device-plugin-daemonset --tail=20 | grep -i "replicas\|sharing"
-    kubectl -n ollama get pods   # check whether the running holder restarted during the roll"
+    kubectl -n ollama get pods   # check whether the running holder restarted during the roll
   status: pending
 - id: infer-speech-benchmark-run
   layer: infer

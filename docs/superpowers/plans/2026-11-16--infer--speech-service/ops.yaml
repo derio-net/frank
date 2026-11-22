@@ -26,10 +26,15 @@ ops:
   check: |-
     bash scripts/ghcr-tag-pullable.sh derio-net/speech "$(grep -o 'SPEECH_REV: "[^"]*"' .github/workflows/build-speech.yml | cut -d'"' -f2)"
 - id: postmerge-timeslice-allocatable
-  summary: The device plugin is rolled onto the time-slicing config in order (ConfigMap first, then the ClusterPolicy) and gpu-1 advertises 2 nvidia.com/gpu. The roll briefly drops the node's GPU resource, so run it while no GPU workload is mid-job (manual-op infer-speech-device-plugin-roll has the rollback).
+  summary: gpu-1's device plugin runs on the time-slicing config and advertises 2 nvidia.com/gpu. ArgoCD cannot do this, because the gpu-operator Application ignores the ClusterPolicy /spec, so the op patches the live ClusterPolicy with exactly the devicePlugin.config that apps/gpu-operator/values.yaml declares for a fresh install. Run it while no GPU workload is mid-job.
   phase: post-merge
+  side_effects:
+  - The gpu-operator rolls nvidia-device-plugin-daemonset on gpu-1, briefly dropping the node's nvidia.com/gpu resource; GPU pods already running keep their device, new ones wait for the roll.
+  - Leaves a kubectl-owned devicePlugin.config field on the ClusterPolicy (ArgoCD ignores /spec, so nothing reverts it).
   apply: |-
-    S='{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'; kubectl -n argocd patch application gpu-operator-extras --type=merge -p "$S" && for i in $(seq 1 30); do kubectl -n gpu-operator get configmap time-slicing-config >/dev/null 2>&1 && break; sleep 10; done && kubectl -n gpu-operator get configmap time-slicing-config >/dev/null && kubectl -n argocd patch application gpu-operator --type=merge -p "$S" && sleep 30 && kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s
+    kubectl -n gpu-operator get configmap time-slicing-config >/dev/null && kubectl patch clusterpolicy cluster-policy --type=merge -p '{"spec":{"devicePlugin":{"config":{"name":"time-slicing-config","default":"any"}}}}' && sleep 30 && kubectl -n gpu-operator rollout status daemonset/nvidia-device-plugin-daemonset --timeout=300s && for i in $(seq 1 30); do test "$(kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')" = 2 && break; sleep 10; done
+  undo: |-
+    kubectl patch clusterpolicy cluster-policy --type=json -p '[{"op":"remove","path":"/spec/devicePlugin/config"}]'
   mutating: true
   check: |-
     test "$(kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}')" = 2
