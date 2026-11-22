@@ -232,3 +232,10 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=derived-speech-image created=2026-11-16T20:30:11+00:00 -->
 ### derived-speech-image · decision · Operator chose a derived image with CTranslate2 >= 4.6.3 over pinning the upstream rc.3-cuda image; no upstream image has proven sm_120 support
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-22T06:23:01+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
+
+Evidence: postmerge-timeslice-allocatable: check passed — no output
