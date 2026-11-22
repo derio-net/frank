@@ -695,3 +695,8 @@ phase: post-merge
 ### gate-stage-4 · decision · DevOps stage 4 done: post-merge ops
 
 post-merge ops closed
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-5 created=2026-11-22T16:21:30+00:00 -->
+### gate-stage-5 · decision · DevOps stage 5 done: devops steps
+
+devops Test Plan steps recorded
