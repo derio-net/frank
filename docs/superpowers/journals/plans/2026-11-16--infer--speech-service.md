@@ -723,3 +723,8 @@ owed_key: plan:2026-11-16--infer--speech-service#p3
 ### manual-phase-3-resolved · finding [filed → derio-net/frank#1019] · resolves manual-phase-3: 2026-11-16--infer--speech-service: manual phase 3 is not ticked (phase 3)
 
 Filed at archive as derio-net/frank#1019; still owed until discharged.
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-8 created=2026-11-22T16:22:11+00:00 -->
+### gate-stage-8 · decision · DevOps stage 8 done: archive and housekeeping PR
+
+archived; housekeeping PR from chore/ops-2026-11-16--infer--speech-service
