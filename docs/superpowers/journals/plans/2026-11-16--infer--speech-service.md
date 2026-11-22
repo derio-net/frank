@@ -710,3 +710,16 @@ gate:devops passed
 ### gate-stage-7 · decision · DevOps stage 7 done: tester hand-off
 
 no tester step remains
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-3 created=2026-11-22T16:21:58+00:00 phase=3 -->
+### manual-phase-3 · owed · 2026-11-16--infer--speech-service: manual phase 3 is not ticked (phase 3)
+
+what: do manual phase 3 of 2026-11-16--infer--speech-service and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 3 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-11-16--infer--speech-service
+owed_key: plan:2026-11-16--infer--speech-service#p3
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-3-resolved created=2026-11-22T16:22:06+00:00 phase=3 state=open resolves=manual-phase-3 filed_as=derio-net/frank#1019 -->
+### manual-phase-3-resolved · finding [filed → derio-net/frank#1019] · resolves manual-phase-3: 2026-11-16--infer--speech-service: manual phase 3 is not ticked (phase 3)
+
+Filed at archive as derio-net/frank#1019; still owed until discharged.
