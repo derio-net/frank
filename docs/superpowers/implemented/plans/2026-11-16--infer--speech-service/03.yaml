@@ -24,18 +24,20 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-11-22T16:46:54+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-11-22T16:46:57+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-11-22T16:47:00+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-11-22T16:47:12+00:00'
+    note: 'Done 2026-11-22 by the operator: device-plugin roll via fr op postmerge-timeslice-allocatable
+      (ClusterPolicy patch, frank#1015), benchmark run (docs/investigations/2026-11-16--infer--speech-benchmark.md,
+      frank#1018), follow-ups filed as frank#1021-#1026.'
     observed_prs: []

@@ -728,3 +728,8 @@ Filed at archive as derio-net/frank#1019; still owed until discharged.
 ### gate-stage-8 · decision · DevOps stage 8 done: archive and housekeeping PR
 
 archived; housekeeping PR from chore/ops-2026-11-16--infer--speech-service
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-3-resolved-resolved created=2026-11-22T16:48:42+00:00 state=fixed resolves=manual-phase-3-resolved answered_by=operator -->
+### manual-phase-3-resolved-resolved · finding [fixed] · resolves manual-phase-3-resolved: resolves manual-phase-3: 2026-11-16--infer--speech-service: manual phase 3 is not ticked
+
+Phase 3 done and completed 2026-11-22: device-plugin roll (fr op, frank#1015), benchmark (frank#1018), follow-ups frank#1021-#1026; plan archived by this close-out. Discharges frank#1019.
