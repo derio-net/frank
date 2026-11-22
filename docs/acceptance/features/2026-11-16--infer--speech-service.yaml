@@ -175,3 +175,23 @@ amendments:
         speech is desired up (rule speech-health-degraded).
     why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
       (Test Plan step 5).
+  - row: infer-speech-benchmark
+    op: set-status
+    base: 0
+    status: walked
+    notes: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan step 7).
+    walk:
+      strategy: live
+      harness: operator-terminal
+      model: human-operator
+      outcome: pass
+      at: '2026-11-22T00:00:00Z'
+      evidence: Step 7 (spec journal test-plan-step-7) - speech-benchmark.sh with Ollama
+        gemma4:12b-64k loaded - STT warm rtf 0.022-0.026, cold first call 41.6 s after
+        the 300 s model TTL; TTS ttfa cold 8.4 s Kokoro en, 4.0 s Piper de, 1.1 s Piper
+        el; VRAM baseline 8822, peak 11757, speech-only 2935 MiB; operator listening
+        natural and steady for en/de/el. Recorded in docs/investigations/2026-11-16--infer--speech-benchmark.md
+        (merged in frank#1018).
+    why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan step 7).
