@@ -70,3 +70,24 @@ rows:
     status: not-implemented
     notes: ''
     verify: live
+amendments:
+  - row: infer-speech-gpu-sharing
+    op: set-status
+    base: 0
+    status: walked
+    notes: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 1 and 7).
+    walk:
+      strategy: live
+      harness: operator-terminal
+      model: human-operator
+      outcome: pass
+      at: '2026-11-22T00:00:00Z'
+      evidence: Test Plan step 1 (spec journal test-plan-step-1) - fr op postmerge-timeslice-allocatable
+        check passed, gpu-1 allocatable nvidia.com/gpu=2 after the ClusterPolicy patch
+        (frank#1015), Ollama and speech Running together on gpu-1. Step 7 (test-plan-step-7,
+        docs/investigations/2026-11-16--infer--speech-benchmark.md) - with Ollama gemma4:12b-64k
+        loaded (8.5 GB) and all four speech models loaded, peak 11757 MiB of 16303,
+        speech-only 2935 MiB, no OOM; vram-budget.yaml records measured_total_gb 2.9.
+    why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 1 and 7).
