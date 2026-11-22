@@ -133,3 +133,23 @@ amendments:
         and steady.
     why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
       (Test Plan steps 3 and 7).
+  - row: infer-speech-switcher-handover
+    op: set-status
+    base: 0
+    status: walked
+    notes: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan step 4).
+    walk:
+      strategy: live
+      harness: operator-terminal
+      model: human-operator
+      outcome: pass
+      at: '2026-11-22T00:00:00Z'
+      evidence: Step 4 (spec journal test-plan-step-4) - gpu-switcher activate comfyui
+        at 11:40Z drained the ollama group (api/status and Deployments ollama 0, speech
+        0, no ollama/speech pod on gpu-1, comfyui 1/1, GPU 230 MiB); activate ollama
+        restored both (pods created together 11:41:29Z, speech Ready 53 s later, comfyui
+        0, speech route 200, ollama answers). Repeated in step 5 - ComfyUI Ready in
+        about 30 s, both back in about 80 s.
+    why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan step 4).
