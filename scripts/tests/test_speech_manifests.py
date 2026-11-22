@@ -156,8 +156,11 @@ def test_servers_transport_sets_long_response_timeout():
     websecure entrypoint's own read timeout is NOT covered: long recordings use
     the in-cluster Service URL, so this does not assert 2.5 h end-to-end."""
     r = _route()["spec"]["routes"][0]
+    # Cross-namespace form "<ns>-<name>@kubernetescrd"; resolution itself is
+    # guarded by test_traefik_servers_transport_refs.py.
     transport = r["services"][0]["serversTransport"]
-    st = _by_name()[("ServersTransport", transport)]["spec"]["forwardingTimeouts"]
+    assert transport == "traefik-system-speech-long-requests@kubernetescrd"
+    st = _by_name()[("ServersTransport", "speech-long-requests")]["spec"]["forwardingTimeouts"]
 
     def secs(v):
         v = str(v)
@@ -248,3 +251,23 @@ def test_vram_budget_models_match_preloaded_models():
     env = {e["name"]: e.get("value") for e in _pod()["containers"][0]["env"]}
     preload = set(json.loads(env["PRELOAD_MODELS"]))
     assert {m["name"] for m in budget["speech"]["models"]} == preload
+
+
+# Spec R5: TTS for English, German and Greek. Kokoro-82M has no de/el voice (its
+# 54 voices cover en/zh/ja/hi/es/pt/it/fr), so de/el come from Piper. Chosen by
+# the operator's listening test on 2026-11-22 (Test Plan step 3): Piper
+# de_DE-thorsten-high and el_GR-rapunzelina-low, the only Greek Piper voice.
+TTS_FOR_LANGUAGE = {
+    "en": "speaches-ai/Kokoro-82M-v1.0-ONNX",
+    "de": "speaches-ai/piper-de_DE-thorsten-high",
+    "el": "speaches-ai/piper-el_GR-rapunzelina-low",
+}
+
+
+def test_every_required_language_has_a_preloaded_tts_voice():
+    import json
+
+    env = {e["name"]: e.get("value") for e in _pod()["containers"][0]["env"]}
+    preload = json.loads(env["PRELOAD_MODELS"])
+    missing = {lang: m for lang, m in TTS_FOR_LANGUAGE.items() if m not in preload}
+    assert not missing, f"not preloaded (a fresh model cache would lose them): {missing}"

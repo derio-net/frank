@@ -23,6 +23,21 @@ FROM ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cuda@sha256:f4eb14d1c53b19c5bd1f76d
 ARG CTRANSLATE2_VERSION=4.6.3
 ENV UV_NO_SYNC=1
 
+# No CUDA forward-compatibility driver. The base ships cuda-compat-12-9
+# (libcuda 575.x), and the NVIDIA container toolkit registers
+# /usr/local/cuda-12.9/compat in the linker cache at container start, AHEAD of
+# the host driver. gpu-1 runs driver 570.211.01 (CUDA 12.8), and forward
+# compatibility is datacenter-only, so every CUDA call on the RTX 5070 Ti failed
+# with error 804 "forward compatibility was attempted on non supported HW"
+# (measured 2026-11-22). Without the compat libcuda the host driver is used and
+# this CUDA 12.9 build runs under CUDA minor-version compatibility (Whisper
+# large-v3-turbo float16 loaded and transcribed on sm_120 in the pod). The build
+# fails if a compat libcuda survives. Guard: scripts/tests/test_speech_image_build.py.
+USER root
+RUN rm -rf /usr/local/cuda-*/compat \
+ && ! ls /usr/local/cuda-*/compat/libcuda.so* 2>/dev/null \
+ && ldconfig
+
 USER ubuntu
 RUN uv pip install --python /home/ubuntu/speaches/.venv/bin/python \
       "ctranslate2==${CTRANSLATE2_VERSION}" \

@@ -254,6 +254,13 @@ Step: [ ] POST text in each language to `/v1/audio/speech` and listen to the res
 
 Evidence: speech-tts-check.sh --try-piper on 2026-11-22 against speech.cluster.derio.net, listened on the Mac - en PASS (Kokoro-82M voice af_heart, ttfb 0.17s, 4.3s audio); de PASS (piper-de_DE-thorsten-high voice thorsten, ttfb 0.16s, 4.0s audio, 3.1s total incl. first load); el PASS (piper-el_GR-rapunzelina-low voice rapunzelina, ttfb 0.12s, 4.2s audio) - deployed Kokoro-82M has no de or el voices (with it, de had an English accent and el was spelled letter by letter), so de and el use Piper; the two Piper models were downloaded into the speech PVC at runtime and are NOT yet in PRELOAD_MODELS (follow-up pins them, spec R5 decision)
 
+<!-- fr:journal kind=decision scope=spec id=tts-engine-per-language-1 created=2026-11-22T11:39:48+00:00 decided_by=operator -->
+### tts-engine-per-language-1 · decision · TTS per language: Kokoro for en, Piper thorsten-high for de, Piper rapunzelina-low for el
+
+Operator listening test 2026-11-22 (Test Plan step 3, speech-tts-check.sh). Deployed Kokoro-82M has no de or el voice (54 voices, en/zh/ja/hi/es/pt-br/it/fr); with af_heart, German had an English accent and Greek was spelled letter by letter. Piper de_DE-thorsten-high and el_GR-rapunzelina-low (the only Greek Piper voice in the registry) both judged acceptable; en on Kokoro af_heart acceptable. Measured: ttfb 0.12-0.17 s, Piper generation ~0.08 s per sentence, el voice adds 128 MiB VRAM. Pinned in PRELOAD_MODELS. Stronger multilingual engines (XTTS-v2/F5-TTS class) remain for the full benchmark (infer-speech-benchmark-run).
+
+decider: operator
+
 <!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-22T11:43:30+00:00 -->
 ### test-plan-step-4 · discovery · Test Plan step 4: ran
 

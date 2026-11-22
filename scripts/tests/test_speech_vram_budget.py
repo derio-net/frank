@@ -95,3 +95,14 @@ def test_ollama_loads_one_model_at_a_time():
     values = yaml.safe_load(OLLAMA_VALUES.read_text())
     env = {e["name"]: e["value"] for e in values["extraEnv"]}
     assert env["OLLAMA_MAX_LOADED_MODELS"] == "1"
+
+
+def test_estimates_cover_the_measured_speech_total():
+    """The benchmark (docs/investigations/2026-11-16--infer--speech-benchmark.md)
+    measures speech's VRAM only as a whole (peak - baseline, all speech models
+    loaded). Per-model sizes stay estimates, but together they must not
+    undercut what was measured, or the card budget would be optimistic."""
+    b = _budget()["speech"]
+    measured = b["measured_total_gb"]
+    assert measured > 0
+    assert sum(m["vram_gb"] for m in b["models"]) >= measured

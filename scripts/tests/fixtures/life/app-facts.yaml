@@ -945,7 +945,7 @@ apps:
   frank/speech:
     charts: []
     images:
-    - ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r1
+    - ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r2
     paths:
     - apps/root/templates/speech.yaml
     - apps/speech/manifests/**

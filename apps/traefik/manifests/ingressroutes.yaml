@@ -305,7 +305,10 @@ spec:
         - name: speech
           namespace: speech
           port: 8000
-          serversTransport: speech-long-requests
+          # Cross-namespace: the ServersTransport lives in traefik-system, and a bare
+          # name is looked up in the SERVICE's namespace (speech), which drops the
+          # router (guard: scripts/tests/test_traefik_servers_transport_refs.py).
+          serversTransport: traefik-system-speech-long-requests@kubernetescrd
   tls:
     certResolver: cloudflare
     domains:
