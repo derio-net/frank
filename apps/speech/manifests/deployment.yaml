@@ -41,7 +41,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: speech
-          image: ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r1
+          image: ghcr.io/derio-net/speech:0.9.0-rc.3-ct2-4.6.3-r2
           # No readOnlyRootFilesystem: the server writes model/cache files
           # (HF cache on the PVC, plus temp audio and Python caches) beyond one
           # mount, so a read-only root would break it.
