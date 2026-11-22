@@ -18,7 +18,14 @@ from pathlib import Path
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
-OPS = REPO / "docs/superpowers/plans/2026-11-16--infer--speech-service/ops.yaml"
+# The plan is archived to docs/superpowers/implemented/ once the run closes out,
+# so resolve it in either place (the archive broke a hard-coded path in frank#1027).
+_PLAN = "2026-11-16--infer--speech-service"
+OPS = next(
+    (p for p in (REPO / f"docs/superpowers/plans/{_PLAN}/ops.yaml",
+                 REPO / f"docs/superpowers/implemented/plans/{_PLAN}/ops.yaml") if p.is_file()),
+    REPO / f"docs/superpowers/plans/{_PLAN}/ops.yaml",
+)
 OPS_PROFILE = REPO / ".devcontainer/ops/devcontainer.json"
 CHECK_SCRIPT = REPO / "scripts/ghcr-tag-pullable.sh"
 
