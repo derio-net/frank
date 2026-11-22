@@ -15,7 +15,7 @@ env:
   # apps/speech/manifests/deployment.yaml (guarded by
   # scripts/tests/test_speech_image_build.py) so a rebuild redeploys.
   # Format: <speaches base>-ct2-<ctranslate2>-r<rev>
-  SPEECH_REV: "0.9.0-rc.3-ct2-4.6.3-r1"
+  SPEECH_REV: "0.9.0-rc.3-ct2-4.6.3-r2"
   CTRANSLATE2_VERSION: "4.6.3"
 
 jobs:

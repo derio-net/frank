@@ -95,3 +95,26 @@ def test_workflow_actions_are_pinned_to_commit_shas():
     assert uses
     for ref in uses:
         assert re.search(r"@[0-9a-f]{40}$", ref), f"{ref} is not pinned to a commit SHA"
+
+
+def test_image_ships_no_cuda_forward_compat_libcuda():
+    """The CUDA 12.9 base ships cuda-compat-12-9 (libcuda 575.x) and the NVIDIA
+    container toolkit registers /usr/local/cuda-12.9/compat in the linker cache
+    at container start, ahead of the host driver (570.211.01, CUDA 12.8). Forward
+    compatibility is datacenter-only, so on the RTX 5070 Ti every CUDA call
+    failed with error 804 "forward compatibility was attempted on non supported
+    HW" (2026-11-22, Test Plan step 2: all transcriptions 500). With the host
+    libcuda the same CUDA 12.9 build runs (minor-version compatibility), measured
+    in the pod: Whisper large-v3-turbo float16 loads and transcribes on sm_120.
+    The image must therefore not carry a compat libcuda at all."""
+    text = DOCKERFILE.read_text()
+    root_block = text.split("USER root", 1)
+    assert len(root_block) == 2, "the compat removal needs root"
+    after_root = root_block[1].split("USER ubuntu", 1)[0]
+    assert "rm -rf /usr/local/cuda-*/compat" in after_root
+    assert "! ls /usr/local/cuda-*/compat/libcuda.so*" in after_root, "the build must fail if a compat libcuda survives"
+    assert text.index("USER root") < text.index("USER ubuntu"), "drop back to the unprivileged user"
+
+
+def test_compat_fix_moves_the_image_tag():
+    assert _workflow()["env"]["SPEECH_REV"].endswith("-r2"), "the compat fix must redeploy: bump SPEECH_REV"
