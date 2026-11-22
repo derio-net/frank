@@ -251,3 +251,23 @@ def test_vram_budget_models_match_preloaded_models():
     env = {e["name"]: e.get("value") for e in _pod()["containers"][0]["env"]}
     preload = set(json.loads(env["PRELOAD_MODELS"]))
     assert {m["name"] for m in budget["speech"]["models"]} == preload
+
+
+# Spec R5: TTS for English, German and Greek. Kokoro-82M has no de/el voice (its
+# 54 voices cover en/zh/ja/hi/es/pt/it/fr), so de/el come from Piper. Chosen by
+# the operator's listening test on 2026-11-22 (Test Plan step 3): Piper
+# de_DE-thorsten-high and el_GR-rapunzelina-low, the only Greek Piper voice.
+TTS_FOR_LANGUAGE = {
+    "en": "speaches-ai/Kokoro-82M-v1.0-ONNX",
+    "de": "speaches-ai/piper-de_DE-thorsten-high",
+    "el": "speaches-ai/piper-el_GR-rapunzelina-low",
+}
+
+
+def test_every_required_language_has_a_preloaded_tts_voice():
+    import json
+
+    env = {e["name"]: e.get("value") for e in _pod()["containers"][0]["env"]}
+    preload = json.loads(env["PRELOAD_MODELS"])
+    missing = {lang: m for lang, m in TTS_FOR_LANGUAGE.items() if m not in preload}
+    assert not missing, f"not preloaded (a fresh model cache would lose them): {missing}"

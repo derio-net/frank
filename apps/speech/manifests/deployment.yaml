@@ -65,11 +65,15 @@ spec:
               value: "8000"
             # Model repos in PRELOAD_MODELS are not revision-pinned (low risk:
             # CTranslate2/ONNX weight formats, no pickle code execution).
-            # Default models: STT large-v3-turbo (multilingual incl. EN/DE/EL),
-            # TTS Kokoro-82M (conservative default; the Greek/German TTS engine
-            # is chosen from the benchmark, not assumed).
+            # Models: STT large-v3-turbo (multilingual incl. EN/DE/EL). TTS per
+            # language (spec R5): Kokoro-82M for English; Kokoro has no German or
+            # Greek voice (Greek was spelled letter by letter), so Piper
+            # de_DE-thorsten-high and el_GR-rapunzelina-low (the only Greek Piper
+            # voice), chosen by the operator's listening test 2026-11-22 (Test
+            # Plan step 3). Clients pick by model + voice: af_heart, thorsten,
+            # rapunzelina. Guard: scripts/tests/test_speech_manifests.py.
             - name: PRELOAD_MODELS
-              value: '["deepdml/faster-whisper-large-v3-turbo-ct2","speaches-ai/Kokoro-82M-v1.0-ONNX"]'
+              value: '["deepdml/faster-whisper-large-v3-turbo-ct2","speaches-ai/Kokoro-82M-v1.0-ONNX","speaches-ai/piper-de_DE-thorsten-high","speaches-ai/piper-el_GR-rapunzelina-low"]'
             - name: WHISPER__INFERENCE_DEVICE
               value: "cuda"
             - name: WHISPER__COMPUTE_TYPE
