@@ -22,3 +22,9 @@ speech:
     - {name: "deepdml/faster-whisper-large-v3-turbo-ct2", vram_gb: 2.5, estimate: true}
     # Kokoro-82M ONNX (~0.3 GB weights) + onnxruntime CUDA arena.
     - {name: "speaches-ai/Kokoro-82M-v1.0-ONNX", vram_gb: 1.5, estimate: true}
+    # Piper voices run on onnxruntime CUDA. Measured 2026-11-22: loading
+    # el_GR-rapunzelina-low added 128 MiB to the card (10663 -> 10791 MiB, with
+    # Ollama, Whisper, Kokoro and thorsten all loaded). thorsten-high was already
+    # loaded, so its share is a conservative estimate ("high" is the larger size).
+    - {name: "speaches-ai/piper-de_DE-thorsten-high", vram_gb: 0.4, estimate: true}
+    - {name: "speaches-ai/piper-el_GR-rapunzelina-low", vram_gb: 0.2, estimate: false}
