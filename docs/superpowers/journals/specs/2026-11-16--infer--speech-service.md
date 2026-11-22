@@ -253,3 +253,10 @@ Evidence: scripts/tmp/speech-stt-check.sh on 2026-11-22 against https://speech.c
 Step: [ ] POST text in each language to `/v1/audio/speech` and listen to the result.
 
 Evidence: speech-tts-check.sh --try-piper on 2026-11-22 against speech.cluster.derio.net, listened on the Mac - en PASS (Kokoro-82M voice af_heart, ttfb 0.17s, 4.3s audio); de PASS (piper-de_DE-thorsten-high voice thorsten, ttfb 0.16s, 4.0s audio, 3.1s total incl. first load); el PASS (piper-el_GR-rapunzelina-low voice rapunzelina, ttfb 0.12s, 4.2s audio) - deployed Kokoro-82M has no de or el voices (with it, de had an English accent and el was spelled letter by letter), so de and el use Piper; the two Piper models were downloaded into the speech PVC at runtime and are NOT yet in PRELOAD_MODELS (follow-up pins them, spec R5 decision)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-22T11:43:30+00:00 -->
+### test-plan-step-4 · discovery · Test Plan step 4: ran
+
+Step: [ ] Activate ComfyUI through gpu-switcher, confirm Ollama and speech are both at 0, then activate Ollama and confirm both are back.
+
+Evidence: gpu-switcher hand-over on 2026-11-22 - activate comfyui at 11:40Z drained the ollama group (gpu-switcher api/status and Deployments ollama spec 0, speech spec 0, no ollama or speech pod on gpu-1, comfyui 1/1 Running, GPU 230 MiB, speech route 503 as expected); activate ollama restored both (ollama 1/1 and speech 1/1 pods created together at 11:41:29Z, speech Ready 53s later from cached image and models, comfyui spec 0, speech.cluster.derio.net v1/models HTTP 200, ollama 0.30.5 answers ollama list)
