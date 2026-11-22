@@ -112,3 +112,24 @@ amendments:
         refused, HTTP 308 only); mesh resolver not reachable from the walking host.
     why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
       (Test Plan steps 2 and 6).
+  - row: infer-speech-tts-api
+    op: set-status
+    base: 0
+    status: walked
+    notes: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 3 and 7).
+    walk:
+      strategy: live
+      harness: operator-terminal
+      model: human-operator
+      outcome: pass
+      at: '2026-11-22T00:00:00Z'
+      evidence: Step 3 (spec journal test-plan-step-3) - /v1/audio/speech per language,
+        operator listened - en Kokoro-82M af_heart PASS, de Piper de_DE-thorsten-high
+        PASS, el Piper el_GR-rapunzelina-low PASS (Kokoro has no de/el voice; Greek
+        was spelled letter by letter, so the engine per language was chosen by this
+        measured listening test, spec journal tts-engine-per-language-1, pinned in PRELOAD_MODELS
+        by frank#1018). Step 7 benchmark - warm ttfb 0.1-0.2 s, operator verdict natural
+        and steady.
+    why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 3 and 7).
