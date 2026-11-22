@@ -232,3 +232,10 @@ run_kind: live
 
 <!-- fr:journal kind=decision scope=spec id=derived-speech-image created=2026-11-16T20:30:11+00:00 -->
 ### derived-speech-image · decision · Operator chose a derived image with CTranslate2 >= 4.6.3 over pinning the upstream rc.3-cuda image; no upstream image has proven sm_120 support
+
+<!-- fr:journal kind=decision scope=spec id=tts-engine-per-language-1 created=2026-11-22T11:39:48+00:00 decided_by=operator -->
+### tts-engine-per-language-1 · decision · TTS per language: Kokoro for en, Piper thorsten-high for de, Piper rapunzelina-low for el
+
+Operator listening test 2026-11-22 (Test Plan step 3, speech-tts-check.sh). Deployed Kokoro-82M has no de or el voice (54 voices, en/zh/ja/hi/es/pt-br/it/fr); with af_heart, German had an English accent and Greek was spelled letter by letter. Piper de_DE-thorsten-high and el_GR-rapunzelina-low (the only Greek Piper voice in the registry) both judged acceptable; en on Kokoro af_heart acceptable. Measured: ttfb 0.12-0.17 s, Piper generation ~0.08 s per sentence, el voice adds 128 MiB VRAM. Pinned in PRELOAD_MODELS. Stronger multilingual engines (XTTS-v2/F5-TTS class) remain for the full benchmark (infer-speech-benchmark-run).
+
+decider: operator
