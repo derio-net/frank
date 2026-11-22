@@ -260,3 +260,10 @@ Evidence: speech-tts-check.sh --try-piper on 2026-11-22 against speech.cluster.d
 Step: [ ] Activate ComfyUI through gpu-switcher, confirm Ollama and speech are both at 0, then activate Ollama and confirm both are back.
 
 Evidence: gpu-switcher hand-over on 2026-11-22 - activate comfyui at 11:40Z drained the ollama group (gpu-switcher api/status and Deployments ollama spec 0, speech spec 0, no ollama or speech pod on gpu-1, comfyui 1/1 Running, GPU 230 MiB, speech route 503 as expected); activate ollama restored both (ollama 1/1 and speech 1/1 pods created together at 11:41:29Z, speech Ready 53s later from cached image and models, comfyui spec 0, speech.cluster.derio.net v1/models HTTP 200, ollama 0.30.5 answers ollama list)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-22T16:00:02+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: [ ] Run a batch transcription of a long recording and confirm no alert fires, including while ComfyUI is activated and released.
+
+Evidence: speech-batch-alerts-check.sh on 2026-11-22T15-52-29Z - in-cluster batch transcription of recording.ogg (language=en audio=15.3min wall=8s rtf=0.009 segments=28 chars=18759), then GPU cycled to ComfyUI and back; Grafana evaluating the merged rules (preflight); no related alert fired, 4 transient pending transitions that cleared
