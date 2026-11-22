@@ -624,3 +624,74 @@ pre-merge ops closed on chore/ops-2026-11-16--infer--speech-service
 ### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
 
 merge verified; chore/ops-2026-11-16--infer--speech-service rebased onto main; ready
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-gpu-switcher-image-1 created=2026-11-21T16:28:07+00:00 -->
+### op-postmerge-gpu-switcher-image-1 · op · op postmerge-gpu-switcher-image: failed
+
+op: postmerge-gpu-switcher-image
+result: failed
+reason: Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-gpu-switcher-image-2 created=2026-11-21T18:56:09+00:00 -->
+### op-postmerge-gpu-switcher-image-2 · op · op postmerge-gpu-switcher-image: done
+
+op: postmerge-gpu-switcher-image
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-speech-image-1 created=2026-11-21T18:56:15+00:00 -->
+### op-postmerge-speech-image-1 · op · op postmerge-speech-image: done
+
+op: postmerge-speech-image
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-1 created=2026-11-21T18:57:15+00:00 -->
+### op-postmerge-timeslice-allocatable-1 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-2 created=2026-11-22T06:06:45+00:00 -->
+### op-postmerge-timeslice-allocatable-2 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-3 created=2026-11-22T06:15:06+00:00 -->
+### op-postmerge-timeslice-allocatable-3 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-4 created=2026-11-22T06:16:03+00:00 -->
+### op-postmerge-timeslice-allocatable-4 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-2 created=2026-11-22T06:21:57+00:00 decided_by=operator -->
+### op-trust-2 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: df7242f86a97ae4c0d38216c640ceb3629f38b39215d92a4ddbfde27ff4632b2
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-5 created=2026-11-22T06:22:42+00:00 -->
+### op-postmerge-timeslice-allocatable-5 · op · op postmerge-timeslice-allocatable: done
+
+op: postmerge-timeslice-allocatable
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-4 created=2026-11-22T06:22:49+00:00 -->
+### gate-stage-4 · decision · DevOps stage 4 done: post-merge ops
+
+post-merge ops closed
