@@ -12,6 +12,11 @@ ollama:
   excluded_while_speech_up:
     - {name: "qwen3.6:35b-a3b-64k", reason: "24 GB total, 61% on GPU; does not fit beside speech"}
 speech:
+  # Measured 2026-11-22 (Test Plan step 7, docs/investigations/2026-11-16--infer--speech-benchmark.md):
+  # 2935 MiB speech-only (peak 11757 - baseline 8822 MiB, Ollama gemma4:12b-64k loaded,
+  # all four speech models loaded). Only the total is measured; the per-model
+  # sizes below stay estimates and must sum to at least this (guarded).
+  measured_total_gb: 2.9
   # Names are the model repos the Deployment preloads (PRELOAD_MODELS); a guard
   # in scripts/tests/test_speech_manifests.py keeps the two in step.
   # Sizes are still estimates (estimate: true) from the models' documented sizes
