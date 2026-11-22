@@ -267,3 +267,10 @@ Evidence: gpu-switcher hand-over on 2026-11-22 - activate comfyui at 11:40Z drai
 Step: [ ] Run a batch transcription of a long recording and confirm no alert fires, including while ComfyUI is activated and released.
 
 Evidence: speech-batch-alerts-check.sh on 2026-11-22T15-52-29Z - in-cluster batch transcription of recording.ogg (language=en audio=15.3min wall=8s rtf=0.009 segments=28 chars=18759), then GPU cycled to ComfyUI and back; Grafana evaluating the merged rules (preflight); no related alert fired, 4 transient pending transitions that cleared
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6 created=2026-11-22T16:02:11+00:00 -->
+### test-plan-step-6 · discovery · Test Plan step 6: ran
+
+Step: [ ] Confirm `speech.cluster.derio.net` answers on LAN/mesh and does not resolve or route from the public edge.
+
+Evidence: speech-exposure-check.sh on 2026-11-22 - resolver 192.168.10.11 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 192.168.10.12 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 100.100.100.100 unreachable from here (skipped); speech.cluster.derio.net/v1/models HTTP 200 with speaches model list (whisper, kokoro, piper) from this host; public DNS 1.1.1.1 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public DNS 8.8.8.8 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public edge (https, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (TLS handshake refused, the edge holds no certificate for the name); public edge (http, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (HTTP 308 redirect to https only)
