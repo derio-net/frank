@@ -91,3 +91,24 @@ amendments:
         speech-only 2935 MiB, no OOM; vram-budget.yaml records measured_total_gb 2.9.
     why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
       (Test Plan steps 1 and 7).
+  - row: infer-speech-stt-api
+    op: set-status
+    base: 0
+    status: walked
+    notes: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 2 and 6).
+    walk:
+      strategy: live
+      harness: operator-terminal
+      model: human-operator
+      outcome: pass
+      at: '2026-11-22T00:00:00Z'
+      evidence: Step 2 (spec journal test-plan-step-2) - live 8 s mic recordings POSTed
+        to speech.cluster.derio.net /v1/audio/transcriptions with no language hint auto-detected
+        en=en, de=de, el=el, all PASS, rtf 0.07-0.09, text faithful (homophone slips
+        only), helper scripts/tmp/speech-stt-check.sh, speech image r2 after frank#1017.
+        Step 6 (test-plan-step-6) - route serves speaches' model list on the LAN; public
+        DNS NXDOMAIN (1.1.1.1, 8.8.8.8 over HTTPS); Hop edge does not serve it (TLS
+        refused, HTTP 308 only); mesh resolver not reachable from the walking host.
+    why: Walked live 2026-11-22 in the DevOps stage of run 2026-11-16-feat-gpu-speech-service-1006
+      (Test Plan steps 2 and 6).
