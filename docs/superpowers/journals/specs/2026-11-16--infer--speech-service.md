@@ -233,9 +233,58 @@ run_kind: live
 <!-- fr:journal kind=decision scope=spec id=derived-speech-image created=2026-11-16T20:30:11+00:00 -->
 ### derived-speech-image · decision · Operator chose a derived image with CTranslate2 >= 4.6.3 over pinning the upstream rc.3-cuda image; no upstream image has proven sm_120 support
 
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-1 created=2026-11-22T06:23:01+00:00 -->
+### test-plan-step-1 · discovery · Test Plan step 1: ran
+
+Step: [ ] After merge, roll the device plugin and confirm `kubectl get node gpu-1 -o jsonpath='{.status.allocatable}'` shows the time-sliced `nvidia.com/gpu` count, with Ollama and speech Running together and `nvidia-smi` memory under budget.
+
+Evidence: postmerge-timeslice-allocatable: check passed — no output
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-2 created=2026-11-22T11:22:57+00:00 -->
+### test-plan-step-2 · discovery · Test Plan step 2: ran
+
+Step: [ ] POST a Greek, an English and a German sample to `/v1/audio/transcriptions` and check the language auto-detect and text.
+
+Evidence: scripts/tmp/speech-stt-check.sh on 2026-11-22 against https://speech.cluster.derio.net (model deepdml/faster-whisper-large-v3-turbo-ct2, no language hint, speech pod on image 0.9.0-rc.3-ct2-4.6.3-r2 after frank#1017): live 8 s mic recordings auto-detected en=en, de=de, el=el, all PASS, rtf 0.07-0.09 (11-14x real time incl. network); en "The cluster is called FRANK and it lives in a cupboard."; de "Der Kloster heißt Frank und wohnt in einem Schrank." (loanword misheard as homophone); el "The cluster λέγεται Frank και μένει σε μια δουλάπα." (homophone spelling ντ/δ; code-switched English word kept in Latin script)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-3 created=2026-11-22T11:37:11+00:00 -->
+### test-plan-step-3 · discovery · Test Plan step 3: ran
+
+Step: [ ] POST text in each language to `/v1/audio/speech` and listen to the result.
+
+Evidence: speech-tts-check.sh --try-piper on 2026-11-22 against speech.cluster.derio.net, listened on the Mac - en PASS (Kokoro-82M voice af_heart, ttfb 0.17s, 4.3s audio); de PASS (piper-de_DE-thorsten-high voice thorsten, ttfb 0.16s, 4.0s audio, 3.1s total incl. first load); el PASS (piper-el_GR-rapunzelina-low voice rapunzelina, ttfb 0.12s, 4.2s audio) - deployed Kokoro-82M has no de or el voices (with it, de had an English accent and el was spelled letter by letter), so de and el use Piper; the two Piper models were downloaded into the speech PVC at runtime and are NOT yet in PRELOAD_MODELS (follow-up pins them, spec R5 decision)
+
 <!-- fr:journal kind=decision scope=spec id=tts-engine-per-language-1 created=2026-11-22T11:39:48+00:00 decided_by=operator -->
 ### tts-engine-per-language-1 · decision · TTS per language: Kokoro for en, Piper thorsten-high for de, Piper rapunzelina-low for el
 
 Operator listening test 2026-11-22 (Test Plan step 3, speech-tts-check.sh). Deployed Kokoro-82M has no de or el voice (54 voices, en/zh/ja/hi/es/pt-br/it/fr); with af_heart, German had an English accent and Greek was spelled letter by letter. Piper de_DE-thorsten-high and el_GR-rapunzelina-low (the only Greek Piper voice in the registry) both judged acceptable; en on Kokoro af_heart acceptable. Measured: ttfb 0.12-0.17 s, Piper generation ~0.08 s per sentence, el voice adds 128 MiB VRAM. Pinned in PRELOAD_MODELS. Stronger multilingual engines (XTTS-v2/F5-TTS class) remain for the full benchmark (infer-speech-benchmark-run).
 
 decider: operator
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-4 created=2026-11-22T11:43:30+00:00 -->
+### test-plan-step-4 · discovery · Test Plan step 4: ran
+
+Step: [ ] Activate ComfyUI through gpu-switcher, confirm Ollama and speech are both at 0, then activate Ollama and confirm both are back.
+
+Evidence: gpu-switcher hand-over on 2026-11-22 - activate comfyui at 11:40Z drained the ollama group (gpu-switcher api/status and Deployments ollama spec 0, speech spec 0, no ollama or speech pod on gpu-1, comfyui 1/1 Running, GPU 230 MiB, speech route 503 as expected); activate ollama restored both (ollama 1/1 and speech 1/1 pods created together at 11:41:29Z, speech Ready 53s later from cached image and models, comfyui spec 0, speech.cluster.derio.net v1/models HTTP 200, ollama 0.30.5 answers ollama list)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-5 created=2026-11-22T16:00:02+00:00 -->
+### test-plan-step-5 · discovery · Test Plan step 5: ran
+
+Step: [ ] Run a batch transcription of a long recording and confirm no alert fires, including while ComfyUI is activated and released.
+
+Evidence: speech-batch-alerts-check.sh on 2026-11-22T15-52-29Z - in-cluster batch transcription of recording.ogg (language=en audio=15.3min wall=8s rtf=0.009 segments=28 chars=18759), then GPU cycled to ComfyUI and back; Grafana evaluating the merged rules (preflight); no related alert fired, 4 transient pending transitions that cleared
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-6 created=2026-11-22T16:02:11+00:00 -->
+### test-plan-step-6 · discovery · Test Plan step 6: ran
+
+Step: [ ] Confirm `speech.cluster.derio.net` answers on LAN/mesh and does not resolve or route from the public edge.
+
+Evidence: speech-exposure-check.sh on 2026-11-22 - resolver 192.168.10.11 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 192.168.10.12 - speech.cluster.derio.net NOERROR 192.168.55.220; negative control nope-x.cluster.derio.net NOERROR (wildcard if NOERROR); resolver 100.100.100.100 unreachable from here (skipped); speech.cluster.derio.net/v1/models HTTP 200 with speaches model list (whisper, kokoro, piper) from this host; public DNS 1.1.1.1 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public DNS 8.8.8.8 over HTTPS (plain DNS is blocked here) - speech.cluster.derio.net NXDOMAIN; public edge (https, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (TLS handshake refused, the edge holds no certificate for the name); public edge (http, Host speech.cluster.derio.net forced onto the Hop IP) - no speaches response (HTTP 308 redirect to https only)
+
+<!-- fr:journal kind=discovery scope=spec id=test-plan-step-7 created=2026-11-22T16:21:29+00:00 -->
+### test-plan-step-7 · discovery · Test Plan step 7: ran
+
+Step: [ ] Run the benchmark and commit `docs/investigations/2026-11-16--infer--speech-benchmark.md`.
+
+Evidence: speech-benchmark.sh --record 30 on 2026-11-22 with Ollama gemma4-12b-64k loaded (8.5 GB, 100% GPU) - STT warm rtf 0.022 de and 0.026 el (about 40x real time), en 1.486 is the cold first call after the 300s model TTL (about 40s load incl. CUDA init); TTS time to first audio cold 8.4s Kokoro en, 4.0s Piper thorsten de, 1.1s Piper rapunzelina el (warm 0.1-0.2s at step 3); VRAM baseline 8822 MiB, peak 11757 MiB, speech-only 2935 MiB (under the 4.6 GB per-model estimates); operator listening natural and steady for all three; report committed as docs/investigations/2026-11-16--infer--speech-benchmark.md in frank#1018 (lands on merge)

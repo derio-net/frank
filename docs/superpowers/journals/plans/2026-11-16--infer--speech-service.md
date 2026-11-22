@@ -608,3 +608,123 @@ Not a defect: the phase 1 items were reviewed and closed in phase 1.
 ### p2-r21-resolved-2 · finding [refuted] · resolves p2-r21: Verified-OK note
 
 Not a defect: the reviewer's verified-OK note, nothing to fix.
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-1 created=2026-11-21T16:26:02+00:00 decided_by=operator -->
+### op-trust-1 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: 685cce7a111804173f07d6f73bd30e6c4abbeeb0da91bc62caee01be396a5aca
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-1 created=2026-11-21T16:26:14+00:00 -->
+### gate-stage-1 · decision · DevOps stage 1 done: pre-merge ops
+
+head: f3bed6495890c550b9ec662be40fb36848aea0df
+pre-merge ops closed on chore/ops-2026-11-16--infer--speech-service
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-3 created=2026-11-21T16:26:27+00:00 -->
+### gate-stage-3 · decision · DevOps stage 3 done: verify-merge, rebase, ready
+
+merge verified; chore/ops-2026-11-16--infer--speech-service rebased onto main; ready
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-gpu-switcher-image-1 created=2026-11-21T16:28:07+00:00 -->
+### op-postmerge-gpu-switcher-image-1 · op · op postmerge-gpu-switcher-image: failed
+
+op: postmerge-gpu-switcher-image
+result: failed
+reason: Alternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-gpu-switcher-image-2 created=2026-11-21T18:56:09+00:00 -->
+### op-postmerge-gpu-switcher-image-2 · op · op postmerge-gpu-switcher-image: done
+
+op: postmerge-gpu-switcher-image
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-speech-image-1 created=2026-11-21T18:56:15+00:00 -->
+### op-postmerge-speech-image-1 · op · op postmerge-speech-image: done
+
+op: postmerge-speech-image
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-1 created=2026-11-21T18:57:15+00:00 -->
+### op-postmerge-timeslice-allocatable-1 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-2 created=2026-11-22T06:06:45+00:00 -->
+### op-postmerge-timeslice-allocatable-2 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-3 created=2026-11-22T06:15:06+00:00 -->
+### op-postmerge-timeslice-allocatable-3 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-4 created=2026-11-22T06:16:03+00:00 -->
+### op-postmerge-timeslice-allocatable-4 · op · op postmerge-timeslice-allocatable: open
+
+op: postmerge-timeslice-allocatable
+result: open
+reason: exit 1
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=op-trust-2 created=2026-11-22T06:21:57+00:00 decided_by=operator -->
+### op-trust-2 · decision · op-trust: the operator trusted this op set (audit only; never read back)
+
+sha256: df7242f86a97ae4c0d38216c640ceb3629f38b39215d92a4ddbfde27ff4632b2
+
+<!-- fr:journal kind=op scope=plan id=op-postmerge-timeslice-allocatable-5 created=2026-11-22T06:22:42+00:00 -->
+### op-postmerge-timeslice-allocatable-5 · op · op postmerge-timeslice-allocatable: done
+
+op: postmerge-timeslice-allocatable
+result: done
+phase: post-merge
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-4 created=2026-11-22T06:22:49+00:00 -->
+### gate-stage-4 · decision · DevOps stage 4 done: post-merge ops
+
+post-merge ops closed
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-5 created=2026-11-22T16:21:30+00:00 -->
+### gate-stage-5 · decision · DevOps stage 5 done: devops steps
+
+devops Test Plan steps recorded
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-6 created=2026-11-22T16:21:45+00:00 -->
+### gate-stage-6 · decision · DevOps stage 6 done: gate pass
+
+gate:devops passed
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-7 created=2026-11-22T16:21:49+00:00 -->
+### gate-stage-7 · decision · DevOps stage 7 done: tester hand-off
+
+no tester step remains
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-3 created=2026-11-22T16:21:58+00:00 phase=3 -->
+### manual-phase-3 · owed · 2026-11-16--infer--speech-service: manual phase 3 is not ticked (phase 3)
+
+what: do manual phase 3 of 2026-11-16--infer--speech-service and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 3 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-11-16--infer--speech-service
+owed_key: plan:2026-11-16--infer--speech-service#p3
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-3-resolved created=2026-11-22T16:22:06+00:00 phase=3 state=open resolves=manual-phase-3 filed_as=derio-net/frank#1019 -->
+### manual-phase-3-resolved · finding [filed → derio-net/frank#1019] · resolves manual-phase-3: 2026-11-16--infer--speech-service: manual phase 3 is not ticked (phase 3)
+
+Filed at archive as derio-net/frank#1019; still owed until discharged.
+
+<!-- fr:journal kind=decision scope=plan id=gate-stage-8 created=2026-11-22T16:22:11+00:00 -->
+### gate-stage-8 · decision · DevOps stage 8 done: archive and housekeeping PR
+
+archived; housekeeping PR from chore/ops-2026-11-16--infer--speech-service
