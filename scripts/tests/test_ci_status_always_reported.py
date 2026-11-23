@@ -207,6 +207,12 @@ def test_ci_pipelines_post_pending_first(pipeline_name):
 def _script(task: str) -> str:
     doc = _docs(TASKS_DIR / f"{task}.yaml")[0]
     report = next(s for s in doc["spec"]["steps"] if s["name"] == "report")
+    if "ref" in report:
+        # github-status delegates its POST to a StepAction (frank#1029):
+        # execute the script that actually ships, not the Task's stub.
+        stepaction = _docs(TASKS_DIR / f"{report['ref']['name']}.yaml")[0]
+        assert stepaction["kind"] == "StepAction"
+        return stepaction["spec"]["args"][0]
     return report["args"][0]
 
 
