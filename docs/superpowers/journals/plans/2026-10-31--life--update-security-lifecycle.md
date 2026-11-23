@@ -1124,3 +1124,16 @@ Owed / known-degraded (not fixed here):
 - cluster-update-fr Degraded: pod on v0.1.1 but the tailscale init container CrashLoopBackOffs (pod 2/3 Init:CrashLoopBackOff, 6 restarts/20m). No auth key exists until phase 7, so it loops on interactive login. Proposed fix, not done: gate the sidecar on the Secret being present (optional secret + skip/sleep when empty) or scale the app to 0 until phase 7.
 - renovate Degraded: CronJob is suspended until phase 7 by design.
 - trivy-operator Progressing: trivy-server-0 is CreateContainerConfigError, secret trivy-operator-trivy-config not found (hand-created Secret, already tracked as p3-r7 / frank#914; applied in phase 7).
+
+<!-- fr:journal kind=owed scope=plan id=manual-phase-7 created=2026-11-23T08:28:17+00:00 phase=7 -->
+### manual-phase-7 · owed · 2026-10-31--life--update-security-lifecycle: manual phase 7 is not ticked (phase 7)
+
+what: do manual phase 7 of 2026-10-31--life--update-security-lifecycle and tick its steps
+why: fr archive holds the plan until its manual phases are ticked
+how: tick phase 7 (fr plan edit --tick), then fr archive docs/superpowers/plans/2026-10-31--life--update-security-lifecycle
+owed_key: plan:2026-10-31--life--update-security-lifecycle#p7
+
+<!-- fr:journal kind=finding scope=plan id=manual-phase-7-resolved created=2026-11-23T08:28:23+00:00 phase=7 state=open resolves=manual-phase-7 filed_as=derio-net/frank#973 -->
+### manual-phase-7-resolved · finding [filed → derio-net/frank#973] · resolves manual-phase-7: 2026-10-31--life--update-security-lifecycle: manual phase 7 is not ticked (phase 7)
+
+Filed at archive as derio-net/frank#973; still owed until discharged.
