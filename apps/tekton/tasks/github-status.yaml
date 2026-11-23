@@ -55,115 +55,24 @@ spec:
         turn an otherwise green run red. The finally success/failure posts
         leave it "false" -- they are the mandatory record.
   steps:
+    # The POST itself — token selection, 422 quota tolerance, best-effort —
+    # lives in the github-status-report StepAction (frank#1029), shared with
+    # stoa-status-bridge. No `guard-file` here: CI posts are never suppressed.
     - name: report
-      image: curlimages/curl:8.7.1
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: stoa-github-mirror
-              key: token
-              optional: true
-        - name: GITHUB_TOKEN_DERIO_HOMELAB
-          valueFrom:
-            secretKeyRef:
-              name: derio-homelab-github-mirror
-              key: token
-              optional: true
-        - name: GITHUB_TOKEN_DERIO_NET
-          valueFrom:
-            secretKeyRef:
-              name: derio-net-github-mirror
-              key: token
-              optional: true
-        - name: REPO_FULL_NAME
-          value: $(params.repo-full-name)
-        - name: REVISION
-          value: $(params.revision)
-        - name: STATE
-          value: $(params.state)
-        - name: DESCRIPTION
-          value: $(params.description)
-        - name: CONTEXT
-          value: $(params.context)
-        - name: TARGET_URL
-          value: $(params.target-url)
-        - name: GITHUB_API_URL
-          value: $(params.github-api-url)
-        - name: BEST_EFFORT
-          value: $(params.best-effort)
-      securityContext:
-        allowPrivilegeEscalation: false
-        runAsNonRoot: true
-        runAsUser: 100
-        capabilities:
-          drop: ["ALL"]
-        seccompProfile:
-          type: RuntimeDefault
+      ref:
+        name: github-status-report
+      params:
+        - {name: repo-full-name, value: $(params.repo-full-name)}
+        - {name: revision, value: $(params.revision)}
+        - {name: state, value: $(params.state)}
+        - {name: description, value: $(params.description)}
+        - {name: context, value: $(params.context)}
+        - {name: target-url, value: $(params.target-url)}
+        - {name: github-api-url, value: $(params.github-api-url)}
+        - {name: best-effort, value: $(params.best-effort)}
       computeResources:
         requests:
           cpu: 50m
           memory: 64Mi
         limits:
           memory: 128Mi
-      command: ["/bin/sh", "-e", "-c"]
-      args:
-        - |
-          OWNER="${REPO_FULL_NAME%%/*}"
-          case "$OWNER" in
-            agentic-stoa)  TOKEN="${GITHUB_TOKEN:-}" ;;
-            derio-homelab) TOKEN="${GITHUB_TOKEN_DERIO_HOMELAB:-}" ;;
-            derio-net)     TOKEN="${GITHUB_TOKEN_DERIO_NET:-}" ;;
-            *) echo "ERROR: no GitHub token is configured for owner '${OWNER}'"; exit 1 ;;
-          esac
-          if [ -z "$TOKEN" ]; then
-            echo "ERROR: the GitHub token for owner '${OWNER}' is empty or its Secret is missing"
-            exit 1
-          fi
-          STATUS_URL="${GITHUB_API_URL}/repos/${REPO_FULL_NAME}/statuses/${REVISION}"
-          # Escape values for safe JSON embedding
-          json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-          S=$(json_escape "$STATE")
-          D=$(json_escape "$DESCRIPTION")
-          C=$(json_escape "$CONTEXT")
-          T=$(json_escape "$TARGET_URL")
-          PAYLOAD="{\"state\":\"${S}\",\"description\":\"${D}\",\"context\":\"${C}\",\"target_url\":\"${T}\"}"
-          HTTP_CODE=$(curl -s -o /tmp/resp -w '%{http_code}' -X POST "$STATUS_URL" \
-            -H "Authorization: token $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD") || true
-          echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
-          cat /tmp/resp
-          echo
-          # GitHub caps commit statuses per (sha, context). Once that budget is
-          # spent the API returns 422 for that pair FOREVER, so no retry can ever
-          # succeed and failing the step just mints a dead pod on every
-          # invocation. Incident 2026-09-10: a Gitea Actions workflow firing every
-          # 30 min against a sha frozen for 49 days saturated one context (~900
-          # statuses vs 16 on every other), leaving 292 Failed pods and a
-          # `pending` status stranded since 2026-08-02.
-          #
-          # Tolerate exactly that case, and loudly. Every OTHER 422 stays fatal on
-          # purpose: Gitea's status vocabulary (skipped, warning) is a superset of
-          # GitHub's, and that mismatch is a real bug which must surface here
-          # rather than be swallowed -- it previously stranded a `pending` status
-          # too, and was correctly fixed by mapping the state upstream, not by
-          # ignoring the error.
-          if [ "$HTTP_CODE" -eq 422 ] && grep -q 'maximum number of statuses' /tmp/resp; then
-            echo "WARN: status quota exhausted for ${REVISION} / ${CONTEXT}"
-            echo "WARN: GitHub accepts no further statuses on this sha+context."
-            echo "WARN: the request is unactionable, so not failing the step."
-            exit 0
-          fi
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            exit 0
-          fi
-          # A curl transport failure prints 000; `|| true` above only lets it
-          # reach THIS decision -- it stays fatal unless the caller opted into
-          # best-effort.
-          if [ "${BEST_EFFORT:-false}" = "true" ]; then
-            echo "WARN: best-effort post of '${STATE}' failed (HTTP ${HTTP_CODE}); not failing the step."
-            exit 0
-          fi
-          exit 1

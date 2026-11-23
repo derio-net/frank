@@ -51,7 +51,8 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TASK_PATH = REPO_ROOT / "apps/tekton/tasks/github-status.yaml"
+# The POST moved into the shared StepAction (frank#1029); test what ships.
+TASK_PATH = REPO_ROOT / "apps/tekton/tasks/github-status-report.yaml"
 
 # The exact body GitHub returns once (SHA, context) is saturated. Captured live
 # from stoa-status-bridge-wjzjl-forward-pod on 2026-09-10.
@@ -73,13 +74,10 @@ VOCAB_BODY = (
 
 
 def _step_script() -> str:
-    """Extract the `report` step's shell script from the Task manifest."""
+    """Extract the POST script from the github-status-report StepAction."""
     doc = yaml.safe_load(TASK_PATH.read_text())
-    assert doc["kind"] == "Task", f"{TASK_PATH} is not a Task"
-    steps = doc["spec"]["steps"]
-    report = next((s for s in steps if s["name"] == "report"), None)
-    assert report is not None, "github-status Task has no step named 'report'"
-    args = report["args"]
+    assert doc["kind"] == "StepAction", f"{TASK_PATH} is not a StepAction"
+    args = doc["spec"]["args"]
     assert len(args) == 1, f"expected a single script arg, got {len(args)}"
     return args[0]
 

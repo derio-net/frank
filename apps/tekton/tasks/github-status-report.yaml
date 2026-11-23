@@ -1,0 +1,179 @@
+# The GitHub commit-status POST, shared by two callers (frank#1029):
+#   - the github-status Task: every CI pipeline's status post. No guard, so its
+#     behaviour is unchanged from when this step lived inline in the Task;
+#   - stoa-status-bridge: runs its Gitea current-state check as the step
+#     IMMEDIATELY before this one, in the same pod, and passes `guard-file`.
+#
+# Why the bridge needs that: the check used to be its own TaskRun. On
+# 2026-11-22 (derio-net/runs-fr PR #52) the check read Gitea while `pending`
+# really was current, the separate POST pod then took 74s to start, the
+# terminal status posted first and the stale pending posted LAST — and a
+# commit status has no lifecycle, so the check read pending forever. Steps of
+# one TaskRun start back-to-back, so check and POST are now sub-second apart.
+#
+# Token selection by repo owner, the 422 quota tolerance and best-effort are
+# documented inline below (they moved here verbatim from github-status.yaml).
+#
+# `computeResources` is NOT a v1beta1 StepActionSpec field (it fails the whole
+# object, see apps/staging-gate/tekton/stepactions.yaml); each calling `ref:`
+# step sets its own. Params reach the script only through env.
+# sync-wave -1: the StepAction must exist before the Task that refs it.
+apiVersion: tekton.dev/v1beta1
+kind: StepAction
+metadata:
+  name: github-status-report
+  namespace: tekton-pipelines
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: POST one commit status to GitHub, token chosen by the repo owner.
+  params:
+    - name: repo-full-name
+      type: string
+      description: "Full repo name (e.g., agentic-stoa/hum)"
+    - name: revision
+      type: string
+      description: "Git commit SHA to attach status to"
+    - name: state
+      type: string
+      description: "success, pending, failure, or error"
+    - name: description
+      type: string
+      default: "Tekton CI"
+    - name: context
+      type: string
+      default: "tekton/ci"
+    - name: target-url
+      type: string
+      default: ""
+      description: "URL the status check links to (e.g. Tekton dashboard PipelineRun page)"
+    - name: github-api-url
+      type: string
+      default: "https://api.github.com"
+    - name: best-effort
+      type: string
+      default: "false"
+      description: >-
+        "true" = a failed post is logged (WARN) but does not fail the step.
+        Used by the run-start `pending` post: a GitHub flake there must not
+        turn an otherwise green run red. The finally success/failure posts
+        leave it "false" -- they are the mandatory record.
+    - name: guard-file
+      type: string
+      default: ""
+      description: >-
+        Path of a file a PRECEDING STEP of the same TaskRun wrote. Content
+        `true` = this pending is stale, skip the POST. Empty (the default) =
+        no guard. Missing/unreadable/anything else posts: fail-open.
+  image: curlimages/curl:8.7.1
+  env:
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: stoa-github-mirror
+          key: token
+          optional: true
+    - name: GITHUB_TOKEN_DERIO_HOMELAB
+      valueFrom:
+        secretKeyRef:
+          name: derio-homelab-github-mirror
+          key: token
+          optional: true
+    - name: GITHUB_TOKEN_DERIO_NET
+      valueFrom:
+        secretKeyRef:
+          name: derio-net-github-mirror
+          key: token
+          optional: true
+    - name: REPO_FULL_NAME
+      value: $(params.repo-full-name)
+    - name: REVISION
+      value: $(params.revision)
+    - name: STATE
+      value: $(params.state)
+    - name: DESCRIPTION
+      value: $(params.description)
+    - name: CONTEXT
+      value: $(params.context)
+    - name: TARGET_URL
+      value: $(params.target-url)
+    - name: GITHUB_API_URL
+      value: $(params.github-api-url)
+    - name: BEST_EFFORT
+      value: $(params.best-effort)
+    - name: GUARD_FILE
+      value: $(params.guard-file)
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 100
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  command: ["/bin/sh", "-e", "-c"]
+  args:
+    - |
+      # Ordering guard (frank#1029) — see the header. Fail-open on purpose.
+      if [ -n "${GUARD_FILE:-}" ] && [ "$(cat "$GUARD_FILE" 2>/dev/null)" = "true" ]; then
+        echo "pending is stale: Gitea has moved past it; not posting ${CONTEXT}"
+        exit 0
+      fi
+      OWNER="${REPO_FULL_NAME%%/*}"
+      case "$OWNER" in
+        agentic-stoa)  TOKEN="${GITHUB_TOKEN:-}" ;;
+        derio-homelab) TOKEN="${GITHUB_TOKEN_DERIO_HOMELAB:-}" ;;
+        derio-net)     TOKEN="${GITHUB_TOKEN_DERIO_NET:-}" ;;
+        *) echo "ERROR: no GitHub token is configured for owner '${OWNER}'"; exit 1 ;;
+      esac
+      if [ -z "$TOKEN" ]; then
+        echo "ERROR: the GitHub token for owner '${OWNER}' is empty or its Secret is missing"
+        exit 1
+      fi
+      STATUS_URL="${GITHUB_API_URL}/repos/${REPO_FULL_NAME}/statuses/${REVISION}"
+      # Escape values for safe JSON embedding
+      json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+      S=$(json_escape "$STATE")
+      D=$(json_escape "$DESCRIPTION")
+      C=$(json_escape "$CONTEXT")
+      T=$(json_escape "$TARGET_URL")
+      PAYLOAD="{\"state\":\"${S}\",\"description\":\"${D}\",\"context\":\"${C}\",\"target_url\":\"${T}\"}"
+      HTTP_CODE=$(curl -s -o /tmp/resp -w '%{http_code}' -X POST "$STATUS_URL" \
+        -H "Authorization: token $TOKEN" \
+        -H "Accept: application/vnd.github+json" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD") || true
+      echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
+      cat /tmp/resp
+      echo
+      # GitHub caps commit statuses per (sha, context). Once that budget is
+      # spent the API returns 422 for that pair FOREVER, so no retry can ever
+      # succeed and failing the step just mints a dead pod on every
+      # invocation. Incident 2026-09-10: a Gitea Actions workflow firing every
+      # 30 min against a sha frozen for 49 days saturated one context (~900
+      # statuses vs 16 on every other), leaving 292 Failed pods and a
+      # `pending` status stranded since 2026-08-02.
+      #
+      # Tolerate exactly that case, and loudly. Every OTHER 422 stays fatal on
+      # purpose: Gitea's status vocabulary (skipped, warning) is a superset of
+      # GitHub's, and that mismatch is a real bug which must surface here
+      # rather than be swallowed -- it previously stranded a `pending` status
+      # too, and was correctly fixed by mapping the state upstream, not by
+      # ignoring the error.
+      if [ "$HTTP_CODE" -eq 422 ] && grep -q 'maximum number of statuses' /tmp/resp; then
+        echo "WARN: status quota exhausted for ${REVISION} / ${CONTEXT}"
+        echo "WARN: GitHub accepts no further statuses on this sha+context."
+        echo "WARN: the request is unactionable, so not failing the step."
+        exit 0
+      fi
+      if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+        exit 0
+      fi
+      # A curl transport failure prints 000; `|| true` above only lets it
+      # reach THIS decision -- it stays fatal unless the caller opted into
+      # best-effort.
+      if [ "${BEST_EFFORT:-false}" = "true" ]; then
+        echo "WARN: best-effort post of '${STATE}' failed (HTTP ${HTTP_CODE}); not failing the step."
+        exit 0
+      fi
+      exit 1
