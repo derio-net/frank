@@ -10,3 +10,8 @@ layer-25-delivery-overdue kind=status, derio-net/runs-fr, sha 5fb5d703, context 
 ### f75fed955127 · ruled-out · Guard logic bug (wrong field / wrong context match)
 
 At 21:41:2x Gitea genuinely held pending for the context: the success event was only created at 21:41:52. The guard answered correctly for the moment it asked.
+
+<!-- fr:journal kind=root-cause scope=debug id=f6d2f9bfade0 created=2026-11-23T07:28:35+00:00 -->
+### f6d2f9bfade0 · root-cause · Guard is check-then-act across two TaskRuns
+
+current-state and forward are separate tasks, each its own pod. The 74s pod start of forward is the window in which the terminal event arrives and posts first; the stale pending then posts last and wins (statuses have no lifecycle). The guard narrows the race, cannot close it while check and POST live in different pods.
