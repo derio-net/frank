@@ -20,3 +20,8 @@ current-state and forward are separate tasks, each its own pod. The 74s pod star
 ### 81c5a128ec68 · finding [fixed] · Check and POST colocated as steps of one TaskRun
 
 github-status-report StepAction (POST moved verbatim from github-status, plus fail-open guard-file); github-status Task refs it unguarded (script proven byte-identical); stoa-status-bridge is one task: check step writes /tekton/results/superseded, report step reads it. Failing-first tests: test_stoa_status_bridge.py::test_check_and_post_run_in_one_pod, test_github_status_report_guard.py (12 RED -> GREEN). Server-side dry-run accepted all three manifests on Tekton v1.6.0. 139 related + 73 Tekton/ArgoCD guard tests pass.
+
+<!-- fr:journal kind=review scope=debug id=2780a2c0b2b6 created=2026-11-23T07:35:26+00:00 -->
+### 2780a2c0b2b6 · review · Self-review: no findings; runtime proof owed post-merge
+
+Checked: moved script byte-identical to the old Task (script, image, command, securityContext, env, params, computeResources); no non-prose reference to the old current-state task name; result file written by uid 65534 at default 0644, readable by the uid-100 report step (fail-open regardless); check-step crash behaviour unchanged (report never runs, as forward never ran before). Not provable pre-merge: the StepAction only exists on the cluster after ArgoCD syncs main. Post-merge: one github-status TaskRun from a CI pipeline Succeeded, one bridge run Succeeded, a stale-pending run logging 'pending is stale' from the report step, and ci-delivery-check clean.
