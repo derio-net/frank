@@ -25,3 +25,8 @@ github-status-report StepAction (POST moved verbatim from github-status, plus fa
 ### 2780a2c0b2b6 · review · Self-review: no findings; runtime proof owed post-merge
 
 Checked: moved script byte-identical to the old Task (script, image, command, securityContext, env, params, computeResources); no non-prose reference to the old current-state task name; result file written by uid 65534 at default 0644, readable by the uid-100 report step (fail-open regardless); check-step crash behaviour unchanged (report never runs, as forward never ran before). Not provable pre-merge: the StepAction only exists on the cluster after ArgoCD syncs main. Post-merge: one github-status TaskRun from a CI pipeline Succeeded, one bridge run Succeeded, a stale-pending run logging 'pending is stale' from the report step, and ci-delivery-check clean.
+
+<!-- fr:journal kind=finding scope=debug id=ab62f52d0fd0 created=2026-11-23T08:03:39+00:00 state=fixed -->
+### ab62f52d0fd0 · finding [fixed] · CI: test_ci_status_always_reported parsed the Task script
+
+Missed by the reference sweep because it builds the path as f'{task}.yaml'. Its _script() now follows a ref: step to the StepAction. 25 passed.
