@@ -15,3 +15,8 @@ At 21:41:2x Gitea genuinely held pending for the context: the success event was 
 ### f6d2f9bfade0 · root-cause · Guard is check-then-act across two TaskRuns
 
 current-state and forward are separate tasks, each its own pod. The 74s pod start of forward is the window in which the terminal event arrives and posts first; the stale pending then posts last and wins (statuses have no lifecycle). The guard narrows the race, cannot close it while check and POST live in different pods.
+
+<!-- fr:journal kind=finding scope=debug id=81c5a128ec68 created=2026-11-23T07:34:51+00:00 state=fixed -->
+### 81c5a128ec68 · finding [fixed] · Check and POST colocated as steps of one TaskRun
+
+github-status-report StepAction (POST moved verbatim from github-status, plus fail-open guard-file); github-status Task refs it unguarded (script proven byte-identical); stoa-status-bridge is one task: check step writes /tekton/results/superseded, report step reads it. Failing-first tests: test_stoa_status_bridge.py::test_check_and_post_run_in_one_pod, test_github_status_report_guard.py (12 RED -> GREEN). Server-side dry-run accepted all three manifests on Tekton v1.6.0. 139 related + 73 Tekton/ArgoCD guard tests pass.
