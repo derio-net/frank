@@ -151,7 +151,7 @@ def test_bridge_maps_gitea_only_states():
     )
 
 
-def test_bridge_pipeline_forwards_via_github_status():
+def test_bridge_pipeline_forwards_via_github_status_report():
     docs = [d for d in yaml.safe_load_all(BRIDGE_PIPELINE.read_text()) if d]
     pipelines = [d for d in docs if d["kind"] == "Pipeline"]
     assert len(pipelines) == 1
@@ -159,12 +159,10 @@ def test_bridge_pipeline_forwards_via_github_status():
 
     assert {p["name"] for p in spec["params"]} == BRIDGE_PARAMS
 
-    tasks = {t["name"]: t for t in spec["tasks"]}
-    assert set(tasks) == {"current-state", "forward"}
-    forward = tasks["forward"]
-    assert forward["taskRef"]["name"] == "github-status"
+    report = _step("report")
+    assert report["ref"]["name"] == "github-status-report"
 
-    params = {p["name"]: p["value"] for p in forward["params"]}
+    params = {p["name"]: p["value"] for p in report["params"]}
     # gitea-actions/ prefix distinguishes Frank results from native GH checks
     assert params["context"] == "gitea-actions/$(params.context)"
     assert params["revision"] == "$(params.revision)"
@@ -187,10 +185,15 @@ def _bridge_tasks():
     return {t["name"]: t for t in docs[0]["spec"]["tasks"]}
 
 
+def _step(name):
+    steps = _bridge_tasks()["forward"]["taskSpec"]["steps"]
+    return next(s for s in steps if s["name"] == name)
+
+
 def _guard():
     import types
 
-    script = _bridge_tasks()["current-state"]["taskSpec"]["steps"][0]["script"]
+    script = _step("check")["script"]
     module = types.ModuleType("bridge_guard")
     exec(compile(script, str(BRIDGE_PIPELINE), "exec"), module.__dict__)
     return module
@@ -203,16 +206,28 @@ def _combined(*statuses):
 CTX = "acceptance-report / matrix (push)"
 
 
-def test_forward_is_gated_on_the_guard():
+def test_check_and_post_run_in_one_pod():
+    """frank#1029: the guard was check-then-act across TWO TaskRuns.
+
+    2026-11-22, derio-net/runs-fr PR #52: the pending run's `current-state`
+    task read Gitea at 21:41:18-28 (pending really was current), its
+    separate `forward` pod then took 74s to start, the terminal run posted
+    at 21:42:07 and the stale pending at 21:42:41. The check is only as good
+    as its distance from the POST, so both are steps of ONE TaskRun: steps
+    share a pod and start back-to-back, with no pod start in between.
+    """
     tasks = _bridge_tasks()
+    assert set(tasks) == {"forward"}, "a second task re-opens the pod-start window"
     forward = tasks["forward"]
-    assert forward.get("runAfter") == ["current-state"]
-    assert {"input": "$(tasks.current-state.results.superseded)",
-            "operator": "notin", "values": ["true"]} in forward.get("when", [])
-    # The guard must run for EVERY event: a task consuming a result of a
-    # SKIPPED task is itself skipped, so a `when: state in [pending]` on the
-    # guard would silently stop every terminal status from being forwarded.
-    assert "when" not in tasks["current-state"]
+    assert "when" not in forward, "the guard must run for EVERY event"
+    names = [s["name"] for s in forward["taskSpec"]["steps"]]
+    assert names == ["check", "report"], "check must run immediately before the POST"
+
+    check_env = {e["name"]: e.get("value") for e in _step("check")["env"]}
+    report_params = {p["name"]: p["value"] for p in _step("report")["params"]}
+    # Same file on both sides: the check writes it, the POST reads it.
+    assert check_env["RESULT_PATH"] == "$(results.superseded.path)"
+    assert report_params["guard-file"] == "/tekton/results/superseded"
 
 
 def test_stale_pending_is_dropped_once_gitea_has_moved_on():

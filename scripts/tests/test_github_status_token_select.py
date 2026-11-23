@@ -16,7 +16,8 @@ import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
-TASK = REPO / "apps/tekton/tasks/github-status.yaml"
+# The POST moved into the shared StepAction (frank#1029); test what ships.
+TASK = REPO / "apps/tekton/tasks/github-status-report.yaml"
 
 TOKENS = {
     "agentic-stoa": ("GITHUB_TOKEN", "tok-stoa"),
@@ -26,8 +27,7 @@ TOKENS = {
 
 
 def _step() -> dict:
-    task = yaml.safe_load(TASK.read_text())
-    return task["spec"]["steps"][0]
+    return yaml.safe_load(TASK.read_text())["spec"]
 
 
 def _run(tmp_path: Path, repo: str, env_tokens: dict[str, str]):

@@ -468,8 +468,8 @@ def test_pushgateway_scrape_preserves_group_job_label():
 
 
 def test_bridge_description_mapping_contract():
-    task = yaml.safe_load((ROOT/'apps/tekton/tasks/github-status.yaml').read_text())
-    script = task['spec']['steps'][0]['args'][0]
+    step = yaml.safe_load((ROOT/'apps/tekton/tasks/github-status-report.yaml').read_text())
+    script = step['spec']['args'][0]
     assert 'D=$(json_escape "$DESCRIPTION")' in script
 
 
