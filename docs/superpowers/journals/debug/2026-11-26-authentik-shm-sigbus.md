@@ -10,3 +10,8 @@ layer-13-auth-down fired 2026-11-26 ~08:00Z: deploy/authentik-server 1/2. Pod 79
 ### 57fe2108b07b · ruled-out · Container restart does not clear it
 
 /dev/shm is the pod sandbox's tmpfs (containerd default 64M), so it survives container restarts; liveness/startup kills cannot recover the pod and each failed start mints new PIDs, making the leak self-reinforcing. Only a pod delete resets it.
+
+<!-- fr:journal kind=ruled-out scope=debug id=fe694c4b66d7 created=2026-11-26T08:33:34+00:00 -->
+### fe694c4b66d7 · ruled-out · authentik's worker_id reuse does not bound the files
+
+/lifecycle/gunicorn.conf.py post_fork sets prometheus ValueClass keyed by worker._worker_id and worker_exit calls mark_process_dead(worker_id). But on a 2-min-old pod the files are counter_51/52 = the gunicorn worker PIDs from 'Booting worker with pid: 51/52': with preload_app=True the metrics are instantiated in the master before post_fork, so they keep the PID-keyed identifier. mark_process_dead only removes gauge_live files anyway. max_requests=1000(+jitter 50) recycles workers, each recycle leaks 3 files (~9.5KB).
