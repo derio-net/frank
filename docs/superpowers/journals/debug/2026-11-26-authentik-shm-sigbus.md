@@ -20,3 +20,8 @@ layer-13-auth-down fired 2026-11-26 ~08:00Z: deploy/authentik-server 1/2. Pod 79
 ### 5ea304cf8a9e · root-cause · Prometheus multiprocess files leak per worker PID into the 64M /dev/shm tmpfs; full tmpfs -> mmap SIGBUS
 
 The image sets TMPDIR=/dev/shm/ and /lifecycle/ak defaults PROMETHEUS_MULTIPROC_DIR=${TMPDIR}/authentik_prometheus_tmp unless already set. Files accumulate ~1MB/day per server pod for the pod's lifetime; at ~64 days the 64M sandbox shm fills, prometheus_client's mmap write faults with SIGBUS, gunicorn cannot start, the pod crashloops forever.
+
+<!-- fr:journal kind=finding scope=debug id=70774cdb7c4f created=2026-11-26T08:36:48+00:00 state=fixed -->
+### 70774cdb7c4f · finding [fixed] · PROMETHEUS_MULTIPROC_DIR moved to a disk-backed emptyDir (sizeLimit 1Gi)
+
+apps/authentik/values.yaml server.env sets PROMETHEUS_MULTIPROC_DIR=/authentik-prometheus, backed by server.volumes emptyDir{sizeLimit: 1Gi} (no medium: Memory). /lifecycle/ak only defaults the var when unset, so the env wins. helm template (chart 2026.2.1) confirms global.env is preserved and the worker is untouched. Failing test first: scripts/tests/test_authentik_prometheus_multiproc_dir.py (2 failed before, 2 passed after). Gotcha one-liner + authentik.md prose added.
