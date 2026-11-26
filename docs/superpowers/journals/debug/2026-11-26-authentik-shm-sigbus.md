@@ -15,3 +15,8 @@ layer-13-auth-down fired 2026-11-26 ~08:00Z: deploy/authentik-server 1/2. Pod 79
 ### fe694c4b66d7 · ruled-out · authentik's worker_id reuse does not bound the files
 
 /lifecycle/gunicorn.conf.py post_fork sets prometheus ValueClass keyed by worker._worker_id and worker_exit calls mark_process_dead(worker_id). But on a 2-min-old pod the files are counter_51/52 = the gunicorn worker PIDs from 'Booting worker with pid: 51/52': with preload_app=True the metrics are instantiated in the master before post_fork, so they keep the PID-keyed identifier. mark_process_dead only removes gauge_live files anyway. max_requests=1000(+jitter 50) recycles workers, each recycle leaks 3 files (~9.5KB).
+
+<!-- fr:journal kind=root-cause scope=debug id=5ea304cf8a9e created=2026-11-26T08:33:37+00:00 -->
+### 5ea304cf8a9e · root-cause · Prometheus multiprocess files leak per worker PID into the 64M /dev/shm tmpfs; full tmpfs -> mmap SIGBUS
+
+The image sets TMPDIR=/dev/shm/ and /lifecycle/ak defaults PROMETHEUS_MULTIPROC_DIR=${TMPDIR}/authentik_prometheus_tmp unless already set. Files accumulate ~1MB/day per server pod for the pod's lifetime; at ~64 days the 64M sandbox shm fills, prometheus_client's mmap write faults with SIGBUS, gunicorn cannot start, the pod crashloops forever.
