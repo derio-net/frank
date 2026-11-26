@@ -52,6 +52,23 @@ server:
     node-role.kubernetes.io/control-plane: ""
   service:
     type: ClusterIP
+  # Prometheus multiprocess files OFF /dev/shm (2026-11-26 SIGBUS crashloop).
+  # The image defaults PROMETHEUS_MULTIPROC_DIR to /dev/shm/authentik_prometheus_tmp,
+  # and gunicorn's max_requests recycling leaks 3 mmap'd .db files per worker PID
+  # (~1MB/day). /dev/shm is the pod sandbox's 64M tmpfs: after ~64 days it fills,
+  # mmap writes SIGBUS, gunicorn never starts again, and container restarts can't
+  # clear it. A disk-backed emptyDir with a sizeLimit turns "full" into a clean
+  # eviction instead. Guard: scripts/tests/test_authentik_prometheus_multiproc_dir.py.
+  env:
+    - name: PROMETHEUS_MULTIPROC_DIR
+      value: /authentik-prometheus
+  volumes:
+    - name: prometheus-multiproc
+      emptyDir:
+        sizeLimit: 1Gi
+  volumeMounts:
+    - name: prometheus-multiproc
+      mountPath: /authentik-prometheus
   metrics:
     enabled: true
     serviceMonitor:
