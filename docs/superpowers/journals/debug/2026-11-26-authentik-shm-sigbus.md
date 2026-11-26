@@ -25,3 +25,8 @@ The image sets TMPDIR=/dev/shm/ and /lifecycle/ak defaults PROMETHEUS_MULTIPROC_
 ### 70774cdb7c4f · finding [fixed] · PROMETHEUS_MULTIPROC_DIR moved to a disk-backed emptyDir (sizeLimit 1Gi)
 
 apps/authentik/values.yaml server.env sets PROMETHEUS_MULTIPROC_DIR=/authentik-prometheus, backed by server.volumes emptyDir{sizeLimit: 1Gi} (no medium: Memory). /lifecycle/ak only defaults the var when unset, so the env wins. helm template (chart 2026.2.1) confirms global.env is preserved and the worker is untouched. Failing test first: scripts/tests/test_authentik_prometheus_multiproc_dir.py (2 failed before, 2 passed after). Gotcha one-liner + authentik.md prose added.
+
+<!-- fr:journal kind=review scope=debug id=0f1e892de9de created=2026-11-26T08:36:51+00:00 -->
+### 0f1e892de9de · review · Self-review: no blocking findings
+
+Checked: emptyDir is mode 0777 so the non-root authentik user can write it (ak's chown branch only runs as root); a disk emptyDir survives container restarts like the tmpfs did, but sizeLimit now converts exhaustion into an eviction; 1Gi at ~1MB/day is ~3 years, far longer than pods live between chart bumps. Not fixed here (out of scope): the upstream PID-keyed leak in authentik's gunicorn.conf.py (preload_app metrics bypass the worker_id ValueClass) — candidate for a goauthentik issue. Post-merge check: new server pods must show PROMETHEUS_MULTIPROC_DIR in /proc/1/environ, files under /authentik-prometheus, /dev/shm near-empty.
